@@ -37,7 +37,7 @@ Google sign-in requires one-time configuration by the project owner. The app add
 2. Create an **OAuth 2.0 Client ID** (type: Web application).
 3. Add authorized redirect URIs:
    - `https://<your-supabase-project-ref>.supabase.co/auth/v1/callback` (Supabase's own callback)
-   - `https://propflow.vercel.app/auth/callback` (propflow production)
+   - `https://propflow-4dugc3a2f-ilandaniele-3471s-projects.vercel.app/auth/callback` (propflow production)
    - `http://localhost:3000/auth/callback` (local dev, optional)
 4. Copy the **Client ID** and **Client Secret**.
 
@@ -46,7 +46,7 @@ Google sign-in requires one-time configuration by the project owner. The app add
 2. Toggle **Google** to enabled.
 3. Paste the Client ID and Client Secret from Step 1.
 4. Under **Redirect URLs**, add:
-   - `https://propflow.vercel.app/auth/callback`
+   - `https://propflow-4dugc3a2f-ilandaniele-3471s-projects.vercel.app/auth/callback`
    - `http://localhost:3000/auth/callback` (for local dev)
 5. Save.
 
@@ -61,7 +61,7 @@ These are read by the local Supabase Auth container via `supabase/config.toml`. 
 ### Step 4 — Confirm NEXT_PUBLIC_SITE_URL in Vercel
 In Vercel project settings → Environment Variables, confirm:
 ```
-NEXT_PUBLIC_SITE_URL=https://propflow.vercel.app
+NEXT_PUBLIC_SITE_URL=https://propflow-4dugc3a2f-ilandaniele-3471s-projects.vercel.app
 ```
 This is used as the OAuth `redirectTo` base URL.
 
