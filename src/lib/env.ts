@@ -1,35 +1,59 @@
-import { z } from 'zod';
+/**
+ * Environment variable access — all values are lazy (accessed via getter at request time,
+ * not at module import time). This prevents Next.js static-analysis / build-time module
+ * evaluation from throwing when env vars are absent from the build container.
+ *
+ * NEXT_PUBLIC_* vars: available in the browser bundle AND on the server at request time.
+ *   They ARE present in the Vercel build container (injected at compile time), but if this
+ *   module is imported during next build's static page-data collection (before the runtime
+ *   context is set up) the eager z.parse() would throw. Lazy getters sidestep that entirely.
+ *
+ * Server-only vars (ANTHROPIC_API_KEY, RESEND_*, CRON_SECRET, SUPABASE_SERVICE_ROLE_KEY):
+ *   Only available at request time — NEVER in the build container. Always lazy.
+ */
 
-const envSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  NEXT_PUBLIC_SITE_URL: z.string().url().optional().default('http://localhost:3000'),
-});
+function required(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`[env] Missing required env var: ${name}`);
+  return v;
+}
 
-// Parse at module load — fails loudly at startup if required vars are missing
-export const env = envSchema.parse({
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
-});
+function optional(name: string, fallback = ''): string {
+  return process.env[name] ?? fallback;
+}
 
-// Server-only env — NEVER import in 'use client' modules
-// IC-C4: SUPABASE_SERVICE_ROLE_KEY hardened with runtime assertion at use-site (see createAdminClient)
+// ---------------------------------------------------------------------------
+// Public env — safe to import in both Server and Client components.
+// NEXT_PUBLIC_* values are inlined by the compiler into the browser bundle, so
+// they must still be set in Vercel project settings under "Build & Development".
+// ---------------------------------------------------------------------------
+export const env = {
+  get NEXT_PUBLIC_SUPABASE_URL() { return required('NEXT_PUBLIC_SUPABASE_URL'); },
+  get NEXT_PUBLIC_SUPABASE_ANON_KEY() { return required('NEXT_PUBLIC_SUPABASE_ANON_KEY'); },
+  get NEXT_PUBLIC_SITE_URL() { return optional('NEXT_PUBLIC_SITE_URL', 'http://localhost:3000'); },
+};
+
+// ---------------------------------------------------------------------------
+// Server-only env — NEVER import in 'use client' modules.
+// IC-C4: use assertServerEnv() at the call-site to get a clear error message.
+// ---------------------------------------------------------------------------
 export const serverEnv = {
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-  SUPABASE_DB_URL: process.env.SUPABASE_DB_URL ?? '',
-  SENTRY_DSN: process.env.SENTRY_DSN ?? '',
-  CSP_REPORT_URI: process.env.CSP_REPORT_URI ?? '',
+  // Supabase admin — bypasses RLS (createAdminClient only)
+  get SUPABASE_SERVICE_ROLE_KEY() { return optional('SUPABASE_SERVICE_ROLE_KEY'); },
+  get SUPABASE_DB_URL() { return optional('SUPABASE_DB_URL'); },
+  // Observability
+  get SENTRY_DSN() { return optional('SENTRY_DSN'); },
+  get CSP_REPORT_URI() { return optional('CSP_REPORT_URI'); },
   // Phase 2 keys — server-only, never NEXT_PUBLIC_*
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? '',
-  RESEND_API_KEY: process.env.RESEND_API_KEY ?? '',
-  RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL ?? '',
-  CRON_SECRET: process.env.CRON_SECRET ?? '',
+  get ANTHROPIC_API_KEY() { return optional('ANTHROPIC_API_KEY'); },
+  get RESEND_API_KEY() { return optional('RESEND_API_KEY'); },
+  get RESEND_FROM_EMAIL() { return optional('RESEND_FROM_EMAIL'); },
+  get CRON_SECRET() { return optional('CRON_SECRET'); },
 };
 
 /**
  * Assert a server-only key is present at point of use (IC-C4 fail-fast pattern).
- * Throws with a clear message instead of silently using an empty string.
+ * Throws with a clear message instead of silently returning an empty string.
  */
 export function assertServerEnv(key: keyof typeof serverEnv, featureName: string): string {
   const value = serverEnv[key];
