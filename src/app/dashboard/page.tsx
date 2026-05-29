@@ -1,0 +1,142 @@
+import type { Metadata } from 'next';
+import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { redirect } from 'next/navigation';
+import { Card } from '@/components/ui/Card';
+import { computeOccupancyRate, computeRentCollectedThisMonth } from '@/lib/kpi';
+import { EmptyState } from '@/components/ui/EmptyState';
+import Link from 'next/link';
+
+export const metadata: Metadata = { title: 'Dashboard' };
+
+export default async function DashboardPage() {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+
+  const supabase = await createClient();
+
+  const [unitsRes, paymentsRes, incidentsRes, statementRes] = await Promise.all([
+    supabase.from('units').select('id, status').eq('org_id', ctx.orgId),
+    supabase.from('payments').select('amount, paid_at, status').eq('org_id', ctx.orgId).eq('status', 'approved'),
+    supabase.from('incidents').select('id, status').eq('org_id', ctx.orgId).neq('status', 'solved'),
+    supabase.from('tenant_statement').select('*').eq('org_id', ctx.orgId),
+  ]);
+
+  const units = unitsRes.data ?? [];
+  const approvedPayments = paymentsRes.data ?? [];
+  const openIncidents = incidentsRes.data ?? [];
+  const statements = statementRes.data ?? [];
+
+  const totalUnits = units.length;
+  const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
+  const occupancyRate = computeOccupancyRate(occupiedUnits, totalUnits);
+  const rentCollected = computeRentCollectedThisMonth(approvedPayments);
+  const overdueCount = statements.filter((s) => s.is_overdue).length;
+
+  const hasData = totalUnits > 0;
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+        <p className="text-sm text-slate-500 mt-1">Your organization&apos;s overview</p>
+      </div>
+
+      {!hasData ? (
+        <Card>
+          <EmptyState
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              </svg>
+            }
+            title="Your dashboard is empty"
+            description="Start by adding your first property to get the full picture of your portfolio."
+            action={{ label: 'Add property', href: '/dashboard/properties' }}
+          />
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Occupancy"
+            value={`${occupancyRate}%`}
+            sub={`${occupiedUnits} / ${totalUnits} units`}
+            color="text-green-600"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              </svg>
+            }
+          />
+          <KpiCard
+            title="Rent Collected"
+            value={`$${rentCollected.toLocaleString()}`}
+            sub="This month (approved)"
+            color="text-violet-600"
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>
+              </svg>
+            }
+          />
+          <KpiCard
+            title="Open Incidents"
+            value={String(openIncidents.length)}
+            sub="Not yet solved"
+            color={openIncidents.length > 0 ? 'text-amber-600' : 'text-slate-600'}
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              </svg>
+            }
+          />
+          <KpiCard
+            title="Overdue Tenants"
+            value={String(overdueCount)}
+            sub="Negative balance + past due"
+            color={overdueCount > 0 ? 'text-red-600' : 'text-slate-600'}
+            icon={
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              </svg>
+            }
+          />
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <QuickAction href="/dashboard/tenants" label="Manage Tenants" description="Add, edit, and assign tenants to units" />
+        <QuickAction href="/dashboard/payments" label="Approve Payments" description="Review and approve pending payments" />
+        <QuickAction href="/dashboard/incidents" label="Resolve Incidents" description="Assign and progress open incidents" />
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ title, value, sub, color, icon }: {
+  title: string; value: string; sub: string; color: string; icon: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <div className="flex items-start justify-between mb-3">
+        <div className={`p-2 rounded-lg bg-slate-50 ${color}`}>{icon}</div>
+      </div>
+      <p className={`text-2xl font-bold ${color} mb-0.5`}>{value}</p>
+      <p className="text-xs font-medium text-slate-700 mb-0.5">{title}</p>
+      <p className="text-xs text-slate-400">{sub}</p>
+    </Card>
+  );
+}
+
+function QuickAction({ href, label, description }: { href: string; label: string; description: string }) {
+  return (
+    <Link
+      href={href}
+      className="group block bg-white rounded-xl border border-slate-200 p-5 hover:border-violet-300 hover:shadow-md transition-all duration-150"
+    >
+      <p className="font-semibold text-slate-900 text-sm mb-1 group-hover:text-violet-700 transition-colors">{label}</p>
+      <p className="text-xs text-slate-500">{description}</p>
+    </Link>
+  );
+}
