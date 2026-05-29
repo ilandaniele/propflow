@@ -33,4 +33,6 @@ export const Errors = {
   CONFLICT: (message: string) => err('CONFLICT', message),
   INTERNAL: () => err('INTERNAL_ERROR', 'An unexpected error occurred'),
   RATE_LIMITED: () => err('RATE_LIMITED', 'Too many requests. Please wait before trying again.'),
+  OAUTH_FAILED: () => err('OAUTH_FAILED', 'OAuth sign-in failed. Please try again.'),
+  PROVISION_FAILED: () => err('PROVISION_FAILED', 'Failed to set up your account. Please contact support.'),
 } as const;

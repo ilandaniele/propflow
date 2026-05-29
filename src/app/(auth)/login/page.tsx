@@ -6,6 +6,10 @@ import Link from 'next/link';
 import { signIn, type AuthState } from '@/app/actions/auth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const GOOGLE_CALLBACK_URL = `${SITE_URL}/auth/callback`;
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -72,6 +76,18 @@ export default function LoginPage() {
             >
               Forgot your password?
             </Link>
+          </div>
+
+          {/* OR divider */}
+          <div className="mt-5 flex items-center gap-3" aria-hidden="true">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-xs text-slate-400 font-medium uppercase tracking-wide">or</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+
+          {/* Google OAuth button */}
+          <div className="mt-4">
+            <GoogleSignInButton redirectTo={GOOGLE_CALLBACK_URL} />
           </div>
         </div>
 

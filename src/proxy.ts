@@ -9,12 +9,13 @@ export async function proxy(request: NextRequest) {
 
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
-    `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase.co'} wss://*.supabase.co`,
+    `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase.co'} wss://*.supabase.co https://accounts.google.com`,
     "img-src 'self' data: https:",
     "font-src 'self' data:",
     "frame-ancestors 'none'",
+    "frame-src https://accounts.google.com",           // Google OAuth redirect/popup
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -47,7 +48,13 @@ export async function proxy(request: NextRequest) {
   const isTenantRoute = path.startsWith('/portal');
   const isAuthRoute = path === '/login' || path === '/forgot-password';
   // Public routes — no auth required (security: token/secret gated by the Route Handler)
-  const isPublicRoute = path.startsWith('/sign/') || path.startsWith('/api/sign/');
+  // /auth/callback: PKCE code exchange must run before any session check (IC5)
+  // /onboarding: unauthenticated guard is handled by the page Server Component itself
+  const isPublicRoute =
+    path.startsWith('/sign/') ||
+    path.startsWith('/api/sign/') ||
+    path.startsWith('/auth/') ||    // /auth/callback — must not be blocked before code exchange
+    path === '/onboarding';          // guard is in the page itself (may have session but no profile)
 
   if (!user) {
     if (isPublicRoute) return response; // sign page — public, CSP still applied above
