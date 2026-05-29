@@ -91,7 +91,9 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pin to a known-stable version so the CLI schema and config.toml agree.
+          # Bump this intentionally when upgrading; do not use `latest` (drift risk).
+          version: 2.101.0
 
       - name: Start local Supabase (applies all migrations automatically)
         run: supabase start
@@ -179,9 +181,20 @@ jobs:
   codeql:
     name: CodeQL (SAST)
     runs-on: ubuntu-latest
-    # No security-events:write needed since we skip the code-scanning API upload.
+    # continue-on-error: GitHub Advanced Security (GHAS) / code-scanning is not available on
+    # free private repos. The codeql-action calls the Actions API (get-a-workflow-run) for
+    # telemetry, which requires `actions: read`. Even with `upload: false` it still probes
+    # the API and returns 403 without that permission. `continue-on-error: true` is a backstop
+    # so a platform limitation cannot block the merge gate.
+    # RE-MAKE THIS A HARD GATE once GHAS is enabled (GitHub Team/Enterprise plan):
+    #   - remove `continue-on-error: true`
+    #   - restore `security-events: write` in permissions
+    #   - remove `upload: false` from the analyze step
+    continue-on-error: true
     permissions:
       contents: read
+      actions: read           # required: codeql-action calls get-a-workflow-run for telemetry
+      security-events: write  # harmless with upload:false; some codeql-action versions probe it
 
     strategy:
       fail-fast: false

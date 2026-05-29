@@ -353,6 +353,76 @@ restore `security-events: write` in the job permissions.
 
 ---
 
+## CI fixes round 2 (2026-05-29)
+
+### CI-1 (round 2) — supabase/config.toml: invalid [realtime] schema keys
+
+**Root cause:** The Supabase CLI v2 (specifically v2.101.0, used in CI) validates config.toml
+against a strict TypeScript schema (Effect Schema structs). The `[realtime]` struct only accepts
+three keys: `enabled`, `ip_version`, and `max_header_length`. The hand-authored config.toml
+contained five additional keys that are not in the schema:
+- `heartbeat_interval_ms`
+- `poll_interval_ms`
+- `poll_max_changes`
+- `poll_max_record_bytes`
+- `quota_max_bytes_per_second`
+
+The CLI aborted in under 1 second with "failed to parse config: 'realtime' has invalid keys: ..."
+before Docker was ever contacted — no migrations ran, no RLS tests ran.
+
+**Fix (two-part):**
+
+1. **`supabase/config.toml`:** Removed all five invalid keys from the `[realtime]` section.
+   The section now contains only `enabled = true` and `ip_version = "IPv4"`. A comment
+   explains which keys were removed and why, to prevent re-introduction.
+
+2. **`.github/workflows/ci.yml`:** Pinned the Supabase CLI version in the `setup-cli` step
+   from `latest` to `2.101.0`. This ensures the CLI version and the config.toml schema agree
+   and prevents drift if the CLI adds/removes schema keys in a future release. The pinned
+   version was confirmed by running `npx supabase --version` locally which installed 2.101.0.
+
+**Schema source verified:** `packages/config/src/realtime.ts` at tag `v2.101.0` in
+`supabase/cli` confirms the realtime struct has exactly: `enabled`, `ip_version`,
+`max_header_length`.
+
+**Files changed:** `supabase/config.toml` (realtime section), `.github/workflows/ci.yml`
+(setup-cli version pin).
+
+---
+
+### CI-4 (round 2) — CodeQL: 403 on get-a-workflow-run (free private repo)
+
+**Root cause:** Even with `upload: false` on the analyze step, `codeql-action` still calls the
+GitHub Actions API endpoint `GET /repos/{owner}/{repo}/actions/workflow-runs/{run_id}` for
+telemetry/status reporting. With only `contents: read` in the job permissions, this call
+returns 403 "Resource not accessible by integration" on a free private repo (GitHub Advanced
+Security is not enabled).
+
+**Fix (two-part, both applied defensively):**
+
+1. **`actions: read` permission added** to the `codeql` job. This grants the action the
+   permission it needs to call the workflow-runs API endpoint, resolving the 403.
+   `security-events: write` was also restored — it is harmless with `upload: false` and some
+   codeql-action versions probe it during initialization.
+
+2. **`continue-on-error: true` added to the job** as a backstop. GitHub Advanced Security
+   (GHAS) — which backs code-scanning uploads and the Security tab — is genuinely unavailable
+   on the free private plan. Any future API call the action adds that requires GHAS would
+   also 403. With `continue-on-error: true`, a platform limitation cannot block the merge
+   gate. The SAST scan still runs fully, and the SARIF is still uploaded as a build artifact
+   (best-effort signal).
+
+**Real enforced gates on this plan:** `quality` (typecheck/lint/unit/build/npm-audit) +
+`rls` (RLS isolation — the primary security gate). CodeQL is best-effort until GHAS is
+enabled. To make CodeQL a hard gate: upgrade to GitHub Team/Enterprise with Advanced Security,
+then remove `continue-on-error: true`, restore `security-events: write`, and remove
+`upload: false` from the analyze step.
+
+**File changed:** `.github/workflows/ci.yml` (codeql job: added `continue-on-error: true`,
+added `actions: read` and `security-events: write` to permissions, added comment block).
+
+---
+
 ## Out of scope (noticed but not built)
 
 - Admin Settings page (UI placeholder only)

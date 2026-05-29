@@ -28,11 +28,10 @@ max_client_conn = 100
 [realtime]
 enabled = true
 ip_version = "IPv4"
-heartbeat_interval_ms = 5000
-poll_interval_ms = 100
-poll_max_changes = 100
-poll_max_record_bytes = 1048576
-quota_max_bytes_per_second = 90000
+# Only these three keys are valid in Supabase CLI v2 config schema.
+# heartbeat_interval_ms, poll_interval_ms, poll_max_changes, poll_max_record_bytes,
+# quota_max_bytes_per_second were removed — they are not in the schema struct and
+# cause "invalid keys" parse failure on `supabase start`.
 
 [studio]
 enabled = true
