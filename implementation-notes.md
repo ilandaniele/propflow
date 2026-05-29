@@ -574,6 +574,100 @@ Both layers (action guard + RLS trigger) must pass for a payment to be approved.
 
 ---
 
+---
+
+# Phase 2 Implementation Notes — Four Feature Modules
+
+## New dependencies (Phase 2)
+
+| Package | Version | Justification |
+|---|---|---|
+| `@anthropic-ai/sdk` | ^0.100.1 | Claude vision (receipt OCR) + AI property assistant. Single provider for both AI features. Server-only. |
+| `resend` | latest | Transactional email: signature requests, lease-renewal reminders, payment-due reminders. Free tier (3k/mo). Server-only. |
+| `@react-pdf/renderer` | ^4.5.1 | Server-side PDF generation from React JSX components. Pure JS, serverless-friendly (no Chromium). Server-only. |
+
+## Architecture decisions (Phase 2)
+
+### PDF module uses `.tsx` extension
+`src/lib/contracts/pdf.tsx` uses JSX for `@react-pdf/renderer` Document/Page/Text components.
+Requires `allowImportingTsExtensions: true` in tsconfig.json (added). Import with `.tsx` extension from server actions.
+
+### AI assistant is server-side streaming (SSE)
+The Anthropic API is called from the Route Handler (`POST /api/ai/chat`), not from the browser.
+- Browser talks only to same-origin `/api/ai/chat` — no CSP `connect-src` change needed
+- API key never leaves the server
+- Response streamed via `ReadableStream` / `TransformStream` pattern (no third-party SSE library)
+
+### Reminder engine is pagination-safe
+`runReminderEngine()` in `reminder-engine.ts` paginates contract + charge queries in batches of 200.
+Includes a global 50s safety cutoff (Vercel function limit is 60s). Per-org isolation prevents one large org from blocking others.
+
+### Contract PDF generation is async (action, not streaming)
+`generateContractPdf` is a Server Action (not streaming). PDF generation via `@react-pdf/renderer` is synchronous and completes in < 10s for a typical 2-page contract per spec NFR.
+
+### Announcement fan-out (IC-D2)
+On `publishAnnouncement`, the action fans out `notification_inbox` rows inline (up to 200 tenants per batch).
+The daily cron also catches any missed announcements. Error in fan-out is non-fatal (logged, announcement still publishes).
+
+### In-memory rate limiter (IC-C2 — unchanged from Phase 1)
+Extended with `actionRateLimit(key, max, windowMs)` generic helper + per-feature helpers:
+- `mutationRateLimit(userId, action)` — 30/min/user on all mutating Server Actions
+- `ocrRateLimit(userId, orgId)` — 15/day/user + 500/day/org
+- `aiChatRateLimit(userId, orgId)` — 20/day/user + 5/min/user + 500/day/org
+- `signatureRateLimit(token, ip)` — 5/min/(token+IP)
+- `sendSignatureRateLimit(adminId)` — 10/min/admin
+- `generatePdfRateLimit(adminId)` — 10/min/admin
+Documented limitation: limits are per-serverless-instance; effective on Vercel Hobby (low-concurrency). Upgrade path: swap internals for Upstash Redis (interface stable).
+
+### Cursor-based pagination utility (IC-C3)
+`src/lib/pagination.ts` provides `encodeCursor`, `decodeCursor`, `clampLimit`, `buildPageResult`.
+Cursor = base64(JSON({created_at, id})) for tamper-resistance.
+Applied to all new list pages (default 25, max 50).
+
+### E-signature legal disclaimer
+`/sign/[token]` page includes: "This is not a legally-qualified eIDAS/ESIGN-certified signature."
+The flow captures: token + signed_at + signed_ip + signed_user_agent + signature_image.
+Single-use token, 14-day expiry. Not DocuSign-grade — documented as known limitation per IC-B2.
+
+### AI context is aggregates-only (IC-E1, LLM06)
+`buildOrgContext()` builds: occupancy %, overdue count, open incidents, income/expense totals.
+No individual tenant names, emails, or row-level PII ever sent to Anthropic.
+System prompt includes explicit refusal instructions (OWASP LLM06 — reject system-prompt extraction requests).
+
+## New migrations (000008–000016)
+
+| Migration | Tables | Notes |
+|---|---|---|
+| 000008 | expense_categories, expenses | P&L Module 1 |
+| 000009 | receipt_uploads | OCR inbox |
+| 000010 | contract_templates, pricing_tables | Module 2 docs + RTABLES |
+| 000011 | signature_requests + contracts CHECK ALTER | E-signature |
+| 000012 | announcements, cleaning_tasks, crm_leads | Module 3 ops |
+| 000013 | reminders, notification_inbox | Module 3 automation |
+| 000014 | community_posts, community_comments, visitor_logs, ai_chat_messages | Module 4 |
+| 000015 | RLS enable/force/deny-by-default + policies on all 14 tables | Security gate |
+| 000016 | receipts + contracts storage buckets + storage RLS | Private buckets |
+
+## New env vars (Phase 2 — all server-only)
+
+| Variable | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | Receipt OCR (Claude vision) + AI assistant |
+| `RESEND_API_KEY` | Transactional email (signature requests, reminders) |
+| `RESEND_FROM_EMAIL` | Sender address for all outgoing email |
+| `CRON_SECRET` | Bearer token for `POST /api/cron/reminders` |
+
+## Deferred items (confirmed out of scope per spec)
+
+- Bank-statement reconciliation / Plaid (IC-A2)
+- Third-party e-signature (IC-B2 — in-app flow ships instead)
+- Redis/Upstash distributed rate limiter (IC-C2 — in-memory retained)
+- Sub-daily cron / SMS / push notifications (IC-D1 — daily only on Hobby)
+- Recurring rent-charge auto-generation (baseline IC6 — still future)
+- Realtime Supabase subscriptions for community/inbox (IC-E1 — revalidate model)
+- QR codes / access-control hardware integration (IC-E3 — record-keeping only)
+- AI tool calls / data mutations (IC-E1 — read-only assistant)
+
 ## Out of scope (noticed but not built)
 
 - Admin Settings page (UI placeholder only)

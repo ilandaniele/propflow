@@ -220,10 +220,176 @@ async function main() {
     .select()
     .single();
 
+  let unitB: { id: string } | null = null;
   if (propB) {
-    await supabase.from('units').insert({ org_id: orgB.id, property_id: propB.id, label: 'Unit B1', status: 'vacant' });
+    const { data: ub } = await supabase.from('units').insert({ org_id: orgB.id, property_id: propB.id, label: 'Unit B1', status: 'vacant' }).select().single();
+    unitB = ub;
   }
 
+  // ============================================================
+  // Phase 2 seed data — one row per new table for RLS isolation tests
+  // ============================================================
+  console.log('[seed] Seeding Phase 2 tables...');
+
+  // expense_categories
+  const { data: catA } = await supabase.from('expense_categories').insert({ org_id: orgA.id, name: 'Maintenance', color: '#3b82f6' }).select().single();
+  const { data: catB } = await supabase.from('expense_categories').insert({ org_id: orgB.id, name: 'Utilities (B)', color: '#ef4444' }).select().single();
+
+  // expenses
+  const { data: expA } = await supabase.from('expenses').insert({
+    org_id: orgA.id, property_id: property.id, category_id: catA?.id ?? null,
+    amount: 250, description: 'Plumber visit', incurred_on: today,
+  }).select().single();
+  if (catB) {
+    await supabase.from('expenses').insert({
+      org_id: orgB.id, category_id: catB.id, amount: 100, description: 'Electric bill (B)', incurred_on: today,
+    });
+  }
+
+  // receipt_uploads (Org A admin profile)
+  const adminUserId2 = createdUsers['admin@org-a.demo'];
+  if (adminUserId2) {
+    await supabase.from('receipt_uploads').insert({
+      org_id: orgA.id, uploaded_by: adminUserId2,
+      file_path: `${orgA.id}/uploads/demo-receipt.jpg`, ocr_status: 'pending',
+    });
+  }
+  const adminBId = createdUsers['admin@org-b.demo'];
+  if (adminBId) {
+    await supabase.from('receipt_uploads').insert({
+      org_id: orgB.id, uploaded_by: adminBId,
+      file_path: `${orgB.id}/uploads/demo-receipt-b.jpg`, ocr_status: 'pending',
+    });
+  }
+
+  // contract_templates
+  const { data: templateA } = await supabase.from('contract_templates').insert({
+    org_id: orgA.id, name: 'Standard Lease',
+    body_markdown: '## Rental Agreement\n\nThis agreement is between {{org_name}} and {{tenant_name}}.\n\nUnit: {{unit_label}}\nProperty: {{property_name}}\nStart: {{start_date}}\nEnd: {{end_date}}\nMonthly Rent: ${{monthly_rent}}\n',
+    variables: ['tenant_name', 'unit_label', 'property_name', 'start_date', 'end_date', 'monthly_rent', 'org_name'],
+  }).select().single();
+  await supabase.from('contract_templates').insert({
+    org_id: orgB.id, name: 'Standard Lease (B)',
+    body_markdown: '## Lease\n\nTenant: {{tenant_name}}\n',
+    variables: ['tenant_name'],
+  });
+
+  // pricing_tables
+  await supabase.from('pricing_tables').insert({
+    org_id: orgA.id, name: 'Downtown 2025', property_type: 'apartment', market_zone: 'downtown',
+    tiers: [{ label: '1BR', bedrooms: 1, min_rent: 1200, max_rent: 1800, suggested_rent: 1500 }, { label: '2BR', bedrooms: 2, min_rent: 1500, max_rent: 2200, suggested_rent: 1800 }],
+  });
+  await supabase.from('pricing_tables').insert({
+    org_id: orgB.id, name: 'Suburbs 2025 (B)', property_type: 'house', market_zone: 'suburbs',
+    tiers: [{ label: '3BR', bedrooms: 3, min_rent: 1800, max_rent: 2500, suggested_rent: 2100 }],
+  });
+
+  // signature_requests (for Org A contract)
+  const sigExpiry = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString();
+  await supabase.from('signature_requests').insert({
+    org_id: orgA.id, contract_id: contract.id,
+    signer_email: 'tenant@org-a.demo', expires_at: sigExpiry, status: 'sent',
+  });
+
+  // announcements
+  const now2 = new Date().toISOString();
+  const { data: annA } = await supabase.from('announcements').insert({
+    org_id: orgA.id, created_by: adminUserId2 ?? '', title: 'Welcome to PropFlow!',
+    body: 'This is a demo announcement for Org A tenants.', audience: 'all',
+    published_at: now2,
+  }).select().single();
+  await supabase.from('announcements').insert({
+    org_id: orgB.id, created_by: adminBId ?? '', title: 'Org B Notice',
+    body: 'This is Org B only.', audience: 'all', published_at: now2,
+  });
+
+  // cleaning_tasks
+  await supabase.from('cleaning_tasks').insert({
+    org_id: orgA.id, unit_id: unit.id, title: 'Deep clean unit 1A', scheduled_date: today, status: 'pending',
+  });
+  if (unitB) {
+    await supabase.from('cleaning_tasks').insert({
+      org_id: orgB.id, unit_id: unitB.id, title: 'Clean unit B1', scheduled_date: today, status: 'pending',
+    });
+  }
+
+  // crm_leads
+  await supabase.from('crm_leads').insert({
+    org_id: orgA.id, full_name: 'Prospective Tenant A', email: 'prospect@example.com',
+    status: 'new', source: 'Website',
+  });
+  await supabase.from('crm_leads').insert({
+    org_id: orgB.id, full_name: 'Prospect B', status: 'contacted',
+  });
+
+  // reminders
+  await supabase.from('reminders').insert({
+    org_id: orgA.id, type: 'payment_due', target_type: 'charge',
+    target_id: contract.id, scheduled_for: today, status: 'scheduled',
+    message_preview: 'Payment due reminder',
+  });
+
+  // notification_inbox
+  const tenantUserId2 = createdUsers['tenant@org-a.demo'];
+  const tenantBId = createdUsers['tenant@org-b.demo'];
+  if (tenantUserId2) {
+    await supabase.from('notification_inbox').insert({
+      org_id: orgA.id, profile_id: tenantUserId2, type: 'announcement',
+      title: 'Welcome to PropFlow!', body: 'This is a demo announcement.',
+    });
+  }
+  if (tenantBId) {
+    await supabase.from('notification_inbox').insert({
+      org_id: orgB.id, profile_id: tenantBId, type: 'announcement',
+      title: 'Org B Notice', body: 'This is Org B only.',
+    });
+  }
+
+  // community_posts
+  if (tenantUserId2) {
+    await supabase.from('community_posts').insert({
+      org_id: orgA.id, author_id: tenantUserId2, title: 'Hello neighbors!',
+      body: 'Looking forward to community events.', category: 'general', pinned: false,
+    });
+  }
+  if (tenantBId) {
+    await supabase.from('community_posts').insert({
+      org_id: orgB.id, author_id: tenantBId, title: 'Org B post',
+      body: 'This is Org B community.', category: 'general', pinned: false,
+    });
+  }
+
+  // visitor_logs
+  if (adminUserId2) {
+    await supabase.from('visitor_logs').insert({
+      org_id: orgA.id, unit_id: unit.id, visitor_name: 'John Visitor',
+      visit_date: today, created_by: adminUserId2, purpose: 'Guest',
+    });
+  }
+  if (adminBId && unitB) {
+    await supabase.from('visitor_logs').insert({
+      org_id: orgB.id, unit_id: unitB.id, visitor_name: 'Visitor B',
+      visit_date: today, created_by: adminBId,
+    });
+  }
+
+  // ai_chat_messages
+  if (adminUserId2) {
+    const sessionId = '00000000-0000-0000-0000-000000000001';
+    await supabase.from('ai_chat_messages').insert([
+      { org_id: orgA.id, profile_id: adminUserId2, session_id: sessionId, role: 'user', content: 'What is my occupancy rate?' },
+      { org_id: orgA.id, profile_id: adminUserId2, session_id: sessionId, role: 'assistant', content: 'Your current occupancy is 100% (1 of 1 units occupied).' },
+    ]);
+  }
+  if (adminBId) {
+    const sessionIdB = '00000000-0000-0000-0000-000000000002';
+    await supabase.from('ai_chat_messages').insert([
+      { org_id: orgB.id, profile_id: adminBId, session_id: sessionIdB, role: 'user', content: 'Org B question' },
+      { org_id: orgB.id, profile_id: adminBId, session_id: sessionIdB, role: 'assistant', content: 'Org B answer' },
+    ]);
+  }
+
+  console.log('[seed] Phase 2 tables seeded.');
   console.log('\n[seed] Done! Demo credentials:');
   console.log('  Admin (Org A):  admin@org-a.demo  /  DemoAdmin123!');
   console.log('  Tenant (Org A): tenant@org-a.demo /  DemoTenant123!');

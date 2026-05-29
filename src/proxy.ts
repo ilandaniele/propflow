@@ -46,8 +46,11 @@ export async function proxy(request: NextRequest) {
   const isAdminRoute = path.startsWith('/dashboard');
   const isTenantRoute = path.startsWith('/portal');
   const isAuthRoute = path === '/login' || path === '/forgot-password';
+  // Public routes — no auth required (security: token/secret gated by the Route Handler)
+  const isPublicRoute = path.startsWith('/sign/') || path.startsWith('/api/sign/');
 
   if (!user) {
+    if (isPublicRoute) return response; // sign page — public, CSP still applied above
     if (isAdminRoute || isTenantRoute) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', path);
