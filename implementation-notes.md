@@ -353,6 +353,74 @@ restore `security-events: write` in the job permissions.
 
 ---
 
+## RLS test correctness fix (2026-05-29)
+
+### How Postgres RLS denies writes (PostgREST behaviour)
+
+When a tenant attempts an UPDATE for which no permissive UPDATE policy exists, Postgres RLS
+denies the operation **silently**: PostgREST returns `error = null` and an empty `data = []`
+array (0 rows affected). No database error is raised — the operation simply matches 0 rows
+because the RLS filter reduces the candidate set to empty before the write executes.
+
+This means `expect(error).toBeTruthy()` is the WRONG assertion for "this write was denied":
+the test will always fail (error is null). The correct check is:
+
+1. Call `.update(...).select('id')` — the returned array length tells you how many rows changed.
+2. Assert `affected.length === 0` (0 rows mutated = write was denied).
+3. Re-fetch the same row with a **privileged client** (org admin — has SELECT on own org rows)
+   and assert the column value is **unchanged** from its pre-attempt value.
+
+This three-part assertion proves the actual security property (no state change) rather than
+relying on an error signal that RLS never emits.
+
+### Payments — was there a real security hole?
+
+**No real hole.** The `payments` table has exactly two policies:
+- `payments_admin_update` (UPDATE) — requires `current_user_role() = 'admin'`
+- `payments_tenant_insert` (INSERT) — requires `current_user_role() = 'tenant'` + `status = 'pending'`
+- `payments_tenant_read_own` (SELECT) — tenants may only read their own rows
+
+There is NO UPDATE policy for tenants on `payments`. A tenant calling
+`.update({ status: 'approved' })` is silently denied: `error = null, affected = []`.
+The status column remains unchanged. This was purely a wrong assertion in the test.
+
+**Evidence:** `supabase/migrations/20260528000003_rls_policies.sql` — `payments_admin_update`
+policy requires `current_user_role() = 'admin'`; no tenant UPDATE policy exists.
+
+### Incidents — was there a real security hole?
+
+**No real hole.** The `incidents` table has three policies:
+- `incidents_admin_all` (ALL) — requires `current_user_role() = 'admin'`
+- `incidents_tenant_insert` (INSERT, tightened in migration 006) — tenant can only insert own incidents
+- `incidents_tenant_read_own` (SELECT) — tenants can only read incidents they created or are linked to
+
+There is NO UPDATE policy for tenants on `incidents`. The migration comment at line 248 of
+migration 003 explicitly states: `-- Tenants CANNOT update incidents (no status changes —
+admin-only)` and `-- No UPDATE policy for tenants on incidents`. A tenant calling
+`.update({ status: 'solved' })` is silently denied: `error = null, affected = []`.
+The status column remains unchanged. This was purely a wrong assertion in the test.
+
+**Evidence:** `supabase/migrations/20260528000003_rls_policies.sql` — no UPDATE policy for the
+`tenant` role on `incidents`; `incidents_admin_all` is the only UPDATE-capable policy and it
+gates on `current_user_role() = 'admin'`.
+
+### What changed
+
+**`tests/rls/isolation.test.ts`** — two tests rewritten:
+
+- "Tenant cannot set payment status to approved": fetches pre-update status via tenant client,
+  attempts the update via tenant client with `.select('id')` to capture affected rows, asserts
+  `error === null` (silent deny) AND `affected.length === 0` (0 rows mutated), then re-fetches
+  via `clientOrgAAdmin` and asserts `status === statusBefore` AND `status !== 'approved'`.
+
+- "Tenant cannot set incident status to solved": same three-part pattern — affected rows = 0,
+  privileged re-fetch via `clientOrgAAdmin` confirms `status === statusBefore` AND
+  `status !== 'solved'`.
+
+No migration changes were required: the RLS policies were already correct.
+
+---
+
 ## CI fixes round 2 (2026-05-29)
 
 ### CI-1 (round 2) — supabase/config.toml: invalid [realtime] schema keys

@@ -120,22 +120,81 @@ describe.skipIf(skipIfNoSupabase)('RLS Isolation Tests', () => {
 
   // Tenant cannot approve payments
   it('Tenant cannot set payment status to approved', async () => {
-    const { data: payments } = await clientOrgATenant.from('payments').select('id').limit(1);
-    if (!payments || payments.length === 0) return;
+    // Fetch a payment the tenant can see (their own)
+    const { data: payments } = await clientOrgATenant
+      .from('payments')
+      .select('id, status')
+      .limit(1);
+    if (!payments || payments.length === 0) {
+      console.warn('[rls-test] No payments found for tenant — skipping approve test');
+      return;
+    }
 
-    const { error } = await clientOrgATenant.from('payments').update({ status: 'approved' }).eq('id', payments[0].id);
-    // Should fail — no UPDATE policy for tenants on payments
-    expect(error).toBeTruthy();
+    const targetId = payments[0].id;
+    const statusBefore = payments[0].status as string;
+
+    // Attempt the forbidden update as tenant; use .select() to capture affected rows.
+    // In Postgres RLS + PostgREST, a denied UPDATE returns 0 rows and NO error —
+    // asserting `error` is truthy is WRONG. Assert affected rows = 0 AND state unchanged.
+    const { data: affected, error: updateError } = await clientOrgATenant
+      .from('payments')
+      .update({ status: 'approved' })
+      .eq('id', targetId)
+      .select('id');
+
+    // No UPDATE policy exists for tenants on payments → 0 rows affected, no error.
+    expect(updateError).toBeNull();          // RLS denies silently — no DB error
+    expect(affected).toHaveLength(0);        // 0 rows returned = 0 rows changed
+
+    // Privileged re-fetch: org A admin can read all org A payments.
+    // Assert the row is truly unchanged (status was not mutated).
+    const { data: refetched } = await clientOrgAAdmin
+      .from('payments')
+      .select('status')
+      .eq('id', targetId)
+      .single();
+
+    expect(refetched?.status).toBe(statusBefore); // value must equal pre-attempt status
+    expect(refetched?.status).not.toBe('approved'); // explicit: never approved by tenant
   });
 
   // Tenant cannot mark incident as solved
   it('Tenant cannot set incident status to solved', async () => {
-    const { data: incidents } = await clientOrgATenant.from('incidents').select('id').limit(1);
-    if (!incidents || incidents.length === 0) return;
+    // Fetch an incident the tenant can see (created by them or linked to them)
+    const { data: incidents } = await clientOrgATenant
+      .from('incidents')
+      .select('id, status')
+      .limit(1);
+    if (!incidents || incidents.length === 0) {
+      console.warn('[rls-test] No incidents found for tenant — skipping solve test');
+      return;
+    }
 
-    const { error } = await clientOrgATenant.from('incidents').update({ status: 'solved' }).eq('id', incidents[0].id);
-    // Should fail — no UPDATE policy for tenants on incidents
-    expect(error).toBeTruthy();
+    const targetId = incidents[0].id;
+    const statusBefore = incidents[0].status as string;
+
+    // Attempt the forbidden update as tenant; use .select() to capture affected rows.
+    // No UPDATE policy exists for tenants on incidents → 0 rows affected, no error.
+    const { data: affected, error: updateError } = await clientOrgATenant
+      .from('incidents')
+      .update({ status: 'solved' })
+      .eq('id', targetId)
+      .select('id');
+
+    // RLS silently denies: no error raised, no rows mutated.
+    expect(updateError).toBeNull();          // RLS denies silently — no DB error
+    expect(affected).toHaveLength(0);        // 0 rows returned = 0 rows changed
+
+    // Privileged re-fetch: org A admin can read all org A incidents.
+    // Assert the row is truly unchanged (status was not mutated).
+    const { data: refetched } = await clientOrgAAdmin
+      .from('incidents')
+      .select('status')
+      .eq('id', targetId)
+      .single();
+
+    expect(refetched?.status).toBe(statusBefore); // value must equal pre-attempt status
+    expect(refetched?.status).not.toBe('solved');  // explicit: never solved by tenant
   });
 
   // Cross-org org list: Org B admin should only see Org B org
