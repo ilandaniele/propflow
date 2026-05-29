@@ -1,5 +1,9 @@
-// In-memory rate limiter for auth endpoints (server-side only)
-// For production scale, replace with Upstash Redis-backed limiter
+// In-memory rate limiter for auth and action endpoints (server-side only)
+//
+// IC-C2: This limiter is in-memory and per-serverless-instance. On multi-instance Vercel
+// deployments, the effective limit is max × instances. Acceptable for Hobby (low-concurrency,
+// typically single-region). Upgrade path: swap checkRateLimit internals for Upstash Redis /
+// Vercel KV — the function interface is intentionally stable so callers don't change.
 
 interface RateLimitEntry {
   count: number;
@@ -37,9 +41,68 @@ export function checkRateLimit(
   return { success: true, retryAfterMs: 0 };
 }
 
+/** Auth rate limit: 5 requests / 10s / IP */
 export function authRateLimit(request: Request) {
   const ip = getClientIp(request);
   return checkRateLimit(`auth:${ip}`, 5, 10_000);
+}
+
+/**
+ * Generic per-action rate limit (Phase 2).
+ * Used by all new Server Actions and Route Handlers.
+ * @param key  Unique key — include userId/orgId/token+IP as appropriate
+ * @param max  Maximum requests in the window
+ * @param windowMs  Window duration in milliseconds
+ */
+export function actionRateLimit(
+  key: string,
+  max: number,
+  windowMs: number
+): { success: boolean; retryAfterMs: number } {
+  return checkRateLimit(`action:${key}`, max, windowMs);
+}
+
+// ─── Per-feature helpers (named constants for the limits from the spec) ────────
+
+const ONE_MINUTE_MS = 60_000;
+const ONE_DAY_MS = 24 * 60 * 60_000;
+
+/** Mutating Server Actions — 30 requests / minute / user */
+export function mutationRateLimit(userId: string, action: string) {
+  return actionRateLimit(`mut:${action}:${userId}`, 30, ONE_MINUTE_MS);
+}
+
+/** OCR extractions — 15 / day / user + 500 / day / org */
+export function ocrRateLimit(userId: string, orgId: string): { success: boolean } {
+  const user = checkRateLimit(`ocr:user:${userId}`, 15, ONE_DAY_MS);
+  if (!user.success) return { success: false };
+  const org = checkRateLimit(`ocr:org:${orgId}`, 500, ONE_DAY_MS);
+  return { success: org.success };
+}
+
+/** AI chat — 20 / day / user + 5 / min / user + 500 / day / org */
+export function aiChatRateLimit(userId: string, orgId: string): { success: boolean } {
+  const daily = checkRateLimit(`ai:daily:${userId}`, 20, ONE_DAY_MS);
+  if (!daily.success) return { success: false };
+  const perMin = checkRateLimit(`ai:min:${userId}`, 5, ONE_MINUTE_MS);
+  if (!perMin.success) return { success: false };
+  const org = checkRateLimit(`ai:org:${orgId}`, 500, ONE_DAY_MS);
+  return { success: org.success };
+}
+
+/** Signature submit — 5 / min / (token + IP) */
+export function signatureRateLimit(token: string, ip: string) {
+  return actionRateLimit(`sign:${token}:${ip}`, 5, ONE_MINUTE_MS);
+}
+
+/** Send signature request — 10 / min / admin */
+export function sendSignatureRateLimit(adminId: string) {
+  return actionRateLimit(`send-sig:${adminId}`, 10, ONE_MINUTE_MS);
+}
+
+/** Generate PDF — 10 / min / admin */
+export function generatePdfRateLimit(adminId: string) {
+  return actionRateLimit(`gen-pdf:${adminId}`, 10, ONE_MINUTE_MS);
 }
 
 // Cleanup stale entries periodically (only in non-edge environments)

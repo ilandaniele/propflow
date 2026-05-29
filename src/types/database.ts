@@ -372,3 +372,519 @@ export interface Database {
     Enums: Record<string, never>;
   };
 }
+
+// ─── Phase 2 table types (14 new tables) ─────────────────────────────────────
+
+// Module 1: Payment & Financial Intelligence
+export interface ExpenseCategory {
+  id: string;
+  org_id: string;
+  name: string;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface ExpenseCategoryInsert {
+  id?: string;
+  org_id: string;
+  name: string;
+  color?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface ExpenseCategoryUpdate {
+  name?: string;
+  color?: string | null;
+  updated_at?: string;
+}
+
+export interface Expense {
+  id: string;
+  org_id: string;
+  property_id: string | null;
+  unit_id: string | null;
+  category_id: string | null;
+  amount: number;
+  description: string;
+  incurred_on: string;
+  receipt_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface ExpenseInsert {
+  id?: string;
+  org_id: string;
+  property_id?: string | null;
+  unit_id?: string | null;
+  category_id?: string | null;
+  amount: number;
+  description: string;
+  incurred_on: string;
+  receipt_path?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface ExpenseUpdate {
+  property_id?: string | null;
+  unit_id?: string | null;
+  category_id?: string | null;
+  amount?: number;
+  description?: string;
+  incurred_on?: string;
+  receipt_path?: string | null;
+  updated_at?: string;
+}
+
+export type OcrStatus = 'pending' | 'processing' | 'extracted' | 'failed' | 'matched';
+export interface ReceiptUpload {
+  id: string;
+  org_id: string;
+  payment_id: string | null;
+  uploaded_by: string;
+  file_path: string;
+  ocr_status: OcrStatus;
+  extracted_amount: number | null;
+  extracted_date: string | null;
+  extracted_vendor: string | null;
+  confidence: number | null;
+  ocr_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface ReceiptUploadInsert {
+  id?: string;
+  org_id: string;
+  payment_id?: string | null;
+  uploaded_by: string;
+  file_path: string;
+  ocr_status?: OcrStatus;
+  extracted_amount?: number | null;
+  extracted_date?: string | null;
+  extracted_vendor?: string | null;
+  confidence?: number | null;
+  ocr_error?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface ReceiptUploadUpdate {
+  payment_id?: string | null;
+  ocr_status?: OcrStatus;
+  extracted_amount?: number | null;
+  extracted_date?: string | null;
+  extracted_vendor?: string | null;
+  confidence?: number | null;
+  ocr_error?: string | null;
+  updated_at?: string;
+}
+
+// Module 2: Contract Completion
+export interface ContractTemplate {
+  id: string;
+  org_id: string;
+  name: string;
+  body_markdown: string;
+  variables: unknown; // jsonb: string[]
+  created_at: string;
+  updated_at: string;
+}
+export interface ContractTemplateInsert {
+  id?: string;
+  org_id: string;
+  name: string;
+  body_markdown: string;
+  variables?: unknown;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface ContractTemplateUpdate {
+  name?: string;
+  body_markdown?: string;
+  variables?: unknown;
+  updated_at?: string;
+}
+
+export interface PricingTable {
+  id: string;
+  org_id: string;
+  name: string;
+  property_type: string;
+  market_zone: string;
+  tiers: unknown; // jsonb: PricingTier[]
+  created_at: string;
+  updated_at: string;
+}
+export interface PricingTableInsert {
+  id?: string;
+  org_id: string;
+  name: string;
+  property_type: string;
+  market_zone: string;
+  tiers?: unknown;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface PricingTableUpdate {
+  name?: string;
+  property_type?: string;
+  market_zone?: string;
+  tiers?: unknown;
+  updated_at?: string;
+}
+
+export type SignatureRequestStatus = 'sent' | 'viewed' | 'signed' | 'declined' | 'expired';
+export interface SignatureRequest {
+  id: string;
+  org_id: string;
+  contract_id: string;
+  signer_profile_id: string | null;
+  signer_email: string;
+  token: string;
+  status: SignatureRequestStatus;
+  sent_at: string;
+  viewed_at: string | null;
+  signed_at: string | null;
+  expires_at: string;
+  signature_image_path: string | null;
+  signed_ip: string | null;
+  signed_user_agent: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface SignatureRequestInsert {
+  id?: string;
+  org_id: string;
+  contract_id: string;
+  signer_profile_id?: string | null;
+  signer_email: string;
+  token?: string;
+  status?: SignatureRequestStatus;
+  sent_at?: string;
+  viewed_at?: string | null;
+  signed_at?: string | null;
+  expires_at: string;
+  signature_image_path?: string | null;
+  signed_ip?: string | null;
+  signed_user_agent?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface SignatureRequestUpdate {
+  status?: SignatureRequestStatus;
+  viewed_at?: string | null;
+  signed_at?: string | null;
+  signature_image_path?: string | null;
+  signed_ip?: string | null;
+  signed_user_agent?: string | null;
+  updated_at?: string;
+}
+
+// Module 3: Operations Automation
+export type AnnouncementAudience = 'all' | 'property' | 'unit';
+export interface Announcement {
+  id: string;
+  org_id: string;
+  created_by: string;
+  title: string;
+  body: string;
+  audience: AnnouncementAudience;
+  property_id: string | null;
+  unit_id: string | null;
+  published_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface AnnouncementInsert {
+  id?: string;
+  org_id: string;
+  created_by: string;
+  title: string;
+  body: string;
+  audience?: AnnouncementAudience;
+  property_id?: string | null;
+  unit_id?: string | null;
+  published_at?: string | null;
+  expires_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface AnnouncementUpdate {
+  title?: string;
+  body?: string;
+  audience?: AnnouncementAudience;
+  property_id?: string | null;
+  unit_id?: string | null;
+  published_at?: string | null;
+  expires_at?: string | null;
+  updated_at?: string;
+}
+
+export type CleaningTaskStatus = 'pending' | 'in_progress' | 'done';
+export interface CleaningTask {
+  id: string;
+  org_id: string;
+  unit_id: string | null;
+  assigned_to: string | null;
+  title: string;
+  scheduled_date: string;
+  status: CleaningTaskStatus;
+  notes: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface CleaningTaskInsert {
+  id?: string;
+  org_id: string;
+  unit_id?: string | null;
+  assigned_to?: string | null;
+  title: string;
+  scheduled_date: string;
+  status?: CleaningTaskStatus;
+  notes?: string | null;
+  completed_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface CleaningTaskUpdate {
+  unit_id?: string | null;
+  assigned_to?: string | null;
+  title?: string;
+  scheduled_date?: string;
+  status?: CleaningTaskStatus;
+  notes?: string | null;
+  completed_at?: string | null;
+  updated_at?: string;
+}
+
+export type CrmLeadStatus = 'new' | 'contacted' | 'qualified' | 'lost';
+export interface CrmLead {
+  id: string;
+  org_id: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  property_interest: string | null;
+  source: string | null;
+  status: CrmLeadStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface CrmLeadInsert {
+  id?: string;
+  org_id: string;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  property_interest?: string | null;
+  source?: string | null;
+  status?: CrmLeadStatus;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface CrmLeadUpdate {
+  full_name?: string;
+  email?: string | null;
+  phone?: string | null;
+  property_interest?: string | null;
+  source?: string | null;
+  status?: CrmLeadStatus;
+  notes?: string | null;
+  updated_at?: string;
+}
+
+export type ReminderType = 'lease_renewal' | 'payment_due' | 'custom';
+export type ReminderTargetType = 'contract' | 'charge' | 'tenant';
+export type ReminderChannel = 'email' | 'in_app' | 'both';
+export type ReminderStatus = 'scheduled' | 'sent' | 'failed' | 'skipped';
+export interface Reminder {
+  id: string;
+  org_id: string;
+  type: ReminderType;
+  target_type: ReminderTargetType;
+  target_id: string;
+  channel: ReminderChannel;
+  scheduled_for: string;
+  sent_at: string | null;
+  status: ReminderStatus;
+  message_preview: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface ReminderInsert {
+  id?: string;
+  org_id: string;
+  type: ReminderType;
+  target_type: ReminderTargetType;
+  target_id: string;
+  channel?: ReminderChannel;
+  scheduled_for: string;
+  sent_at?: string | null;
+  status?: ReminderStatus;
+  message_preview?: string | null;
+  error?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface ReminderUpdate {
+  sent_at?: string | null;
+  status?: ReminderStatus;
+  error?: string | null;
+  updated_at?: string;
+}
+
+export interface NotificationInbox {
+  id: string;
+  org_id: string;
+  profile_id: string;
+  type: string;
+  title: string;
+  body: string;
+  related_type: string | null;
+  related_id: string | null;
+  read_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface NotificationInboxInsert {
+  id?: string;
+  org_id: string;
+  profile_id: string;
+  type: string;
+  title: string;
+  body: string;
+  related_type?: string | null;
+  related_id?: string | null;
+  read_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface NotificationInboxUpdate {
+  read_at?: string | null;
+  updated_at?: string;
+}
+
+// Module 4: Community & Security + AI
+export type CommunityPostCategory = 'general' | 'question' | 'marketplace' | 'event';
+export interface CommunityPost {
+  id: string;
+  org_id: string;
+  author_id: string;
+  title: string;
+  body: string;
+  category: CommunityPostCategory;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+export interface CommunityPostInsert {
+  id?: string;
+  org_id: string;
+  author_id: string;
+  title: string;
+  body: string;
+  category?: CommunityPostCategory;
+  pinned?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface CommunityPostUpdate {
+  title?: string;
+  body?: string;
+  category?: CommunityPostCategory;
+  pinned?: boolean;
+  updated_at?: string;
+}
+
+export interface CommunityComment {
+  id: string;
+  org_id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+export interface CommunityCommentInsert {
+  id?: string;
+  org_id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface CommunityCommentUpdate {
+  body?: string;
+  updated_at?: string;
+}
+
+export interface VisitorLog {
+  id: string;
+  org_id: string;
+  property_id: string | null;
+  unit_id: string | null;
+  visitor_name: string;
+  host_tenant_id: string | null;
+  visit_date: string;
+  entry_time: string | null;
+  exit_time: string | null;
+  purpose: string | null;
+  created_by: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export interface VisitorLogInsert {
+  id?: string;
+  org_id: string;
+  property_id?: string | null;
+  unit_id?: string | null;
+  visitor_name: string;
+  host_tenant_id?: string | null;
+  visit_date: string;
+  entry_time?: string | null;
+  exit_time?: string | null;
+  purpose?: string | null;
+  created_by: string;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+export interface VisitorLogUpdate {
+  exit_time?: string | null;
+  notes?: string | null;
+  updated_at?: string;
+}
+
+export type ChatRole = 'user' | 'assistant';
+export interface AiChatMessage {
+  id: string;
+  org_id: string;
+  profile_id: string;
+  session_id: string;
+  role: ChatRole;
+  content: string;
+  created_at: string;
+}
+export interface AiChatMessageInsert {
+  id?: string;
+  org_id: string;
+  profile_id: string;
+  session_id: string;
+  role: ChatRole;
+  content: string;
+  created_at?: string;
+}
+
+// Pricing tier shape (inside PricingTable.tiers jsonb)
+export interface PricingTier {
+  label: string;
+  bedrooms: number;
+  min_rent: number;
+  max_rent: number;
+  suggested_rent: number;
+}

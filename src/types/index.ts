@@ -1,6 +1,6 @@
 export type { Database } from './database';
 
-// Convenience type aliases
+// Baseline convenience type aliases
 export type Organization = import('./database').Database['public']['Tables']['organizations']['Row'];
 export type Profile = import('./database').Database['public']['Tables']['profiles']['Row'];
 export type Property = import('./database').Database['public']['Tables']['properties']['Row'];
@@ -20,3 +20,35 @@ export type ContractStatus = 'active' | 'expired' | 'terminated';
 export type PaymentStatus = 'pending' | 'approved';
 export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'other';
 export type UnitStatus = 'vacant' | 'occupied';
+
+// Phase 2 — new table types
+export type {
+  // Module 1
+  ExpenseCategory, ExpenseCategoryInsert, ExpenseCategoryUpdate,
+  Expense, ExpenseInsert, ExpenseUpdate,
+  ReceiptUpload, ReceiptUploadInsert, ReceiptUploadUpdate,
+  OcrStatus,
+  // Module 2
+  ContractTemplate, ContractTemplateInsert, ContractTemplateUpdate,
+  PricingTable, PricingTableInsert, PricingTableUpdate,
+  PricingTier,
+  SignatureRequest, SignatureRequestInsert, SignatureRequestUpdate,
+  SignatureRequestStatus,
+  // Module 3
+  Announcement, AnnouncementInsert, AnnouncementUpdate,
+  AnnouncementAudience,
+  CleaningTask, CleaningTaskInsert, CleaningTaskUpdate,
+  CleaningTaskStatus,
+  CrmLead, CrmLeadInsert, CrmLeadUpdate,
+  CrmLeadStatus,
+  Reminder, ReminderInsert, ReminderUpdate,
+  ReminderType, ReminderTargetType, ReminderChannel, ReminderStatus,
+  NotificationInbox, NotificationInboxInsert, NotificationInboxUpdate,
+  // Module 4
+  CommunityPost, CommunityPostInsert, CommunityPostUpdate,
+  CommunityPostCategory,
+  CommunityComment, CommunityCommentInsert, CommunityCommentUpdate,
+  VisitorLog, VisitorLogInsert, VisitorLogUpdate,
+  AiChatMessage, AiChatMessageInsert,
+  ChatRole,
+} from './database';

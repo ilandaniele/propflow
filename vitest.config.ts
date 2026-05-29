@@ -6,6 +6,12 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['tests/unit/**/*.test.ts', 'tests/rls/**/*.test.ts'],
+    env: {
+      // Stub values for unit tests — not real credentials
+      NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'placeholder_anon_key',
+      NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',
+    },
     coverage: {
       provider: 'v8',
       include: [
