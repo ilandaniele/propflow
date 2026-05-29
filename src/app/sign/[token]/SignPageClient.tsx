@@ -1,7 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
+import type { SignatureCanvasHandle } from './SignatureCanvas';
+
+// Code-split the canvas component — HTMLCanvasElement is client-side only.
+// This keeps the main JS bundle under the 200 KB gzip budget.
+const SignatureCanvas = dynamic(() => import('./SignatureCanvas'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[120px] border border-slate-300 rounded-lg bg-white flex items-center justify-center">
+      <span className="text-sm text-slate-400">Loading signature pad…</span>
+    </div>
+  ),
+});
 
 interface ContractPreview {
   startDate: string;
@@ -24,10 +37,9 @@ export default function SignPageClient({ token }: Props) {
   const [contract, setContract] = useState<ContractPreview | null>(null);
   const [typedName, setTypedName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isDrawing = useRef(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [activeTab, setActiveTab] = useState<'type' | 'draw'>('type');
+  const canvasHandle = useRef<SignatureCanvasHandle>(null);
 
   // Load contract preview
   useEffect(() => {
@@ -41,41 +53,10 @@ export default function SignPageClient({ token }: Props) {
     })();
   }, [token]);
 
-  // Canvas drawing
-  function startDraw(e: React.PointerEvent<HTMLCanvasElement>) {
-    isDrawing.current = true;
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-  }
-  function draw(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!isDrawing.current) return;
-    const ctx = canvasRef.current?.getContext('2d');
-    const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.stroke();
-    setHasDrawn(true);
-  }
-  function endDraw() { isDrawing.current = false; }
-  function clearCanvas() {
-    const ctx = canvasRef.current?.getContext('2d');
-    if (ctx && canvasRef.current) {
-      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      setHasDrawn(false);
-    }
-  }
-
   function getSignatureDataUrl(): string | null {
     if (activeTab === 'type') {
       if (!typedName.trim()) return null;
-      // Render typed name onto a canvas
+      // Render typed name onto an offscreen canvas
       const canvas = document.createElement('canvas');
       canvas.width = 400; canvas.height = 100;
       const ctx = canvas.getContext('2d');
@@ -89,8 +70,8 @@ export default function SignPageClient({ token }: Props) {
       ctx.fillText(typedName.trim().slice(0, 40), 200, 50);
       return canvas.toDataURL('image/png');
     } else {
-      if (!hasDrawn || !canvasRef.current) return null;
-      return canvasRef.current.toDataURL('image/png');
+      if (!hasDrawn) return null;
+      return canvasHandle.current?.getDataUrl() ?? null;
     }
   }
 
@@ -239,19 +220,12 @@ export default function SignPageClient({ token }: Props) {
           ) : (
             <div>
               <p className="text-sm text-slate-600 mb-2">Draw your signature in the box below</p>
-              <canvas
-                ref={canvasRef}
-                width={380}
-                height={120}
-                className="w-full border border-slate-300 rounded-lg bg-white cursor-crosshair"
-                style={{ touchAction: 'none' }}
-                onPointerDown={startDraw}
-                onPointerMove={draw}
-                onPointerUp={endDraw}
-                onPointerLeave={endDraw}
-                aria-label="Signature drawing pad"
-              />
-              <button onClick={clearCanvas} className="mt-1 text-xs text-slate-500 hover:text-slate-700 underline">
+              {/* SignatureCanvas is lazy-loaded (ssr:false) to keep the main JS chunk under 200 KB gz */}
+              <SignatureCanvas ref={canvasHandle} onDrawn={setHasDrawn} />
+              <button
+                onClick={() => canvasHandle.current?.clear()}
+                className="mt-1 text-xs text-slate-500 hover:text-slate-700 underline"
+              >
                 Clear
               </button>
             </div>

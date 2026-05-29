@@ -158,14 +158,16 @@ describe.skipIf(skipIfNoSupabase)('Phase 2 RLS Isolation Tests', () => {
     const postId = (posts[0] as { id: string }).id;
     const pinnedBefore = (posts[0] as { pinned: boolean }).pinned;
 
-    // Attempt to set pinned=true as tenant — should be silently denied (WITH CHECK)
+    // Attempt to set pinned=true as tenant — should be denied by RLS WITH CHECK
     const { data: affected, error } = await clientOrgATenant
       .from('community_posts')
       .update({ pinned: true })
       .eq('id', postId)
       .select('id');
 
-    expect(error).toBeNull();                    // RLS denies silently — no DB error
+    // RLS WITH CHECK raises 42501 for policy violation; silent deny (null) for no-policy-exists.
+    // Both outcomes prove the security property — tenant cannot pin a post.
+    expect(error === null || error?.code === '42501').toBe(true);
     expect(affected ?? []).toHaveLength(0);       // 0 rows mutated
 
     const { data: after } = await clientOrgAAdmin
