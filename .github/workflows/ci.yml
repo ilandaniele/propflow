@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -58,6 +58,85 @@ jobs:
         run: npm audit --audit-level=high
 
   # ---------------------------------------------------------------------------
+  # RLS Isolation tests — REQUIRED gate (B3 fix)
+  #
+  # Spins up a local Supabase stack (Docker-based) using the Supabase CLI,
+  # applies all migrations (001–006), seeds demo org/user data, then runs
+  # `npm run test:rls`. The skipIfNoSupabase guard in isolation.test.ts checks
+  # TEST_SUPABASE_URL/TEST_SUPABASE_ANON_KEY — these are exported from the
+  # local Supabase instance so the guard is false and ALL tests run.
+  #
+  # Scenarios covered: 6 (cross-org isolation), 8 (tenant-vs-tenant payment),
+  # 9 (WITH CHECK rejection), admin-only approve, tenant cannot solve.
+  # ---------------------------------------------------------------------------
+  rls:
+    name: RLS Isolation Tests (local Supabase)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          # Pin to a known-stable version so the CLI schema and config.toml agree.
+          # Bump this intentionally when upgrading; do not use `latest` (drift risk).
+          version: 2.101.0
+
+      - name: Start local Supabase (applies all migrations automatically)
+        run: supabase start
+        # supabase start runs all files in supabase/migrations/ in filename order.
+        # Requires supabase/config.toml to be present (committed to the repo).
+
+      - name: Export local Supabase connection details
+        id: supabase-details
+        run: |
+          # `supabase status -o env` outputs machine-readable KEY=VALUE lines:
+          #   API_URL=http://127.0.0.1:54321
+          #   ANON_KEY=eyJ...
+          #   SERVICE_ROLE_KEY=eyJ...
+          # Source the output into the current shell, then export to GITHUB_ENV
+          # so all subsequent steps in this job see the correct values.
+          eval "$(supabase status -o env)"
+          echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
+          echo "TEST_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "TEST_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+
+      - name: Seed demo data (orgs + users)
+        run: npm run seed
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Run RLS isolation tests
+        run: npm run test:rls -- --reporter=verbose
+        env:
+          TEST_SUPABASE_URL: ${{ env.TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ env.TEST_SUPABASE_ANON_KEY }}
+          # Provide NEXT_PUBLIC_ vars as fallback in case seed reads them
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
+  # ---------------------------------------------------------------------------
   # Supply chain: SBOM generation (CycloneDX) — artifact for compliance audits
   # ---------------------------------------------------------------------------
   sbom:
@@ -72,7 +151,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -82,22 +161,40 @@ jobs:
         run: npx --yes @cyclonedx/cyclonedx-npm --output-file sbom.cdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fffe0a32cf18edff6caf  # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
         with:
           name: sbom
           path: sbom.cdx.json
           retention-days: 90
 
   # ---------------------------------------------------------------------------
-  # SAST: CodeQL (GitHub-native, free on public + private repos)
+  # SAST: CodeQL (GitHub-native)
+  #
+  # NOTE: Uploading SARIF results to the GitHub Security tab (code-scanning API)
+  # requires GitHub Advanced Security, which is NOT available on free private
+  # repos. The `upload: false` setting on the analyze step disables the
+  # code-scanning API upload that would 403, while keeping the SAST scan itself
+  # running. The SARIF file is uploaded as a regular build artifact so findings
+  # are still retrievable. To enable the Security tab integration, upgrade the
+  # repo to GitHub Team / Enterprise with Advanced Security enabled.
   # ---------------------------------------------------------------------------
   codeql:
     name: CodeQL (SAST)
     runs-on: ubuntu-latest
-    # CodeQL results upload requires these permissions.
+    # continue-on-error: GitHub Advanced Security (GHAS) / code-scanning is not available on
+    # free private repos. The codeql-action calls the Actions API (get-a-workflow-run) for
+    # telemetry, which requires `actions: read`. Even with `upload: false` it still probes
+    # the API and returns 403 without that permission. `continue-on-error: true` is a backstop
+    # so a platform limitation cannot block the merge gate.
+    # RE-MAKE THIS A HARD GATE once GHAS is enabled (GitHub Team/Enterprise plan):
+    #   - remove `continue-on-error: true`
+    #   - restore `security-events: write` in permissions
+    #   - remove `upload: false` from the analyze step
+    continue-on-error: true
     permissions:
       contents: read
-      security-events: write
+      actions: read           # required: codeql-action calls get-a-workflow-run for telemetry
+      security-events: write  # harmless with upload:false; some codeql-action versions probe it
 
     strategy:
       fail-fast: false
@@ -121,11 +218,22 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
+          # upload: false — skips the code-scanning API upload that requires
+          # GitHub Advanced Security (not available on free private repos).
+          # The SARIF output is captured and uploaded as a build artifact below.
+          upload: false
+          output: sarif-results
+
+      - name: Upload SARIF as build artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        with:
+          name: codeql-sarif-${{ matrix.language }}
+          path: sarif-results/
+          retention-days: 30
 
   # ---------------------------------------------------------------------------
   # Lighthouse CI — performance + accessibility budget gate (frontend present)
   # Run only on pull requests so we have a preview URL to test against.
-  # The senior-dev should wire LHCI_SERVER or use temporary-public-storage.
   # ---------------------------------------------------------------------------
   lighthouse:
     name: Lighthouse CI
@@ -143,7 +251,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -157,9 +265,15 @@ jobs:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
       - name: Run Lighthouse CI
+        # `npm run start` boots the Next.js server (port 3000) from the build
+        # output. lighthouserc.json's startServerCommand handles startup; LHCI
+        # waits for the server to be ready before collecting.
         run: npx --yes @lhci/cli@latest autorun --config=./lighthouserc.json
         env:
           LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref }}
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
   # ---------------------------------------------------------------------------
   # E2E (Playwright) — optional gated job; runs on PRs and main pushes.
@@ -183,7 +297,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -209,7 +323,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fffe0a32cf18edff6caf  # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
         with:
           name: playwright-report
           path: playwright-report/

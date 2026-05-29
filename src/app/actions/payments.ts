@@ -134,10 +134,13 @@ export async function createCharge(
 
   if (!contract) return Errors.NOT_FOUND();
 
+  // B5: Always derive tenant_id from the fetched contract server-side.
+  // The client-supplied tenant_id is ignored to prevent admin assigning a charge
+  // to an arbitrary tenant within the org (data integrity / attribution correctness).
   const { error } = await supabase.from('charges').insert({
     org_id: ctx.orgId,
     contract_id: parsed.data.contract_id,
-    tenant_id: parsed.data.tenant_id,
+    tenant_id: contract.tenant_id,
     amount: parsed.data.amount,
     description: parsed.data.description,
     period: parsed.data.period || null,
