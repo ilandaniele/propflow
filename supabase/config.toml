@@ -98,6 +98,19 @@ max_frequency = "5s"
 timebox = 0
 inactivity_timeout = 0
 
+# Google OAuth provider — local dev parity (IC5/HIGH#5)
+# Set SUPABASE_AUTH_GOOGLE_CLIENT_ID and SUPABASE_AUTH_GOOGLE_CLIENT_SECRET in .env.local
+# (or export them before running `supabase start`) for Google sign-in to work locally.
+# These vars are read by the local Supabase Auth container ONLY — never by the Next.js app.
+# For staging/prod: enable the Google provider in the Supabase dashboard and paste the
+# Client ID + Secret there. See README → "Human steps".
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_CLIENT_SECRET)"
+redirect_uri = ""
+skip_nonce_check = false
+
 [edge_runtime]
 enabled = true
 policy = "oneshot"

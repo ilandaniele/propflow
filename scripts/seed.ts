@@ -33,18 +33,19 @@ async function main() {
   console.log('[seed] Starting PropFlow demo seed...');
 
   // ============================================================
-  // Create Organizations
+  // Create Organizations (idempotent — upsert by slug)
+  // IC6: bare .insert() fails on re-run; .upsert() with onConflict:'slug' is safe.
   // ============================================================
   const { data: orgA, error: orgAErr } = await supabase
     .from('organizations')
-    .insert({ name: 'Org A — Demo Properties', slug: 'org-a-demo' })
+    .upsert({ name: 'Org A — Demo Properties', slug: 'org-a-demo' }, { onConflict: 'slug' })
     .select()
     .single();
   if (orgAErr) { console.error('[seed] orgA error:', orgAErr.message); process.exit(1); }
 
   const { data: orgB, error: orgBErr } = await supabase
     .from('organizations')
-    .insert({ name: 'Org B — Isolation Test', slug: 'org-b-isolation' })
+    .upsert({ name: 'Org B — Isolation Test', slug: 'org-b-isolation' }, { onConflict: 'slug' })
     .select()
     .single();
   if (orgBErr) { console.error('[seed] orgB error:', orgBErr.message); process.exit(1); }
@@ -74,24 +75,49 @@ async function main() {
 
     if (authErr) {
       if (authErr.message.includes('already registered')) {
-        console.log(`[seed] User ${u.email} already exists, skipping`);
-        continue;
+        // IC6 fix: when user already exists, look up their id and STILL upsert the profile.
+        // Old code `continue`d here — leaving auth users with no profiles row (the root cause
+        // of "admin@org-a.demo can't log in" because requireUser() queries profiles first).
+        console.log(`[seed] User ${u.email} already exists — looking up id for profile upsert`);
+        const { data: listData, error: listErr } = await supabase.auth.admin.listUsers();
+        if (listErr) {
+          console.error(`[seed] Could not list users to find ${u.email}:`, listErr.message);
+          process.exit(1);
+        }
+        const existingUser = listData.users.find((usr: { email?: string }) => usr.email === u.email);
+        if (!existingUser) {
+          console.error(`[seed] User ${u.email} not found in listUsers after "already registered"`);
+          process.exit(1);
+        }
+        createdUsers[u.email] = existingUser.id;
+        console.log(`[seed] Found existing user: ${u.email} (${existingUser.id})`);
+      } else {
+        console.error(`[seed] Error creating ${u.email}:`, authErr.message);
+        process.exit(1);
       }
-      console.error(`[seed] Error creating ${u.email}:`, authErr.message);
-      process.exit(1);
+    } else {
+      createdUsers[u.email] = authUser.user!.id;
+      console.log(`[seed] Created user: ${u.email} (${u.role}, ${u.orgId === orgA.id ? 'Org A' : 'Org B'})`);
     }
 
-    createdUsers[u.email] = authUser.user!.id;
-    console.log(`[seed] Created user: ${u.email} (${u.role}, ${u.orgId === orgA.id ? 'Org A' : 'Org B'})`);
-
-    // Upsert profile (trigger should have created it, but ensure it exists)
-    await supabase.from('profiles').upsert({
-      id: authUser.user!.id,
-      org_id: u.orgId,
-      role: u.role as 'admin' | 'tenant',
-      full_name: u.name,
-      email: u.email,
-    });
+    // Always upsert profile (idempotent) — covers both new and pre-existing users.
+    // IC6 fix: old code only ran this block when createUser succeeded, leaving
+    // pre-existing auth users without a profiles row.
+    const userId = createdUsers[u.email];
+    if (userId) {
+      const { error: profileErr } = await supabase.from('profiles').upsert({
+        id: userId,
+        org_id: u.orgId,
+        role: u.role as 'admin' | 'tenant',
+        full_name: u.name,
+        email: u.email,
+      }, { onConflict: 'id' });
+      if (profileErr) {
+        console.error(`[seed] Profile upsert failed for ${u.email}:`, profileErr.message);
+        process.exit(1);
+      }
+      console.log(`[seed] Profile upserted: ${u.email}`);
+    }
   }
 
   // ============================================================

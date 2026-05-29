@@ -212,6 +212,119 @@ describe.skipIf(skipIfNoSupabase)('RLS Isolation Tests', () => {
   });
 });
 
+// ─── Google-provisioned admin org isolation ──────────────────────────────────
+// Scenario 13: a freshly-provisioned admin (as if from Google OAuth onboarding)
+// in a new org reads only their org's rows and cannot read another org's rows.
+//
+// This test uses the service-role admin client to set up state, then verifies
+// isolation using a regular anon-key client (as the user would).
+describe.skipIf(skipIfNoSupabase)('Google-provisioned admin org isolation', () => {
+  const adminServiceKey = process.env.TEST_SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  const skipIfNoServiceKey = !adminServiceKey || adminServiceKey.includes('placeholder');
+
+  it.skipIf(skipIfNoServiceKey)('provisioned admin in new org can only read their own org data', async () => {
+    const { createClient: createAdminClientFromSupa } = await import('@supabase/supabase-js');
+
+    const adminClient = createAdminClientFromSupa(supabaseUrl, adminServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // 1. Create a fresh org for the Google-provisioned user
+    const testOrgSlug = `rls-test-google-${Date.now()}`;
+    const { data: newOrg, error: orgErr } = await adminClient
+      .from('organizations')
+      .insert({ name: 'RLS Test Google Org', slug: testOrgSlug })
+      .select()
+      .single();
+
+    if (orgErr || !newOrg) {
+      console.warn('[rls-test] Could not create test org for Google isolation test:', orgErr?.message);
+      return;
+    }
+
+    // 2. Create a Supabase auth user (simulating Google sign-up)
+    const testEmail = `rls-google-${Date.now()}@test.example.com`;
+    const { data: newAuthUser, error: createUserErr } = await adminClient.auth.admin.createUser({
+      email: testEmail,
+      password: 'TestRLS1234!',
+      email_confirm: true,
+    });
+
+    if (createUserErr || !newAuthUser?.user) {
+      console.warn('[rls-test] Could not create test auth user:', createUserErr?.message);
+      // Cleanup org
+      await adminClient.from('organizations').delete().eq('id', newOrg.id);
+      return;
+    }
+
+    // 3. Provision profile via admin client (mirrors what provisionOrgAndProfile() does)
+    const { error: profileErr } = await adminClient.from('profiles').insert({
+      id: newAuthUser.user.id,
+      org_id: newOrg.id,
+      role: 'admin',
+      full_name: 'RLS Test Google User',
+      email: testEmail,
+    });
+
+    if (profileErr) {
+      console.warn('[rls-test] Could not insert profile for Google user:', profileErr.message);
+      await adminClient.from('organizations').delete().eq('id', newOrg.id);
+      await adminClient.auth.admin.deleteUser(newAuthUser.user.id);
+      return;
+    }
+
+    // 4. Sign in as the new user with anon client (RLS enforced)
+    const userClient = createAdminClientFromSupa(supabaseUrl, supabaseAnonKey);
+    const { error: signInErr } = await userClient.auth.signInWithPassword({
+      email: testEmail,
+      password: 'TestRLS1234!',
+    });
+
+    if (signInErr) {
+      console.warn('[rls-test] Google user sign-in failed:', signInErr.message);
+      await adminClient.from('profiles').delete().eq('id', newAuthUser.user.id);
+      await adminClient.from('organizations').delete().eq('id', newOrg.id);
+      await adminClient.auth.admin.deleteUser(newAuthUser.user.id);
+      return;
+    }
+
+    try {
+      // 5. Assert: user can read their own org
+      const { data: ownOrg } = await userClient.from('organizations').select('id').eq('id', newOrg.id);
+      expect(ownOrg).toHaveLength(1);
+
+      // 6. Assert: user cannot read Org A's data (from existing seed)
+      // The admin from Org A's email is 'admin@org-a.demo'
+      // We query profiles where id != our new user — should return 0 rows (RLS)
+      const { data: otherProfiles } = await userClient
+        .from('profiles')
+        .select('id, org_id')
+        .neq('id', newAuthUser.user.id);
+
+      // RLS policy "profiles_select_org" allows SELECT only for own org.
+      // All returned rows must belong to the new org.
+      if (otherProfiles && otherProfiles.length > 0) {
+        for (const p of otherProfiles) {
+          expect(p.org_id).toBe(newOrg.id);
+        }
+      }
+
+      // 7. Assert: organizations query returns ONLY the new org (not Org A or B)
+      const { data: visibleOrgs } = await userClient.from('organizations').select('id');
+      expect(visibleOrgs).toHaveLength(1);
+      expect(visibleOrgs?.[0]?.id).toBe(newOrg.id);
+
+      console.log('[rls-test] Google-provisioned admin org isolation: PASS');
+    } finally {
+      // Cleanup — always remove test data regardless of assertion outcome
+      await userClient.auth.signOut();
+      await adminClient.from('profiles').delete().eq('id', newAuthUser.user.id);
+      await adminClient.from('organizations').delete().eq('id', newOrg.id);
+      await adminClient.auth.admin.deleteUser(newAuthUser.user.id);
+    }
+  });
+});
+
 // Describe block for skipped tests to inform the runner
 describe.skipIf(!skipIfNoSupabase)('RLS Isolation Tests (SKIPPED — no Supabase config)', () => {
   it('All RLS tests require a live Supabase project with seeded data', () => {
