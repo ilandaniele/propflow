@@ -120,13 +120,20 @@ describe.skipIf(skipIfNoSupabase)('RLS Isolation Tests', () => {
 
   // Tenant cannot approve payments
   it('Tenant cannot set payment status to approved', async () => {
-    // Fetch a payment the tenant can see (their own)
+    // Fetch a PENDING payment the tenant can see (their own).
+    // Must filter status='pending' explicitly: the seed also inserts an already-approved
+    // payment and without a filter `.limit(1)` may return that row first. The test assertion
+    // `expect(status).not.toBe('approved')` would then fail trivially — not because the
+    // update succeeded, but because the row was already approved before the test ran.
+    // Filtering for 'pending' tests the real escalation scenario (tenant tries to flip a
+    // pending payment to approved). This is more precise, not weaker.
     const { data: payments } = await clientOrgATenant
       .from('payments')
       .select('id, status')
+      .eq('status', 'pending')
       .limit(1);
     if (!payments || payments.length === 0) {
-      console.warn('[rls-test] No payments found for tenant — skipping approve test');
+      console.warn('[rls-test] No pending payments found for tenant — skipping approve test');
       return;
     }
 

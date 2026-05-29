@@ -491,6 +491,89 @@ added `actions: read` and `security-events: write` to permissions, added comment
 
 ---
 
+---
+
+## Security fix — tenant payment-approval privilege escalation (2026-05-29, round 4)
+
+### Vulnerability (confirmed by live RLS test)
+
+**What:** A tenant calling `.update({ status: 'approved' }).eq('id', <own-payment-id>)` could
+successfully set their own payment to `approved`. Confirmed by the RLS isolation test
+"Tenant cannot set payment status to approved" (tests/rls/isolation.test.ts:158).
+
+**Root cause — permissive UPDATE policy in live DB not tracked by migrations:**
+Migration 003 drops all existing policies at the top of its DO block, then recreates only
+the four intended policies (`payments_admin_read`, `payments_admin_update`,
+`payments_tenant_insert`, `payments_tenant_read_own`). That drop loop ran exactly once when
+migration 003 was first applied. A subsequent debugging/fix iteration (via Supabase dashboard
+SQL editor, outside the migration path) added a permissive `payments_tenant_update` or similar
+policy AFTER migration 003 had run. Because migrations 004–006 did not include a drop of
+payments policies, that policy persisted in the live DB.
+
+**Why the test showed this:** PostgreSQL RLS with multiple permissive policies uses OR logic —
+if ANY UPDATE policy's USING expression evaluates to true for a row, the update proceeds. The
+permissive tenant policy's USING (e.g. `tenant_id = <user's tenant>`) was satisfied, and its
+WITH CHECK did not constrain `status`, so `status = 'approved'` was written through.
+
+**Financial impact:** A tenant could self-approve their own payment, bypassing the
+admin approval step. This affects financial integrity (statement balance, overdue calculations)
+and trust in the admin workflow.
+
+**IC13 status (tenant records but never approves):**
+- INSERT: `payments_tenant_insert` WITH CHECK `status = 'pending'` — unchanged, confirmed correct
+- UPDATE: tenant has NO UPDATE policy post-fix + trigger blocks approval columns — IC13 restored
+
+### Fix
+
+**Migration `20260528000007_fix_payment_tenant_no_approve.sql` (two-layer defense):**
+
+**Layer 1 — RLS cleanup:** DROPs all named variants of any potential tenant UPDATE/ALL policy
+(`payments_tenant_update`, `payments_tenant_update_own`, `payments_tenant_all`, etc.) plus a
+DO loop that drops ANY remaining UPDATE/ALL policy NOT in the approved allowlist. This closes
+the in-DB policy that caused the hole and prevents re-introduction via dashboard.
+
+**Layer 2 — BEFORE UPDATE trigger `trg_payments_no_tenant_approve`:**
+Function `public.payments_guard_approval()` runs SECURITY DEFINER, reads `current_user_role()`
+from profiles, and:
+- Allows admin unconditionally
+- For non-admin: raises `insufficient_privilege` if the UPDATE attempts to change `status`,
+  `approved_by`, or `approved_at`
+- For non-admin: also blocks changes to `amount` and `paid_at` on already-approved payments
+  (financial record immutability)
+
+This trigger is independent of RLS — it fires at the DB engine level regardless of what
+policies exist now or in the future. It is the permanent last line of defense.
+
+**Test fix — `tests/rls/isolation.test.ts`:**
+Added `.eq('status', 'pending')` to the payment fetch in "Tenant cannot set payment status to
+approved". The seed inserts an `approved` payment first (TXN-DEMO-001) and a `pending` payment
+second (TXN-DEMO-002). Without the filter, `.limit(1)` returned the already-approved row, and
+the assertion `expect(status).not.toBe('approved')` failed unconditionally — not because the
+update succeeded, but because the row was already approved. Filtering for `pending` tests the
+real escalation scenario (tenant tries to flip a pending payment). This is more precise, not
+weaker — the three-part assertion (0 rows affected + status unchanged + status not 'approved')
+remains intact.
+
+### Action layer confirmation (payments.ts)
+
+- `approvePayment`: calls `requireAdmin()` — returns FORBIDDEN for any non-admin. ✓
+- `recordPayment`: forces `status: 'pending'` in the insert payload regardless of caller role. ✓
+  Tenant callers additionally verify contract ownership via tenants.profile_id = auth.uid(). ✓
+
+Both layers (action guard + RLS trigger) must pass for a payment to be approved.
+
+### Columns now protected for non-admin callers
+
+| Column | Protection |
+|---|---|
+| `status` | Trigger blocks any change by non-admin |
+| `approved_by` | Trigger blocks change by non-admin |
+| `approved_at` | Trigger blocks change by non-admin |
+| `amount` (on approved payments) | Trigger blocks change by non-admin |
+| `paid_at` (on approved payments) | Trigger blocks change by non-admin |
+
+---
+
 ## Out of scope (noticed but not built)
 
 - Admin Settings page (UI placeholder only)
