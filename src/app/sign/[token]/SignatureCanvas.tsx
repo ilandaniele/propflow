@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import { useRef, useImperativeHandle, forwardRef } from 'react';
 
 export interface SignatureCanvasHandle {
   getDataUrl: () => string | null;
