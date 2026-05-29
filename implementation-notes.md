@@ -289,6 +289,70 @@ tenant_id: contract.tenant_id,  // was: parsed.data.tenant_id
 
 ---
 
+## CI fixes (2026-05-28)
+
+### CI-1 — RLS job: `supabase status` parsing + missing config.toml
+
+**Root cause (a):** The original step used `supabase status | grep 'API URL' | awk '{print $NF}'`
+which relies on human-readable output formatting that varies by CLI version and produced empty
+values in CI. Fixed by switching to the machine-readable form: `supabase status -o env` outputs
+`KEY=VALUE` lines (`API_URL=...`, `ANON_KEY=...`, `SERVICE_ROLE_KEY=...`). These are sourced via
+`eval "$(supabase status -o env)"` and then written to `$GITHUB_ENV` mapping to the names the
+seed and test suite expect (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `TEST_SUPABASE_URL`, `TEST_SUPABASE_ANON_KEY`).
+
+**Root cause (b):** `supabase start` requires a `supabase/config.toml` in the repo — without it
+the CLI aborts before spinning up Docker. A minimal but complete `supabase/config.toml` was
+authored and committed covering: API (port 54321), DB (port 54322, pg 15), Realtime, Studio,
+Storage (5 MiB limit), and Auth (email signup enabled, confirmations disabled for local dev).
+
+**Files changed:** `.github/workflows/ci.yml` (Export step rewritten), `supabase/config.toml` (new).
+
+### CI-2 — SBOM + E2E jobs: wrong `upload-artifact` SHA
+
+**Root cause:** `actions/upload-artifact@65c4c4a1ddee5b72f698fffe0a32cf18edff6caf` does not
+exist in the actions/upload-artifact repository — the SHA was incorrect. All three occurrences
+(SBOM job, CodeQL artifact upload, E2E Playwright report) replaced with the correct v4.4.3 SHA:
+`b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882`.
+
+**File changed:** `.github/workflows/ci.yml` (lines 162, 215, 313).
+
+### CI-3 — Lighthouse CI: LHCI could not find static dist dir
+
+**Root cause:** `lighthouserc.json` had no `collect.startServerCommand`. LHCI's `autorun` tried
+to locate a `staticDistDir` automatically, failed because Next.js 16 produces a server-side
+build (not a static export), and aborted. Fixed by adding a `collect` block with:
+- `startServerCommand: "npm run start"` — boots the built Next.js server on port 3000
+- `startServerReadyPattern` — waits for the server ready log line before collecting
+- `url: ["http://localhost:3000/"]` — the public landing page, accessible without auth
+- `numberOfRuns: 1` — keeps CI fast; budgets are unchanged
+
+The CI job already runs `npm run build` before LHCI, so `npm run start` has the `.next` output
+ready. ENV vars for the build step now also pass through to the LHCI run step.
+
+**File changed:** `lighthouserc.json`.
+
+### CI-4 — CodeQL: SARIF upload requires GitHub Advanced Security
+
+**Root cause:** `github/codeql-action/analyze@v3` defaults to uploading SARIF to the GitHub
+Security tab (code-scanning API). On free private repos this API returns 403 ("Resource not
+accessible by integration") — GitHub Advanced Security is required. The analysis itself
+succeeded (78 files scanned); only the upload step failed.
+
+**Fix:** Added `upload: false` and `output: sarif-results` to the analyze step. This disables
+the code-scanning API upload while keeping the SAST scan running. A follow-up step uploads the
+SARIF directory as a normal build artifact (`codeql-sarif-javascript-typescript`, 30-day
+retention) so findings remain retrievable from the Actions run page. The `security-events:write`
+permission was removed from the job since it is no longer needed.
+
+To enable the GitHub Security tab integration: upgrade the repo to GitHub Team or Enterprise
+plan with Advanced Security enabled, then remove `upload: false` from the analyze step and
+restore `security-events: write` in the job permissions.
+
+**File changed:** `.github/workflows/ci.yml` (codeql job: permissions, analyze step, new upload step).
+
+---
+
 ## Out of scope (noticed but not built)
 
 - Admin Settings page (UI placeholder only)

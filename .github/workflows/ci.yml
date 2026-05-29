@@ -96,33 +96,39 @@ jobs:
       - name: Start local Supabase (applies all migrations automatically)
         run: supabase start
         # supabase start runs all files in supabase/migrations/ in filename order.
+        # Requires supabase/config.toml to be present (committed to the repo).
 
       - name: Export local Supabase connection details
         id: supabase-details
         run: |
-          # `supabase status` emits key=value lines; parse what we need.
-          SUPABASE_URL=$(supabase status | grep 'API URL' | awk '{print $NF}')
-          ANON_KEY=$(supabase status | grep 'anon key' | awk '{print $NF}')
-          SERVICE_KEY=$(supabase status | grep 'service_role key' | awk '{print $NF}')
-          echo "SUPABASE_URL=${SUPABASE_URL}" >> "$GITHUB_ENV"
-          echo "ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
-          echo "SERVICE_KEY=${SERVICE_KEY}" >> "$GITHUB_ENV"
+          # `supabase status -o env` outputs machine-readable KEY=VALUE lines:
+          #   API_URL=http://127.0.0.1:54321
+          #   ANON_KEY=eyJ...
+          #   SERVICE_ROLE_KEY=eyJ...
+          # Source the output into the current shell, then export to GITHUB_ENV
+          # so all subsequent steps in this job see the correct values.
+          eval "$(supabase status -o env)"
+          echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}" >> "$GITHUB_ENV"
+          echo "TEST_SUPABASE_URL=${API_URL}" >> "$GITHUB_ENV"
+          echo "TEST_SUPABASE_ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
 
       - name: Seed demo data (orgs + users)
         run: npm run seed
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Run RLS isolation tests
         run: npm run test:rls -- --reporter=verbose
         env:
-          TEST_SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          TEST_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          TEST_SUPABASE_URL: ${{ env.TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ env.TEST_SUPABASE_ANON_KEY }}
           # Provide NEXT_PUBLIC_ vars as fallback in case seed reads them
-          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Stop local Supabase
         if: always()
@@ -153,22 +159,29 @@ jobs:
         run: npx --yes @cyclonedx/cyclonedx-npm --output-file sbom.cdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fffe0a32cf18edff6caf  # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
         with:
           name: sbom
           path: sbom.cdx.json
           retention-days: 90
 
   # ---------------------------------------------------------------------------
-  # SAST: CodeQL (GitHub-native, free on public + private repos)
+  # SAST: CodeQL (GitHub-native)
+  #
+  # NOTE: Uploading SARIF results to the GitHub Security tab (code-scanning API)
+  # requires GitHub Advanced Security, which is NOT available on free private
+  # repos. The `upload: false` setting on the analyze step disables the
+  # code-scanning API upload that would 403, while keeping the SAST scan itself
+  # running. The SARIF file is uploaded as a regular build artifact so findings
+  # are still retrievable. To enable the Security tab integration, upgrade the
+  # repo to GitHub Team / Enterprise with Advanced Security enabled.
   # ---------------------------------------------------------------------------
   codeql:
     name: CodeQL (SAST)
     runs-on: ubuntu-latest
-    # CodeQL results upload requires these permissions.
+    # No security-events:write needed since we skip the code-scanning API upload.
     permissions:
       contents: read
-      security-events: write
 
     strategy:
       fail-fast: false
@@ -192,11 +205,22 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
+          # upload: false — skips the code-scanning API upload that requires
+          # GitHub Advanced Security (not available on free private repos).
+          # The SARIF output is captured and uploaded as a build artifact below.
+          upload: false
+          output: sarif-results
+
+      - name: Upload SARIF as build artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        with:
+          name: codeql-sarif-${{ matrix.language }}
+          path: sarif-results/
+          retention-days: 30
 
   # ---------------------------------------------------------------------------
   # Lighthouse CI — performance + accessibility budget gate (frontend present)
   # Run only on pull requests so we have a preview URL to test against.
-  # The senior-dev should wire LHCI_SERVER or use temporary-public-storage.
   # ---------------------------------------------------------------------------
   lighthouse:
     name: Lighthouse CI
@@ -228,9 +252,15 @@ jobs:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
       - name: Run Lighthouse CI
+        # `npm run start` boots the Next.js server (port 3000) from the build
+        # output. lighthouserc.json's startServerCommand handles startup; LHCI
+        # waits for the server to be ready before collecting.
         run: npx --yes @lhci/cli@latest autorun --config=./lighthouserc.json
         env:
           LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref }}
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
   # ---------------------------------------------------------------------------
   # E2E (Playwright) — optional gated job; runs on PRs and main pushes.
@@ -280,7 +310,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fffe0a32cf18edff6caf  # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
         with:
           name: playwright-report
           path: playwright-report/
