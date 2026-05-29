@@ -58,6 +58,77 @@ jobs:
         run: npm audit --audit-level=high
 
   # ---------------------------------------------------------------------------
+  # RLS Isolation tests — REQUIRED gate (B3 fix)
+  #
+  # Spins up a local Supabase stack (Docker-based) using the Supabase CLI,
+  # applies all migrations (001–006), seeds demo org/user data, then runs
+  # `npm run test:rls`. The skipIfNoSupabase guard in isolation.test.ts checks
+  # TEST_SUPABASE_URL/TEST_SUPABASE_ANON_KEY — these are exported from the
+  # local Supabase instance so the guard is false and ALL tests run.
+  #
+  # Scenarios covered: 6 (cross-org isolation), 8 (tenant-vs-tenant payment),
+  # 9 (WITH CHECK rejection), admin-only approve, tenant cannot solve.
+  # ---------------------------------------------------------------------------
+  rls:
+    name: RLS Isolation Tests (local Supabase)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+
+      - name: Setup Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase (applies all migrations automatically)
+        run: supabase start
+        # supabase start runs all files in supabase/migrations/ in filename order.
+
+      - name: Export local Supabase connection details
+        id: supabase-details
+        run: |
+          # `supabase status` emits key=value lines; parse what we need.
+          SUPABASE_URL=$(supabase status | grep 'API URL' | awk '{print $NF}')
+          ANON_KEY=$(supabase status | grep 'anon key' | awk '{print $NF}')
+          SERVICE_KEY=$(supabase status | grep 'service_role key' | awk '{print $NF}')
+          echo "SUPABASE_URL=${SUPABASE_URL}" >> "$GITHUB_ENV"
+          echo "ANON_KEY=${ANON_KEY}" >> "$GITHUB_ENV"
+          echo "SERVICE_KEY=${SERVICE_KEY}" >> "$GITHUB_ENV"
+
+      - name: Seed demo data (orgs + users)
+        run: npm run seed
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_KEY }}
+
+      - name: Run RLS isolation tests
+        run: npm run test:rls -- --reporter=verbose
+        env:
+          TEST_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          # Provide NEXT_PUBLIC_ vars as fallback in case seed reads them
+          NEXT_PUBLIC_SUPABASE_URL: ${{ env.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop
+
+  # ---------------------------------------------------------------------------
   # Supply chain: SBOM generation (CycloneDX) — artifact for compliance audits
   # ---------------------------------------------------------------------------
   sbom:

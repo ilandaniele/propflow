@@ -170,6 +170,125 @@ npm run dev
 7. **Settings page** — referenced in the admin sidebar nav but not implemented. Clicking
    "Settings" in the sidebar navigates to `/dashboard` (placeholder). Noted as future.
 
+## Security fixes — review blockers (2026-05-28)
+
+### B1 — Helper function collision (incidents.ts)
+**Root cause:** a local `function err(code, message)` at line 112 shadowed the imported `err()`
+from `@/lib/errors`, and the calls at lines 48/51 used the local shadow (missing the `details`
+field, diverging from the `ActionResult` contract).
+
+**Fix:** removed the local `err()` entirely. The two call sites now use
+`Errors.VALIDATION_ERROR({ formErrors: [...], fieldErrors: {} })` which is the standard pattern
+used everywhere else. The import `{ Errors, ok }` from `@/lib/errors` was already present.
+
+**File changed:** `src/app/actions/incidents.ts` (removed lines 111–114, updated lines 48/51).
+
+---
+
+### B2 — Storage upload RLS: incident UUID not validated against DB
+**Root cause:** `incident_photos_upload` policy only checked path segment 1 (org_id). Segment 2
+(incident UUID) was never validated, allowing phantom storage objects under arbitrary UUIDs.
+
+**Additional root cause uncovered:** the original `createIncident` action generated a local
+`randomUUID()` for the storage path BEFORE inserting the incident row — so the incident_id in
+the path never matched any real DB row. The new RLS check would have blocked all uploads if this
+wasn't fixed too.
+
+**Fix (two-part):**
+
+1. **New migration `20260528000005_fix_storage_incident_ownership.sql`:** DROPs and recreates
+   `incident_photos_upload` adding:
+   ```sql
+   AND EXISTS (
+     SELECT 1 FROM public.incidents i
+     WHERE i.id::TEXT = (storage.foldername(name))[2]
+       AND i.org_id = public.current_org_id()
+   )
+   ```
+
+2. **Restructured `createIncident` action:** insert the incident row first (photo_path = null),
+   get the DB-generated UUID back via `.select('id').single()`, then upload using the real incident
+   UUID in the path, then update the row with photo_path. This ensures the DB row exists before
+   the storage upload, satisfying the new RLS ownership check.
+
+**Files changed:** `supabase/migrations/20260528000005_fix_storage_incident_ownership.sql` (new),
+`src/app/actions/incidents.ts` (restructured photo upload flow).
+
+---
+
+### B3 — RLS isolation tests had zero CI coverage
+**Root cause:** `tests/rls/isolation.test.ts` wraps all tests in `describe.skipIf(skipIfNoSupabase)`.
+`TEST_SUPABASE_URL` was not available in CI, so all RLS tests silently skipped. The CI workflow
+ran `npm run test:unit` only — no `test:rls` step existed.
+
+**Fix:** added a `rls` job to `.github/workflows/ci.yml` that:
+1. Installs the Supabase CLI via `supabase/setup-cli@v1`
+2. Runs `supabase start` — this spins up a local Supabase stack (Docker-based) and applies all
+   migrations in `supabase/migrations/` in filename order (001–006)
+3. Exports `TEST_SUPABASE_URL` and `TEST_SUPABASE_ANON_KEY` from `supabase status`
+4. Runs `npm run seed` to create the demo orgs and users (org-a, org-b admins + tenants)
+5. Runs `npm run test:rls -- --reporter=verbose`
+
+With `TEST_SUPABASE_URL` set to the local Supabase URL, the `skipIfNoSupabase` guard is `false`
+and ALL isolation scenarios run: Scenarios 6 (cross-org isolation), 8 (tenant-vs-tenant payment
+isolation), 9 (WITH CHECK rejection), tenant-cannot-approve, tenant-cannot-solve-incident.
+
+The `rls` job is a top-level peer of `quality` (not nested under it) — it runs in parallel
+and is REQUIRED (no `if:` condition gates it on secrets).
+
+**File changed:** `.github/workflows/ci.yml` (new `rls` job added).
+
+---
+
+### B4 — Tenant could attribute incident to another tenant (tenant_id injection)
+**Root cause:** `createIncident` set `let tenantId = parsed.data.tenant_id || null` and only
+overrode it if `ctx.role === 'tenant' && !tenantId`. If a malicious tenant submitted
+`tenant_id=<other_tenant_uuid>`, `tenantId` was truthy and the DB lookup was skipped.
+
+**Fix (two-part):**
+
+1. **Action logic** (`src/app/actions/incidents.ts`): replaced the conditional block with an
+   unconditional branch — for `role === 'tenant'`, always execute the DB lookup and ignore
+   `parsed.data.tenant_id` entirely. For admin callers, use the client-supplied value as before.
+
+2. **RLS defense-in-depth** (`supabase/migrations/20260528000006_tighten_incident_tenant_rls.sql`):
+   new migration DROPs and recreates `incidents_tenant_insert` policy adding:
+   ```sql
+   AND (
+     tenant_id IS NULL
+     OR tenant_id IN (
+       SELECT id FROM public.tenants
+       WHERE profile_id = auth.uid() AND org_id = public.current_org_id()
+     )
+   )
+   ```
+   Even if the action were bypassed, the DB would reject an insert with a foreign tenant_id.
+
+3. **Unit test** (`tests/unit/action-security.test.ts`): proves that the derivation logic
+   always returns the DB-sourced tenant_id for tenant callers, regardless of client input.
+
+**Files changed:** `src/app/actions/incidents.ts`, `supabase/migrations/20260528000006_tighten_incident_tenant_rls.sql` (new), `tests/unit/action-security.test.ts` (new).
+
+---
+
+### B5 — createCharge inserted client-supplied tenant_id without contract validation
+**Root cause:** `createCharge` fetched the contract to verify it belongs to the org, but then
+used `parsed.data.tenant_id` (client-supplied) for the charge insert instead of `contract.tenant_id`.
+This allowed an admin to create charges attributed to the wrong tenant within the same org.
+
+**Fix:** after fetching the contract, derive tenant_id server-side:
+```typescript
+// B5: Always derive tenant_id from the fetched contract server-side.
+tenant_id: contract.tenant_id,  // was: parsed.data.tenant_id
+```
+
+**Unit test** (`tests/unit/action-security.test.ts`): proves the derivation logic always returns
+`contract.tenant_id` regardless of what the client submitted.
+
+**File changed:** `src/app/actions/payments.ts` (line 140), `tests/unit/action-security.test.ts`.
+
+---
+
 ## Out of scope (noticed but not built)
 
 - Admin Settings page (UI placeholder only)

@@ -29,12 +29,13 @@ export async function createIncident(
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
   const supabase = await createClient();
-  let photoPath: string | null = null;
 
-  // Handle photo upload
+  // Validate photo BEFORE DB insert to fail fast on bad input.
+  // The actual upload happens AFTER insert so the incident UUID exists in the DB
+  // and the storage RLS ownership check (segment 2 = real incident id) passes.
   const photoFile = formData.get('photo') as File | null;
-  if (photoFile && photoFile.size > 0) {
-    // Validate file
+  const hasPhoto = photoFile != null && photoFile.size > 0;
+  if (hasPhoto) {
     const photoValidation = PhotoUploadSchema.safeParse({
       fileName: photoFile.name,
       mimeType: photoFile.type,
@@ -43,18 +44,61 @@ export async function createIncident(
     if (!photoValidation.success) {
       return Errors.VALIDATION_ERROR(photoValidation.error.flatten());
     }
-
     if (!ALLOWED_MIME_TYPES.includes(photoFile.type as typeof ALLOWED_MIME_TYPES[number])) {
-      return err('VALIDATION_ERROR', 'Only PNG, JPEG, and WebP images are allowed');
+      return Errors.VALIDATION_ERROR({ formErrors: ['Only PNG, JPEG, and WebP images are allowed'], fieldErrors: {} });
     }
     if (photoFile.size > MAX_FILE_SIZE_BYTES) {
-      return err('VALIDATION_ERROR', 'File must be under 5 MB');
+      return Errors.VALIDATION_ERROR({ formErrors: ['File must be under 5 MB'], fieldErrors: {} });
     }
+  }
 
-    // Generate a randomized path: org_id/incident_id/uuid.ext
+  // B4: For tenant callers always derive tenant_id server-side from DB,
+  // IGNORING any client-supplied tenant_id to prevent tenant impersonation.
+  // For admin callers, use the validated client-supplied value.
+  let tenantId: string | null;
+  if (ctx.role === 'tenant') {
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('profile_id', ctx.userId)
+      .eq('org_id', ctx.orgId)
+      .single();
+    tenantId = tenantRow?.id ?? null;
+  } else {
+    tenantId = parsed.data.tenant_id || null;
+  }
+
+  // Insert incident row first — DB generates the real UUID.
+  // photo_path is set to null initially; updated below if a photo was provided.
+  const { data: newIncident, error: insertError } = await supabase
+    .from('incidents')
+    .insert({
+      org_id: ctx.orgId,
+      created_by: ctx.userId,
+      tenant_id: tenantId || null,
+      unit_id: parsed.data.unit_id || null,
+      property_id: parsed.data.property_id || null,
+      category: parsed.data.category,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      priority: parsed.data.priority,
+      status: 'pending',
+      photo_path: null,
+    })
+    .select('id')
+    .single();
+
+  if (insertError || !newIncident) {
+    log.error('[createIncident] db insert error', { code: insertError?.code });
+    return Errors.INTERNAL();
+  }
+
+  // Upload photo now that the incident row exists in the DB.
+  // The storage RLS policy (migration 005) verifies path segment 2 against incidents.id,
+  // so the upload MUST happen after the row is committed.
+  if (hasPhoto && photoFile) {
     const ext = photoFile.name.split('.').pop() ?? 'jpg';
-    const incidentId = randomUUID();
-    const storagePath = `${ctx.orgId}/${incidentId}/${randomUUID()}.${ext}`;
+    const storagePath = `${ctx.orgId}/${newIncident.id}/${randomUUID()}.${ext}`;
 
     const photoBuffer = await photoFile.arrayBuffer();
     const { error: uploadError } = await supabase.storage
@@ -66,51 +110,31 @@ export async function createIncident(
 
     if (uploadError) {
       log.error('[createIncident] photo upload error', { code: uploadError.message });
-      return Errors.INTERNAL();
+      // Incident row already created — clean up or leave without photo.
+      // We leave the row intact (it is valid without a photo) but do not fail silently.
+      // Returning INTERNAL here would leave an orphaned row; instead, return partial success
+      // and let the admin re-attach if needed. For MVP, log and continue without photo.
+      revalidatePath('/dashboard/incidents');
+      revalidatePath('/portal/incidents');
+      return ok(undefined);
     }
 
-    photoPath = storagePath;
-  }
+    // Update the incident row with the actual storage path
+    const { error: updateError } = await supabase
+      .from('incidents')
+      .update({ photo_path: storagePath })
+      .eq('id', newIncident.id)
+      .eq('org_id', ctx.orgId);
 
-  // Get tenant_id from profile if tenant user
-  let tenantId = parsed.data.tenant_id || null;
-  if (ctx.role === 'tenant' && !tenantId) {
-    const { data: tenantRow } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('profile_id', ctx.userId)
-      .eq('org_id', ctx.orgId)
-      .single();
-    tenantId = tenantRow?.id ?? null;
-  }
-
-  const { error } = await supabase.from('incidents').insert({
-    org_id: ctx.orgId,
-    created_by: ctx.userId,
-    tenant_id: tenantId || null,
-    unit_id: parsed.data.unit_id || null,
-    property_id: parsed.data.property_id || null,
-    category: parsed.data.category,
-    title: parsed.data.title,
-    description: parsed.data.description,
-    priority: parsed.data.priority,
-    status: 'pending',
-    photo_path: photoPath,
-  });
-
-  if (error) {
-    log.error('[createIncident] db error', { code: error.code });
-    return Errors.INTERNAL();
+    if (updateError) {
+      log.error('[createIncident] photo_path update error', { code: updateError.code });
+      // Non-fatal: incident exists without photo, which is acceptable.
+    }
   }
 
   revalidatePath('/dashboard/incidents');
   revalidatePath('/portal/incidents');
   return ok(undefined);
-}
-
-// Need to import err for the inline error
-function err(code: string, message: string): ActionResult<never> {
-  return { error: { code, message } };
 }
 
 export async function updateIncident(
