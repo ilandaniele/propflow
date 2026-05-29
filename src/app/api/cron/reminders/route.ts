@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { runReminderEngine } from '@/lib/notifications/reminder-engine';
@@ -12,12 +13,14 @@ import { log } from '@/lib/log';
  * Idempotent: dedup via reminders table.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Constant-time secret comparison (prevent timing attacks)
+  // Constant-time secret comparison (prevent timing attacks).
+  // timingSafeEqual requires equal-length buffers — length check must precede the call.
   const authHeader = request.headers.get('authorization') ?? '';
   const cronSecret = assertServerEnv('CRON_SECRET', 'cron reminders');
-  const expected = `Bearer ${cronSecret}`;
+  const expected = Buffer.from(`Bearer ${cronSecret}`, 'utf8');
+  const actual = Buffer.from(authHeader, 'utf8');
 
-  if (!timingSafeEqual(authHeader, expected)) {
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     log.warn('[cron/reminders] unauthorized attempt');
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Invalid secret' } }, { status: 401 });
   }
@@ -47,22 +50,3 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-/**
- * Constant-time string comparison to prevent timing attacks.
- * Simple approach: compare character-by-character with fixed iterations.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    // Still iterate to normalize timing
-    let diff = 0;
-    for (let i = 0; i < Math.max(a.length, b.length); i++) {
-      diff |= (a.charCodeAt(i) ?? 0) ^ (b.charCodeAt(i) ?? 0);
-    }
-    return diff === 0 && false; // always false when lengths differ
-  }
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return diff === 0;
-}
