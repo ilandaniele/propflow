@@ -5,6 +5,7 @@ const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
 
   // Security headers — CSP is nonce-based (generated in middleware.ts per request).
   // Static headers here provide non-CSP security headers as a base layer.

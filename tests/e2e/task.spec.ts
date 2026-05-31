@@ -33,7 +33,7 @@ test.describe.configure({ mode: 'serial' });
 // ---------------------------------------------------------------------------
 
 test.describe('Task create (admin)', () => {
-  test.beforeEach((_, testInfo) => {
+  test.beforeEach(({}, testInfo) => {
     if (!HAVE_IDS) {
       testInfo.skip();
     }
@@ -127,7 +127,7 @@ test.describe('Task create (admin)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Task view on portal (/portal/tasks)', () => {
-  test.beforeEach((_, testInfo) => {
+  test.beforeEach(({}, testInfo) => {
     if (!HAVE_IDS) {
       testInfo.skip();
     }
@@ -165,7 +165,7 @@ test.describe('Task view on portal (/portal/tasks)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Task detail — photo upload form (/portal/tasks/[id])', () => {
-  test.beforeEach((_, testInfo) => {
+  test.beforeEach(({}, testInfo) => {
     if (!HAVE_IDS) {
       testInfo.skip();
     }

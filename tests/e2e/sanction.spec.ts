@@ -33,7 +33,7 @@ test.describe.configure({ mode: 'serial' });
 // ---------------------------------------------------------------------------
 
 test.describe('Sanction propose → approve flow (admin)', () => {
-  test.beforeEach((_, testInfo) => {
+  test.beforeEach(({}, testInfo) => {
     if (!HAVE_IDS) {
       testInfo.skip();
     }
@@ -94,7 +94,7 @@ test.describe('Sanction propose → approve flow (admin)', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Sanction dispute form — portal', () => {
-  test.beforeEach((_, testInfo) => {
+  test.beforeEach(({}, testInfo) => {
     if (!HAVE_IDS) {
       testInfo.skip();
     }
