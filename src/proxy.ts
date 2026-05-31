@@ -91,6 +91,14 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// Phase 4 CSP note:
+// MockWhatsAppProvider requires NO new connect-src domain (all calls are in-process / DB only).
+// When a real provider is configured (future PR), add its domain here:
+//   Meta Cloud API: https://graph.facebook.com
+//   Twilio: https://api.twilio.com
+// Environment-gate the addition: `...(process.env.WHATSAPP_PROVIDER === 'meta' ? ['https://graph.facebook.com'] : [])`
+// This comment intentionally leaves the existing CSP unchanged.
+
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
