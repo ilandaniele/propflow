@@ -1,0 +1,355 @@
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "view": "Ver",
+    "back": "Volver",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "confirm": "Confirmar",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "all": "Todos",
+    "none": "Ninguno",
+    "yes": "Sí",
+    "no": "No",
+    "date": "Fecha",
+    "amount": "Monto",
+    "status": "Estado",
+    "actions": "Acciones",
+    "details": "Detalles",
+    "description": "Descripción",
+    "notes": "Notas",
+    "unknown": "Desconocido",
+    "optional": "Opcional",
+    "required": "Requerido",
+    "approved": "Aprobado",
+    "pending": "Pendiente",
+    "rejected": "Rechazado",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "upload": "Subir",
+    "download": "Descargar",
+    "send": "Enviar",
+    "apply": "Aplicar",
+    "create": "Crear",
+    "update": "Actualizar",
+    "close": "Cerrar",
+    "open": "Abrir",
+    "select": "Seleccionar",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "overdue": "Vencido",
+    "add": "Agregar"
+  },
+  "navigation": {
+    "dashboard": "Panel",
+    "properties": "Propiedades",
+    "units": "Unidades",
+    "tenants": "Inquilinos",
+    "contracts": "Contratos",
+    "payments": "Pagos",
+    "incidents": "Incidentes",
+    "finance": "Finanzas",
+    "reminders": "Recordatorios",
+    "announcements": "Anuncios",
+    "cleaning": "Limpieza",
+    "leads": "Prospectos",
+    "community": "Comunidad",
+    "visitors": "Visitantes",
+    "aiAssistant": "Asistente IA",
+    "whatsapp": "WhatsApp",
+    "tasks": "Tareas",
+    "sanctions": "Sanciones",
+    "overview": "Resumen",
+    "notifications": "Notificaciones",
+    "signOut": "Cerrar sesión"
+  },
+  "tenants": {
+    "title": "Inquilinos",
+    "detail": "Detalle del Inquilino",
+    "tabs": {
+      "overview": "Resumen",
+      "payments": "Pagos",
+      "contracts": "Contratos",
+      "incidents": "Incidentes",
+      "tasks": "Tareas",
+      "whatsapp": "WhatsApp",
+      "documents": "Documentos",
+      "sanctions": "Sanciones",
+      "notes": "Notas",
+      "activity": "Actividad"
+    },
+    "header": {
+      "noUnit": "Sin unidad asignada",
+      "balanceStatus": "Estado de cuenta",
+      "reliabilityScores": "Índices de confiabilidad",
+      "onTime": "Pago puntual",
+      "dispute": "Disputas",
+      "response": "Respuesta"
+    },
+    "quickActions": {
+      "sendWhatsApp": "Enviar WhatsApp",
+      "recordPayment": "Registrar Pago",
+      "newTask": "Nueva Tarea",
+      "proposeSanction": "Proponer Sanción",
+      "addNote": "Agregar Nota",
+      "uploadReceipt": "Subir Comprobante",
+      "createIncident": "Crear Incidente",
+      "viewContract": "Ver Contrato"
+    },
+    "overview": {
+      "financialSummary": "Resumen Financiero",
+      "totalCharged": "Total cobrado",
+      "totalPaid": "Total pagado",
+      "balance": "Saldo",
+      "activeContract": "Contrato Activo",
+      "activeIncidents": "Incidentes activos",
+      "pendingTasks": "Tareas pendientes",
+      "lastWhatsApp": "Último mensaje WhatsApp"
+    },
+    "avatar": {
+      "uploadPhoto": "Subir foto",
+      "changePhoto": "Cambiar foto",
+      "removePhoto": "Eliminar foto",
+      "uploadHint": "JPG, PNG o WebP. Máximo 2 MB."
+    },
+    "emptyTasks": "Sin tareas asignadas",
+    "emptySanctions": "Sin sanciones",
+    "emptyNotes": "Sin notas internas",
+    "emptyActivity": "Sin actividad reciente",
+    "emptyDocuments": "Sin documentos",
+    "emptyWhatsApp": "Sin mensajes de WhatsApp",
+    "addNote": "Agregar nota interna",
+    "notePlaceholder": "Escribe una nota interna sobre este inquilino...",
+    "portalAccess": "Acceso al portal",
+    "noPortalAccess": "Sin acceso al portal"
+  },
+  "payments": {
+    "title": "Pagos",
+    "record": "Registrar Pago",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "amount": "Monto",
+    "method": "Método",
+    "paidAt": "Fecha de pago",
+    "reference": "Referencia",
+    "status": {
+      "pending": "Pendiente",
+      "approved": "Aprobado"
+    },
+    "method_options": {
+      "cash": "Efectivo",
+      "transfer": "Transferencia",
+      "card": "Tarjeta",
+      "check": "Cheque",
+      "other": "Otro"
+    },
+    "charges": "Cargos",
+    "chargeDescription": "Descripción",
+    "dueDate": "Fecha de vencimiento",
+    "period": "Período",
+    "accountStatement": "Estado de cuenta",
+    "totalCharged": "Total cobrado",
+    "totalPaid": "Total pagado",
+    "balance": "Saldo",
+    "isOverdue": "Cuenta vencida — existen cargos pasados",
+    "receipts": {
+      "title": "Comprobantes de Pago",
+      "source": "Fuente",
+      "confidence": "Confianza",
+      "status": {
+        "pending_review": "En revisión",
+        "auto_approved": "Aprobado automáticamente",
+        "admin_approved": "Aprobado por admin",
+        "rejected": "Rechazado",
+        "duplicate_rejected": "Duplicado rechazado"
+      }
+    }
+  },
+  "contracts": {
+    "title": "Contratos",
+    "rent": "Alquiler mensual",
+    "period": "Período",
+    "status": {
+      "active": "Activo",
+      "ended": "Finalizado",
+      "cancelled": "Cancelado",
+      "draft": "Borrador"
+    },
+    "downloadPdf": "Descargar PDF",
+    "noContracts": "Sin contratos"
+  },
+  "incidents": {
+    "title": "Incidentes",
+    "category": "Categoría",
+    "priority": "Prioridad",
+    "status": {
+      "open": "Abierto",
+      "in_progress": "En progreso",
+      "resolved": "Resuelto",
+      "closed": "Cerrado"
+    },
+    "noIncidents": "Sin incidentes"
+  },
+  "tasks": {
+    "title": "Tareas",
+    "newTask": "Nueva Tarea",
+    "taskType": "Tipo de tarea",
+    "dueAt": "Fecha límite",
+    "proofRequired": "Requiere comprobante fotográfico",
+    "taskTypes": {
+      "maintenance": "Mantenimiento",
+      "document": "Documento",
+      "inspection": "Inspección",
+      "cleanup": "Limpieza",
+      "custom": "Personalizado"
+    },
+    "status": {
+      "pending": "Pendiente",
+      "in_progress": "En progreso",
+      "proof_pending_review": "Comprobante en revisión",
+      "completed": "Completada",
+      "expired": "Vencida",
+      "cancelled": "Cancelada"
+    },
+    "uploadProof": "Subir comprobante",
+    "proofSubmitted": "Comprobante enviado",
+    "aiVerdict": {
+      "valid": "Válido",
+      "invalid": "Inválido",
+      "uncertain": "Incierto"
+    },
+    "reminder": "Recordatorio: tarea vence en 24 horas",
+    "noTasks": "Sin tareas"
+  },
+  "whatsapp": {
+    "title": "WhatsApp",
+    "inbox": "Bandeja de entrada",
+    "conversations": "Conversaciones",
+    "messages": "Mensajes",
+    "sendMessage": "Enviar mensaje",
+    "typeMessage": "Escribe un mensaje...",
+    "mockBanner": "Proveedor simulado — los mensajes NO se envían a WhatsApp real",
+    "direction": {
+      "inbound": "Entrante",
+      "outbound": "Saliente"
+    },
+    "classification": {
+      "receipt": "Comprobante de pago",
+      "task-proof": "Comprobante de tarea",
+      "incident-evidence": "Evidencia de incidente",
+      "other": "Otro"
+    },
+    "status": {
+      "queued": "En cola",
+      "sent": "Enviado",
+      "delivered": "Entregado",
+      "read": "Leído",
+      "failed": "Fallido",
+      "received": "Recibido"
+    },
+    "noMessages": "Sin mensajes",
+    "noConversations": "Sin conversaciones",
+    "markRead": "Marcar como leído",
+    "unread": "no leídos",
+    "searchTenants": "Buscar por inquilino o teléfono...",
+    "templates": {
+      "paymentDue": "Tu pago de ${amount} vence el {date}. Por favor accede al portal para realizar tu pago.",
+      "paymentConfirmed": "Tu comprobante de pago de ${amount} fue recibido y aprobado. ¡Gracias!",
+      "paymentPending": "Tu comprobante de pago fue recibido y está en revisión. Te notificaremos pronto.",
+      "receiptDuplicate": "Este comprobante ya fue procesado anteriormente.",
+      "taskReminder": "Recordatorio: tienes una tarea pendiente \"{title}\" que vence el {date}.",
+      "taskCompleted": "¡Tu tarea \"{title}\" fue completada exitosamente!",
+      "taskProofPending": "Tu comprobante para la tarea \"{title}\" está en revisión.",
+      "sanctionProposed": "Se ha propuesto una sanción de ${amount} por: {reason}. Estado: pendiente de aprobación.",
+      "sanctionApproved": "Se ha aplicado una sanción de ${amount} por: {reason}.",
+      "sanctionWarning": "Advertencia formal: {reason}.",
+      "leaseRenewal": "Tu contrato vence en {days} días ({date}). Por favor contacta a tu propietario para renovarlo."
+    }
+  },
+  "sanctions": {
+    "title": "Sanciones",
+    "propose": "Proponer Sanción",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "dispute": "Disputar",
+    "kind": {
+      "monetary": "Monetaria",
+      "warning": "Advertencia"
+    },
+    "status": {
+      "proposed": "Propuesta",
+      "approved": "Aprobada",
+      "rejected": "Rechazada",
+      "disputed": "En disputa",
+      "resolved": "Resuelta"
+    },
+    "amount": "Monto",
+    "reason": "Motivo",
+    "disputeReason": "Motivo de disputa",
+    "disputeForm": {
+      "title": "Disputar Sanción",
+      "description": "Explica por qué crees que esta sanción es incorrecta.",
+      "placeholder": "Describe el motivo de tu disputa...",
+      "submit": "Enviar disputa"
+    },
+    "noSanctions": "Sin sanciones",
+    "tabs": {
+      "proposed": "Propuestas",
+      "approved": "Aprobadas",
+      "disputed": "En disputa",
+      "all": "Todas"
+    },
+    "approvalCreatesCharge": "Al aprobar una sanción monetaria se generará un cargo automáticamente.",
+    "disputeKeywords": "disputo|dispute|disputar|quiero disputar"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "markRead": "Marcar como leído",
+    "markAllRead": "Marcar todas como leídas",
+    "noNotifications": "Sin notificaciones",
+    "types": {
+      "lease_renewal": "Renovación de contrato",
+      "payment_due": "Pago vencido",
+      "sanction_proposed": "Sanción propuesta",
+      "sanction_approved": "Sanción aprobada",
+      "sanction_disputed": "Sanción en disputa",
+      "task_reminder": "Recordatorio de tarea",
+      "task_expired": "Tarea vencida",
+      "receipt_pending": "Comprobante en revisión",
+      "receipt_approved": "Comprobante aprobado"
+    }
+  },
+  "validation": {
+    "required": "Este campo es requerido",
+    "invalidEmail": "Correo electrónico inválido",
+    "invalidPhone": "Número de teléfono inválido (formato E.164 requerido)",
+    "minLength": "Mínimo {min} caracteres",
+    "maxLength": "Máximo {max} caracteres",
+    "invalidDate": "Fecha inválida",
+    "positiveNumber": "Debe ser un número positivo",
+    "fileTooLarge": "El archivo excede el tamaño máximo permitido",
+    "unsupportedMime": "Tipo de archivo no soportado",
+    "invalidUuid": "ID inválido"
+  },
+  "emptyStates": {
+    "noData": "Sin datos",
+    "noResults": "Sin resultados",
+    "noItemsFound": "No se encontraron elementos",
+    "startByCreating": "Comienza creando",
+    "nothingHere": "Nada aquí todavía"
+  },
+  "onboarding": {
+    "welcome": "Bienvenido a PropFlow",
+    "createOrg": "Crear tu organización",
+    "orgName": "Nombre de la organización",
+    "getStarted": "Comenzar",
+    "step1": "Paso 1: Tu organización",
+    "step2": "Paso 2: Primera propiedad",
+    "step3": "Paso 3: Primer inquilino"
+  }
+}
