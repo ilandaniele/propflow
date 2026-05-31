@@ -49,6 +49,8 @@ export const serverEnv = {
   get RESEND_API_KEY() { return optional('RESEND_API_KEY'); },
   get RESEND_FROM_EMAIL() { return optional('RESEND_FROM_EMAIL'); },
   get CRON_SECRET() { return optional('CRON_SECRET'); },
+  // Phase 4: WhatsApp webhook signature validation
+  get WHATSAPP_WEBHOOK_SECRET() { return optional('WHATSAPP_WEBHOOK_SECRET'); },
 };
 
 /**
