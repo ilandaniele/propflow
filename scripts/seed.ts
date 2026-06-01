@@ -74,7 +74,7 @@ async function main() {
     });
 
     if (authErr) {
-      if (authErr.message.includes('already registered')) {
+      if (authErr.message.toLowerCase().includes('registered') || authErr.message.toLowerCase().includes('already exists')) {
         // IC6 fix: when user already exists, look up their id and STILL upsert the profile.
         // Old code `continue`d here — leaving auth users with no profiles row (the root cause
         // of "admin@org-a.demo can't log in" because requireUser() queries profiles first).
