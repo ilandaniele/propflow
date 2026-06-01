@@ -69,6 +69,7 @@ export default function NewIncidentPage() {
               name="photo"
               type="file"
               accept="image/png,image/jpeg,image/webp"
+              capture="environment"
               className="w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
             />
           </div>
