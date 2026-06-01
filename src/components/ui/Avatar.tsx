@@ -2,6 +2,8 @@ interface AvatarProps {
   name?: string | null;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  /** Optional photo URL (signed Supabase storage URL). Falls back to initials. */
+  src?: string | null;
 }
 
 const sizeClasses = {
@@ -34,7 +36,26 @@ function getColorFromName(name?: string | null): string {
   return colors[idx];
 }
 
-export function Avatar({ name, size = 'md', className = '' }: AvatarProps) {
+export function Avatar({ name, size = 'md', className = '', src }: AvatarProps) {
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={name ?? 'User avatar'}
+        className={[
+          'inline-flex rounded-full object-cover shrink-0',
+          sizeClasses[size],
+          className,
+        ].join(' ')}
+        onError={(e) => {
+          // Fallback: hide img on load error (parent can show initials fallback)
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  }
+
   return (
     <div
       className={[

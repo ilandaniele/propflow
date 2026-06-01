@@ -105,6 +105,17 @@ export function generatePdfRateLimit(adminId: string) {
   return actionRateLimit(`gen-pdf:${adminId}`, 10, ONE_MINUTE_MS);
 }
 
+/** WhatsApp webhook — 60 / min / IP */
+export function webhookRateLimit(request: Request) {
+  const ip = getClientIp(request);
+  return actionRateLimit(`wa-webhook:${ip}`, 60, ONE_MINUTE_MS);
+}
+
+/** Task proof AI verification — 5 per task (shared aiChatRateLimit envelope) */
+export function taskProofRateLimit(userId: string, orgId: string) {
+  return aiChatRateLimit(userId, orgId);
+}
+
 // Cleanup stale entries periodically (only in non-edge environments)
 if (typeof setInterval !== 'undefined') {
   setInterval(() => {

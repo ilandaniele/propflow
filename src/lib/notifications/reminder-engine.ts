@@ -15,9 +15,14 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sendEmail, buildReminderEmail } from './email';
 import { log } from '@/lib/log';
+import { buildWhatsAppTemplate } from '@/lib/whatsapp/templates';
+import { getWhatsAppProvider } from '@/lib/whatsapp';
+import { upsertConversation, insertMessage } from '@/lib/whatsapp/db';
+import { emit } from '@/lib/events/emit';
 
 const LEASE_RENEWAL_DAYS = 30;
 const PAYMENT_DUE_DAYS_AHEAD = 3;
+const TASK_REMINDER_HOURS = 24;
 const PAGE_SIZE = 200; // rows per pagination batch
 
 export interface ReminderRunResult {
@@ -242,6 +247,129 @@ async function processOrg(
     if (Date.now() - globalStart > 50_000) break;
   }
 
+  // ── Task reminders & expiry ────────────────────────────────────────────────
+  let taskOffset = 0;
+  while (true) {
+    const { data: tasks } = await ctx.adminClient
+      .from('tenant_tasks')
+      .select(`
+        id, title, task_type, due_at, status,
+        tenant:tenants(id, full_name, email, profile_id, preferred_language, whatsapp_phone, whatsapp_opt_in)
+      `)
+      .eq('org_id', orgId)
+      .in('status', ['pending', 'in_progress'])
+      .order('due_at', { ascending: true })
+      .range(taskOffset, taskOffset + PAGE_SIZE - 1);
+
+    if (!tasks || tasks.length === 0) break;
+    taskOffset += tasks.length;
+
+    const now = new Date().toISOString();
+
+    for (const task of tasks) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tenant = task.tenant as any;
+      if (!tenant) continue;
+
+      // Check if task is expired
+      if (task.due_at < now && task.status === 'pending') {
+        await ctx.adminClient
+          .from('tenant_tasks')
+          .update({ status: 'expired', updated_at: now })
+          .eq('id', task.id);
+
+        emit('task.expired', {
+          orgId,
+          taskId: task.id,
+          tenantId: tenant.id,
+        }, `task.expired:${task.id}`);
+
+        continue;
+      }
+
+      // Check if reminder should be sent (due within 24h and not yet reminded)
+      const dueInHours = (new Date(task.due_at).getTime() - Date.now()) / (60 * 60 * 1000);
+      if (dueInHours > 0 && dueInHours <= TASK_REMINDER_HOURS) {
+        // Dedup: check if reminder already sent today
+        const { data: existing } = await ctx.adminClient
+          .from('reminders')
+          .select('id')
+          .eq('org_id', orgId)
+          .eq('type', 'task_reminder')
+          .eq('target_type', 'tenant_task')
+          .eq('target_id', task.id)
+          .eq('scheduled_for', today)
+          .in('status', ['sent', 'scheduled'])
+          .limit(1);
+
+        if (existing && existing.length > 0) continue;
+
+        const locale = tenant.preferred_language ?? 'es';
+        const dueDate = new Date(task.due_at).toLocaleDateString();
+        const body = buildWhatsAppTemplate('taskReminder', locale, {
+          title: task.title,
+          date: dueDate,
+        });
+
+        let reminderStatus: 'sent' | 'failed' = 'failed';
+
+        // Send WhatsApp if tenant has phone + opt_in
+        if (tenant.whatsapp_phone && tenant.whatsapp_opt_in) {
+          const provider = getWhatsAppProvider();
+          const sendResult = await provider.sendMessage(orgId, {
+            to: tenant.whatsapp_phone,
+            body,
+          });
+
+          if (sendResult.success && sendResult.providerMessageId) {
+            // Upsert conversation + insert message
+            const convId = await upsertConversation({
+              adminClient: ctx.adminClient,
+              orgId,
+              externalPhone: tenant.whatsapp_phone,
+              tenantId: tenant.id,
+            }).catch(() => null);
+
+            if (convId) {
+              await insertMessage({
+                adminClient: ctx.adminClient,
+                orgId,
+                conversationId: convId,
+                direction: 'outbound',
+                providerMessageId: sendResult.providerMessageId,
+                body,
+                status: 'sent',
+              }).catch(() => null);
+            }
+            reminderStatus = 'sent';
+          }
+        }
+
+        // Insert reminders row for dedup
+        await ctx.adminClient.from('reminders').insert({
+          org_id: orgId,
+          type: 'task_reminder',
+          target_type: 'tenant_task',
+          target_id: task.id,
+          channel: 'whatsapp',
+          scheduled_for: today,
+          sent_at: reminderStatus === 'sent' ? now : null,
+          status: reminderStatus,
+          message_preview: body.slice(0, 200),
+        });
+
+        if (reminderStatus === 'sent') {
+          remindersSent++;
+        } else {
+          remindersFailed++;
+        }
+      }
+    }
+
+    if (tasks.length < PAGE_SIZE) break;
+    if (Date.now() - globalStart > 50_000) break;
+  }
+
   return {
     orgId,
     contractsProcessed,
@@ -268,4 +396,10 @@ export function daysBetween(from: string, to: string): number {
   const a = new Date(from + 'T00:00:00Z');
   const b = new Date(to + 'T00:00:00Z');
   return Math.round((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+export function addHours(dateStr: string, hours: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCHours(d.getUTCHours() + hours);
+  return d.toISOString();
 }

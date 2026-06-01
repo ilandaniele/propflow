@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from '@/app/actions/auth';
+import { LanguageDropdown } from '@/components/i18n/LanguageDropdown';
 import { useTransition } from 'react';
+import type { Locale } from '@/i18n/config';
 
 const navItems = [
   {
@@ -60,6 +62,24 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    label: 'Tasks',
+    href: '/portal/tasks',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Sanctions',
+    href: '/portal/sanctions',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+    ),
+  },
 ];
 
 // Mobile bottom nav shows first 4; all items appear in desktop top-nav
@@ -68,9 +88,10 @@ const mobileNavItems = navItems.slice(0, 4);
 interface TenantNavProps {
   userName?: string | null;
   unreadCount?: number;
+  currentLocale?: Locale;
 }
 
-export function TenantNav({ userName, unreadCount = 0 }: TenantNavProps) {
+export function TenantNav({ userName, unreadCount = 0, currentLocale = 'es' }: TenantNavProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
@@ -119,6 +140,7 @@ export function TenantNav({ userName, unreadCount = 0 }: TenantNavProps) {
             )}
           </Link>
 
+          <LanguageDropdown currentLocale={currentLocale} />
           <span className="text-sm text-slate-600">{userName}</span>
           <button
             onClick={() => startTransition(() => signOut())}

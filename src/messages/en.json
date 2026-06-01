@@ -1,0 +1,355 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "back": "Back",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "search": "Search",
+    "filter": "Filter",
+    "all": "All",
+    "none": "None",
+    "yes": "Yes",
+    "no": "No",
+    "date": "Date",
+    "amount": "Amount",
+    "status": "Status",
+    "actions": "Actions",
+    "details": "Details",
+    "description": "Description",
+    "notes": "Notes",
+    "unknown": "Unknown",
+    "optional": "Optional",
+    "required": "Required",
+    "approved": "Approved",
+    "pending": "Pending",
+    "rejected": "Rejected",
+    "active": "Active",
+    "inactive": "Inactive",
+    "upload": "Upload",
+    "download": "Download",
+    "send": "Send",
+    "apply": "Apply",
+    "create": "Create",
+    "update": "Update",
+    "close": "Close",
+    "open": "Open",
+    "select": "Select",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "overdue": "Overdue",
+    "add": "Add"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "properties": "Properties",
+    "units": "Units",
+    "tenants": "Tenants",
+    "contracts": "Contracts",
+    "payments": "Payments",
+    "incidents": "Incidents",
+    "finance": "Finance",
+    "reminders": "Reminders",
+    "announcements": "Announcements",
+    "cleaning": "Cleaning",
+    "leads": "Leads",
+    "community": "Community",
+    "visitors": "Visitors",
+    "aiAssistant": "AI Assistant",
+    "whatsapp": "WhatsApp",
+    "tasks": "Tasks",
+    "sanctions": "Sanctions",
+    "overview": "Overview",
+    "notifications": "Notifications",
+    "signOut": "Sign out"
+  },
+  "tenants": {
+    "title": "Tenants",
+    "detail": "Tenant Detail",
+    "tabs": {
+      "overview": "Overview",
+      "payments": "Payments",
+      "contracts": "Contracts",
+      "incidents": "Incidents",
+      "tasks": "Tasks",
+      "whatsapp": "WhatsApp",
+      "documents": "Documents",
+      "sanctions": "Sanctions",
+      "notes": "Notes",
+      "activity": "Activity"
+    },
+    "header": {
+      "noUnit": "No unit assigned",
+      "balanceStatus": "Balance status",
+      "reliabilityScores": "Reliability scores",
+      "onTime": "On-time payment",
+      "dispute": "Disputes",
+      "response": "Response"
+    },
+    "quickActions": {
+      "sendWhatsApp": "Send WhatsApp",
+      "recordPayment": "Record Payment",
+      "newTask": "New Task",
+      "proposeSanction": "Propose Sanction",
+      "addNote": "Add Note",
+      "uploadReceipt": "Upload Receipt",
+      "createIncident": "Create Incident",
+      "viewContract": "View Contract"
+    },
+    "overview": {
+      "financialSummary": "Financial Summary",
+      "totalCharged": "Total charged",
+      "totalPaid": "Total paid",
+      "balance": "Balance",
+      "activeContract": "Active Contract",
+      "activeIncidents": "Active incidents",
+      "pendingTasks": "Pending tasks",
+      "lastWhatsApp": "Last WhatsApp message"
+    },
+    "avatar": {
+      "uploadPhoto": "Upload photo",
+      "changePhoto": "Change photo",
+      "removePhoto": "Remove photo",
+      "uploadHint": "JPG, PNG or WebP. Maximum 2 MB."
+    },
+    "emptyTasks": "No tasks assigned",
+    "emptySanctions": "No sanctions",
+    "emptyNotes": "No internal notes",
+    "emptyActivity": "No recent activity",
+    "emptyDocuments": "No documents",
+    "emptyWhatsApp": "No WhatsApp messages",
+    "addNote": "Add internal note",
+    "notePlaceholder": "Write an internal note about this tenant...",
+    "portalAccess": "Portal access",
+    "noPortalAccess": "No portal access"
+  },
+  "payments": {
+    "title": "Payments",
+    "record": "Record Payment",
+    "approve": "Approve",
+    "reject": "Reject",
+    "amount": "Amount",
+    "method": "Method",
+    "paidAt": "Payment date",
+    "reference": "Reference",
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved"
+    },
+    "method_options": {
+      "cash": "Cash",
+      "transfer": "Transfer",
+      "card": "Card",
+      "check": "Check",
+      "other": "Other"
+    },
+    "charges": "Charges",
+    "chargeDescription": "Description",
+    "dueDate": "Due date",
+    "period": "Period",
+    "accountStatement": "Account Statement",
+    "totalCharged": "Total charged",
+    "totalPaid": "Total paid",
+    "balance": "Balance",
+    "isOverdue": "Account overdue — past due charges exist",
+    "receipts": {
+      "title": "Payment Receipts",
+      "source": "Source",
+      "confidence": "Confidence",
+      "status": {
+        "pending_review": "Pending review",
+        "auto_approved": "Auto-approved",
+        "admin_approved": "Admin approved",
+        "rejected": "Rejected",
+        "duplicate_rejected": "Duplicate rejected"
+      }
+    }
+  },
+  "contracts": {
+    "title": "Contracts",
+    "rent": "Monthly rent",
+    "period": "Period",
+    "status": {
+      "active": "Active",
+      "ended": "Ended",
+      "cancelled": "Cancelled",
+      "draft": "Draft"
+    },
+    "downloadPdf": "Download PDF",
+    "noContracts": "No contracts"
+  },
+  "incidents": {
+    "title": "Incidents",
+    "category": "Category",
+    "priority": "Priority",
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "noIncidents": "No incidents"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "newTask": "New Task",
+    "taskType": "Task type",
+    "dueAt": "Due date",
+    "proofRequired": "Photo proof required",
+    "taskTypes": {
+      "maintenance": "Maintenance",
+      "document": "Document",
+      "inspection": "Inspection",
+      "cleanup": "Cleanup",
+      "custom": "Custom"
+    },
+    "status": {
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "proof_pending_review": "Proof under review",
+      "completed": "Completed",
+      "expired": "Expired",
+      "cancelled": "Cancelled"
+    },
+    "uploadProof": "Upload proof",
+    "proofSubmitted": "Proof submitted",
+    "aiVerdict": {
+      "valid": "Valid",
+      "invalid": "Invalid",
+      "uncertain": "Uncertain"
+    },
+    "reminder": "Reminder: task due in 24 hours",
+    "noTasks": "No tasks"
+  },
+  "whatsapp": {
+    "title": "WhatsApp",
+    "inbox": "Inbox",
+    "conversations": "Conversations",
+    "messages": "Messages",
+    "sendMessage": "Send message",
+    "typeMessage": "Type a message...",
+    "mockBanner": "Mock provider — messages are NOT sent to real WhatsApp",
+    "direction": {
+      "inbound": "Inbound",
+      "outbound": "Outbound"
+    },
+    "classification": {
+      "receipt": "Payment receipt",
+      "task-proof": "Task proof",
+      "incident-evidence": "Incident evidence",
+      "other": "Other"
+    },
+    "status": {
+      "queued": "Queued",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "read": "Read",
+      "failed": "Failed",
+      "received": "Received"
+    },
+    "noMessages": "No messages",
+    "noConversations": "No conversations",
+    "markRead": "Mark as read",
+    "unread": "unread",
+    "searchTenants": "Search by tenant or phone...",
+    "templates": {
+      "paymentDue": "Your payment of ${amount} is due on {date}. Please log in to your portal to make your payment.",
+      "paymentConfirmed": "Your payment receipt of ${amount} was received and approved. Thank you!",
+      "paymentPending": "Your payment receipt was received and is under review. We will notify you soon.",
+      "receiptDuplicate": "This receipt has already been processed.",
+      "taskReminder": "Reminder: you have a pending task \"{title}\" due on {date}.",
+      "taskCompleted": "Your task \"{title}\" was successfully completed!",
+      "taskProofPending": "Your proof for task \"{title}\" is under review.",
+      "sanctionProposed": "A sanction of ${amount} has been proposed for: {reason}. Status: pending approval.",
+      "sanctionApproved": "A sanction of ${amount} has been applied for: {reason}.",
+      "sanctionWarning": "Formal warning: {reason}.",
+      "leaseRenewal": "Your lease expires in {days} days ({date}). Please contact your landlord to discuss renewal."
+    }
+  },
+  "sanctions": {
+    "title": "Sanctions",
+    "propose": "Propose Sanction",
+    "approve": "Approve",
+    "reject": "Reject",
+    "dispute": "Dispute",
+    "kind": {
+      "monetary": "Monetary",
+      "warning": "Warning"
+    },
+    "status": {
+      "proposed": "Proposed",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "disputed": "Disputed",
+      "resolved": "Resolved"
+    },
+    "amount": "Amount",
+    "reason": "Reason",
+    "disputeReason": "Dispute reason",
+    "disputeForm": {
+      "title": "Dispute Sanction",
+      "description": "Explain why you believe this sanction is incorrect.",
+      "placeholder": "Describe your reason for disputing...",
+      "submit": "Submit dispute"
+    },
+    "noSanctions": "No sanctions",
+    "tabs": {
+      "proposed": "Proposed",
+      "approved": "Approved",
+      "disputed": "Disputed",
+      "all": "All"
+    },
+    "approvalCreatesCharge": "Approving a monetary sanction will automatically create a charge.",
+    "disputeKeywords": "dispute|i want to dispute|contest"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markRead": "Mark as read",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No notifications",
+    "types": {
+      "lease_renewal": "Lease renewal",
+      "payment_due": "Payment due",
+      "sanction_proposed": "Sanction proposed",
+      "sanction_approved": "Sanction applied",
+      "sanction_disputed": "Sanction disputed",
+      "task_reminder": "Task reminder",
+      "task_expired": "Task expired",
+      "receipt_pending": "Receipt pending review",
+      "receipt_approved": "Receipt approved"
+    }
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email address",
+    "invalidPhone": "Invalid phone number (E.164 format required)",
+    "minLength": "Minimum {min} characters",
+    "maxLength": "Maximum {max} characters",
+    "invalidDate": "Invalid date",
+    "positiveNumber": "Must be a positive number",
+    "fileTooLarge": "File exceeds maximum allowed size",
+    "unsupportedMime": "Unsupported file type",
+    "invalidUuid": "Invalid ID"
+  },
+  "emptyStates": {
+    "noData": "No data",
+    "noResults": "No results",
+    "noItemsFound": "No items found",
+    "startByCreating": "Start by creating",
+    "nothingHere": "Nothing here yet"
+  },
+  "onboarding": {
+    "welcome": "Welcome to PropFlow",
+    "createOrg": "Create your organization",
+    "orgName": "Organization name",
+    "getStarted": "Get started",
+    "step1": "Step 1: Your organization",
+    "step2": "Step 2: First property",
+    "step3": "Step 3: First tenant"
+  }
+}

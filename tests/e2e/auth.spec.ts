@@ -10,7 +10,11 @@ const HAVE_CREDENTIALS = !!process.env.E2E_ADMIN_EMAIL || ADMIN_EMAIL !== '';
 
 test.describe.configure({ mode: 'serial' });
 
-test.describe.skipIf(!HAVE_CREDENTIALS)('Authentication flows', () => {
+test.describe('Authentication flows', () => {
+  test.beforeEach(({}, testInfo) => {
+    if (!HAVE_CREDENTIALS) testInfo.skip();
+  });
+
   test('admin login redirects to /dashboard', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel(/email/i).fill(ADMIN_EMAIL);

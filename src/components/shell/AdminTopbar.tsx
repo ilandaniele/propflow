@@ -1,15 +1,18 @@
 'use client';
 
 import { Avatar } from '@/components/ui/Avatar';
+import { LanguageDropdown } from '@/components/i18n/LanguageDropdown';
 import { signOut } from '@/app/actions/auth';
 import { useTransition } from 'react';
+import type { Locale } from '@/i18n/config';
 
 interface AdminTopbarProps {
   userName?: string | null;
   pageTitle?: string;
+  currentLocale?: Locale;
 }
 
-export function AdminTopbar({ userName, pageTitle }: AdminTopbarProps) {
+export function AdminTopbar({ userName, pageTitle, currentLocale = 'es' }: AdminTopbarProps) {
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -20,6 +23,7 @@ export function AdminTopbar({ userName, pageTitle }: AdminTopbarProps) {
         )}
       </div>
       <div className="flex items-center gap-3">
+        <LanguageDropdown currentLocale={currentLocale} />
         <Avatar name={userName} size="sm" />
         <span className="text-sm text-slate-700 hidden sm:block">{userName}</span>
         <button
