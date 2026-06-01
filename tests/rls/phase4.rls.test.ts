@@ -83,9 +83,7 @@ describe.skipIf(skipIfNoSupabase)('RLS Phase 4 — cross-org isolation', () => {
     // Org B admin tries to insert a conversation with Org A's org_id
     const { error } = await clientOrgBAdmin.from('whatsapp_conversations').insert({
       org_id: orgAId,
-      tenant_id: '00000000-0000-0000-0000-000000000000', // placeholder UUID
-      phone_number: '+10000000000',
-      status: 'open',
+      external_phone: '+10000000000',
     });
 
     // WITH CHECK violation raises 42501; row-not-visible also returns no rows.
@@ -243,7 +241,6 @@ describe.skipIf(skipIfNoSupabase)('RLS Phase 4 — cross-org isolation', () => {
       org_id: orgAId,
       task_id: '00000000-0000-0000-0000-000000000000',
       image_path: 'test/path.jpg',
-      status: 'pending_review',
     });
 
     // Must fail — WITH CHECK requires org_id = current_org_id() AND role = 'admin'
