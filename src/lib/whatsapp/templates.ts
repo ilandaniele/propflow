@@ -67,6 +67,56 @@ const templates: Record<Locale, Templates> = {
   },
 };
 
+// ─── Phase 6 template definitions (task automation) ─────────────────────────
+
+type Phase6TemplateKey =
+  | 'taskDailyReminder'
+  | 'taskAwaitingProof'
+  | 'taskBlockedAck'
+  | 'weeklySummary'
+  | 'weeklySummaryBody';
+
+type Phase6Templates = Record<Phase6TemplateKey, (params: Record<string, string>) => string>;
+
+const phase6Templates: Record<Locale, Phase6Templates> = {
+  es: {
+    taskDailyReminder: (p) => `Recordatorio: tienes la tarea "${p.title}" pendiente para el ${p.date}. ¿Pudiste realizarla?`,
+    taskAwaitingProof: (p) => `¡Genial! Para completar la tarea "${p.title}", por favor envía una foto como comprobante.`,
+    taskBlockedAck:    ()  => `Entendido. Notificaremos al administrador para reprogramar la tarea.`,
+    weeklySummary:     (p) => `Resumen semanal de ${p.propertyName}: ${p.summary}`,
+    weeklySummaryBody: (p) => `Resumen semana ${p.isoWeek} — ${p.propertyName}:\n✅ Tareas completadas: ${p.tasksCompleted}\n⏳ Tareas pendientes: ${p.tasksPending}\n💰 Pagos registrados: ${p.payments}\n🚨 Incidentes: ${p.incidents}\n⚖️ Sanciones: ${p.sanctions}`,
+  },
+  en: {
+    taskDailyReminder: (p) => `Reminder: you have task "${p.title}" pending for ${p.date}. Were you able to complete it?`,
+    taskAwaitingProof: (p) => `Great! To complete task "${p.title}", please send a photo as proof.`,
+    taskBlockedAck:    ()  => `Understood. We will notify the administrator to reschedule the task.`,
+    weeklySummary:     (p) => `Weekly summary for ${p.propertyName}: ${p.summary}`,
+    weeklySummaryBody: (p) => `Week ${p.isoWeek} summary — ${p.propertyName}:\n✅ Completed tasks: ${p.tasksCompleted}\n⏳ Pending tasks: ${p.tasksPending}\n💰 Payments recorded: ${p.payments}\n🚨 Incidents: ${p.incidents}\n⚖️ Sanctions: ${p.sanctions}`,
+  },
+  pt: {
+    taskDailyReminder: (p) => `Lembrete: você tem a tarefa "${p.title}" pendente para ${p.date}. Conseguiu realizá-la?`,
+    taskAwaitingProof: (p) => `Ótimo! Para concluir a tarefa "${p.title}", por favor envie uma foto como comprovante.`,
+    taskBlockedAck:    ()  => `Entendido. Vamos notificar o administrador para reagendar a tarefa.`,
+    weeklySummary:     (p) => `Resumo semanal de ${p.propertyName}: ${p.summary}`,
+    weeklySummaryBody: (p) => `Resumo semana ${p.isoWeek} — ${p.propertyName}:\n✅ Tarefas concluídas: ${p.tasksCompleted}\n⏳ Tarefas pendentes: ${p.tasksPending}\n💰 Pagamentos registrados: ${p.payments}\n🚨 Incidentes: ${p.incidents}\n⚖️ Sanções: ${p.sanctions}`,
+  },
+};
+
+/**
+ * Build a Phase 6 automation WhatsApp message (task reminders, proof prompts, etc.).
+ * Falls back to 'es' if locale is unknown.
+ */
+export function buildWhatsAppPhase6Template(
+  key: Phase6TemplateKey,
+  locale: string,
+  params: Record<string, string> = {}
+): string {
+  const safeLocale: Locale = (['es', 'en', 'pt'] as const).includes(locale as Locale)
+    ? (locale as Locale)
+    : 'es';
+  return phase6Templates[safeLocale][key](params);
+}
+
 /**
  * Build a WhatsApp message body for the given template key and locale.
  * Falls back to 'es' if locale is unknown.

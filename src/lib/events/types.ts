@@ -85,6 +85,13 @@ export interface SanctionDisputedPayload extends EventPayload {
   tenantId: string;
 }
 
+export interface TaskButtonPressedPayload extends EventPayload {
+  taskId:    string;
+  tenantId:  string;
+  fromPhone: string;  // PII — never log
+  action:    'listo' | 'no_puedo';
+}
+
 export type EventHandler<T extends EventPayload = EventPayload> = (
   payload: T,
   idempotencyKey?: string

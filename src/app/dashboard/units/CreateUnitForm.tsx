@@ -37,6 +37,22 @@ export function CreateUnitForm({ properties }: { properties: Array<{ id: string;
                 <Input label="Bedrooms" name="bedrooms" type="number" min="0" placeholder="2" />
               </div>
               <Input label="Default Monthly Rent ($)" name="monthly_rent_default" type="number" min="0" step="0.01" placeholder="1500" />
+              {/* toilet_type — admin-only; not shown in tenant portal */}
+              <div className="flex flex-col gap-1">
+                <label htmlFor="toilet_type" className="text-sm font-medium text-slate-700">
+                  Baño / Bathroom
+                </label>
+                <select
+                  id="toilet_type"
+                  name="toilet_type"
+                  defaultValue="private"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="private">🚿 Privado / Private</option>
+                  <option value="shared">🚽 Compartido / Shared</option>
+                  <option value="none">— Sin baño / No bathroom</option>
+                </select>
+              </div>
               {state.error && <p role="alert" className="text-sm text-red-600">{state.error.message}</p>}
               <div className="flex gap-2">
                 <SubmitButton />

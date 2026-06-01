@@ -198,8 +198,10 @@ const communityNavItems: NavItem[] = [
   },
 ];
 
-interface AdminSidebarProps {
-  orgName?: string;
+export interface AdminSidebarProps {
+  orgName?:  string;
+  open?:     boolean;
+  onClose?:  () => void;
 }
 
 function NavSection({ title, items, pathname }: { title?: string; items: NavItem[]; pathname: string }) {
@@ -238,7 +240,7 @@ function NavSection({ title, items, pathname }: { title?: string; items: NavItem
   );
 }
 
-export function AdminSidebar({ orgName }: AdminSidebarProps) {
+export function AdminSidebar({ orgName, open: _open, onClose: _onClose }: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (

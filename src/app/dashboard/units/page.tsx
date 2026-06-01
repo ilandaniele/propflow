@@ -9,6 +9,15 @@ import { CreateUnitForm } from './CreateUnitForm';
 
 export const metadata: Metadata = { title: 'Units' };
 
+/** Display a toilet_type value as a short i18n-friendly badge. Admin-only column. */
+function ToiletTypeBadge({ value }: { value: string | null | undefined }) {
+  if (value === 'private')  return <span title="Privado / Private">🚿 Privado</span>;
+  if (value === 'shared')   return <span title="Compartido / Shared">🚽 Compartido</span>;
+  if (value === 'none')     return <span title="Sin baño / No bathroom" className="text-slate-400">—</span>;
+  // Fallback for unexpected values or null (migration default is 'private')
+  return <span className="text-slate-400">—</span>;
+}
+
 export default async function UnitsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
@@ -47,6 +56,7 @@ export default async function UnitsPage() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Unit</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Property</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Default Rent</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Baño</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
               </tr>
             </thead>
@@ -62,6 +72,9 @@ export default async function UnitsPage() {
                     <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{property?.name ?? '—'}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
                       {unit.monthly_rent_default ? `$${unit.monthly_rent_default.toLocaleString()}` : '—'}
+                    </td>
+                    <td className="px-5 py-4 text-sm hidden lg:table-cell">
+                      <ToiletTypeBadge value={unit.toilet_type} />
                     </td>
                     <td className="px-5 py-4"><StatusPill status={unit.status} /></td>
                   </tr>

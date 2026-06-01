@@ -3,16 +3,18 @@
 import { Avatar } from '@/components/ui/Avatar';
 import { LanguageDropdown } from '@/components/i18n/LanguageDropdown';
 import { signOut } from '@/app/actions/auth';
-import { useTransition } from 'react';
+import { useTransition, type RefObject } from 'react';
 import type { Locale } from '@/i18n/config';
 
-interface AdminTopbarProps {
-  userName?: string | null;
-  pageTitle?: string;
+export interface AdminTopbarProps {
+  userName?:     string | null;
+  pageTitle?:    string;
   currentLocale?: Locale;
+  onMenuClick?:  () => void;
+  hamburgerRef?: RefObject<HTMLButtonElement | null>;
 }
 
-export function AdminTopbar({ userName, pageTitle, currentLocale = 'es' }: AdminTopbarProps) {
+export function AdminTopbar({ userName, pageTitle, currentLocale = 'es', onMenuClick: _onMenuClick, hamburgerRef: _hamburgerRef }: AdminTopbarProps) {
   const [isPending, startTransition] = useTransition();
 
   return (

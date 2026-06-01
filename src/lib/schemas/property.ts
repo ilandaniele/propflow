@@ -16,6 +16,8 @@ export const CreateUnitSchema = z.object({
   label: z.string().min(1, 'Unit label is required').max(100),
   floor: z.string().max(50).optional().or(z.literal('')),
   bedrooms: z.coerce.number().int().min(0).max(20).optional(),
+  // toilet_type: must match DB CHECK constraint IN ('shared', 'private', 'none')
+  toilet_type: z.enum(['shared', 'private', 'none']).default('private'),
   monthly_rent_default: z.coerce.number().min(0).max(9_999_999).optional(),
 });
 
