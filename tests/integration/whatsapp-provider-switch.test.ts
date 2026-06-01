@@ -107,11 +107,16 @@ describe('getWhatsAppProvider() switching', () => {
     );
     expect(fallbackWarn).toBeDefined();
 
+    // The warn payload (second argument) must carry { missing: [...] } with the missing key NAME
+    const payload = fallbackWarn?.[1] as { missing?: string[] } | undefined;
+    expect(payload).toHaveProperty('missing');
+    expect(Array.isArray(payload?.missing)).toBe(true);
+    expect(payload?.missing).toContain('META_APP_SECRET');
+
     // The warn call MUST NOT contain any env var VALUE (only names are allowed)
-    if (fallbackWarn) {
-      const serialized = JSON.stringify(fallbackWarn);
-      expect(serialized).not.toContain(META_ENV_VARS.WHATSAPP_ACCESS_TOKEN);
-    }
+    const serialized = JSON.stringify(fallbackWarn);
+    expect(serialized).not.toContain(META_ENV_VARS.WHATSAPP_ACCESS_TOKEN);
+    expect(serialized).not.toContain(META_ENV_VARS.META_APP_SECRET);
   });
 
   it('WHATSAPP_PROVIDER=meta + WHATSAPP_ACCESS_TOKEN missing → MockWhatsAppProvider + log.warn', () => {
@@ -125,6 +130,12 @@ describe('getWhatsAppProvider() switching', () => {
       ([msg]) => typeof msg === 'string' && msg.includes('falling back to mock')
     );
     expect(fallbackWarn).toBeDefined();
+
+    // Warn payload must carry { missing: [...] } with the missing key NAME
+    const payload = fallbackWarn?.[1] as { missing?: string[] } | undefined;
+    expect(payload).toHaveProperty('missing');
+    expect(Array.isArray(payload?.missing)).toBe(true);
+    expect(payload?.missing).toContain('WHATSAPP_ACCESS_TOKEN');
   });
 
   it('singleton returns the same instance on second call without reset', () => {

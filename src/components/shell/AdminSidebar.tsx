@@ -240,11 +240,34 @@ function NavSection({ title, items, pathname }: { title?: string; items: NavItem
   );
 }
 
-export function AdminSidebar({ orgName, open: _open, onClose: _onClose }: AdminSidebarProps) {
+export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="flex flex-col h-full w-60 bg-white border-r border-slate-200 shrink-0">
+    <>
+      {/* Mobile drawer — slides in when open, hidden on md+ (desktop always shows sidebar) */}
+      <aside
+        className={[
+          'fixed inset-y-0 left-0 z-40 flex flex-col w-60 bg-white border-r border-slate-200',
+          'md:static md:z-auto md:flex md:shrink-0',
+          'transition-transform duration-200 ease-in-out',
+          open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+        ].join(' ')}
+        aria-hidden={!open && undefined}
+      >
+        {/* Close button — mobile only */}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="md:hidden absolute top-4 right-4 p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            aria-label="Close navigation"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        )}
       {/* Logo */}
       <div className="flex items-center h-16 px-5 border-b border-slate-200">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-slate-900">
@@ -272,6 +295,7 @@ export function AdminSidebar({ orgName, open: _open, onClose: _onClose }: AdminS
           <NavSection title="Phase 4" items={phase4NavItems} pathname={pathname} />
         </ul>
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }

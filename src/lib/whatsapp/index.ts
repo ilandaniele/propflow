@@ -25,13 +25,18 @@ export function getWhatsAppProvider(): IWhatsAppProvider {
 
   const providerName = process.env.WHATSAPP_PROVIDER ?? 'mock';
 
-  if (
-    providerName === 'meta' &&
-    process.env.WHATSAPP_ACCESS_TOKEN &&
-    process.env.WHATSAPP_PHONE_NUMBER_ID &&
-    process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN &&
-    process.env.META_APP_SECRET
-  ) {
+  const REQUIRED_META_VARS = [
+    'WHATSAPP_ACCESS_TOKEN',
+    'WHATSAPP_PHONE_NUMBER_ID',
+    'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+    'META_APP_SECRET',
+  ] as const;
+
+  const missingVars = REQUIRED_META_VARS.filter(
+    (key) => !process.env[key]
+  );
+
+  if (providerName === 'meta' && missingVars.length === 0) {
     // All required env vars present — use real Meta provider
     _provider = new MetaWhatsAppProvider();
     log.info('[whatsapp] using MetaWhatsAppProvider');
@@ -39,9 +44,10 @@ export function getWhatsAppProvider(): IWhatsAppProvider {
     // Fall back to mock (preview / local dev / misconfiguration)
     _provider = new MockWhatsAppProvider();
     if (providerName === 'meta') {
-      // Only warn if operator intended Meta but vars are missing
+      // Only warn if operator intended Meta but vars are missing.
+      // Payload contains key NAMES only — never values — to avoid PII/secret leakage in logs.
       log.warn('[whatsapp] WHATSAPP falling back to mock (WHATSAPP_PROVIDER env not fully configured)', {
-        configured: false,
+        missing: missingVars,
       });
     }
   }
