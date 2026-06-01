@@ -37,10 +37,16 @@ export async function proxy(request: NextRequest) {
     'max-age=63072000; includeSubDomains; preload'
   );
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set(
-    'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=()'
-  );
+  // Default: deny camera on all routes (least-privilege).
+  // Tenant portal (/portal/*) relaxed to camera=(self) so that the
+  // incident creation form's <input capture="environment"> can open
+  // the device camera on mobile browsers that honour Permissions-Policy.
+  // Admin dashboard, auth pages, and public routes keep camera=().
+  // Ref: src/app/portal/incidents/new/page.tsx
+  const cameraPolicy = path.startsWith('/portal')
+    ? 'camera=(self), microphone=(), geolocation=()'
+    : 'camera=(), microphone=(), geolocation=()';
+  response.headers.set('Permissions-Policy', cameraPolicy);
   response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
 
   // Route protection

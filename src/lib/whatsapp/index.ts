@@ -1,29 +1,71 @@
 /**
  * WhatsApp provider factory + singleton.
- * Returns MockWhatsAppProvider unless WHATSAPP_PROVIDER='meta' or 'twilio' is set.
- * Real provider implementations are single-file swaps.
+ *
+ * Selection logic:
+ * - WHATSAPP_PROVIDER === 'meta' AND all 4 required env vars present
+ *   → MetaWhatsAppProvider
+ * - Otherwise → MockWhatsAppProvider (with a single boot warning if 'meta' was intended)
+ *
+ * WHATSAPP_BUSINESS_ACCOUNT_ID is optional at boot — only required in
+ * downloadAttachment paths (asserted at call-site in MetaWhatsAppProvider).
+ *
+ * Preview deployments and local dev continue to boot even without
+ * any WhatsApp secrets set. Never crash at module import time.
  */
 
+import { log } from '@/lib/log';
 import type { IWhatsAppProvider } from './provider';
 import { MockWhatsAppProvider } from './mock-provider';
+import { MetaWhatsAppProvider } from './meta-provider';
 
 let _provider: IWhatsAppProvider | null = null;
 
 export function getWhatsAppProvider(): IWhatsAppProvider {
-  if (_provider) return _provider;
+  if (_provider) return _provider!;
 
   const providerName = process.env.WHATSAPP_PROVIDER ?? 'mock';
 
-  if (providerName === 'mock') {
-    _provider = new MockWhatsAppProvider();
+  const REQUIRED_META_VARS = [
+    'WHATSAPP_ACCESS_TOKEN',
+    'WHATSAPP_PHONE_NUMBER_ID',
+    'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+    'META_APP_SECRET',
+  ] as const;
+
+  const missingVars = REQUIRED_META_VARS.filter(
+    (key) => !process.env[key]
+  );
+
+  if (providerName === 'meta' && missingVars.length === 0) {
+    // All required env vars present — use real Meta provider
+    _provider = new MetaWhatsAppProvider();
+    log.info('[whatsapp] using MetaWhatsAppProvider');
   } else {
-    // Future: import and instantiate real provider
-    // For now, always fallback to mock
+    // Fall back to mock (preview / local dev / misconfiguration)
     _provider = new MockWhatsAppProvider();
+    if (providerName === 'meta') {
+      // Only warn if operator intended Meta but vars are missing.
+      // Payload contains key NAMES only — never values — to avoid PII/secret leakage in logs.
+      log.warn('[whatsapp] WHATSAPP falling back to mock (WHATSAPP_PROVIDER env not fully configured)', {
+        missing: missingVars,
+      });
+    }
   }
 
-  return _provider;
+  return _provider!;
+}
+
+/** Reset the singleton (test isolation only). */
+export function resetWhatsAppProvider(): void {
+  _provider = null;
 }
 
 // Re-export types for callers
-export type { IWhatsAppProvider, OutboundMessage, InboundMessage, SendResult } from './provider';
+export type {
+  IWhatsAppProvider,
+  OutboundMessage,
+  InboundMessage,
+  SendResult,
+  InteractiveButtonOpts,
+  InteractiveButton,
+} from './provider';

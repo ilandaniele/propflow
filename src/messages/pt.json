@@ -351,5 +351,12 @@
     "step1": "Etapa 1: Sua organização",
     "step2": "Etapa 2: Primeira propriedade",
     "step3": "Etapa 3: Primeiro inquilino"
+  },
+  "units": {
+    "toiletType": {
+      "private": "Privativo",
+      "shared": "Compartilhado",
+      "none": "Sem banheiro"
+    }
   }
 }

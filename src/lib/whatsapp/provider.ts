@@ -27,6 +27,17 @@ export interface SendResult {
   error?: string;
 }
 
+export interface InteractiveButton {
+  id: string;     // reply ID sent back by user; max 256 chars; must be unique per message
+  title: string;  // displayed label; max 20 chars (Meta limit)
+}
+
+export interface InteractiveButtonOpts {
+  to:       string;               // E.164 phone (PII — never log)
+  bodyText: string;               // message body shown above buttons
+  buttons:  InteractiveButton[];  // max 3 buttons (Meta limit)
+}
+
 export interface IWhatsAppProvider {
   /**
    * Send a plain text or template message.
@@ -50,4 +61,11 @@ export interface IWhatsAppProvider {
     bucket: string,
     storagePath: string
   ): Promise<{ storagePath: string }>;
+
+  /**
+   * Send a message with interactive quick-reply buttons (optional capability).
+   * Validates buttons count (max 3) and title length (max 20 chars) before sending.
+   * Only available on Meta provider — MockWhatsAppProvider stubs this as a no-op.
+   */
+  sendInteractiveButtons?(orgId: string, opts: InteractiveButtonOpts): Promise<SendResult>;
 }

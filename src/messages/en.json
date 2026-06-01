@@ -351,5 +351,12 @@
     "step1": "Step 1: Your organization",
     "step2": "Step 2: First property",
     "step3": "Step 3: First tenant"
+  },
+  "units": {
+    "toiletType": {
+      "private": "Private",
+      "shared": "Shared",
+      "none": "No bathroom"
+    }
   }
 }
