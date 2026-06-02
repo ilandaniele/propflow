@@ -13,13 +13,16 @@ interface TabsProps {
   tabs: Tab[];
   defaultTab?: string;
   className?: string;
+  /** Accessible label for the tab list. Defaults to "Content tabs". */
+  ariaLabel?: string;
 }
 
 /**
  * Accessible tab component with keyboard navigation (ARIA tabs pattern).
  * All tabs are rendered but only the active one is visible (no SSR mismatch).
+ * Touch targets meet Apple HIG minimum of 44px (min-h-[44px] + py-3).
  */
-export function Tabs({ tabs, defaultTab, className = '' }: TabsProps) {
+export function Tabs({ tabs, defaultTab, className = '', ariaLabel = 'Content tabs' }: TabsProps) {
   const [activeId, setActiveId] = useState(defaultTab ?? tabs[0]?.id ?? '');
 
   return (
@@ -28,7 +31,7 @@ export function Tabs({ tabs, defaultTab, className = '' }: TabsProps) {
       <div
         role="tablist"
         className="flex gap-0.5 border-b border-slate-200 overflow-x-auto scrollbar-none"
-        aria-label="Tenant detail tabs"
+        aria-label={ariaLabel}
       >
         {tabs.map((tab) => {
           const isActive = tab.id === activeId;
@@ -41,6 +44,7 @@ export function Tabs({ tabs, defaultTab, className = '' }: TabsProps) {
               aria-controls={`panel-${tab.id}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => setActiveId(tab.id)}
+              style={{ touchAction: 'manipulation' }}
               onKeyDown={(e) => {
                 const idx = tabs.findIndex((t) => t.id === activeId);
                 if (e.key === 'ArrowRight') {
@@ -52,7 +56,7 @@ export function Tabs({ tabs, defaultTab, className = '' }: TabsProps) {
                 }
               }}
               className={[
-                'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap',
+                'flex items-center gap-1.5 px-4 py-3 min-h-[44px] text-sm font-medium whitespace-nowrap',
                 'border-b-2 -mb-px transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
                 isActive
                   ? 'border-brand-600 text-brand-700'

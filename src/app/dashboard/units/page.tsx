@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill } from '@/components/ui/Badge';
 import { CreateUnitForm } from './CreateUnitForm';
@@ -60,6 +62,7 @@ export default async function UnitsPage() {
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Default Rent</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Baño</th>
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -86,6 +89,11 @@ export default async function UnitsPage() {
                       />
                     </td>
                     <td className="px-5 py-4"><StatusPill status={unit.status} /></td>
+                    <td className="px-5 py-4 text-right">
+                      <Link href={`/dashboard/units/${unit.id}`}>
+                        <Button variant="ghost" size="sm">View</Button>
+                      </Link>
+                    </td>
                   </tr>
                 );
               })}
