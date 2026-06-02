@@ -20,13 +20,29 @@ export async function DocumentsTab({ tenantId }: Props) {
 
   const supabase = await createClient();
 
+  // Fetch contract IDs for this specific tenant first.
+  // signature_requests has no tenant_id column — it links to tenants via
+  // contract_id. Filtering by contract IDs scopes the result to this tenant
+  // and prevents an admin viewing tenant A from seeing requests for other
+  // tenants in the same org (B1 fix).
+  const tenantContractsRes = await supabase
+    .from('contracts')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('org_id', ctx.orgId);
+
+  const tenantContractIds = (tenantContractsRes.data ?? []).map((c) => c.id);
+
   const [signatureReqRes, contractsRes] = await Promise.all([
-    supabase
-      .from('signature_requests')
-      .select('id, signer_email, status, sent_at')
-      .eq('org_id', ctx.orgId)
-      .order('created_at', { ascending: false })
-      .limit(20),
+    tenantContractIds.length > 0
+      ? supabase
+          .from('signature_requests')
+          .select('id, signer_email, status, sent_at')
+          .eq('org_id', ctx.orgId)
+          .in('contract_id', tenantContractIds)
+          .order('created_at', { ascending: false })
+          .limit(20)
+      : Promise.resolve({ data: [], error: null }),
     supabase
       .from('contracts')
       .select('id', { count: 'exact', head: true })
