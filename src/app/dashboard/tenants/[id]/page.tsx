@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { getTenantActivityFeed } from '@/lib/tenants/activity-feed';
+import { buildTenantActivityFeed } from '@/lib/tenants/activity-feed';
 import { Tabs } from '@/components/ui/Tabs';
 import { ProfileHeader } from './_components/ProfileHeader';
 import { QuickActions } from './_components/QuickActions';
@@ -62,7 +62,7 @@ export default async function TenantDetailPage({ params }: Props) {
     supabase.from('charges').select('*').eq('tenant_id', id).eq('org_id', ctx.orgId).order('due_date', { ascending: false }).limit(50),
     supabase.from('tenant_statement').select('*').eq('tenant_id', id).single(),
     supabase.from('incidents').select('id, title, category, priority, status, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
-    supabase.from('tenant_tasks').select('id, title, task_type, status, due_at, completed_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
+    supabase.from('tenant_tasks').select('id, title, task_type, status, due_at, completed_at, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
     supabase.from('sanctions').select('id, kind, title, reason, amount, status, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
     supabase.from('internal_notes').select('id, content, created_by, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
     supabase.from('payment_receipts').select('id, source, status, extracted_amount, confidence, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(20),
@@ -104,8 +104,18 @@ export default async function TenantDetailPage({ params }: Props) {
     avatarSignedUrl = urlData?.signedUrl ?? null;
   }
 
-  // Activity feed
-  const activityEvents = await getTenantActivityFeed(supabase, id, ctx.orgId);
+  // Activity feed — built in memory from already-fetched arrays (AC3).
+  // Only whatsapp_messages is still queried inside buildTenantActivityFeed
+  // because it needs a conversation join that differs from the page-level waMessages fetch.
+  const activityEvents = await buildTenantActivityFeed({
+    supabase,
+    tenantId: id,
+    orgId: ctx.orgId,
+    payments,
+    incidents,
+    tasks,
+    sanctions,
+  });
 
   // Derived counts
   const activeContract = contracts.find((c) => c.status === 'active') ?? null;
