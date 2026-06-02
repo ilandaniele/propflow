@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/unit/**/*.test.ts', 'tests/rls/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'tests/rls/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     env: {
       // Stub values for unit tests — not real credentials
       NEXT_PUBLIC_SUPABASE_URL: 'https://placeholder.supabase.co',

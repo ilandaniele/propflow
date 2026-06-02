@@ -1,17 +1,35 @@
+import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 import Link from 'next/link';
 
-interface Task {
-  id: string;
-  title: string;
-  task_type: string;
-  status: string;
-  due_at: string;
-  completed_at?: string | null;
+interface Props {
+  tenantId: string;
 }
 
-export function TasksTab({ tasks }: { tasks: Task[] }) {
+/**
+ * Async Server Component — self-fetches tasks for the given tenant.
+ * Wrapped in <Suspense fallback={<TabFallback />}> by the parent page so it
+ * streams independently without blocking the page shell.
+ */
+export async function TasksTab({ tenantId }: Props) {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('tenant_tasks')
+    .select('id, title, task_type, status, due_at, completed_at, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('org_id', ctx.orgId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const tasks = data ?? [];
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
@@ -32,9 +50,13 @@ export function TasksTab({ tasks }: { tasks: Task[] }) {
               <div key={t.id} className="py-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-900">{t.title}</p>
-                  <p className="text-xs text-slate-500">{t.task_type} · Due: {new Date(t.due_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-500">
+                    {t.task_type} · Due: {new Date(t.due_at).toLocaleDateString()}
+                  </p>
                   {t.completed_at && (
-                    <p className="text-xs text-green-600">Completed: {new Date(t.completed_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-green-600">
+                      Completed: {new Date(t.completed_at).toLocaleDateString()}
+                    </p>
                   )}
                 </div>
                 <StatusPill status={t.status} />

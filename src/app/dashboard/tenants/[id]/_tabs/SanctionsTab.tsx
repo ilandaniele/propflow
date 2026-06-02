@@ -1,17 +1,34 @@
+import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 
-interface Sanction {
-  id: string;
-  kind: string;
-  title: string;
-  reason: string;
-  amount: number | null;
-  status: string;
-  created_at: string;
+interface Props {
+  tenantId: string;
 }
 
-export function SanctionsTab({ sanctions }: { sanctions: Sanction[] }) {
+/**
+ * Async Server Component — self-fetches sanctions for the given tenant.
+ * Wrapped in <Suspense fallback={<TabFallback />}> by the parent page so it
+ * streams independently without blocking the page shell.
+ */
+export async function SanctionsTab({ tenantId }: Props) {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('sanctions')
+    .select('id, kind, title, reason, amount, status, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('org_id', ctx.orgId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const sanctions = data ?? [];
+
   return (
     <div className="p-4">
       <Card>
@@ -30,16 +47,24 @@ export function SanctionsTab({ sanctions }: { sanctions: Sanction[] }) {
                     </Badge>
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">{s.reason}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{new Date(s.created_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {new Date(s.created_at).toLocaleDateString()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {s.amount && <span className="text-sm font-medium text-slate-900">${Number(s.amount).toLocaleString()}</span>}
-                  <Badge variant={
-                    s.status === 'approved' ? 'danger' :
-                    s.status === 'disputed' ? 'warning' :
-                    s.status === 'resolved' ? 'success' :
-                    'default'
-                  }>
+                  {s.amount && (
+                    <span className="text-sm font-medium text-slate-900">
+                      ${Number(s.amount).toLocaleString()}
+                    </span>
+                  )}
+                  <Badge
+                    variant={
+                      s.status === 'approved' ? 'danger' :
+                      s.status === 'disputed' ? 'warning' :
+                      s.status === 'resolved' ? 'success' :
+                      'default'
+                    }
+                  >
                     {s.status}
                   </Badge>
                 </div>
