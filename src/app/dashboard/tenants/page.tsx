@@ -63,9 +63,15 @@ export default async function TenantsPage() {
               {list.map((tenant) => {
                 const unit = tenant.units as { label: string; properties: { name: string } | null } | null;
                 return (
-                  <tr key={tenant.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={tenant.id} className="hover:bg-slate-50 transition-colors cursor-pointer relative">
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
+                      {/* Stretched link covers the entire row */}
+                      <Link
+                        href={`/dashboard/tenants/${tenant.id}`}
+                        className="absolute inset-0 z-10"
+                        aria-label={`View ${tenant.full_name} profile`}
+                      />
+                      <div className="flex items-center gap-3 relative z-20">
                         <Avatar name={tenant.full_name} size="sm" />
                         <span className="font-medium text-slate-900 text-sm">{tenant.full_name}</span>
                       </div>
@@ -81,7 +87,7 @@ export default async function TenantsPage() {
                         {tenant.profile_id ? 'Active' : 'No login'}
                       </Badge>
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-5 py-4 text-right relative z-20">
                       <Link href={`/dashboard/tenants/${tenant.id}`}>
                         <Button variant="ghost" size="sm">View</Button>
                       </Link>
