@@ -1,17 +1,35 @@
+import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import Link from 'next/link';
 
-interface Incident {
-  id: string;
-  title: string;
-  category: string;
-  priority: string;
-  status: string;
-  created_at: string;
+interface Props {
+  tenantId: string;
 }
 
-export function IncidentsTab({ incidents }: { incidents: Incident[] }) {
+/**
+ * Async Server Component — self-fetches incidents for the given tenant.
+ * Wrapped in <Suspense fallback={<TabFallback />}> by the parent page so it
+ * streams independently without blocking the page shell.
+ */
+export async function IncidentsTab({ tenantId }: Props) {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('incidents')
+    .select('id, title, category, priority, status, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('org_id', ctx.orgId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const incidents = data ?? [];
+
   return (
     <div className="p-4">
       <Card>
@@ -29,7 +47,9 @@ export function IncidentsTab({ incidents }: { incidents: Incident[] }) {
                   >
                     {i.title}
                   </Link>
-                  <p className="text-xs text-slate-500 mt-0.5">{i.category} · {new Date(i.created_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {i.category} · {new Date(i.created_at).toLocaleDateString()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <PriorityPill priority={i.priority} />

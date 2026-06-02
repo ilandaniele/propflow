@@ -1,16 +1,33 @@
+import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 
-interface Contract {
-  id: string;
-  monthly_rent: number;
-  start_date: string;
-  end_date: string;
-  status: string;
-  document_url?: string | null;
+interface Props {
+  tenantId: string;
 }
 
-export function ContractsTab({ contracts }: { contracts: Contract[] }) {
+/**
+ * Async Server Component — self-fetches contract data for the given tenant.
+ * Wrapped in <Suspense fallback={<TabFallback />}> by the parent page so it
+ * streams independently without blocking the page shell.
+ */
+export async function ContractsTab({ tenantId }: Props) {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from('contracts')
+    .select('id, monthly_rent, start_date, end_date, status, document_url')
+    .eq('tenant_id', tenantId)
+    .eq('org_id', ctx.orgId)
+    .order('created_at', { ascending: false });
+
+  const contracts = data ?? [];
+
   return (
     <div className="p-4">
       <Card>
