@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Avatar } from '@/components/ui/Avatar';
+import { ClickableRow } from '@/components/ui/ClickableRow';
 import { CreateTenantForm } from './CreateTenantForm';
 
 export const metadata: Metadata = { title: 'Tenants' };
@@ -63,7 +64,7 @@ export default async function TenantsPage() {
               {list.map((tenant) => {
                 const unit = tenant.units as { label: string; properties: { name: string } | null } | null;
                 return (
-                  <tr key={tenant.id} className="hover:bg-slate-50 transition-colors">
+                  <ClickableRow key={tenant.id} href={`/dashboard/tenants/${tenant.id}`}>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <Avatar name={tenant.full_name} size="sm" />
@@ -86,7 +87,7 @@ export default async function TenantsPage() {
                         <Button variant="ghost" size="sm">View</Button>
                       </Link>
                     </td>
-                  </tr>
+                  </ClickableRow>
                 );
               })}
             </tbody>
