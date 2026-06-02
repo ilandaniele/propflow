@@ -1,24 +1,22 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getProfile } from '@/lib/auth/guards';
 import { AdminSidebar } from '@/components/shell/AdminSidebar';
 import { AdminTopbar } from '@/components/shell/AdminTopbar';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) redirect('/login');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name, org_id')
-    .eq('id', user.id)
-    .single();
+  // getProfile() is wrapped in React.cache() — if a dashboard page calls
+  // requireAdmin() (which calls requireUser() → getProfile()), these two calls
+  // share the same cached result and only one profiles SELECT is issued.
+  const profile = await getProfile();
 
   if (!profile || profile.role !== 'admin') {
-    redirect('/portal');
+    redirect('/login');
   }
 
+  // Organization name is only needed by the layout shell; no other consumer
+  // requests it, so it is NOT cached (one dedicated SELECT per request is fine).
+  const supabase = await createClient();
   const { data: org } = await supabase
     .from('organizations')
     .select('name')
