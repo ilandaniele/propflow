@@ -357,6 +357,17 @@
       "private": "Privativo",
       "shared": "Compartilhado",
       "none": "Sem banheiro"
+    },
+    "detail": {
+      "backToUnits": "Voltar para Unidades",
+      "property": "Propriedade",
+      "status": "Status",
+      "floor": "Andar",
+      "toiletType": "Banheiro",
+      "defaultRent": "Aluguel padrão",
+      "tenant": "Inquilino",
+      "unoccupied": "Desocupado",
+      "createdAt": "Criado"
     }
   }
 }

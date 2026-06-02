@@ -357,6 +357,17 @@
       "private": "Privado",
       "shared": "Compartido",
       "none": "Sin baño"
+    },
+    "detail": {
+      "backToUnits": "Volver a Unidades",
+      "property": "Propiedad",
+      "status": "Estado",
+      "floor": "Piso",
+      "toiletType": "Baño",
+      "defaultRent": "Alquiler por defecto",
+      "tenant": "Inquilino",
+      "unoccupied": "Desocupado",
+      "createdAt": "Creado"
     }
   }
 }
