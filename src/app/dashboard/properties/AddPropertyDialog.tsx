@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createProperty } from '@/app/actions/properties';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,13 +15,14 @@ const INITIAL_STATE: ActionResult = {};
  * Manages its own open/closed state. Uses useActionState + Server Action.
  */
 export function AddPropertyDialog() {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [state, action, pending] = useActionState<ActionResult, FormData>(
     async (prev, formData) => {
       const result = await createProperty(prev, formData);
-      // Close form on success
       if (!result.error) {
         setShowForm(false);
+        router.refresh(); // re-fetch RSC so new property appears in the list
       }
       return result;
     },
