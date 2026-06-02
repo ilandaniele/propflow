@@ -357,6 +357,17 @@
       "private": "Private",
       "shared": "Shared",
       "none": "No bathroom"
+    },
+    "detail": {
+      "backToUnits": "Back to Units",
+      "property": "Property",
+      "status": "Status",
+      "floor": "Floor",
+      "toiletType": "Bathroom",
+      "defaultRent": "Default Rent",
+      "tenant": "Tenant",
+      "unoccupied": "Unoccupied",
+      "createdAt": "Created"
     }
   }
 }
