@@ -140,7 +140,60 @@
     "addNote": "Adicionar nota interna",
     "notePlaceholder": "Escreva uma nota interna sobre este inquilino...",
     "portalAccess": "Acesso ao portal",
-    "noPortalAccess": "Sem acesso ao portal"
+    "noPortalAccess": "Sem acesso ao portal",
+    "portalPreview": {
+      "title": "Pré-visualização do Portal",
+      "noLinkedAccount": "O inquilino não ativou sua conta do portal. Vincule pelo painel de Conta do Portal.",
+      "sections": {
+        "home": "Pré-visualização do Início do Portal",
+        "visitors": "Histórico de Visitas",
+        "notifications": "Notificações Recebidas",
+        "announcements": "Avisos Visíveis para o Inquilino",
+        "aiSessions": "Sessões do Assistente IA"
+      },
+      "home": {
+        "tenantName": "Inquilino",
+        "unit": "Unidade",
+        "property": "Propriedade",
+        "monthlyRent": "Aluguel mensal",
+        "visitorCount": "Visitas (últimos 30 dias)",
+        "noData": "Sem dados de pré-visualização do início"
+      },
+      "visitors": {
+        "date": "Data",
+        "name": "Visitante",
+        "purpose": "Propósito",
+        "entry": "Entrada",
+        "exit": "Saída",
+        "empty": "Sem registros de visitas para este inquilino"
+      },
+      "notifications": {
+        "title": "Título",
+        "preview": "Pré-visualização",
+        "sentAt": "Enviado",
+        "read": "Lido",
+        "unread": "Não lido",
+        "empty": "Sem notificações",
+        "noAccount": "Sem dados — conta do portal não vinculada"
+      },
+      "announcements": {
+        "title": "Título",
+        "preview": "Pré-visualização",
+        "audience": "Público",
+        "expiresAt": "Expira",
+        "audienceAll": "Todos os inquilinos",
+        "audienceUnit": "Unidade",
+        "audienceProperty": "Propriedade",
+        "empty": "Sem avisos visíveis para este inquilino"
+      },
+      "aiSessions": {
+        "startedAt": "Início",
+        "messages": "Mensagens",
+        "lastMessage": "Última mensagem",
+        "empty": "Sem sessões de IA",
+        "noAccount": "Sem dados — conta do portal não vinculada"
+      }
+    }
   },
   "payments": {
     "title": "Pagamentos",

@@ -140,7 +140,60 @@
     "addNote": "Add internal note",
     "notePlaceholder": "Write an internal note about this tenant...",
     "portalAccess": "Portal access",
-    "noPortalAccess": "No portal access"
+    "noPortalAccess": "No portal access",
+    "portalPreview": {
+      "title": "Portal Preview",
+      "noLinkedAccount": "Tenant has not activated their portal account. Link via the Portal Account panel.",
+      "sections": {
+        "home": "Portal Home Preview",
+        "visitors": "Visitor History",
+        "notifications": "Notifications Received",
+        "announcements": "Announcements Visible to Tenant",
+        "aiSessions": "AI Assistant Sessions"
+      },
+      "home": {
+        "tenantName": "Tenant",
+        "unit": "Unit",
+        "property": "Property",
+        "monthlyRent": "Monthly rent",
+        "visitorCount": "Visitors (last 30 days)",
+        "noData": "No home preview data available"
+      },
+      "visitors": {
+        "date": "Date",
+        "name": "Visitor",
+        "purpose": "Purpose",
+        "entry": "Entry",
+        "exit": "Exit",
+        "empty": "No visitor records for this tenant"
+      },
+      "notifications": {
+        "title": "Title",
+        "preview": "Preview",
+        "sentAt": "Sent",
+        "read": "Read",
+        "unread": "Unread",
+        "empty": "No notifications",
+        "noAccount": "No data — portal account not linked"
+      },
+      "announcements": {
+        "title": "Title",
+        "preview": "Preview",
+        "audience": "Audience",
+        "expiresAt": "Expires",
+        "audienceAll": "All tenants",
+        "audienceUnit": "Unit",
+        "audienceProperty": "Property",
+        "empty": "No announcements visible to this tenant"
+      },
+      "aiSessions": {
+        "startedAt": "Started",
+        "messages": "Messages",
+        "lastMessage": "Last message",
+        "empty": "No AI sessions",
+        "noAccount": "No data — portal account not linked"
+      }
+    }
   },
   "payments": {
     "title": "Payments",
