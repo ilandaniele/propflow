@@ -24,23 +24,34 @@ export async function proxy(request: NextRequest) {
       : []),
   ].join('; ');
 
-  // Public landing page — skip Supabase entirely (no auth needed, no env-var dependency).
-  // This prevents a 500 when NEXT_PUBLIC_SUPABASE_URL resolves to a placeholder in CI
-  // (Lighthouse job) or when env vars are absent in a cold-start production deployment.
-  if (path === '/') {
-    const landingResponse = NextResponse.next({ request });
-    landingResponse.headers.set('x-nonce', nonce);
-    landingResponse.headers.set('Content-Security-Policy', csp);
-    landingResponse.headers.set('X-Content-Type-Options', 'nosniff');
-    landingResponse.headers.set('X-Frame-Options', 'DENY');
-    landingResponse.headers.set(
+  // Public routes — skip Supabase session check entirely (no auth needed, no env-var
+  // dependency). This prevents a 500 when NEXT_PUBLIC_SUPABASE_URL resolves to a
+  // placeholder in CI (Lighthouse job) or when env vars are absent on cold-start.
+  //
+  // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding.
+  // These routes either have no auth requirement or handle their own auth guard in-page.
+  const isFullyPublicRoute =
+    path === '/' ||
+    path === '/login' ||
+    path === '/forgot-password' ||
+    path.startsWith('/sign/') ||
+    path.startsWith('/auth/') ||
+    path === '/onboarding';
+
+  if (isFullyPublicRoute) {
+    const publicResponse = NextResponse.next({ request });
+    publicResponse.headers.set('x-nonce', nonce);
+    publicResponse.headers.set('Content-Security-Policy', csp);
+    publicResponse.headers.set('X-Content-Type-Options', 'nosniff');
+    publicResponse.headers.set('X-Frame-Options', 'DENY');
+    publicResponse.headers.set(
       'Strict-Transport-Security',
       'max-age=63072000; includeSubDomains; preload'
     );
-    landingResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    landingResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    landingResponse.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-    return landingResponse;
+    publicResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    publicResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    publicResponse.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+    return publicResponse;
   }
 
   // Get session/user

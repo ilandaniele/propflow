@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { cookies, headers } from 'next/headers';
+import { NextIntlClientProvider } from 'next-intl';
 import { DEFAULT_LOCALE, isValidLocale, LOCALE_COOKIE } from '@/i18n/config';
 import './globals.css';
 
@@ -30,7 +31,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
       </head>
       <body className="min-h-full flex flex-col">
-        {children}
+        {/* NextIntlClientProvider (server version) passes locale + messages to
+            'use client' components (e.g. PricingTable, PricingToggle) so that
+            useTranslations() works without crashing during SSR. In RSC context
+            this automatically fetches locale/messages from getRequestConfig(). */}
+        <NextIntlClientProvider>
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

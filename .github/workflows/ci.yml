@@ -23,6 +23,16 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      # Server-side stubs — prevent module-init crashes (e.g. createAdminClient guard,
+      # AI budget check) when the build or unit-test runner evaluates server modules.
+      SUPABASE_URL: https://placeholder.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
+      ANTHROPIC_API_KEY: placeholder_anthropic_key
+      RESEND_API_KEY: placeholder_resend_key
+      AIRTABLE_PAT: placeholder_airtable_pat
+      AIRTABLE_BASE_ID: placeholder_base_id
+      CRON_SECRET: placeholder_cron_secret
+      NEXT_PUBLIC_META_APP_ID: placeholder_meta_app_id
 
     steps:
       - name: Checkout
@@ -292,17 +302,39 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          # Server-side stubs — prevent module-init crashes for any server module
+          # that validates env vars eagerly (e.g. createAdminClient, AI budget).
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
+          ANTHROPIC_API_KEY: placeholder_anthropic_key
+          RESEND_API_KEY: placeholder_resend_key
+          AIRTABLE_PAT: placeholder_airtable_pat
+          AIRTABLE_BASE_ID: placeholder_base_id
+          CRON_SECRET: placeholder_cron_secret
+          NEXT_PUBLIC_META_APP_ID: placeholder_meta_app_id
 
       - name: Run Lighthouse CI
         # `npm run start` boots the Next.js server (port 3000) from the build
         # output. lighthouserc.json's startServerCommand handles startup; LHCI
         # waits for the server to be ready before collecting.
+        # The server env vars below are stubs — enough to prevent 500 errors on
+        # public routes (/, /login) that don't actually call these services at
+        # render time. The Supabase placeholder guard in updateSession() ensures
+        # no real auth calls are made with these stub credentials.
         run: npx --yes @lhci/cli@latest autorun --config=./lighthouserc.json
         env:
           LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref }}
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
+          ANTHROPIC_API_KEY: placeholder_anthropic_key
+          RESEND_API_KEY: placeholder_resend_key
+          AIRTABLE_PAT: placeholder_airtable_pat
+          AIRTABLE_BASE_ID: placeholder_base_id
+          CRON_SECRET: placeholder_cron_secret
+          NEXT_PUBLIC_META_APP_ID: placeholder_meta_app_id
 
   # ---------------------------------------------------------------------------
   # E2E (Playwright) — optional gated job; runs on PRs and main pushes.
