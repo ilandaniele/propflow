@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
+import type { Session } from '@supabase/supabase-js';
 
 // We don't pass the Database generic here to avoid strict type mismatches
 // between our hand-written types and the supabase-js internal types.
@@ -38,4 +39,31 @@ export const createClient = cache(async () => {
       },
     }
   );
+});
+
+/**
+ * Returns the current Supabase session by reading the cookie WITHOUT a network
+ * round-trip to the Supabase Auth server.
+ *
+ * This is safe: src/proxy.ts middleware calls updateSession() → getUser() on
+ * every matched request, validating the JWT and refreshing the cookie before
+ * this Server Component runs. By the time the layout reads this value the
+ * cookie already reflects the middleware-validated session state.
+ *
+ * Use this in layouts for fast, zero-latency session access. Pages that
+ * perform data mutations or sensitive reads must continue to use
+ * requireAdmin() / requireTenant() which call getUser() for full JWT
+ * revalidation (defense in depth per spec IC5).
+ *
+ * Wrapped in React.cache() so repeated calls within one render pass (e.g.
+ * layout + nested Server Components) are free — the getSession() call happens
+ * at most once per React render pass.
+ *
+ * Returns null when no session is present (unauthenticated or expired and
+ * middleware has already cleared the cookie).
+ */
+export const getSessionFast = cache(async (): Promise<Session | null> => {
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  return session;
 });
