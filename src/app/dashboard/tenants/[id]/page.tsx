@@ -8,6 +8,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { TabFallback } from '@/components/ui/TabFallback';
 import { ProfileHeader } from './_components/ProfileHeader';
 import { QuickActions } from './_components/QuickActions';
+import { LinkPortalAccount } from './LinkPortalAccount';
 import { OverviewTab } from './_tabs/OverviewTab';
 import { ActivityTab } from './_tabs/ActivityTab';
 // Async Server Components — each self-fetches inside its own Suspense boundary
@@ -225,6 +226,11 @@ export default async function TenantDetailPage({ params }: Props) {
 
       {/* Quick actions */}
       <QuickActions tenantId={id} />
+
+      {/* Link portal account — only shown when profile_id is not yet set */}
+      {!tenant.profile_id && (
+        <LinkPortalAccount tenantId={id} tenantEmail={tenant.email} />
+      )}
 
       {/* Tabs — non-overview tabs stream via Suspense boundaries */}
       <Tabs tabs={tabs} defaultTab="overview" className="bg-white border border-slate-200 rounded-xl overflow-hidden" />

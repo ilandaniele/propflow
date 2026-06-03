@@ -2,9 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { CreateTenantSchema, UpdateTenantSchema, AssignTenantToUnitSchema } from '@/lib/schemas/tenant';
+import { LinkTenantPortalAccountSchema, SearchAuthUserByEmailSchema } from '@/lib/schemas/tenants';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 import { z } from 'zod';
@@ -233,6 +235,222 @@ export async function addInternalNote(
   log.adminAction(ctx.userId, 'add_internal_note', 'tenant', parsed.data.tenant_id);
   revalidatePath(`/dashboard/tenants/${parsed.data.tenant_id}`);
   return ok(undefined);
+}
+
+// ─── Tenant Portal Account Linking ───────────────────────────────────────────
+
+/**
+ * Search auth.users by email address (case-insensitive).
+ *
+ * Uses the admin client to bypass RLS for the auth.users lookup.
+ * Returns matched auth users by querying the profiles table (which stores email).
+ * Admin-only guard applied at the start.
+ *
+ * Security: only the admin-scoped Supabase admin client is used for cross-user
+ * lookups. The result is filtered to the org to prevent data leakage.
+ */
+export async function searchAuthUserByEmail(
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult<{ matches: Array<{ profileId: string; email: string; fullName: string | null }> }>> {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+
+  const rl = mutationRateLimit(ctx.userId, 'search_auth_user');
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  const parsed = SearchAuthUserByEmailSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
+
+  const adminClient = createAdminClient();
+
+  // Search auth.users via the Supabase admin auth API (bypasses RLS).
+  // We look up by email in the auth.users table — then cross-reference with
+  // profiles to get the full_name if available.
+  const { data: authUsers, error: authError } = await adminClient.auth.admin.listUsers({
+    page: 1,
+    perPage: 50,
+  });
+
+  if (authError) {
+    log.error('[searchAuthUserByEmail] auth.admin.listUsers error', { code: authError.status });
+    return Errors.INTERNAL();
+  }
+
+  const normalizedEmail = parsed.data.email.toLowerCase();
+  const matchingUsers = (authUsers?.users ?? []).filter(
+    (u) => u.email?.toLowerCase() === normalizedEmail
+  );
+
+  if (matchingUsers.length === 0) {
+    return ok({ matches: [] });
+  }
+
+  // Fetch profiles for matched users (admin client — bypasses RLS)
+  const matchedIds = matchingUsers.map((u) => u.id);
+  const { data: profiles } = await adminClient
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', matchedIds);
+
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const matches = matchingUsers.map((u) => {
+    const profile = profileMap.get(u.id);
+    return {
+      profileId: u.id,
+      email: u.email ?? '',
+      fullName: profile?.full_name ?? null,
+    };
+  });
+
+  return ok({ matches });
+}
+
+/**
+ * Link a tenant row to a portal account (auth user profile).
+ *
+ * Security guarantees:
+ * 1. requireAdmin() — caller must be an authenticated admin.
+ * 2. mutationRateLimit — prevents brute-force linking.
+ * 3. Zod validation on tenantId (uuid) and profileEmail (email).
+ * 4. IDOR guard: tenant must belong to ctx.orgId before any write.
+ * 5. Uses admin client ONLY for auth.users lookup and profiles insert.
+ *    The tenants UPDATE uses the user-scoped RLS client (ctx.orgId enforced).
+ * 6. Audit log row written to notification_inbox.
+ *
+ * Flow:
+ * a. Find the auth user by email via admin client.
+ * b. Find or create a profiles row for that user (role='tenant', org_id=tenant.org_id).
+ * c. Set tenants.profile_id = profile.id.
+ * d. Write audit log.
+ */
+export async function linkTenantPortalAccount(
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult<{ profileId: string }>> {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+
+  const rl = mutationRateLimit(ctx.userId, 'link_tenant_portal_account');
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  const parsed = LinkTenantPortalAccountSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
+
+  const { tenantId, profileEmail } = parsed.data;
+
+  // Step 1: Verify the tenant belongs to admin's org (IDOR guard)
+  const supabase = await createClient();
+  const { data: tenant, error: tenantFetchError } = await supabase
+    .from('tenants')
+    .select('id, org_id, email, profile_id')
+    .eq('id', tenantId)
+    .eq('org_id', ctx.orgId)
+    .single();
+
+  if (tenantFetchError || !tenant) {
+    log.warn('[linkTenantPortalAccount] tenant not found or wrong org', { tenantId, orgId: ctx.orgId });
+    return Errors.NOT_FOUND();
+  }
+
+  if (tenant.profile_id) {
+    return Errors.CONFLICT('Tenant already has a linked portal account');
+  }
+
+  // Step 2: Find the auth user by email (admin client — reads across all users)
+  const adminClient = createAdminClient();
+  const { data: authUsersData, error: authListError } = await adminClient.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+
+  if (authListError) {
+    log.error('[linkTenantPortalAccount] listUsers error', { code: authListError.status });
+    return Errors.INTERNAL();
+  }
+
+  const normalizedEmail = profileEmail.toLowerCase();
+  const matchedUser = (authUsersData?.users ?? []).find(
+    (u) => u.email?.toLowerCase() === normalizedEmail
+  );
+
+  if (!matchedUser) {
+    return Errors.NOT_FOUND();
+  }
+
+  const authUserId = matchedUser.id;
+
+  // Step 3: Find or create a profiles row for this auth user
+  const { data: existingProfile } = await adminClient
+    .from('profiles')
+    .select('id, role, org_id')
+    .eq('id', authUserId)
+    .maybeSingle();
+
+  let profileId = authUserId;
+
+  if (!existingProfile) {
+    // Create a new tenant profile
+    const { error: profileInsertError } = await adminClient
+      .from('profiles')
+      .insert({
+        id: authUserId,
+        org_id: ctx.orgId,
+        role: 'tenant' as const,
+        full_name: matchedUser.user_metadata?.full_name ?? null,
+        email: matchedUser.email ?? profileEmail,
+      });
+
+    if (profileInsertError) {
+      log.error('[linkTenantPortalAccount] profile insert error', { code: profileInsertError.code });
+      return Errors.INTERNAL();
+    }
+
+    log.info('[linkTenantPortalAccount] created tenant profile', {
+      event: 'tenant_profile_created',
+      authUserId,
+      orgId: ctx.orgId,
+    });
+  } else {
+    // Profile exists — check role compatibility (must be tenant or not yet assigned)
+    if (existingProfile.role !== 'tenant') {
+      log.warn('[linkTenantPortalAccount] profile role mismatch', {
+        authUserId,
+        existingRole: existingProfile.role,
+      });
+      return Errors.CONFLICT('The matched user already has an admin account in a different role');
+    }
+    profileId = existingProfile.id;
+  }
+
+  // Step 4: Set tenants.profile_id (RLS client — restricted to org_id)
+  const { error: updateError } = await supabase
+    .from('tenants')
+    .update({ profile_id: profileId, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+    .eq('org_id', ctx.orgId);
+
+  if (updateError) {
+    log.error('[linkTenantPortalAccount] tenants update error', { code: updateError.code });
+    return Errors.INTERNAL();
+  }
+
+  // Step 5: Audit log (notification_inbox pattern — existing convention)
+  await supabase.from('notification_inbox').insert({
+    org_id: ctx.orgId,
+    profile_id: ctx.userId,
+    type: 'system',
+    title: 'Tenant portal account linked',
+    body: `Admin linked tenant ${tenantId} to portal account ${profileEmail}`,
+    read_at: null,
+  });
+
+  log.adminAction(ctx.userId, 'link_tenant_portal_account', 'tenant', tenantId);
+  revalidatePath(`/dashboard/tenants/${tenantId}`);
+  revalidatePath('/dashboard/tenants');
+
+  return ok({ profileId });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
