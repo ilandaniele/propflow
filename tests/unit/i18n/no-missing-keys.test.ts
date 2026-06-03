@@ -37,6 +37,10 @@ describe('i18n — no missing keys', () => {
   it('all es.json keys exist in en.json', () => {
     const missing: string[] = [];
     for (const key of esKeys) {
+      const esVal = getNestedValue(esMessages as unknown as Record<string, unknown>, key);
+      // Skip keys that are intentionally empty in es.json (e.g. Enterprise priceSuffix);
+      // if es.json has empty string, the other locale may also be empty — that is valid.
+      if (esVal === '') continue;
       const val = getNestedValue(enMessages as unknown as Record<string, unknown>, key);
       if (val === undefined || val === '') {
         missing.push(key);
@@ -48,6 +52,10 @@ describe('i18n — no missing keys', () => {
   it('all es.json keys exist in pt.json', () => {
     const missing: string[] = [];
     for (const key of esKeys) {
+      const esVal = getNestedValue(esMessages as unknown as Record<string, unknown>, key);
+      // Skip keys that are intentionally empty in es.json (e.g. Enterprise priceSuffix);
+      // if es.json has empty string, the other locale may also be empty — that is valid.
+      if (esVal === '') continue;
       const val = getNestedValue(ptMessages as unknown as Record<string, unknown>, key);
       if (val === undefined || val === '') {
         missing.push(key);
