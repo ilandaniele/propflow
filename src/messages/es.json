@@ -234,6 +234,15 @@
         "admin_approved": "Aprobado por admin",
         "rejected": "Rechazado",
         "duplicate_rejected": "Duplicado rechazado"
+      },
+      "ocr": {
+        "viewDetail": "Ver detalle OCR",
+        "rawText": "Texto extraído",
+        "matchedCharge": "Cargo asociado",
+        "matchedPayment": "Pago asociado",
+        "rejectionReason": "Motivo de rechazo",
+        "notMatched": "Sin asociar",
+        "rawTextPending": "Texto OCR no disponible"
       }
     }
   },

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill, Badge } from '@/components/ui/Badge';
 
@@ -18,7 +19,10 @@ export async function PaymentsTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
+  const [supabase, t] = await Promise.all([
+    createClient(),
+    getTranslations('payments'),
+  ]);
 
   const [paymentsRes, chargesRes, statementRes, receiptsRes] = await Promise.all([
     supabase
@@ -42,7 +46,7 @@ export async function PaymentsTab({ tenantId }: Props) {
       .single(),
     supabase
       .from('payment_receipts')
-      .select('id, source, status, extracted_amount, confidence, created_at')
+      .select('id, source, status, extracted_amount, confidence, created_at, raw_text, matched_charge_id, matched_payment_id, rejection_reason')
       .eq('tenant_id', tenantId)
       .eq('org_id', ctx.orgId)
       .order('created_at', { ascending: false })
@@ -123,22 +127,69 @@ export async function PaymentsTab({ tenantId }: Props) {
       {/* Payment Receipts */}
       {receipts.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Payment Receipts</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('receipts.title')}</CardTitle></CardHeader>
           <div className="divide-y divide-slate-100">
             {receipts.map((r) => (
-              <div key={r.id} className="py-3 flex items-center justify-between text-sm">
-                <div>
-                  <p className="font-medium text-slate-900">
-                    {r.extracted_amount ? `$${Number(r.extracted_amount).toLocaleString()}` : 'Amount unknown'}
-                  </p>
-                  <p className="text-xs text-slate-500">Source: {r.source} · {new Date(r.created_at).toLocaleDateString()}</p>
-                  {r.confidence && (
-                    <p className="text-xs text-slate-400">Confidence: {(r.confidence * 100).toFixed(0)}%</p>
-                  )}
+              <div key={r.id} className="py-3 text-sm">
+                {/* Receipt summary row */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {r.extracted_amount ? `$${Number(r.extracted_amount).toLocaleString()}` : 'Amount unknown'}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {t('receipts.source')}: {r.source} · {new Date(r.created_at).toLocaleDateString()}
+                    </p>
+                    {r.confidence && (
+                      <p className="text-xs text-slate-400">
+                        {t('receipts.confidence')}: {(r.confidence * 100).toFixed(0)}%
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant={r.status === 'auto_approved' ? 'success' : r.status === 'rejected' ? 'danger' : 'pending'}>
+                    {r.status.replace('_', ' ')}
+                  </Badge>
                 </div>
-                <Badge variant={r.status === 'auto_approved' ? 'success' : r.status === 'rejected' ? 'danger' : 'pending'}>
-                  {r.status.replace('_', ' ')}
-                </Badge>
+
+                {/* OCR detail disclosure — zero JS, SSR-safe */}
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-indigo-600 hover:text-indigo-800 select-none w-fit">
+                    {t('receipts.ocr.viewDetail')}
+                  </summary>
+                  <dl className="mt-2 space-y-1.5 rounded-md bg-slate-50 p-3 text-xs">
+                    {/* raw_text */}
+                    <div>
+                      <dt className="font-medium text-slate-600">{t('receipts.ocr.rawText')}</dt>
+                      <dd className="mt-0.5 text-slate-800 whitespace-pre-wrap break-words">
+                        {r.raw_text
+                          ? (r.raw_text.length > 300 ? `${r.raw_text.slice(0, 300)}…` : r.raw_text)
+                          : <span className="text-slate-400 italic">{t('receipts.ocr.rawTextPending')}</span>
+                        }
+                      </dd>
+                    </div>
+                    {/* matched_charge_id */}
+                    <div>
+                      <dt className="font-medium text-slate-600">{t('receipts.ocr.matchedCharge')}</dt>
+                      <dd className="mt-0.5 font-mono text-slate-700 break-all">
+                        {r.matched_charge_id ?? <span className="text-slate-400 not-italic font-sans">{t('receipts.ocr.notMatched')}</span>}
+                      </dd>
+                    </div>
+                    {/* matched_payment_id */}
+                    <div>
+                      <dt className="font-medium text-slate-600">{t('receipts.ocr.matchedPayment')}</dt>
+                      <dd className="mt-0.5 font-mono text-slate-700 break-all">
+                        {r.matched_payment_id ?? <span className="text-slate-400 not-italic font-sans">{t('receipts.ocr.notMatched')}</span>}
+                      </dd>
+                    </div>
+                    {/* rejection_reason — only rendered when present */}
+                    {r.rejection_reason && (
+                      <div>
+                        <dt className="font-medium text-red-600">{t('receipts.ocr.rejectionReason')}</dt>
+                        <dd className="mt-0.5 text-red-700">{r.rejection_reason}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </details>
               </div>
             ))}
           </div>

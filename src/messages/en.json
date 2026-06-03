@@ -234,6 +234,15 @@
         "admin_approved": "Admin approved",
         "rejected": "Rejected",
         "duplicate_rejected": "Duplicate rejected"
+      },
+      "ocr": {
+        "viewDetail": "View OCR detail",
+        "rawText": "Extracted text",
+        "matchedCharge": "Matched charge",
+        "matchedPayment": "Matched payment",
+        "rejectionReason": "Rejection reason",
+        "notMatched": "Not matched",
+        "rawTextPending": "OCR text not available"
       }
     }
   },
