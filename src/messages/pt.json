@@ -66,7 +66,9 @@
     "sanctions": "Sanções",
     "overview": "Visão geral",
     "notifications": "Notificações",
-    "signOut": "Sair"
+    "signOut": "Sair",
+    "executiveBrief": "Executive Brief",
+    "aiAnalyst": "Analista IA"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -509,6 +511,64 @@
     "footer": {
       "copyright": "Todos os direitos reservados.",
       "contact": "Contato"
+    }
+  },
+  "executiveBrief": {
+    "title": "Executive Brief",
+    "subtitle": "Resumo executivo do portfólio — dados em tempo real",
+    "kpiSection": "KPIs do Mês",
+    "agentsSection": "Agentes de Análise",
+    "narrativeSection": "Narrativa IA",
+    "tiles": {
+      "occupancy": "Ocupação",
+      "netProfit": "Lucro Líquido Real MTD",
+      "pastDue": "Saldo Vencido",
+      "incidents": "Incidentes Abertos"
+    },
+    "agents": {
+      "leakDetector": {
+        "title": "Hidden Leak Detector",
+        "description": "Detecta unidades com diferença entre faturado e cobrado superior a 15%."
+      },
+      "marketRate": {
+        "title": "Market Rate Auditor",
+        "description": "Compara as tarifas das suas unidades com o mercado."
+      },
+      "pnlDelta": {
+        "title": "P&L Delta Analyzer",
+        "description": "Analisa variações de receitas e despesas entre períodos."
+      },
+      "customAgent": {
+        "title": "Create Custom Agent",
+        "description": "Crie seu próprio agente de análise personalizado."
+      }
+    },
+    "comingSoon": "Em breve",
+    "available": "Disponível",
+    "run": "Executar",
+    "running": "Executando...",
+    "viewDetails": "Ver detalhes",
+    "close": "Fechar",
+    "comingSoonModal": {
+      "title": "Em breve",
+      "body": "Este agente está em desenvolvimento. Descreva o que deseja que ele faça e avisaremos quando estiver disponível."
+    },
+    "leakResults": {
+      "title": "Resultados — Vazamentos detectados",
+      "noLeaks": "Nenhum vazamento encontrado. Todas as unidades têm menos de 15% de diferença.",
+      "unit": "Unidade",
+      "billed": "Faturado",
+      "collected": "Cobrado",
+      "gap": "Diferença",
+      "severity": "Severidade"
+    },
+    "narrative": {
+      "title": "Narrativa gerada por IA",
+      "subtitle": "Resumo de Ganhos e Perdas baseado nos KPIs do portfólio (sem dados pessoais)",
+      "generate": "Gerar narrativa",
+      "generating": "Gerando...",
+      "disclaimer": "Resumo gerado por IA — verificar antes de agir.",
+      "empty": "Clique em «Gerar narrativa» para obter uma análise de Ganhos e Perdas."
     }
   }
 }

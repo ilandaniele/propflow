@@ -66,7 +66,9 @@
     "sanctions": "Sanciones",
     "overview": "Resumen",
     "notifications": "Notificaciones",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "executiveBrief": "Executive Brief",
+    "aiAnalyst": "Analista IA"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -509,6 +511,64 @@
     "footer": {
       "copyright": "Todos los derechos reservados.",
       "contact": "Contacto"
+    }
+  },
+  "executiveBrief": {
+    "title": "Executive Brief",
+    "subtitle": "Resumen ejecutivo del portfolio — datos actualizados en tiempo real",
+    "kpiSection": "KPIs del Mes",
+    "agentsSection": "Agentes de Análisis",
+    "narrativeSection": "Narrativa IA",
+    "tiles": {
+      "occupancy": "Ocupación",
+      "netProfit": "Ganancia Neta MTD",
+      "pastDue": "Balance Vencido",
+      "incidents": "Incidentes Abiertos"
+    },
+    "agents": {
+      "leakDetector": {
+        "title": "Hidden Leak Detector",
+        "description": "Detecta unidades con diferencia entre facturado y cobrado mayor al 15%."
+      },
+      "marketRate": {
+        "title": "Market Rate Auditor",
+        "description": "Compara las tarifas de tus unidades con el mercado."
+      },
+      "pnlDelta": {
+        "title": "P&L Delta Analyzer",
+        "description": "Analiza variaciones de ingresos y gastos entre periodos."
+      },
+      "customAgent": {
+        "title": "Create Custom Agent",
+        "description": "Diseña tu propio agente de análisis personalizado."
+      }
+    },
+    "comingSoon": "Próximamente",
+    "available": "Disponible",
+    "run": "Ejecutar",
+    "running": "Ejecutando...",
+    "viewDetails": "Ver detalles",
+    "close": "Cerrar",
+    "comingSoonModal": {
+      "title": "Próximamente",
+      "body": "Este agente está en desarrollo. Describe qué quieres que haga y te avisaremos cuando esté disponible."
+    },
+    "leakResults": {
+      "title": "Resultados — Fugas detectadas",
+      "noLeaks": "No se encontraron fugas. Todas las unidades tienen menos del 15% de diferencia.",
+      "unit": "Unidad",
+      "billed": "Facturado",
+      "collected": "Cobrado",
+      "gap": "Diferencia",
+      "severity": "Severidad"
+    },
+    "narrative": {
+      "title": "Narrativa generada por IA",
+      "subtitle": "Resumen de Wins y Leaks basado en KPIs del portfolio (sin datos personales)",
+      "generate": "Generar narrativa",
+      "generating": "Generando...",
+      "disclaimer": "Resumen generado por IA — verificar antes de actuar.",
+      "empty": "Haz clic en «Generar narrativa» para obtener un análisis de Wins y Leaks."
     }
   }
 }

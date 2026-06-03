@@ -66,7 +66,9 @@
     "sanctions": "Sanctions",
     "overview": "Overview",
     "notifications": "Notifications",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "executiveBrief": "Executive Brief",
+    "aiAnalyst": "AI Analyst"
   },
   "tenants": {
     "title": "Tenants",
@@ -509,6 +511,64 @@
     "footer": {
       "copyright": "All rights reserved.",
       "contact": "Contact"
+    }
+  },
+  "executiveBrief": {
+    "title": "Executive Brief",
+    "subtitle": "Portfolio executive summary — real-time data",
+    "kpiSection": "Month KPIs",
+    "agentsSection": "Analysis Agents",
+    "narrativeSection": "AI Narrative",
+    "tiles": {
+      "occupancy": "Occupancy",
+      "netProfit": "True Net Profit MTD",
+      "pastDue": "Past Due Balance",
+      "incidents": "Open Incidents"
+    },
+    "agents": {
+      "leakDetector": {
+        "title": "Hidden Leak Detector",
+        "description": "Detects units where billed minus collected exceeds 15%."
+      },
+      "marketRate": {
+        "title": "Market Rate Auditor",
+        "description": "Compares your unit rates to the market."
+      },
+      "pnlDelta": {
+        "title": "P&L Delta Analyzer",
+        "description": "Analyzes income and expense variances across periods."
+      },
+      "customAgent": {
+        "title": "Create Custom Agent",
+        "description": "Design your own custom analysis agent."
+      }
+    },
+    "comingSoon": "Coming soon",
+    "available": "Available",
+    "run": "Run",
+    "running": "Running...",
+    "viewDetails": "View details",
+    "close": "Close",
+    "comingSoonModal": {
+      "title": "Coming soon",
+      "body": "This agent is in development. Describe what you want it to do and we will notify you when it is available."
+    },
+    "leakResults": {
+      "title": "Results — Leaks detected",
+      "noLeaks": "No leaks found. All units have less than 15% gap.",
+      "unit": "Unit",
+      "billed": "Billed",
+      "collected": "Collected",
+      "gap": "Gap",
+      "severity": "Severity"
+    },
+    "narrative": {
+      "title": "AI-generated narrative",
+      "subtitle": "Wins and Leaks summary based on portfolio KPIs (no personal data)",
+      "generate": "Generate narrative",
+      "generating": "Generating...",
+      "disclaimer": "AI-generated summary — verify before acting.",
+      "empty": "Click Generate narrative to get a Wins and Leaks analysis."
     }
   }
 }
