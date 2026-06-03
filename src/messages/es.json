@@ -70,7 +70,17 @@
     "executiveBrief": "Executive Brief",
     "aiAnalyst": "Analista IA",
     "forecasting": "Proyecciones",
-    "portfolio": "Portafolio"
+    "portfolio": "Portafolio",
+    "pricingTables": "Tablas de precios",
+    "adminImport": "Importación",
+    "sectionFinance": "Finanzas",
+    "sectionOps": "Operaciones",
+    "sectionIntelligence": "Inteligencia",
+    "sectionCommunity": "Comunidad",
+    "sectionPhase4": "Fase 4",
+    "sectionAdmin": "Admin",
+    "closeNav": "Cerrar navegación",
+    "mainNav": "Navegación principal"
   },
   "tenants": {
     "title": "Inquilinos",

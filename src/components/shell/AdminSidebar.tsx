@@ -2,17 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { type ReactNode } from 'react';
 
 interface NavItem {
-  label: string;
+  labelKey: string;
   href: string;
   icon: ReactNode;
 }
 
 const coreNavItems: NavItem[] = [
   {
-    label: 'Dashboard',
+    labelKey: 'dashboard',
     href: '/dashboard',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -21,7 +22,7 @@ const coreNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Properties',
+    labelKey: 'properties',
     href: '/dashboard/properties',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -30,7 +31,7 @@ const coreNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Units',
+    labelKey: 'units',
     href: '/dashboard/units',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -39,7 +40,7 @@ const coreNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Tenants',
+    labelKey: 'tenants',
     href: '/dashboard/tenants',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -48,7 +49,7 @@ const coreNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Contracts',
+    labelKey: 'contracts',
     href: '/dashboard/contracts',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -57,7 +58,7 @@ const coreNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Payments',
+    labelKey: 'payments',
     href: '/dashboard/payments',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -66,7 +67,7 @@ const coreNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Incidents',
+    labelKey: 'incidents',
     href: '/dashboard/incidents',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -76,10 +77,9 @@ const coreNavItems: NavItem[] = [
   },
 ];
 
-// Phase 2 nav items
 const financeNavItems: NavItem[] = [
   {
-    label: 'Finance',
+    labelKey: 'finance',
     href: '/dashboard/finance',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -88,7 +88,7 @@ const financeNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Forecasting',
+    labelKey: 'forecasting',
     href: '/dashboard/forecasting',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -97,7 +97,7 @@ const financeNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Pricing Tables',
+    labelKey: 'pricingTables',
     href: '/dashboard/pricing',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -109,7 +109,7 @@ const financeNavItems: NavItem[] = [
 
 const opsNavItems: NavItem[] = [
   {
-    label: 'Reminders',
+    labelKey: 'reminders',
     href: '/dashboard/reminders',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -118,7 +118,7 @@ const opsNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Announcements',
+    labelKey: 'announcements',
     href: '/dashboard/announcements',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -127,7 +127,7 @@ const opsNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Cleaning',
+    labelKey: 'cleaning',
     href: '/dashboard/cleaning',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -136,7 +136,7 @@ const opsNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Leads',
+    labelKey: 'leads',
     href: '/dashboard/leads',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -146,10 +146,9 @@ const opsNavItems: NavItem[] = [
   },
 ];
 
-// Phase 4 nav items
 const phase4NavItems: NavItem[] = [
   {
-    label: 'WhatsApp',
+    labelKey: 'whatsapp',
     href: '/dashboard/whatsapp',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -158,7 +157,7 @@ const phase4NavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Tasks',
+    labelKey: 'tasks',
     href: '/dashboard/tasks',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -167,7 +166,7 @@ const phase4NavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Sanctions',
+    labelKey: 'sanctions',
     href: '/dashboard/sanctions',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -177,10 +176,9 @@ const phase4NavItems: NavItem[] = [
   },
 ];
 
-// Admin tools nav items (W10 — Admin Import)
 const adminNavItems: NavItem[] = [
   {
-    label: 'Importación',
+    labelKey: 'adminImport',
     href: '/dashboard/admin/import',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -190,10 +188,9 @@ const adminNavItems: NavItem[] = [
   },
 ];
 
-// Intelligence nav items (W6, W8 — Executive Brief + AI Analyst)
 const intelligenceNavItems: NavItem[] = [
   {
-    label: 'Executive Brief',
+    labelKey: 'executiveBrief',
     href: '/dashboard/executive-brief',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -202,7 +199,7 @@ const intelligenceNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'AI Analyst',
+    labelKey: 'aiAnalyst',
     href: '/dashboard/ai-analyst',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -214,7 +211,7 @@ const intelligenceNavItems: NavItem[] = [
 
 const communityNavItems: NavItem[] = [
   {
-    label: 'Community',
+    labelKey: 'community',
     href: '/dashboard/community',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -223,7 +220,7 @@ const communityNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'Visitors',
+    labelKey: 'visitors',
     href: '/dashboard/visitors',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -232,7 +229,7 @@ const communityNavItems: NavItem[] = [
     ),
   },
   {
-    label: 'AI Assistant',
+    labelKey: 'aiAssistant',
     href: '/dashboard/ai-assistant',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -248,12 +245,24 @@ export interface AdminSidebarProps {
   onClose?:  () => void;
 }
 
-function NavSection({ title, items, pathname }: { title?: string; items: NavItem[]; pathname: string }) {
+function NavSection({
+  titleKey,
+  items,
+  pathname,
+  t,
+}: {
+  titleKey?: string;
+  items: NavItem[];
+  pathname: string;
+  t: ReturnType<typeof useTranslations<'navigation'>>;
+}) {
   return (
     <>
-      {title && (
+      {titleKey && (
         <li className="px-3 pt-4 pb-1">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{title}</span>
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            {t(titleKey as Parameters<typeof t>[0])}
+          </span>
         </li>
       )}
       {items.map((item) => {
@@ -275,7 +284,7 @@ function NavSection({ title, items, pathname }: { title?: string; items: NavItem
               <span className={isActive ? 'text-brand-600' : 'text-slate-400'}>
                 {item.icon}
               </span>
-              {item.label}
+              {t(item.labelKey as Parameters<typeof t>[0])}
             </Link>
           </li>
         );
@@ -286,6 +295,7 @@ function NavSection({ title, items, pathname }: { title?: string; items: NavItem
 
 export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const t = useTranslations('navigation');
 
   return (
     <>
@@ -305,7 +315,7 @@ export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
             type="button"
             onClick={onClose}
             className="md:hidden absolute top-4 right-4 p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            aria-label="Close navigation"
+            aria-label={t('closeNav')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -330,15 +340,15 @@ export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
       )}
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Main navigation">
+      <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label={t('mainNav')}>
         <ul className="space-y-0.5" role="list">
-          <NavSection items={coreNavItems} pathname={pathname} />
-          <NavSection title="Finance" items={financeNavItems} pathname={pathname} />
-          <NavSection title="Operations" items={opsNavItems} pathname={pathname} />
-          <NavSection title="Intelligence" items={intelligenceNavItems} pathname={pathname} />
-          <NavSection title="Community" items={communityNavItems} pathname={pathname} />
-          <NavSection title="Phase 4" items={phase4NavItems} pathname={pathname} />
-          <NavSection title="Admin" items={adminNavItems} pathname={pathname} />
+          <NavSection items={coreNavItems} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionFinance" items={financeNavItems} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionOps" items={opsNavItems} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionIntelligence" items={intelligenceNavItems} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionCommunity" items={communityNavItems} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionPhase4" items={phase4NavItems} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionAdmin" items={adminNavItems} pathname={pathname} t={t} />
         </ul>
       </nav>
       </aside>

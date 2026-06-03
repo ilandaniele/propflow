@@ -70,7 +70,17 @@
     "executiveBrief": "Executive Brief",
     "aiAnalyst": "AI Analyst",
     "forecasting": "Forecasting",
-    "portfolio": "Portfolio"
+    "portfolio": "Portfolio",
+    "pricingTables": "Pricing Tables",
+    "adminImport": "Import",
+    "sectionFinance": "Finance",
+    "sectionOps": "Operations",
+    "sectionIntelligence": "Intelligence",
+    "sectionCommunity": "Community",
+    "sectionPhase4": "Phase 4",
+    "sectionAdmin": "Admin",
+    "closeNav": "Close navigation",
+    "mainNav": "Main navigation"
   },
   "tenants": {
     "title": "Tenants",
