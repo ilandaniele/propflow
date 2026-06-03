@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ClickableRow } from '@/components/ui/ClickableRow';
+import { computeOccupancy } from '@/lib/finance/kpis';
 import { CreateUnitForm } from './CreateUnitForm';
 
 export const metadata: Metadata = { title: 'Units' };
@@ -36,6 +37,12 @@ export default async function UnitsPage() {
   const units = unitsRes.data ?? [];
   const properties = propertiesRes.data ?? [];
 
+  // --- Occupancy stats (using computeOccupancy from kpis.ts) ---
+  const totalUnits = units.length;
+  const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
+  const vacantUnits = totalUnits - occupiedUnits;
+  const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
@@ -45,6 +52,58 @@ export default async function UnitsPage() {
         </div>
         <CreateUnitForm properties={properties} />
       </div>
+
+      {/* Occupancy stats tile */}
+      {totalUnits > 0 && (
+        <div
+          data-testid="occupancy-stats-tile"
+          className="grid grid-cols-2 sm:grid-cols-4 gap-4"
+        >
+          <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Total Units
+            </p>
+            <p className="text-2xl font-bold text-slate-800">{totalUnits}</p>
+          </article>
+
+          <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Occupied
+            </p>
+            <p className="text-2xl font-bold text-green-700">{occupiedUnits}</p>
+          </article>
+
+          <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Vacancy
+            </p>
+            <p
+              className={`text-2xl font-bold ${
+                vacantUnits > 0 ? 'text-amber-600' : 'text-slate-400'
+              }`}
+            >
+              {vacantUnits}
+            </p>
+          </article>
+
+          <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Occupancy %
+            </p>
+            <p
+              className={`text-2xl font-bold ${
+                occupancyKpi.value >= 0.8
+                  ? 'text-green-700'
+                  : occupancyKpi.value >= 0.5
+                  ? 'text-amber-600'
+                  : 'text-red-600'
+              }`}
+            >
+              {occupancyKpi.formatted}
+            </p>
+          </article>
+        </div>
+      )}
 
       {units.length === 0 ? (
         <Card>

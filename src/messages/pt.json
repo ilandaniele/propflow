@@ -68,7 +68,9 @@
     "notifications": "Notificações",
     "signOut": "Sair",
     "executiveBrief": "Executive Brief",
-    "aiAnalyst": "Analista IA"
+    "aiAnalyst": "Analista IA",
+    "forecasting": "Projeções",
+    "portfolio": "Portfólio"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -781,5 +783,40 @@
       "noData": "Nenhum quarto registrado.",
       "pageInfo": "Página {page} de {total}"
     }
+  },
+  "portfolio": {
+    "title": "Portfólio",
+    "subtitle": "Visão geral dos KPIs financeiros do portfólio.",
+    "financialKpis": "KPIs Financeiros (MTD)",
+    "trueNetProfit": "Lucro Líquido Real",
+    "trueNetProfitSub": "Receita − despesas (mês atual)",
+    "pastDueBalance": "Saldo Vencido",
+    "pastDueBalanceSub": "Total vencido em todos os inquilinos",
+    "occupancy": "Ocupação",
+    "occupancySub": "Unidades ocupadas do total",
+    "airtableDelta": "Delta vs Airtable",
+    "airtableDeltaSub": "Comparação com o último snapshot do Airtable",
+    "noSnapshot": "Nenhum snapshot do Airtable disponível"
+  },
+  "forecasting": {
+    "title": "Projeções",
+    "subtitle": "Simule cenários ajustando a ocupação e as despesas operacionais.",
+    "actualsTitle": "Dados reais do mês anterior",
+    "occupancyLastMonth": "Ocupação (mês anterior)",
+    "netProfitLastMonth": "Lucro Líquido (mês anterior)",
+    "fullOccupancyRevenue": "Receita com ocupação plena",
+    "fromActiveContracts": "De {count} contratos ativos",
+    "fromDefaultRents": "De aluguéis padrão das unidades",
+    "simulatorTitle": "Simulador de sensibilidade",
+    "occupancyAdjustment": "Ajuste de ocupação",
+    "opexAdjustment": "Ajuste de despesas operacionais",
+    "projectedNetCashFlow": "Fluxo de Caixa Líquido Projetado",
+    "vsActuals": "vs dados reais atuais",
+    "projectedIncome": "Receita projetada",
+    "projectedExpenses": "Despesas projetadas",
+    "resetToActuals": "Restaurar para dados reais",
+    "addUnitsPrompt": "Adicione unidades e contratos para habilitar o simulador de projeções.",
+    "assumptionsNote": "As projeções usam os dados reais do mês anterior como base. O modelo assume que a receita escala linearmente com a ocupação e que as despesas operacionais mudam proporcionalmente com o slider OpEx. Este é um modelo simplificado — os resultados reais podem variar.",
+    "noData": "Dados não disponíveis"
   }
 }

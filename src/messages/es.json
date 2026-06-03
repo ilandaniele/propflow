@@ -68,7 +68,9 @@
     "notifications": "Notificaciones",
     "signOut": "Cerrar sesión",
     "executiveBrief": "Executive Brief",
-    "aiAnalyst": "Analista IA"
+    "aiAnalyst": "Analista IA",
+    "forecasting": "Proyecciones",
+    "portfolio": "Portafolio"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -724,6 +726,41 @@
       "rowLabel": "Fila",
       "moreIssues": "Y {count} problemas más..."
     }
+  },
+  "portfolio": {
+    "title": "Portafolio",
+    "subtitle": "Visión general de KPIs financieros del portafolio.",
+    "financialKpis": "KPIs Financieros (MTD)",
+    "trueNetProfit": "Ganancia Neta Real",
+    "trueNetProfitSub": "Ingresos − gastos (mes en curso)",
+    "pastDueBalance": "Balance Vencido",
+    "pastDueBalanceSub": "Total vencido en todos los inquilinos",
+    "occupancy": "Ocupación",
+    "occupancySub": "Unidades ocupadas del total",
+    "airtableDelta": "Delta vs Airtable",
+    "airtableDeltaSub": "Comparación con último snapshot de Airtable",
+    "noSnapshot": "Sin snapshot de Airtable disponible"
+  },
+  "forecasting": {
+    "title": "Proyecciones",
+    "subtitle": "Simula escenarios ajustando la ocupación y los gastos operativos.",
+    "actualsTitle": "Actuals del mes anterior",
+    "occupancyLastMonth": "Ocupación (mes anterior)",
+    "netProfitLastMonth": "Ganancia Neta (mes anterior)",
+    "fullOccupancyRevenue": "Ingresos a ocupación plena",
+    "fromActiveContracts": "De {count} contratos activos",
+    "fromDefaultRents": "De alquileres por defecto de unidades",
+    "simulatorTitle": "Simulador de sensibilidad",
+    "occupancyAdjustment": "Ajuste de ocupación",
+    "opexAdjustment": "Ajuste de gastos operativos",
+    "projectedNetCashFlow": "Flujo de Caja Neto Proyectado",
+    "vsActuals": "vs actuals actuales",
+    "projectedIncome": "Ingresos proyectados",
+    "projectedExpenses": "Gastos proyectados",
+    "resetToActuals": "Restablecer a actuals",
+    "addUnitsPrompt": "Agrega unidades y contratos para habilitar el simulador de proyecciones.",
+    "assumptionsNote": "Las proyecciones usan los actuals del mes anterior como base. El modelo asume que los ingresos escalan linealmente con la ocupación y que los gastos operativos cambian proporcionalmente con el slider OpEx. Este es un modelo simplificado — los resultados reales pueden variar.",
+    "noData": "Sin datos disponibles"
   },
   "finance": {
     "title": "Finanzas",
