@@ -180,6 +180,27 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock: @/lib/supabase/admin — budget check calls createAdminClient()
+// Return an under-budget state so existing tests are unaffected.
+// ---------------------------------------------------------------------------
+
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq:     vi.fn().mockReturnThis(),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+      update: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({
+        // Return 0 tokens used today — always under budget
+        data: { id: 'budget-row', tokens_used: 0 },
+        error: null,
+      }),
+    })),
+  })),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock: ratelimit — success by default
 // ---------------------------------------------------------------------------
 

@@ -10,6 +10,7 @@ import { aiChatRateLimit } from '@/lib/ratelimit';
 import { assertServerEnv } from '@/lib/env';
 import { AiChatSchema } from '@/lib/schemas/ai';
 import { buildOrgContext, buildSystemPrompt, redactPiiFromUserMessage } from '@/lib/ai/assistant';
+import { checkAndIncrementBudget, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
 
 const AI_MODEL = 'claude-opus-4-5';
@@ -33,6 +34,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const rl = aiChatRateLimit(ctx.userId, ctx.orgId);
   if (!rl.success) {
     return NextResponse.json(Errors.RATE_LIMITED(), { status: 429 });
+  }
+
+  // LLM10: per-org daily token budget check (AC30 / spec §LLM Security)
+  // Conservative estimate per chat turn: 500 tokens.
+  const TOKENS_PER_CHAT_TURN = 500;
+  const budgetCheck = await checkAndIncrementBudget(ctx.orgId, TOKENS_PER_CHAT_TURN);
+  if (!budgetCheck.allowed) {
+    log.warn('[ai/chat] daily token budget exceeded', { orgId: ctx.orgId });
+    return NextResponse.json(
+      { error: { code: 'AI_BUDGET_EXCEEDED', message: `Daily AI token budget (${DAILY_TOKEN_BUDGET} tokens) exceeded. Try again tomorrow.` } },
+      { status: 429, headers: { 'Retry-After': '86400' } },
+    );
   }
 
   let body: unknown;

@@ -103,8 +103,15 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(async () => ({
-    from: vi.fn(() => ({ select: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: [], error: null })) })) })),
+  createAdminClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      select:      vi.fn().mockReturnThis(),
+      eq:          vi.fn().mockReturnThis(),
+      upsert:      vi.fn().mockResolvedValue({ error: null }),
+      update:      vi.fn().mockReturnThis(),
+      // budget check reads today's row — return 0 tokens used (well under limit)
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'row', tokens_used: 0 }, error: null }),
+    })),
   })),
 }));
 

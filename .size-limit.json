@@ -1,0 +1,14 @@
+[
+  {
+    "path": ".next/static/chunks/main-*.js",
+    "limit": "250 kB",
+    "gzip": true,
+    "name": "main chunk (gzipped)"
+  },
+  {
+    "path": ".next/static/chunks/pages/_app-*.js",
+    "limit": "250 kB",
+    "gzip": true,
+    "name": "app shell (gzipped)"
+  }
+]

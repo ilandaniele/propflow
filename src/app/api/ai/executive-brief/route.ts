@@ -28,6 +28,7 @@ import { Errors } from '@/lib/errors';
 import { aiExecutiveBriefRateLimit } from '@/lib/ratelimit';
 import { serverEnv } from '@/lib/env';
 import { sanitizeForLLM } from '@/lib/ai/sanitize';
+import { checkAndIncrementBudget, recordActualUsage, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
 
 // ---------------------------------------------------------------------------
@@ -182,6 +183,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   }
 
+  // LLM10: per-org daily token budget check (AC30 / spec §LLM Security)
+  // Conservative estimate: 1000 tokens per executive brief request.
+  const TOKENS_PER_BRIEF = 1000;
+  const budgetCheck = await checkAndIncrementBudget(ctx.orgId, TOKENS_PER_BRIEF);
+  if (!budgetCheck.allowed) {
+    log.warn('[executive-brief] daily token budget exceeded', { orgId: ctx.orgId });
+    return NextResponse.json(
+      { error: { code: 'AI_BUDGET_EXCEEDED', message: `Daily AI token budget (${DAILY_TOKEN_BUDGET} tokens) exceeded. Try again tomorrow.` } },
+      { status: 429, headers: { 'Retry-After': '86400' } },
+    );
+  }
+
   // Parse + validate body
   let body: unknown;
   try {
@@ -236,11 +249,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           ? firstContent.text
           : buildFallbackNarrative(kpis);
 
+      const actualTokens = (message.usage?.input_tokens ?? 0) + (message.usage?.output_tokens ?? 0);
       log.info('[executive-brief] narrative generated', {
         period,
         orgId: ctx.orgId,
-        tokens: message.usage?.output_tokens ?? 0,
+        tokens: actualTokens,
       });
+
+      // Reconcile estimated vs actual token usage in the budget table
+      await recordActualUsage(ctx.orgId, actualTokens, TOKENS_PER_BRIEF);
     }
 
     // Return: narrativeMarkdown is returned for client-side rendering via
