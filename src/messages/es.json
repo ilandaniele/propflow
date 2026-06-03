@@ -724,5 +724,62 @@
       "rowLabel": "Fila",
       "moreIssues": "Y {count} problemas más..."
     }
+  },
+  "finance": {
+    "title": "Finanzas",
+    "kpiTitle": "KPIs del Período Actual",
+    "roomProfitability": "Rentabilidad por habitación",
+    "ocrReceipts": "Recibos OCR",
+    "categories": "Categorías",
+    "backToFinance": "Volver a Finanzas",
+    "totalIncome": "Ingreso Total",
+    "totalExpenses": "Gastos Totales",
+    "netIncome": "Ingreso Neto",
+    "pnlByMonth": "P&L por Mes",
+    "recentCashFlow": "Flujo de Caja Reciente",
+    "noData": "Sin datos aún",
+    "noDataDesc": "Los pagos aprobados y los gastos aparecerán aquí.",
+    "noTransactions": "Sin transacciones aún",
+    "noTransactionsDesc": "Las entradas de ingreso y gasto aparecerán aquí.",
+    "month": "Mes",
+    "income": "Ingreso",
+    "expenses": "Gastos",
+    "net": "Neto",
+    "viewRoomProfitability": "Ver rentabilidad por habitación",
+    "viewOcrReceipts": "Ver recibos OCR",
+    "kpis": {
+      "trueNetProfit": "Ganancia Neta Real",
+      "turnCost": "Costo de Rotación",
+      "capEx": "CapEx",
+      "debtService": "Servicio de Deuda",
+      "platformFees": "Tarifas de Plataforma",
+      "occupancy": "Ocupación",
+      "pastDue": "Balance Vencido"
+    },
+    "trend": {
+      "cardTitle": "Tendencia de 12 Meses",
+      "title": "Ingresos vs Gastos vs Ganancia Neta — últimos 12 meses",
+      "revenue": "Ingresos",
+      "expenses": "Gastos",
+      "netProfit": "Ganancia Neta",
+      "noData": "Sin datos suficientes para mostrar la tendencia."
+    },
+    "rooms": {
+      "title": "Rentabilidad por Habitación",
+      "subtitle": "Ingresos, gastos y ganancia neta por unidad — últimos 30 días.",
+      "cardTitle": "Tabla de Rentabilidad (máx. 100 filas)",
+      "room": "Habitación",
+      "property": "Propiedad",
+      "revenue": "Ingresos",
+      "expenses": "Gastos",
+      "netProfit": "Ganancia Neta",
+      "occupancy": "Ocupación",
+      "occupied": "Ocupado",
+      "vacant": "Disponible",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "noData": "No hay habitaciones registradas.",
+      "pageInfo": "Página {page} de {total}"
+    }
   }
 }

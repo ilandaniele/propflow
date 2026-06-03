@@ -724,5 +724,62 @@
       "rowLabel": "Linha",
       "moreIssues": "E mais {count} problemas..."
     }
+  },
+  "finance": {
+    "title": "Financeiro",
+    "kpiTitle": "KPIs do Período Atual",
+    "roomProfitability": "Rentabilidade por Quarto",
+    "ocrReceipts": "Recibos OCR",
+    "categories": "Categorias",
+    "backToFinance": "Voltar ao Financeiro",
+    "totalIncome": "Receita Total",
+    "totalExpenses": "Despesas Totais",
+    "netIncome": "Lucro Líquido",
+    "pnlByMonth": "P&L por Mês",
+    "recentCashFlow": "Fluxo de Caixa Recente",
+    "noData": "Sem dados ainda",
+    "noDataDesc": "Pagamentos aprovados e despesas aparecerão aqui.",
+    "noTransactions": "Sem transações ainda",
+    "noTransactionsDesc": "Entradas de receita e despesa aparecerão aqui.",
+    "month": "Mês",
+    "income": "Receita",
+    "expenses": "Despesas",
+    "net": "Líquido",
+    "viewRoomProfitability": "Ver Rentabilidade por Quarto",
+    "viewOcrReceipts": "Ver Recibos OCR",
+    "kpis": {
+      "trueNetProfit": "Lucro Líquido Real",
+      "turnCost": "Custo de Rotatividade",
+      "capEx": "CapEx",
+      "debtService": "Serviço da Dívida",
+      "platformFees": "Taxas de Plataforma",
+      "occupancy": "Ocupação",
+      "pastDue": "Saldo em Atraso"
+    },
+    "trend": {
+      "cardTitle": "Tendência de 12 Meses",
+      "title": "Receita vs Despesas vs Lucro Líquido — últimos 12 meses",
+      "revenue": "Receita",
+      "expenses": "Despesas",
+      "netProfit": "Lucro Líquido",
+      "noData": "Dados insuficientes para exibir a tendência."
+    },
+    "rooms": {
+      "title": "Rentabilidade por Quarto",
+      "subtitle": "Receita, despesas e lucro líquido por unidade — últimos 30 dias.",
+      "cardTitle": "Tabela de Rentabilidade (máx. 100 linhas)",
+      "room": "Quarto",
+      "property": "Propriedade",
+      "revenue": "Receita",
+      "expenses": "Despesas",
+      "netProfit": "Lucro Líquido",
+      "occupancy": "Ocupação",
+      "occupied": "Ocupado",
+      "vacant": "Disponível",
+      "previous": "Anterior",
+      "next": "Próximo",
+      "noData": "Nenhum quarto registrado.",
+      "pageInfo": "Página {page} de {total}"
+    }
   }
 }

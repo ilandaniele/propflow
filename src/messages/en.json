@@ -724,5 +724,62 @@
       "rowLabel": "Row",
       "moreIssues": "And {count} more issues..."
     }
+  },
+  "finance": {
+    "title": "Finance",
+    "kpiTitle": "Current Period KPIs",
+    "roomProfitability": "Room Profitability",
+    "ocrReceipts": "OCR Receipts",
+    "categories": "Categories",
+    "backToFinance": "Back to Finance",
+    "totalIncome": "Total Income",
+    "totalExpenses": "Total Expenses",
+    "netIncome": "Net Income",
+    "pnlByMonth": "P&L by Month",
+    "recentCashFlow": "Recent Cash Flow",
+    "noData": "No data yet",
+    "noDataDesc": "Approved payments and expenses will appear here.",
+    "noTransactions": "No transactions yet",
+    "noTransactionsDesc": "Income and expense entries will appear here.",
+    "month": "Month",
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "viewRoomProfitability": "View Room Profitability",
+    "viewOcrReceipts": "View OCR Receipts",
+    "kpis": {
+      "trueNetProfit": "True Net Profit",
+      "turnCost": "Turn Cost",
+      "capEx": "CapEx",
+      "debtService": "Debt Service",
+      "platformFees": "Platform Fees",
+      "occupancy": "Occupancy",
+      "pastDue": "Past Due Balance"
+    },
+    "trend": {
+      "cardTitle": "12-Month Trend",
+      "title": "Revenue vs Expenses vs Net Profit — last 12 months",
+      "revenue": "Revenue",
+      "expenses": "Expenses",
+      "netProfit": "Net Profit",
+      "noData": "Not enough data to show the trend."
+    },
+    "rooms": {
+      "title": "Room Profitability",
+      "subtitle": "Revenue, expenses, and net profit per unit — last 30 days.",
+      "cardTitle": "Profitability Table (max 100 rows)",
+      "room": "Room",
+      "property": "Property",
+      "revenue": "Revenue",
+      "expenses": "Expenses",
+      "netProfit": "Net Profit",
+      "occupancy": "Occupancy",
+      "occupied": "Occupied",
+      "vacant": "Vacant",
+      "previous": "Previous",
+      "next": "Next",
+      "noData": "No rooms registered.",
+      "pageInfo": "Page {page} of {total}"
+    }
   }
 }
