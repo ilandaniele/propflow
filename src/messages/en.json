@@ -570,5 +570,27 @@
       "disclaimer": "AI-generated summary — verify before acting.",
       "empty": "Click Generate narrative to get a Wins and Leaks analysis."
     }
+  },
+  "analyst": {
+    "title": "AI Analyst",
+    "subtitle": "Deterministic analyses and free-form questions about your portfolio.",
+    "quickAnalysis": "Quick analyses",
+    "freeChat": "Free-form question",
+    "freeChatSubtitle": "Context sent to the model is limited to aggregate portfolio KPIs (max 8 KB). No per-tenant PII is included.",
+    "deterministic": "Deterministic analysis",
+    "deterministicNote": "Source: deterministic calculation — no generative AI",
+    "calculating": "Calculating...",
+    "sendButton": "Send",
+    "inputPlaceholder": "Ask about revenue, expenses, occupancy…",
+    "noData": "Insufficient data.",
+    "rateLimit": "Message limit reached. Please try again tomorrow.",
+    "chips": {
+      "worstRooms": "Top 5 worst-performing rooms (last 30d)?",
+      "lostDebt": "What is my real lost debt this month?",
+      "highestExpense": "Which property has the highest expenses?",
+      "rentGap": "How does my rent compare to market rate?",
+      "monthlyTrend": "How is my net income vs 3-month average?",
+      "riskTenants": "Which tenants represent the highest financial risk?"
+    }
   }
 }

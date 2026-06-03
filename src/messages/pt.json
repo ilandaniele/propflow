@@ -570,5 +570,27 @@
       "disclaimer": "Resumo gerado por IA — verificar antes de agir.",
       "empty": "Clique em «Gerar narrativa» para obter uma análise de Ganhos e Perdas."
     }
+  },
+  "analyst": {
+    "title": "Analista IA",
+    "subtitle": "Análises determinísticas e perguntas livres sobre seu portfólio.",
+    "quickAnalysis": "Análises rápidas",
+    "freeChat": "Pergunta livre",
+    "freeChatSubtitle": "O contexto enviado ao modelo é limitado a KPIs agregados do portfólio (máx. 8 KB). Nenhum dado pessoal de inquilinos é incluído.",
+    "deterministic": "Análise determinística",
+    "deterministicNote": "Fonte: cálculo determinístico — sem IA generativa",
+    "calculating": "Calculando...",
+    "sendButton": "Enviar",
+    "inputPlaceholder": "Pergunte sobre receitas, despesas, ocupação…",
+    "noData": "Dados insuficientes.",
+    "rateLimit": "Limite de mensagens atingido. Tente novamente amanhã.",
+    "chips": {
+      "worstRooms": "Top 5 quartos com pior desempenho (últimos 30d)?",
+      "lostDebt": "Qual é minha dívida perdida real este mês?",
+      "highestExpense": "Qual propriedade tem as maiores despesas?",
+      "rentGap": "Como meu aluguel se compara ao mercado?",
+      "monthlyTrend": "Como está minha renda líquida vs média de 3 meses?",
+      "riskTenants": "Quais inquilinos representam maior risco financeiro?"
+    }
   }
 }

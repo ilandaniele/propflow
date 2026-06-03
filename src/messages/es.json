@@ -570,5 +570,27 @@
       "disclaimer": "Resumen generado por IA — verificar antes de actuar.",
       "empty": "Haz clic en «Generar narrativa» para obtener un análisis de Wins y Leaks."
     }
+  },
+  "analyst": {
+    "title": "Analista IA",
+    "subtitle": "Análisis determinísticos y preguntas libres sobre tu portfolio.",
+    "quickAnalysis": "Análisis rápidos",
+    "freeChat": "Pregunta libre",
+    "freeChatSubtitle": "El contexto enviado al modelo se limita a KPIs agregados del portfolio (máx. 8 KB). No se incluye ningún dato personal de inquilinos.",
+    "deterministic": "Análisis determinístico",
+    "deterministicNote": "Fuente: cálculo determinístico — sin IA generativa",
+    "calculating": "Calculando...",
+    "sendButton": "Enviar",
+    "inputPlaceholder": "Pregunta sobre ingresos, gastos, ocupación…",
+    "noData": "No hay datos suficientes.",
+    "rateLimit": "Límite de mensajes alcanzado. Inténtalo mañana.",
+    "chips": {
+      "worstRooms": "¿Cuáles son los 5 cuartos con peor rendimiento?",
+      "lostDebt": "¿Cuál es mi deuda perdida real este mes?",
+      "highestExpense": "¿Qué propiedad tiene los gastos más altos?",
+      "rentGap": "¿Cuánto cobro vs el mercado?",
+      "monthlyTrend": "¿Cómo está mi ingreso vs el promedio de 3 meses?",
+      "riskTenants": "¿Qué inquilinos representan mayor riesgo financiero?"
+    }
   }
 }
