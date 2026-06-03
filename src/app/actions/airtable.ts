@@ -101,9 +101,7 @@ export async function runAirtableSync(
  * Server Action: sync all configured Airtable entities in sequence.
  * Used by the admin dashboard to trigger a full refresh.
  */
-export async function runAllAirtableSyncs(
-  _prev: ActionResult
-): Promise<ActionResult<SyncSummary[]>> {
+export async function runAllAirtableSyncs(): Promise<ActionResult<SyncSummary[]>> {
   // 1. Auth
   let ctx;
   try {

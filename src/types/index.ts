@@ -51,4 +51,10 @@ export type {
   VisitorLog, VisitorLogInsert, VisitorLogUpdate,
   AiChatMessage, AiChatMessageInsert,
   ChatRole,
+  // W9: CSV Import tables
+  CsvImport, CsvImportInsert, CsvImportUpdate, CsvImportType, CsvImportStatus,
+  ImportRow, ImportRowInsert, ImportRowStatus,
+  PhantomRoom, PhantomRoomInsert, PhantomRoomUpdate, PhantomRoomResolution,
+  PropertyMapping, PropertyMappingInsert, PropertyMappingUpdate,
+  AccountMapping, AccountMappingInsert, AccountMappingUpdate,
 } from './database';
