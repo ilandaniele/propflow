@@ -10,10 +10,18 @@ import { aiChatRateLimit } from '@/lib/ratelimit';
 import { assertServerEnv } from '@/lib/env';
 import { AiChatSchema } from '@/lib/schemas/ai';
 import { buildOrgContext, buildSystemPrompt, redactPiiFromUserMessage } from '@/lib/ai/assistant';
+import { checkAndIncrementBudget, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
 
 const AI_MODEL = 'claude-opus-4-5';
 const MAX_TOKENS = 1024;
+/**
+ * AC16: total context (system prompt + user message) is bounded to <= 8 KB.
+ * buildOrgContext produces ~600-900 bytes; user message is capped at 4000 chars
+ * via AiChatSchema. The guard below truncates if somehow the combined payload
+ * exceeds the limit (defence-in-depth).
+ */
+const MAX_CONTEXT_BYTES = 8 * 1024; // 8 KB
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Auth guard (manual, like /api/incident-photo)
@@ -26,6 +34,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const rl = aiChatRateLimit(ctx.userId, ctx.orgId);
   if (!rl.success) {
     return NextResponse.json(Errors.RATE_LIMITED(), { status: 429 });
+  }
+
+  // LLM10: per-org daily token budget check (AC30 / spec §LLM Security)
+  // Conservative estimate per chat turn: 500 tokens.
+  const TOKENS_PER_CHAT_TURN = 500;
+  const budgetCheck = await checkAndIncrementBudget(ctx.orgId, TOKENS_PER_CHAT_TURN);
+  if (!budgetCheck.allowed) {
+    log.warn('[ai/chat] daily token budget exceeded', { orgId: ctx.orgId });
+    return NextResponse.json(
+      { error: { code: 'AI_BUDGET_EXCEEDED', message: `Daily AI token budget (${DAILY_TOKEN_BUDGET} tokens) exceeded. Try again tomorrow.` } },
+      { status: 429, headers: { 'Retry-After': '86400' } },
+    );
   }
 
   let body: unknown;
@@ -49,6 +69,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // LLM06: redact PII patterns from user message
     const cleanedMessage = redactPiiFromUserMessage(parsed.data.message);
 
+    // AC16: enforce combined context bound <= 8 KB (system + user message).
+    // buildOrgContext produces ~600-900 bytes; user message is capped at 4000 chars
+    // via AiChatSchema. Truncation here is a defence-in-depth safeguard.
+    const combinedBytes =
+      Buffer.byteLength(systemPrompt, 'utf8') + Buffer.byteLength(cleanedMessage, 'utf8');
+    let effectiveSystemPrompt = systemPrompt;
+    if (combinedBytes > MAX_CONTEXT_BYTES) {
+      const maxSystemBytes =
+        MAX_CONTEXT_BYTES - Buffer.byteLength(cleanedMessage, 'utf8') - 64; // 64-byte safety margin
+      effectiveSystemPrompt = Buffer.from(systemPrompt, 'utf8')
+        .subarray(0, maxSystemBytes)
+        .toString('utf8');
+      log.info('[ai/chat] context truncated to 8 KB', { originalBytes: combinedBytes });
+    }
+
     // Persist user message
     await supabase.from('ai_chat_messages').insert({
       org_id: ctx.orgId,
@@ -65,7 +100,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const stream = await anthropic.messages.stream({
       model: AI_MODEL,
       max_tokens: MAX_TOKENS,
-      system: systemPrompt,
+      system: effectiveSystemPrompt,
       messages: [{ role: 'user', content: cleanedMessage }],
     });
 

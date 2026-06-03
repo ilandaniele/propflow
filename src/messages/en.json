@@ -66,7 +66,21 @@
     "sanctions": "Sanctions",
     "overview": "Overview",
     "notifications": "Notifications",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "executiveBrief": "Executive Brief",
+    "aiAnalyst": "AI Analyst",
+    "forecasting": "Forecasting",
+    "portfolio": "Portfolio",
+    "pricingTables": "Pricing Tables",
+    "adminImport": "Import",
+    "sectionFinance": "Finance",
+    "sectionOps": "Operations",
+    "sectionIntelligence": "Intelligence",
+    "sectionCommunity": "Community",
+    "sectionPhase4": "Phase 4",
+    "sectionAdmin": "Admin",
+    "closeNav": "Close navigation",
+    "mainNav": "Main navigation"
   },
   "tenants": {
     "title": "Tenants",
@@ -192,6 +206,29 @@
       "in_progress": "In progress",
       "resolved": "Resolved",
       "closed": "Closed"
+    },
+    "categories": {
+      "plumbing": "Plumbing",
+      "electrical": "Electrical",
+      "appliance": "Appliance",
+      "structural": "Structural",
+      "cleaning": "Cleaning",
+      "other": "Other",
+      "material_damage": "Material damage",
+      "malfunction": "Malfunction"
+    },
+    "priorities": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "priorityLegend": {
+      "title": "Priority levels",
+      "low": "Low — routine follow-up",
+      "medium": "Medium — address this week",
+      "high": "High — address within 24–48 h",
+      "urgent": "Urgent — immediate action required"
     },
     "noIncidents": "No incidents"
   },
@@ -369,5 +406,427 @@
       "unoccupied": "Unoccupied",
       "createdAt": "Created"
     }
+  },
+  "landing": {
+    "nav": {
+      "features": "Features",
+      "problems": "Problems",
+      "pricing": "Pricing",
+      "signIn": "Sign in",
+      "requestAccess": "Request access"
+    },
+    "hero": {
+      "badge": "Property management platform for coliving & multi-room",
+      "headline": "Managing shared properties is complex. Your data shouldn't be.",
+      "subtitle": "Centralize contracts, payments, incidents, tasks, and per-unit profitability in a single panel connected to your real data.",
+      "ctaPrimary": "See demo",
+      "ctaSecondary": "See pricing",
+      "noSignup": "No public sign-up. Access is provisioned by your property manager."
+    },
+    "dashboard": {
+      "title": "Dashboard preview",
+      "urlBar": "propflow.vercel.app/dashboard",
+      "kpis": {
+        "trueNetProfit": "True Net Profit",
+        "occupancy": "Occupancy",
+        "openIncidents": "Open Incidents",
+        "pendingTasks": "Pending Tasks",
+        "overdueBalance": "Overdue Balance",
+        "belowCostRooms": "Below-Cost Rooms"
+      }
+    },
+    "problems": {
+      "sectionTitle": "Coliving managers face these challenges",
+      "sectionSubtitle": "PropFlow solves them from a single panel connected to your real data.",
+      "card1": {
+        "title": "Blind spots in monthly/weekly payments",
+        "body": "Consolidating income manually creates financial blind spots. You don't know in real time which room is current and which isn't."
+      },
+      "card2": {
+        "title": "Hidden turnover costs",
+        "body": "Move-outs, cleaning, repairs, fees, and unpaid debt reduce your real margin. These costs are scattered across spreadsheets and emails."
+      },
+      "card3": {
+        "title": "Per-property tools hide per-room losses",
+        "body": "Managers need to know which unit or room is underperforming. A fragmented per-property view hides this."
+      },
+      "card4": {
+        "title": "Dispersed operational issues",
+        "body": "Incidents, tasks, sanctions, and tenant communication need to be connected. Today they live in separate tools."
+      }
+    },
+    "features": {
+      "sectionTitle": "Everything your team needs",
+      "sectionSubtitle": "From portfolio overview to tenant incidents — built for the complete property management workflow.",
+      "chip1": "Multi-property management",
+      "chip2": "Digital contracts",
+      "chip3": "Payments & statements",
+      "chip4": "Incident tracking",
+      "chip5": "Tenant portal",
+      "chip6": "WhatsApp integration",
+      "chip7": "Tasks & proof uploads",
+      "chip8": "Sanctions & disputes",
+      "chip9": "Announcements & community",
+      "chip10": "AI Executive Brief",
+      "chip11": "CSV data import",
+      "chip12": "Per-room profitability",
+      "chip13": "Digital contract signing",
+      "chip14": "Visitor control"
+    },
+    "pricing": {
+      "sectionTitle": "Plans & Pricing",
+      "sectionSubtitle": "Start free with one property. Scale as your portfolio grows.",
+      "toggleMonthly": "Monthly",
+      "toggleAnnual": "Annual",
+      "annualDiscount": "Save 20%",
+      "starter": {
+        "name": "Starter",
+        "tagline": "Perfect to get started",
+        "price": "Free",
+        "priceSuffix": "forever",
+        "priceAnnual": "Free",
+        "priceSuffixAnnual": "forever",
+        "cta": "See demo",
+        "bullet1": "1 property",
+        "bullet2": "Up to 10 units",
+        "bullet3": "Tenant portal included",
+        "bullet4": "Email support"
+      },
+      "pro": {
+        "name": "Pro",
+        "tagline": "For growing managers",
+        "price": "Contact for pricing",
+        "priceSuffix": "per month",
+        "priceAnnual": "Contact for pricing",
+        "priceSuffixAnnual": "per year",
+        "cta": "Contact us",
+        "badge": "Most popular",
+        "bullet1": "2 to 15 properties",
+        "bullet2": "Unlimited units",
+        "bullet3": "Airtable sync + CSV import",
+        "bullet4": "AI Executive Brief + analyst"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "tagline": "For large portfolios",
+        "price": "Custom",
+        "priceSuffix": "",
+        "priceAnnual": "Custom",
+        "priceSuffixAnnual": "",
+        "cta": "Contact sales",
+        "bullet1": "16+ properties",
+        "bullet2": "Custom SLA",
+        "bullet3": "Dedicated Airtable integration",
+        "bullet4": "Dedicated support account"
+      }
+    },
+    "footer": {
+      "copyright": "All rights reserved.",
+      "contact": "Contact"
+    }
+  },
+  "executiveBrief": {
+    "title": "Executive Brief",
+    "subtitle": "Portfolio executive summary — real-time data",
+    "kpiSection": "Month KPIs",
+    "agentsSection": "Analysis Agents",
+    "narrativeSection": "AI Narrative",
+    "tiles": {
+      "occupancy": "Occupancy",
+      "netProfit": "True Net Profit MTD",
+      "pastDue": "Past Due Balance",
+      "incidents": "Open Incidents"
+    },
+    "agents": {
+      "leakDetector": {
+        "title": "Hidden Leak Detector",
+        "description": "Detects units where billed minus collected exceeds 15%."
+      },
+      "marketRate": {
+        "title": "Market Rate Auditor",
+        "description": "Compares your unit rates to the market."
+      },
+      "pnlDelta": {
+        "title": "P&L Delta Analyzer",
+        "description": "Analyzes income and expense variances across periods."
+      },
+      "customAgent": {
+        "title": "Create Custom Agent",
+        "description": "Design your own custom analysis agent."
+      }
+    },
+    "comingSoon": "Coming soon",
+    "available": "Available",
+    "run": "Run",
+    "running": "Running...",
+    "viewDetails": "View details",
+    "close": "Close",
+    "comingSoonModal": {
+      "title": "Coming soon",
+      "body": "This agent is in development. Describe what you want it to do and we will notify you when it is available."
+    },
+    "leakResults": {
+      "title": "Results — Leaks detected",
+      "noLeaks": "No leaks found. All units have less than 15% gap.",
+      "unit": "Unit",
+      "billed": "Billed",
+      "collected": "Collected",
+      "gap": "Gap",
+      "severity": "Severity"
+    },
+    "narrative": {
+      "title": "AI-generated narrative",
+      "subtitle": "Wins and Leaks summary based on portfolio KPIs (no personal data)",
+      "generate": "Generate narrative",
+      "generating": "Generating...",
+      "disclaimer": "AI-generated summary — verify before acting.",
+      "empty": "Click Generate narrative to get a Wins and Leaks analysis."
+    }
+  },
+  "analyst": {
+    "title": "AI Analyst",
+    "subtitle": "Deterministic analyses and free-form questions about your portfolio.",
+    "quickAnalysis": "Quick analyses",
+    "freeChat": "Free-form question",
+    "freeChatSubtitle": "Context sent to the model is limited to aggregate portfolio KPIs (max 8 KB). No per-tenant PII is included.",
+    "deterministic": "Deterministic analysis",
+    "deterministicNote": "Source: deterministic calculation — no generative AI",
+    "calculating": "Calculating...",
+    "sendButton": "Send",
+    "inputPlaceholder": "Ask about revenue, expenses, occupancy…",
+    "noData": "Insufficient data.",
+    "rateLimit": "Message limit reached. Please try again tomorrow.",
+    "chips": {
+      "worstRooms": "Top 5 worst-performing rooms (last 30d)?",
+      "lostDebt": "What is my real lost debt this month?",
+      "highestExpense": "Which property has the highest expenses?",
+      "rentGap": "How does my rent compare to market rate?",
+      "monthlyTrend": "How is my net income vs 3-month average?",
+      "riskTenants": "Which tenants represent the highest financial risk?"
+    }
+  },
+  "adminImport": {
+    "title": "Data Import",
+    "subtitle": "Import monthly billing data, room performance, and manage mapping dictionaries.",
+    "tabs": {
+      "csv": "Monthly CSV",
+      "roomPerformance": "Room Performance",
+      "logs": "Import Logs",
+      "phantomRooms": "Phantom Rooms",
+      "propertyMapping": "Property Mapping",
+      "accountMapping": "Account Mapping",
+      "checkFiles": "Check Files"
+    },
+    "csv": {
+      "title": "Step 1 — Monthly Data Upload",
+      "types": {
+        "monthly_billed": "Monthly Billed",
+        "monthly_collected": "Monthly Collected",
+        "monthly_summary": "Monthly Summary",
+        "room_performance": "Room Performance"
+      },
+      "periodYear": "Year",
+      "periodMonth": "Month",
+      "importType": "Import type",
+      "uploadButton": "Validate & Dry Run",
+      "commitButton": "Confirm import",
+      "uploading": "Analyzing...",
+      "committing": "Importing...",
+      "dropHint": "Drag a CSV or click",
+      "maxSize": "Maximum 5 MB",
+      "removeFile": "Remove",
+      "validRows": "Valid rows",
+      "warningRows": "Warnings",
+      "invalidRows": "Errors",
+      "errorDetail": "Error detail",
+      "successMessage": "Import complete.",
+      "rowsWritten": "rows written."
+    },
+    "logs": {
+      "title": "Import history",
+      "allStatuses": "All",
+      "statusDryRun": "Dry run",
+      "statusCommitted": "Committed",
+      "statusFailed": "Failed",
+      "colType": "Type",
+      "colFile": "File",
+      "colPeriod": "Period",
+      "colStatus": "Status",
+      "colRows": "Rows",
+      "colErrors": "Errors",
+      "colDate": "Date",
+      "empty": "No import records found.",
+      "page": "Page",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "phantomRooms": {
+      "title": "Phantom Rooms",
+      "description": "CSV labels that did not match any unit. Map each label to an existing unit or ignore it.",
+      "pending": "Unmapped",
+      "resolved": "Existing mappings",
+      "colLabel": "CSV label",
+      "colUnit": "Target unit",
+      "colResolution": "Resolution",
+      "colDate": "Date",
+      "empty": "No pending phantom rooms.",
+      "mapped": "Mapped",
+      "ignored": "Ignored",
+      "mapButton": "Save mapping",
+      "ignoreButton": "Ignore",
+      "saving": "Saving...",
+      "savedOk": "Saved successfully",
+      "selectUnit": "Select unit…",
+      "actionMap": "Map",
+      "actionIgnore": "Ignore"
+    },
+    "propertyMapping": {
+      "title": "Property Mapping",
+      "description": "Link an external name to an internal property.",
+      "addTitle": "Add property mapping",
+      "externalName": "External name (in CSV)",
+      "internalProperty": "Internal property",
+      "existingTitle": "Saved mappings",
+      "colExternal": "External name",
+      "colInternal": "Internal property",
+      "colLastUsed": "Last used",
+      "empty": "No property mappings yet.",
+      "saveButton": "Save mapping",
+      "saving": "Saving...",
+      "savedOk": "Mapping saved successfully",
+      "selectProperty": "Select property…"
+    },
+    "accountMapping": {
+      "title": "Account Mapping",
+      "description": "Link an external account code to an internal expense category.",
+      "addTitle": "Add account mapping",
+      "externalAccount": "External account code",
+      "internalCategory": "Internal category",
+      "isIncome": "Is income",
+      "affectsNetProfit": "Affects net profit",
+      "existingTitle": "Saved mappings",
+      "colCode": "External code",
+      "colCategory": "Internal category",
+      "colType": "Type",
+      "colAffects": "Affects net",
+      "income": "Income",
+      "expense": "Expense",
+      "empty": "No account mappings yet.",
+      "saveButton": "Save mapping",
+      "saving": "Saving...",
+      "savedOk": "Mapping saved successfully",
+      "selectCategory": "Select category…"
+    },
+    "checkFiles": {
+      "title": "Check Files",
+      "warning": "Lint only — NO data will be imported.",
+      "warningDetail": "This tool analyzes the file and reports issues without writing anything to the database.",
+      "fileType": "File type",
+      "dropHint": "Drag a CSV or click to select",
+      "maxSize": "Maximum 5 MB",
+      "checkButton": "Check file",
+      "checking": "Checking...",
+      "colTotal": "Total rows",
+      "colValid": "Valid",
+      "colWarnings": "Warnings",
+      "colErrors": "Errors",
+      "allOk": "No issues detected. File is ready to import.",
+      "errorLabel": "Error",
+      "warningLabel": "Warning",
+      "rowLabel": "Row",
+      "moreIssues": "And {count} more issues..."
+    }
+  },
+  "finance": {
+    "title": "Finance",
+    "kpiTitle": "Current Period KPIs",
+    "roomProfitability": "Room Profitability",
+    "ocrReceipts": "OCR Receipts",
+    "categories": "Categories",
+    "backToFinance": "Back to Finance",
+    "totalIncome": "Total Income",
+    "totalExpenses": "Total Expenses",
+    "netIncome": "Net Income",
+    "pnlByMonth": "P&L by Month",
+    "recentCashFlow": "Recent Cash Flow",
+    "noData": "No data yet",
+    "noDataDesc": "Approved payments and expenses will appear here.",
+    "noTransactions": "No transactions yet",
+    "noTransactionsDesc": "Income and expense entries will appear here.",
+    "month": "Month",
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "viewRoomProfitability": "View Room Profitability",
+    "viewOcrReceipts": "View OCR Receipts",
+    "kpis": {
+      "trueNetProfit": "True Net Profit",
+      "turnCost": "Turn Cost",
+      "capEx": "CapEx",
+      "debtService": "Debt Service",
+      "platformFees": "Platform Fees",
+      "occupancy": "Occupancy",
+      "pastDue": "Past Due Balance"
+    },
+    "trend": {
+      "cardTitle": "12-Month Trend",
+      "title": "Revenue vs Expenses vs Net Profit — last 12 months",
+      "revenue": "Revenue",
+      "expenses": "Expenses",
+      "netProfit": "Net Profit",
+      "noData": "Not enough data to show the trend."
+    },
+    "rooms": {
+      "title": "Room Profitability",
+      "subtitle": "Revenue, expenses, and net profit per unit — last 30 days.",
+      "cardTitle": "Profitability Table (max 100 rows)",
+      "room": "Room",
+      "property": "Property",
+      "revenue": "Revenue",
+      "expenses": "Expenses",
+      "netProfit": "Net Profit",
+      "occupancy": "Occupancy",
+      "occupied": "Occupied",
+      "vacant": "Vacant",
+      "previous": "Previous",
+      "next": "Next",
+      "noData": "No rooms registered.",
+      "pageInfo": "Page {page} of {total}"
+    }
+  },
+  "portfolio": {
+    "title": "Portfolio",
+    "subtitle": "Portfolio financial KPI overview.",
+    "financialKpis": "Financial KPIs (MTD)",
+    "trueNetProfit": "True Net Profit",
+    "trueNetProfitSub": "Income − expenses (month-to-date)",
+    "pastDueBalance": "Past Due Balance",
+    "pastDueBalanceSub": "Total outstanding overdue across all tenants",
+    "occupancy": "Occupancy",
+    "occupancySub": "Occupied units out of total",
+    "airtableDelta": "Delta vs Airtable",
+    "airtableDeltaSub": "Comparison with latest Airtable snapshot",
+    "noSnapshot": "No Airtable snapshot available"
+  },
+  "forecasting": {
+    "title": "Forecasting",
+    "subtitle": "Simulate scenarios by adjusting occupancy and operating expenses.",
+    "actualsTitle": "Last month actuals",
+    "occupancyLastMonth": "Occupancy (last month)",
+    "netProfitLastMonth": "Net Profit (last month)",
+    "fullOccupancyRevenue": "Revenue at full occupancy",
+    "fromActiveContracts": "From {count} active contracts",
+    "fromDefaultRents": "From unit default rents",
+    "simulatorTitle": "Sensitivity Simulator",
+    "occupancyAdjustment": "Occupancy adjustment",
+    "opexAdjustment": "Operating expenses adjustment",
+    "projectedNetCashFlow": "Projected Net Cash Flow",
+    "vsActuals": "vs current actuals",
+    "projectedIncome": "Projected income",
+    "projectedExpenses": "Projected expenses",
+    "resetToActuals": "Reset to actuals",
+    "addUnitsPrompt": "Add units and contracts to enable the forecasting simulator.",
+    "assumptionsNote": "Projections use last month's actuals as the baseline. The model assumes revenue scales linearly with occupancy and that operating expenses change proportionally with the OpEx slider. This is a simplified model — actual results may differ.",
+    "noData": "No data available"
   }
 }

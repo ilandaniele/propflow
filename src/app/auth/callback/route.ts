@@ -10,19 +10,21 @@
  * 3. Read the authenticated user.
  * 4. Check for an existing profile row (via admin client — bypasses RLS, no session needed).
  *    a. Profile exists  → redirect by role (/dashboard for admin, /portal for tenant).
- *    b. No profile      → redirect /onboarding (user must create an org first).
+ *    b. No profile      → attempt auto-link (AC2/AC3):
+ *       - Exactly 1 unlinked tenant row matches email → create profile + set profile_id → /portal
+ *       - 0 or 2+ matches → redirect /onboarding (existing behaviour)
  * 5. Any unhandled error → redirect /login?error=oauth_failed (fail closed).
  *
  * Security:
  * - PKCE code_verifier is validated by Supabase internally — no extra check needed.
- * - Admin client is used only for the profile SELECT (not for the session exchange).
+ * - Admin client is used only for the profile SELECT and auto-link flow (not for the session exchange).
  * - Never leaks error.message or stack traces to the client.
  * - All failure paths redirect to /login?error=oauth_failed with no session.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getExistingProfile } from '@/lib/auth/provision';
+import { getExistingProfile, attemptAutoLink } from '@/lib/auth/provision';
 import { log } from '@/lib/log';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
@@ -82,8 +84,36 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.redirect(destination);
     }
 
-    // Step 4b: no profile → onboarding
-    log.info('[callback] no profile → redirecting to onboarding', {
+    // Step 4b: no profile — attempt auto-link by email (AC2 / AC3)
+    // Only runs when the user has no profile row at all (first login).
+    const userEmail = user.email ?? '';
+
+    if (userEmail) {
+      const autoLinkResult = await attemptAutoLink(user.id, userEmail);
+
+      if (autoLinkResult.linked) {
+        // Exactly one tenant matched — profile created and tenant linked → send to portal
+        log.info('[callback] auto-link succeeded → redirecting to /portal', {
+          event: 'oauth_callback_auto_linked',
+          userId: user.id,
+        });
+        return NextResponse.redirect(new URL('/portal', SITE_URL));
+      }
+
+      if (autoLinkResult.reason === 'ambiguous_match') {
+        // Multiple tenants share this email — do NOT auto-link; fall through to onboarding
+        log.warn('[callback] auto-link skipped — ambiguous email match', {
+          event: 'oauth_callback_ambiguous',
+          userId: user.id,
+        });
+        // Fall through to onboarding below
+      }
+
+      // reason === 'no_match' || 'ambiguous_match' → onboarding
+    }
+
+    // Step 4c: no auto-link possible → onboarding
+    log.info('[callback] no profile + no auto-link → redirecting to onboarding', {
       event: 'oauth_callback_onboarding',
       userId: user.id,
     });

@@ -141,3 +141,120 @@ export async function getExistingProfile(userId: string): Promise<{ orgId: strin
 
   return data ? { orgId: data.org_id, role: data.role } : null;
 }
+
+/**
+ * Auto-link result for the auth callback.
+ */
+export type AutoLinkResult =
+  | { linked: true; orgId: string }
+  | { linked: false; reason: 'no_match' | 'ambiguous_match' };
+
+/**
+ * Attempt to auto-link a newly authenticated user to an existing tenant row.
+ *
+ * Algorithm:
+ * 1. Find all tenants rows where email (case-insensitive) matches and profile_id IS NULL.
+ * 2. Exactly 1 match → create a profiles row (role='tenant', org_id=tenant.org_id) and
+ *    set tenants.profile_id. Returns { linked: true, orgId }.
+ * 3. 0 matches → returns { linked: false, reason: 'no_match' }.
+ * 4. 2+ matches → ambiguous; returns { linked: false, reason: 'ambiguous_match' }.
+ *    No writes are performed — existing onboarding flow runs.
+ *
+ * Security:
+ * - Uses service-role admin client (bypasses RLS — necessary during callback).
+ * - email lookup is case-insensitive via ILIKE.
+ * - No PII is logged (only domain + first 2 chars of local part).
+ */
+export async function attemptAutoLink(
+  userId: string,
+  email: string
+): Promise<AutoLinkResult> {
+  assertServerEnv('SUPABASE_SERVICE_ROLE_KEY', 'attemptAutoLink');
+
+  const adminClient = createAdminClient();
+
+  // Query unlinked tenant rows matching this email (case-insensitive)
+  const { data: tenants, error: tenantsError } = await adminClient
+    .from('tenants')
+    .select('id, org_id, email')
+    .ilike('email', email)
+    .is('profile_id', null);
+
+  if (tenantsError) {
+    log.error('[provision] attemptAutoLink tenants query failed', { code: tenantsError.code });
+    return { linked: false, reason: 'no_match' };
+  }
+
+  const matches = tenants ?? [];
+
+  if (matches.length === 0) {
+    log.info('[provision] attemptAutoLink: no unlinked tenant row found', {
+      event: 'auto_link_no_match',
+      userId,
+    });
+    return { linked: false, reason: 'no_match' };
+  }
+
+  if (matches.length > 1) {
+    log.warn('[provision] attemptAutoLink: ambiguous email — multiple unlinked tenants', {
+      event: 'auto_link_ambiguous',
+      userId,
+      matchCount: matches.length,
+    });
+    return { linked: false, reason: 'ambiguous_match' };
+  }
+
+  // Exactly one match — safe to auto-link
+  const tenant = matches[0];
+
+  // Create the profiles row (role=tenant)
+  const { error: profileInsertError } = await adminClient
+    .from('profiles')
+    .insert({
+      id: userId,
+      org_id: tenant.org_id,
+      role: 'tenant' as const,
+      email,
+      full_name: null,
+    });
+
+  if (profileInsertError) {
+    // If 23505 = unique violation, profile already exists — concurrent request race
+    if (profileInsertError.code === '23505') {
+      log.warn('[provision] attemptAutoLink: profile already exists (race)', { userId });
+      // Still set the tenant link if it hasn't been set
+    } else {
+      log.error('[provision] attemptAutoLink: profiles insert failed', {
+        code: profileInsertError.code,
+        userId,
+      });
+      return { linked: false, reason: 'no_match' };
+    }
+  }
+
+  // Set tenants.profile_id
+  const { error: tenantUpdateError } = await adminClient
+    .from('tenants')
+    .update({ profile_id: userId, updated_at: new Date().toISOString() })
+    .eq('id', tenant.id)
+    .is('profile_id', null); // idempotent guard — only update if still NULL
+
+  if (tenantUpdateError) {
+    log.error('[provision] attemptAutoLink: tenants update failed', {
+      code: tenantUpdateError.code,
+      tenantId: tenant.id,
+    });
+    // Profile was created but tenant not linked — partial failure
+    // Portal will show "account not linked" but admin can manually link
+    return { linked: false, reason: 'no_match' };
+  }
+
+  log.info('[provision] attemptAutoLink: tenant linked successfully', {
+    event: 'auto_link_success',
+    userId,
+    tenantId: tenant.id,
+    orgId: tenant.org_id,
+  });
+
+  return { linked: true, orgId: tenant.org_id };
+}

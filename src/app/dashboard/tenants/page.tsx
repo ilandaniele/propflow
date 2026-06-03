@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Avatar } from '@/components/ui/Avatar';
 import { ClickableRow } from '@/components/ui/ClickableRow';
+import { computePastDueBalance } from '@/lib/finance/kpis';
 import { CreateTenantForm } from './CreateTenantForm';
 
 export const metadata: Metadata = { title: 'Tenants' };
@@ -18,13 +19,26 @@ export default async function TenantsPage() {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
-  const { data: tenants } = await supabase
-    .from('tenants')
-    .select('*, units(label, properties(name))')
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false });
+  const [tenantsRes, statementsRes] = await Promise.all([
+    supabase
+      .from('tenants')
+      .select('*, units(label, properties(name))')
+      .eq('org_id', ctx.orgId)
+      .order('created_at', { ascending: false }),
+    supabase.from('tenant_statement').select('*').eq('org_id', ctx.orgId),
+  ]);
 
-  const list = tenants ?? [];
+  const list = tenantsRes.data ?? [];
+  const statements = statementsRes.data ?? [];
+
+  // Compute aggregate Past Due Balance from overdue statements
+  const overdueAmounts: number[] = statements
+    .filter((s) => s.is_overdue)
+    .map((s) => Math.max(0, Number(s.total_charged ?? 0) - Number(s.total_paid ?? 0)));
+  const pastDueKpi = computePastDueBalance(overdueAmounts);
+
+  const linkedCount = list.filter((t) => t.profile_id).length;
+  const overdueCount = statements.filter((s) => s.is_overdue).length;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -35,6 +49,50 @@ export default async function TenantsPage() {
         </div>
         <CreateTenantForm />
       </div>
+
+      {/* Aggregate KPI header */}
+      {list.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <article
+            data-testid="kpi-past-due-balance"
+            className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm"
+          >
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Past Due Balance
+            </p>
+            <p
+              className={`text-2xl font-bold mb-1 ${
+                pastDueKpi.value > 0 ? 'text-red-600' : 'text-green-700'
+              }`}
+            >
+              {pastDueKpi.formatted}
+            </p>
+            <p className="text-xs text-slate-400">Total outstanding overdue</p>
+          </article>
+
+          <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Overdue Tenants
+            </p>
+            <p
+              className={`text-2xl font-bold mb-1 ${
+                overdueCount > 0 ? 'text-red-600' : 'text-green-700'
+              }`}
+            >
+              {overdueCount}
+            </p>
+            <p className="text-xs text-slate-400">of {list.length} tenants</p>
+          </article>
+
+          <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Portal Linked
+            </p>
+            <p className="text-2xl font-bold mb-1 text-violet-700">{linkedCount}</p>
+            <p className="text-xs text-slate-400">of {list.length} tenants have portal access</p>
+          </article>
+        </div>
+      )}
 
       {list.length === 0 ? (
         <Card>

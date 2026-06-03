@@ -116,6 +116,11 @@ export function taskProofRateLimit(userId: string, orgId: string) {
   return aiChatRateLimit(userId, orgId);
 }
 
+/** Executive Brief narrative — 10 req/min/user (LLM10, spec §Security) */
+export function aiExecutiveBriefRateLimit(userId: string): { success: boolean; retryAfterMs: number } {
+  return actionRateLimit(`executive-brief:${userId}`, 10, ONE_MINUTE_MS);
+}
+
 // Cleanup stale entries periodically (only in non-edge environments)
 if (typeof setInterval !== 'undefined') {
   setInterval(() => {

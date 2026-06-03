@@ -888,3 +888,143 @@ export interface PricingTier {
   max_rent: number;
   suggested_rent: number;
 }
+
+// =============================================================================
+// W9: CSV Import tables (migration 20260603000030_imports.sql)
+// =============================================================================
+
+export type CsvImportType = 'monthly_billed' | 'monthly_collected' | 'monthly_summary' | 'room_performance';
+export type CsvImportStatus = 'dry_run' | 'committed' | 'failed';
+
+export interface CsvImport {
+  id: string;
+  org_id: string;
+  import_type: CsvImportType;
+  original_filename: string;
+  period: string;                // YYYY-MM
+  status: CsvImportStatus;
+  row_count: number;
+  failed_count: number;
+  error_summary: Json;
+  committed_at: string | null;
+  created_by: string;
+  created_at: string;
+}
+export interface CsvImportInsert {
+  id?: string;
+  org_id: string;
+  import_type: CsvImportType;
+  original_filename: string;
+  period: string;
+  status?: CsvImportStatus;
+  row_count?: number;
+  failed_count?: number;
+  error_summary?: Json;
+  committed_at?: string | null;
+  created_by: string;
+  created_at?: string;
+}
+export interface CsvImportUpdate {
+  status?: CsvImportStatus;
+  row_count?: number;
+  failed_count?: number;
+  error_summary?: Json;
+  committed_at?: string | null;
+}
+
+export type ImportRowStatus = 'ok' | 'warning' | 'error';
+
+export interface ImportRow {
+  id: string;
+  import_id: string;
+  row_number: number;
+  raw_data: Json;
+  normalized_data: Json | null;
+  status: ImportRowStatus;
+  error_detail: string | null;
+  created_at: string;
+}
+export interface ImportRowInsert {
+  id?: string;
+  import_id: string;
+  row_number: number;
+  raw_data: Json;
+  normalized_data?: Json | null;
+  status: ImportRowStatus;
+  error_detail?: string | null;
+  created_at?: string;
+}
+
+export type PhantomRoomResolution = 'pending' | 'mapped' | 'ignored';
+
+export interface PhantomRoom {
+  id: string;
+  org_id: string;
+  raw_room_label: string;
+  matched_unit_id: string | null;
+  resolution: PhantomRoomResolution;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+export interface PhantomRoomInsert {
+  id?: string;
+  org_id: string;
+  raw_room_label: string;
+  matched_unit_id?: string | null;
+  resolution?: PhantomRoomResolution;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  created_at?: string;
+}
+export interface PhantomRoomUpdate {
+  matched_unit_id?: string | null;
+  resolution?: PhantomRoomResolution;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+}
+
+export interface PropertyMapping {
+  id: string;
+  org_id: string;
+  external_name: string;
+  internal_property_id: string | null;
+  last_matched_at: string | null;
+  created_by: string | null;
+}
+export interface PropertyMappingInsert {
+  id?: string;
+  org_id: string;
+  external_name: string;
+  internal_property_id?: string | null;
+  last_matched_at?: string | null;
+  created_by?: string | null;
+}
+export interface PropertyMappingUpdate {
+  internal_property_id?: string | null;
+  last_matched_at?: string | null;
+}
+
+export interface AccountMapping {
+  id: string;
+  org_id: string;
+  external_account: string;
+  internal_category: string | null;
+  is_income: boolean;
+  affects_net_profit: boolean;
+  created_by: string | null;
+}
+export interface AccountMappingInsert {
+  id?: string;
+  org_id: string;
+  external_account: string;
+  internal_category?: string | null;
+  is_income?: boolean;
+  affects_net_profit?: boolean;
+  created_by?: string | null;
+}
+export interface AccountMappingUpdate {
+  internal_category?: string | null;
+  is_income?: boolean;
+  affects_net_profit?: boolean;
+}

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { NextIntlClientProvider } from 'next-intl';
+import { DEFAULT_LOCALE, isValidLocale, LOCALE_COOKIE } from '@/i18n/config';
 import './globals.css';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
@@ -13,12 +15,14 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const headersList = await headers();
+  const [headersList, cookieStore] = await Promise.all([headers(), cookies()]);
   const nonce = headersList.get('x-nonce') ?? undefined;
+  const cookieLocale = cookieStore.get(LOCALE_COOKIE)?.value;
+  const lang = cookieLocale && isValidLocale(cookieLocale) ? cookieLocale : DEFAULT_LOCALE;
 
   return (
     <html
-      lang="en"
+      lang={lang}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
@@ -27,7 +31,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
       </head>
       <body className="min-h-full flex flex-col">
-        {children}
+        {/* NextIntlClientProvider (server version) passes locale + messages to
+            'use client' components (e.g. PricingTable, PricingToggle) so that
+            useTranslations() works without crashing during SSR. In RSC context
+            this automatically fetches locale/messages from getRequestConfig(). */}
+        <NextIntlClientProvider>
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

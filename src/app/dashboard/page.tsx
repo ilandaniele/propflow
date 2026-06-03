@@ -4,6 +4,12 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { computeOccupancyRate, computeRentCollectedThisMonth } from '@/lib/kpi';
+import {
+  computeOccupancy,
+  computePastDueBalance,
+  computeTrueNetProfit,
+} from '@/lib/finance/kpis';
+import { AirtableOccupancyDelta } from '@/components/portfolio/AirtableOccupancyDelta';
 import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
 
@@ -15,23 +21,82 @@ export default async function DashboardPage() {
 
   const supabase = await createClient();
 
-  const [unitsRes, paymentsRes, incidentsRes, statementRes] = await Promise.all([
-    supabase.from('units').select('id, status').eq('org_id', ctx.orgId),
-    supabase.from('payments').select('amount, paid_at, status').eq('org_id', ctx.orgId).eq('status', 'approved'),
-    supabase.from('incidents').select('id, status').eq('org_id', ctx.orgId).neq('status', 'solved'),
-    supabase.from('tenant_statement').select('*').eq('org_id', ctx.orgId),
-  ]);
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const [unitsRes, paymentsRes, incidentsRes, statementRes, expensesRes, airtableRes] =
+    await Promise.all([
+      supabase.from('units').select('id, status').eq('org_id', ctx.orgId),
+      supabase
+        .from('payments')
+        .select('amount, paid_at, status')
+        .eq('org_id', ctx.orgId)
+        .eq('status', 'approved'),
+      supabase
+        .from('incidents')
+        .select('id, status')
+        .eq('org_id', ctx.orgId)
+        .neq('status', 'solved'),
+      supabase.from('tenant_statement').select('*').eq('org_id', ctx.orgId),
+      supabase
+        .from('expenses')
+        .select('amount, incurred_on')
+        .eq('org_id', ctx.orgId)
+        .gte('incurred_on', startOfMonth),
+      // Airtable occupancy snapshot — gracefully returns null when no rows exist
+      supabase
+        .from('airtable_snapshots')
+        .select('payload, synced_at')
+        .eq('org_id', ctx.orgId)
+        .eq('entity', 'kpi')
+        .order('synced_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
   const units = unitsRes.data ?? [];
   const approvedPayments = paymentsRes.data ?? [];
   const openIncidents = incidentsRes.data ?? [];
   const statements = statementRes.data ?? [];
+  const expenses = expensesRes.data ?? [];
 
+  // --- Operational KPIs (existing) ---
   const totalUnits = units.length;
   const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
   const occupancyRate = computeOccupancyRate(occupiedUnits, totalUnits);
   const rentCollected = computeRentCollectedThisMonth(approvedPayments);
   const overdueCount = statements.filter((s) => s.is_overdue).length;
+
+  // --- Financial KPIs (new — from kpis.ts pure functions) ---
+  const overdueAmounts: number[] = statements
+    .filter((s) => s.is_overdue)
+    .map((s) => Math.max(0, Number(s.total_charged ?? 0) - Number(s.total_paid ?? 0)));
+
+  const pastDueKpi = computePastDueBalance(overdueAmounts);
+
+  // MTD income and expenses for True Net Profit
+  const mtdIncome = approvedPayments
+    .filter((p) => p.paid_at && p.paid_at >= startOfMonth)
+    .reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const mtdExpenses = expenses.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
+  const netProfitKpi = computeTrueNetProfit(mtdIncome, mtdExpenses);
+
+  const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
+
+  // --- Airtable occupancy delta ---
+  const airtableRow = airtableRes.data;
+  const airtableSnapshot =
+    airtableRow && airtableRow.payload
+      ? {
+          occupancyRate:
+            typeof (airtableRow.payload as Record<string, unknown>).occupancy_rate === 'number'
+              ? ((airtableRow.payload as Record<string, unknown>).occupancy_rate as number)
+              : 0,
+          syncedAt: airtableRow.synced_at as string,
+        }
+      : null;
+
+  const liveRate = totalUnits > 0 ? occupiedUnits / totalUnits : 0;
 
   const hasData = totalUnits > 0;
 
@@ -56,52 +121,87 @@ export default async function DashboardPage() {
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            title="Occupancy"
-            value={`${occupancyRate}%`}
-            sub={`${occupiedUnits} / ${totalUnits} units`}
-            color="text-green-600"
-            icon={
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              </svg>
-            }
-          />
-          <KpiCard
-            title="Rent Collected"
-            value={`$${rentCollected.toLocaleString()}`}
-            sub="This month (approved)"
-            color="text-violet-600"
-            icon={
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>
-              </svg>
-            }
-          />
-          <KpiCard
-            title="Open Incidents"
-            value={String(openIncidents.length)}
-            sub="Not yet solved"
-            color={openIncidents.length > 0 ? 'text-amber-600' : 'text-slate-600'}
-            icon={
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-              </svg>
-            }
-          />
-          <KpiCard
-            title="Overdue Tenants"
-            value={String(overdueCount)}
-            sub="Negative balance + past due"
-            color={overdueCount > 0 ? 'text-red-600' : 'text-slate-600'}
-            icon={
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-              </svg>
-            }
-          />
-        </div>
+        <>
+          {/* Row 1 — Operational KPIs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              title="Occupancy"
+              value={`${occupancyRate}%`}
+              sub={`${occupiedUnits} / ${totalUnits} units`}
+              color="text-green-600"
+              icon={
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                </svg>
+              }
+            />
+            <KpiCard
+              title="Rent Collected"
+              value={`$${rentCollected.toLocaleString()}`}
+              sub="This month (approved)"
+              color="text-violet-600"
+              icon={
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>
+                </svg>
+              }
+            />
+            <KpiCard
+              title="Open Incidents"
+              value={String(openIncidents.length)}
+              sub="Not yet solved"
+              color={openIncidents.length > 0 ? 'text-amber-600' : 'text-slate-600'}
+              icon={
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                </svg>
+              }
+            />
+            <KpiCard
+              title="Overdue Tenants"
+              value={String(overdueCount)}
+              sub="Negative balance + past due"
+              color={overdueCount > 0 ? 'text-red-600' : 'text-slate-600'}
+              icon={
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                </svg>
+              }
+            />
+          </div>
+
+          {/* Row 2 — Financial KPIs (from kpis.ts pure functions) */}
+          <div>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Financial KPIs (MTD)
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <FinKpiCard
+                title="True Net Profit"
+                value={netProfitKpi.formatted}
+                rawValue={netProfitKpi.value}
+                sub="Income − expenses (month-to-date)"
+                positiveIsGood
+              />
+              <FinKpiCard
+                title="Past Due Balance"
+                value={pastDueKpi.formatted}
+                rawValue={pastDueKpi.value}
+                sub="Total overdue across all tenants"
+                positiveIsGood={false}
+              />
+              <FinKpiCard
+                title="Occupancy"
+                value={occupancyKpi.formatted}
+                rawValue={occupancyKpi.value}
+                sub={`${occupiedUnits} of ${totalUnits} units occupied`}
+                positiveIsGood
+              />
+              {/* Airtable delta card — renders nothing when no snapshot */}
+              <AirtableOccupancyDelta liveRate={liveRate} snapshot={airtableSnapshot} />
+            </div>
+          </div>
+        </>
       )}
 
       {/* Quick actions */}
@@ -126,6 +226,35 @@ function KpiCard({ title, value, sub, color, icon }: {
       <p className="text-xs font-medium text-slate-700 mb-0.5">{title}</p>
       <p className="text-xs text-slate-400">{sub}</p>
     </Card>
+  );
+}
+
+function FinKpiCard({
+  title,
+  value,
+  rawValue,
+  sub,
+  positiveIsGood,
+}: {
+  title: string;
+  value: string;
+  rawValue: number;
+  sub: string;
+  positiveIsGood: boolean;
+}) {
+  const valueColor =
+    rawValue > 0 && positiveIsGood
+      ? 'text-green-700'
+      : rawValue < 0 || (!positiveIsGood && rawValue > 0)
+      ? 'text-red-600'
+      : 'text-slate-700';
+
+  return (
+    <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{title}</p>
+      <p className={`text-2xl font-bold mb-1 ${valueColor}`}>{value}</p>
+      <p className="text-xs text-slate-400">{sub}</p>
+    </article>
   );
 }
 

@@ -24,6 +24,36 @@ export async function proxy(request: NextRequest) {
       : []),
   ].join('; ');
 
+  // Public routes — skip Supabase session check entirely (no auth needed, no env-var
+  // dependency). This prevents a 500 when NEXT_PUBLIC_SUPABASE_URL resolves to a
+  // placeholder in CI (Lighthouse job) or when env vars are absent on cold-start.
+  //
+  // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding.
+  // These routes either have no auth requirement or handle their own auth guard in-page.
+  const isFullyPublicRoute =
+    path === '/' ||
+    path === '/login' ||
+    path === '/forgot-password' ||
+    path.startsWith('/sign/') ||
+    path.startsWith('/auth/') ||
+    path === '/onboarding';
+
+  if (isFullyPublicRoute) {
+    const publicResponse = NextResponse.next({ request });
+    publicResponse.headers.set('x-nonce', nonce);
+    publicResponse.headers.set('Content-Security-Policy', csp);
+    publicResponse.headers.set('X-Content-Type-Options', 'nosniff');
+    publicResponse.headers.set('X-Frame-Options', 'DENY');
+    publicResponse.headers.set(
+      'Strict-Transport-Security',
+      'max-age=63072000; includeSubDomains; preload'
+    );
+    publicResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    publicResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    publicResponse.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+    return publicResponse;
+  }
+
   // Get session/user
   const { response, user } = await updateSession(request);
 

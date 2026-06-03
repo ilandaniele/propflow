@@ -43,6 +43,8 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('@/lib/auth/provision', () => ({
   getExistingProfile: vi.fn().mockImplementation(async () => state.profileResult),
+  // attemptAutoLink is called when profile is null — default to no_match (preserves existing behaviour)
+  attemptAutoLink: vi.fn().mockResolvedValue({ linked: false, reason: 'no_match' }),
 }));
 
 vi.mock('@/lib/env', () => ({
