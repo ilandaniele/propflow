@@ -157,7 +157,14 @@
         "property": "Property",
         "monthlyRent": "Monthly rent",
         "visitorCount": "Visitors (last 30 days)",
-        "noData": "No home preview data available"
+        "noData": "No home preview data available",
+        "balance": "Balance",
+        "pendingCharges": "Pending charges",
+        "overdue": "Overdue",
+        "recentPayments": "Recent payments",
+        "noRecentPayments": "No recent payments",
+        "recentIncidents": "Recent incidents",
+        "noRecentIncidents": "No recent incidents"
       },
       "visitors": {
         "date": "Date",

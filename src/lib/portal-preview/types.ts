@@ -43,6 +43,23 @@ export interface PortalPreviewAnnouncement {
   org_id: string;
 }
 
+// payments row — recent payments for portal home preview (limit 3)
+export interface PortalPreviewPayment {
+  id: string;
+  amount: number;
+  paid_at: string | null;
+  status: string;
+  method: string | null;
+}
+
+// incidents row — recent incidents for portal home preview (limit 3)
+export interface PortalPreviewIncident {
+  id: string;
+  title: string;
+  status: string;
+  created_at: string;
+}
+
 // ai_chat_messages grouped by session_id — one row per session
 export interface AISession {
   session_id: string;

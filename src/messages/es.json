@@ -157,7 +157,14 @@
         "property": "Propiedad",
         "monthlyRent": "Renta mensual",
         "visitorCount": "Visitas (últimos 30 días)",
-        "noData": "Sin datos de vista previa del inicio"
+        "noData": "Sin datos de vista previa del inicio",
+        "balance": "Saldo",
+        "pendingCharges": "Cargos pendientes",
+        "overdue": "Vencido",
+        "recentPayments": "Pagos recientes",
+        "noRecentPayments": "Sin pagos recientes",
+        "recentIncidents": "Incidencias recientes",
+        "noRecentIncidents": "Sin incidencias recientes"
       },
       "visitors": {
         "date": "Fecha",

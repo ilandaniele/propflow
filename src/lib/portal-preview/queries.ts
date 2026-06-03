@@ -27,11 +27,17 @@ import type {
   PortalPreviewVisitor,
   PortalPreviewNotification,
   PortalPreviewAnnouncement,
+  PortalPreviewPayment,
+  PortalPreviewIncident,
   AISession,
 } from './types';
 import { groupAISessions } from './group-ai-sessions';
 
-const QUERY_LIMIT = 20;
+const VISITORS_LIMIT = 50;
+const NOTIFICATIONS_LIMIT = 100;
+const ANNOUNCEMENTS_LIMIT = 50;
+const RECENT_PAYMENTS_LIMIT = 3;
+const RECENT_INCIDENTS_LIMIT = 3;
 const AI_MESSAGES_LIMIT = 500;
 
 // ─── AC7: Visitor query — scoped to host_tenant_id + org_id ───────────────────
@@ -54,7 +60,7 @@ export async function getPortalPreviewVisitors(
     .eq('host_tenant_id', tenantId)
     .eq('org_id', orgId)
     .order('entry_time', { ascending: false, nullsFirst: false })
-    .limit(QUERY_LIMIT);
+    .limit(VISITORS_LIMIT);
 
   if (error) {
     console.error('[getPortalPreviewVisitors] query error:', error.code);
@@ -88,7 +94,7 @@ export async function getPortalPreviewNotifications(
     .eq('profile_id', profileId)
     .eq('org_id', orgId)
     .order('created_at', { ascending: false })
-    .limit(QUERY_LIMIT);
+    .limit(NOTIFICATIONS_LIMIT);
 
   if (error) {
     console.error('[getPortalPreviewNotifications] query error:', error.code);
@@ -145,7 +151,7 @@ export async function getPortalPreviewAnnouncements(
     .or(`expires_at.is.null,expires_at.gt.${now}`)
     .or(audienceParts.join(','))
     .order('published_at', { ascending: false })
-    .limit(QUERY_LIMIT);
+    .limit(ANNOUNCEMENTS_LIMIT);
 
   if (error) {
     console.error('[getPortalPreviewAnnouncements] query error:', error.code);
@@ -192,4 +198,60 @@ export async function getPortalPreviewAISessions(
   }
 
   return groupAISessions(data ?? []);
+}
+
+// ─── B2: Recent payments — for portal home preview ────────────────────────────
+
+/**
+ * Fetch the 3 most recent payments for a tenant in an org.
+ * Ordered by paid_at DESC (null paid_at rows sort last).
+ * Used exclusively by PortalHomeSection — read-only, no mutations.
+ */
+export async function getPortalPreviewRecentPayments(
+  supabase: SupabaseClient,
+  tenantId: string,
+  orgId: string
+): Promise<PortalPreviewPayment[]> {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id, amount, paid_at, status, method')
+    .eq('tenant_id', tenantId)
+    .eq('org_id', orgId)
+    .order('paid_at', { ascending: false, nullsFirst: false })
+    .limit(RECENT_PAYMENTS_LIMIT);
+
+  if (error) {
+    console.error('[getPortalPreviewRecentPayments] query error:', error.code);
+    return [];
+  }
+
+  return (data ?? []) as PortalPreviewPayment[];
+}
+
+// ─── B2: Recent incidents — for portal home preview ──────────────────────────
+
+/**
+ * Fetch the 3 most recent incidents for a tenant in an org.
+ * Ordered by created_at DESC.
+ * Used exclusively by PortalHomeSection — read-only, no mutations.
+ */
+export async function getPortalPreviewRecentIncidents(
+  supabase: SupabaseClient,
+  tenantId: string,
+  orgId: string
+): Promise<PortalPreviewIncident[]> {
+  const { data, error } = await supabase
+    .from('incidents')
+    .select('id, title, status, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false })
+    .limit(RECENT_INCIDENTS_LIMIT);
+
+  if (error) {
+    console.error('[getPortalPreviewRecentIncidents] query error:', error.code);
+    return [];
+  }
+
+  return (data ?? []) as PortalPreviewIncident[];
 }

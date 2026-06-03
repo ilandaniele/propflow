@@ -2,11 +2,15 @@
  * Unit tests: src/lib/portal-preview/queries.ts
  *
  * Tests verify that each helper:
- *   AC7: getPortalPreviewVisitors — uses .eq('host_tenant_id', tenantId) + .eq('org_id', orgId)
+ *   AC7: getPortalPreviewVisitors — uses .eq('host_tenant_id', tenantId) + .eq('org_id', orgId);
+ *        B3: VISITORS_LIMIT=50
  *   AC8: getPortalPreviewNotifications — uses .eq('profile_id', profileId) + .eq('org_id', orgId);
- *        returns [] immediately when profileId is null (no DB call)
- *   AC9: getPortalPreviewAnnouncements — applies audience filter + published/non-expired filters
+ *        returns [] immediately when profileId is null (no DB call); B3: NOTIFICATIONS_LIMIT=100
+ *   AC9: getPortalPreviewAnnouncements — applies audience filter + published/non-expired filters;
+ *        B3: ANNOUNCEMENTS_LIMIT=50
  *   AC10: getPortalPreviewAISessions — returns [] when profileId is null; calls groupAISessions
+ *   B2: getPortalPreviewRecentPayments — limit 3, scoped to tenant_id + org_id
+ *   B2: getPortalPreviewRecentIncidents — limit 3, scoped to tenant_id + org_id
  *
  * Strategy: build a tracked Supabase client stub that records every method call
  * and the arguments it received. The terminal .limit() call returns the configured data.
@@ -19,6 +23,8 @@ import {
   getPortalPreviewNotifications,
   getPortalPreviewAnnouncements,
   getPortalPreviewAISessions,
+  getPortalPreviewRecentPayments,
+  getPortalPreviewRecentIncidents,
 } from '@/lib/portal-preview/queries';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +43,7 @@ interface QueryBuilderConfig {
 
 function makeQueryBuilder(config: QueryBuilderConfig) {
   const calls: CallRecord[] = [];
+  let capturedLimit: number | null = null;
 
   const record = (method: string, ...args: unknown[]) => {
     calls.push({ method, args });
@@ -45,16 +52,21 @@ function makeQueryBuilder(config: QueryBuilderConfig) {
 
   const builder: Record<string, unknown> & {
     _calls: CallRecord[];
+    _limit: () => number | null;
     limit: (n: number) => Promise<{ data: unknown[]; error: { code: string } | null }>;
   } = {
     _calls: calls,
+    _limit: () => capturedLimit,
     select: vi.fn((...args) => record('select', ...args)),
     eq: vi.fn((...args) => record('eq', ...args)),
     order: vi.fn((...args) => record('order', ...args)),
     not: vi.fn((...args) => record('not', ...args)),
     lte: vi.fn((...args) => record('lte', ...args)),
     or: vi.fn((...args) => record('or', ...args)),
-    limit: vi.fn(async (_n: number) => ({ data: config.data, error: config.error })),
+    limit: vi.fn(async (n: number) => {
+      capturedLimit = n;
+      return { data: config.data, error: config.error };
+    }),
   };
 
   return builder;
@@ -69,10 +81,12 @@ function makeSupabaseClient(config: QueryBuilderConfig) {
       return latestBuilder;
     }),
     _getLatestBuilder: () => latestBuilder,
+    _getLatestLimit: () => latestBuilder?._limit() ?? null,
   };
 
   return client as unknown as SupabaseClient & {
     _getLatestBuilder: () => ReturnType<typeof makeQueryBuilder>;
+    _getLatestLimit: () => number | null;
   };
 }
 
@@ -159,6 +173,12 @@ describe('getPortalPreviewVisitors (AC7)', () => {
     const result = await getPortalPreviewVisitors(client, tenantId, orgId);
     expect(result).toEqual([]);
   });
+
+  it('uses VISITORS_LIMIT=50 (B3 — spec row limit)', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewVisitors(client, tenantId, orgId);
+    expect(client._getLatestLimit()).toBe(50);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -236,6 +256,12 @@ describe('getPortalPreviewNotifications (AC8)', () => {
     const client = makeSupabaseClient({ data: [], error: { code: '42501' } });
     const result = await getPortalPreviewNotifications(client, profileId, orgId);
     expect(result).toEqual([]);
+  });
+
+  it('uses NOTIFICATIONS_LIMIT=100 (B3 — spec row limit)', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewNotifications(client, profileId, orgId);
+    expect(client._getLatestLimit()).toBe(100);
   });
 });
 
@@ -365,6 +391,12 @@ describe('getPortalPreviewAnnouncements (AC9)', () => {
     const result = await getPortalPreviewAnnouncements(client, unitId, propertyId, orgId);
     expect(result).toEqual([]);
   });
+
+  it('uses ANNOUNCEMENTS_LIMIT=50 (B3 — spec row limit)', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewAnnouncements(client, unitId, propertyId, orgId);
+    expect(client._getLatestLimit()).toBe(50);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -431,6 +463,184 @@ describe('getPortalPreviewAISessions (AC10)', () => {
   it('returns empty array when no messages exist', async () => {
     const client = makeSupabaseClient({ data: [], error: null });
     const result = await getPortalPreviewAISessions(client, profileId, orgId);
+    expect(result).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B2: getPortalPreviewRecentPayments
+// ---------------------------------------------------------------------------
+
+describe('getPortalPreviewRecentPayments (B2)', () => {
+  const tenantId = 'tenant-uuid-123';
+  const orgId = 'org-uuid-abc';
+
+  it('queries the payments table', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    expect(client.from).toHaveBeenCalledWith('payments');
+  });
+
+  it('filters by tenant_id', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    expect(hasEq(calls, 'tenant_id', tenantId)).toBe(true);
+  });
+
+  it('filters by org_id (defense-in-depth)', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    expect(hasEq(calls, 'org_id', orgId)).toBe(true);
+  });
+
+  it('applies both tenant_id AND org_id filters', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    expect(hasEq(calls, 'tenant_id', tenantId)).toBe(true);
+    expect(hasEq(calls, 'org_id', orgId)).toBe(true);
+  });
+
+  it('orders by paid_at DESC', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    const orderCall = calls.find(c => c.method === 'order');
+    expect(orderCall).toBeDefined();
+    expect(orderCall?.args[0]).toBe('paid_at');
+    expect((orderCall?.args[1] as { ascending: boolean })?.ascending).toBe(false);
+  });
+
+  it('limits to 3 rows (B2 — 3 most recent)', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    expect(client._getLatestLimit()).toBe(3);
+  });
+
+  it('returns payment rows with expected fields', async () => {
+    const rows = [
+      {
+        id: 'pay-1',
+        amount: 1200,
+        paid_at: '2026-06-01T10:00:00Z',
+        status: 'approved',
+        method: 'bank_transfer',
+      },
+      {
+        id: 'pay-2',
+        amount: 1200,
+        paid_at: '2026-05-01T10:00:00Z',
+        status: 'approved',
+        method: 'cash',
+      },
+    ];
+    const client = makeSupabaseClient({ data: rows, error: null });
+    const result = await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('pay-1');
+    expect(result[0].amount).toBe(1200);
+    expect(result[0].status).toBe('approved');
+  });
+
+  it('returns empty array on query error (no throw)', async () => {
+    const client = makeSupabaseClient({ data: [], error: { code: 'PGRST116' } });
+    const result = await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when data is null', async () => {
+    const client = makeSupabaseClient({ data: null as unknown as unknown[], error: null });
+    const result = await getPortalPreviewRecentPayments(client, tenantId, orgId);
+    expect(result).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B2: getPortalPreviewRecentIncidents
+// ---------------------------------------------------------------------------
+
+describe('getPortalPreviewRecentIncidents (B2)', () => {
+  const tenantId = 'tenant-uuid-123';
+  const orgId = 'org-uuid-abc';
+
+  it('queries the incidents table', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    expect(client.from).toHaveBeenCalledWith('incidents');
+  });
+
+  it('filters by tenant_id', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    expect(hasEq(calls, 'tenant_id', tenantId)).toBe(true);
+  });
+
+  it('filters by org_id (defense-in-depth)', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    expect(hasEq(calls, 'org_id', orgId)).toBe(true);
+  });
+
+  it('applies both tenant_id AND org_id filters', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    expect(hasEq(calls, 'tenant_id', tenantId)).toBe(true);
+    expect(hasEq(calls, 'org_id', orgId)).toBe(true);
+  });
+
+  it('orders by created_at DESC', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    const calls = client._getLatestBuilder()._calls;
+    const orderCall = calls.find(c => c.method === 'order');
+    expect(orderCall).toBeDefined();
+    expect(orderCall?.args[0]).toBe('created_at');
+    expect((orderCall?.args[1] as { ascending: boolean })?.ascending).toBe(false);
+  });
+
+  it('limits to 3 rows (B2 — 3 most recent)', async () => {
+    const client = makeSupabaseClient({ data: [], error: null });
+    await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    expect(client._getLatestLimit()).toBe(3);
+  });
+
+  it('returns incident rows with expected fields', async () => {
+    const rows = [
+      {
+        id: 'inc-1',
+        title: 'Water leak in bathroom',
+        status: 'open',
+        created_at: '2026-06-01T08:00:00Z',
+      },
+      {
+        id: 'inc-2',
+        title: 'Broken window',
+        status: 'resolved',
+        created_at: '2026-05-20T09:00:00Z',
+      },
+    ];
+    const client = makeSupabaseClient({ data: rows, error: null });
+    const result = await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('inc-1');
+    expect(result[0].title).toBe('Water leak in bathroom');
+    expect(result[0].status).toBe('open');
+  });
+
+  it('returns empty array on query error (no throw)', async () => {
+    const client = makeSupabaseClient({ data: [], error: { code: 'PGRST116' } });
+    const result = await getPortalPreviewRecentIncidents(client, tenantId, orgId);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty array when data is null', async () => {
+    const client = makeSupabaseClient({ data: null as unknown as unknown[], error: null });
+    const result = await getPortalPreviewRecentIncidents(client, tenantId, orgId);
     expect(result).toEqual([]);
   });
 });
