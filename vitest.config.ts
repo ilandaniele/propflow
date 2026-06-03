@@ -26,6 +26,7 @@ export default defineConfig({
         'src/lib/tenants/**',
         'src/lib/i18n/**',
         'src/lib/ocr/**',
+        'src/lib/airtable/**',
       ],
       exclude: ['**/*.d.ts', '**/index.ts'],
       thresholds: {
