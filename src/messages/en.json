@@ -193,6 +193,29 @@
       "resolved": "Resolved",
       "closed": "Closed"
     },
+    "categories": {
+      "plumbing": "Plumbing",
+      "electrical": "Electrical",
+      "appliance": "Appliance",
+      "structural": "Structural",
+      "cleaning": "Cleaning",
+      "other": "Other",
+      "material_damage": "Material damage",
+      "malfunction": "Malfunction"
+    },
+    "priorities": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "priorityLegend": {
+      "title": "Priority levels",
+      "low": "Low — routine follow-up",
+      "medium": "Medium — address this week",
+      "high": "High — address within 24–48 h",
+      "urgent": "Urgent — immediate action required"
+    },
     "noIncidents": "No incidents"
   },
   "tasks": {

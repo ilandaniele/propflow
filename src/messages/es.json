@@ -193,6 +193,29 @@
       "resolved": "Resuelto",
       "closed": "Cerrado"
     },
+    "categories": {
+      "plumbing": "Plomería",
+      "electrical": "Eléctrico",
+      "appliance": "Electrodoméstico",
+      "structural": "Estructural",
+      "cleaning": "Limpieza",
+      "other": "Otros",
+      "material_damage": "Daño material",
+      "malfunction": "Mal funcionamiento"
+    },
+    "priorities": {
+      "low": "Bajo",
+      "medium": "Medio",
+      "high": "Alto",
+      "urgent": "Urgente"
+    },
+    "priorityLegend": {
+      "title": "Niveles de prioridad",
+      "low": "Bajo — seguimiento rutinario",
+      "medium": "Medio — atender esta semana",
+      "high": "Alto — atender en 24–48 hs",
+      "urgent": "Urgente — acción inmediata"
+    },
     "noIncidents": "Sin incidentes"
   },
   "tasks": {

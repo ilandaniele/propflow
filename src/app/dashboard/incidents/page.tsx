@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
+import { PriorityLegend } from '@/components/incidents/PriorityLegend';
 
 export const metadata: Metadata = { title: 'Incidents' };
 
@@ -31,6 +32,8 @@ export default async function IncidentsPage() {
           <p className="text-sm text-slate-500 mt-1">{list.length} total</p>
         </div>
       </div>
+
+      <PriorityLegend />
 
       {list.length === 0 ? (
         <Card>

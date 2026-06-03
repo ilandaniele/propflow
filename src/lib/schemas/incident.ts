@@ -6,7 +6,7 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 export const CreateIncidentSchema = z.object({
   title: z.string().min(1, 'Title is required').max(300),
   description: z.string().min(1, 'Description is required').max(10_000),
-  category: z.enum(['plumbing', 'electrical', 'appliance', 'structural', 'cleaning', 'other']),
+  category: z.enum(['plumbing', 'electrical', 'appliance', 'structural', 'cleaning', 'other', 'material_damage', 'malfunction']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   unit_id: z.string().uuid().optional().or(z.literal('')),
   property_id: z.string().uuid().optional().or(z.literal('')),

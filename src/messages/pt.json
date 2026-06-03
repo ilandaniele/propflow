@@ -193,6 +193,29 @@
       "resolved": "Resolvido",
       "closed": "Fechado"
     },
+    "categories": {
+      "plumbing": "Encanamento",
+      "electrical": "Elétrico",
+      "appliance": "Eletrodoméstico",
+      "structural": "Estrutural",
+      "cleaning": "Limpeza",
+      "other": "Outros",
+      "material_damage": "Dano material",
+      "malfunction": "Mau funcionamento"
+    },
+    "priorities": {
+      "low": "Baixo",
+      "medium": "Médio",
+      "high": "Alto",
+      "urgent": "Urgente"
+    },
+    "priorityLegend": {
+      "title": "Níveis de prioridade",
+      "low": "Baixo — acompanhamento de rotina",
+      "medium": "Médio — resolver esta semana",
+      "high": "Alto — resolver em 24–48 h",
+      "urgent": "Urgente — ação imediata necessária"
+    },
     "noIncidents": "Sem incidentes"
   },
   "tasks": {
