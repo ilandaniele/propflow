@@ -392,5 +392,123 @@
       "unoccupied": "Unoccupied",
       "createdAt": "Created"
     }
+  },
+  "landing": {
+    "nav": {
+      "features": "Features",
+      "problems": "Problems",
+      "pricing": "Pricing",
+      "signIn": "Sign in",
+      "requestAccess": "Request access"
+    },
+    "hero": {
+      "badge": "Property management platform for coliving & multi-room",
+      "headline": "Managing shared properties is complex. Your data shouldn't be.",
+      "subtitle": "Centralize contracts, payments, incidents, tasks, and per-unit profitability in a single panel connected to your real data.",
+      "ctaPrimary": "See demo",
+      "ctaSecondary": "See pricing",
+      "noSignup": "No public sign-up. Access is provisioned by your property manager."
+    },
+    "dashboard": {
+      "title": "Dashboard preview",
+      "urlBar": "propflow.vercel.app/dashboard",
+      "kpis": {
+        "trueNetProfit": "True Net Profit",
+        "occupancy": "Occupancy",
+        "openIncidents": "Open Incidents",
+        "pendingTasks": "Pending Tasks",
+        "overdueBalance": "Overdue Balance",
+        "belowCostRooms": "Below-Cost Rooms"
+      }
+    },
+    "problems": {
+      "sectionTitle": "Coliving managers face these challenges",
+      "sectionSubtitle": "PropFlow solves them from a single panel connected to your real data.",
+      "card1": {
+        "title": "Blind spots in monthly/weekly payments",
+        "body": "Consolidating income manually creates financial blind spots. You don't know in real time which room is current and which isn't."
+      },
+      "card2": {
+        "title": "Hidden turnover costs",
+        "body": "Move-outs, cleaning, repairs, fees, and unpaid debt reduce your real margin. These costs are scattered across spreadsheets and emails."
+      },
+      "card3": {
+        "title": "Per-property tools hide per-room losses",
+        "body": "Managers need to know which unit or room is underperforming. A fragmented per-property view hides this."
+      },
+      "card4": {
+        "title": "Dispersed operational issues",
+        "body": "Incidents, tasks, sanctions, and tenant communication need to be connected. Today they live in separate tools."
+      }
+    },
+    "features": {
+      "sectionTitle": "Everything your team needs",
+      "sectionSubtitle": "From portfolio overview to tenant incidents — built for the complete property management workflow.",
+      "chip1": "Multi-property management",
+      "chip2": "Digital contracts",
+      "chip3": "Payments & statements",
+      "chip4": "Incident tracking",
+      "chip5": "Tenant portal",
+      "chip6": "WhatsApp integration",
+      "chip7": "Tasks & proof uploads",
+      "chip8": "Sanctions & disputes",
+      "chip9": "Announcements & community",
+      "chip10": "AI Executive Brief",
+      "chip11": "CSV data import",
+      "chip12": "Per-room profitability",
+      "chip13": "Digital contract signing",
+      "chip14": "Visitor control"
+    },
+    "pricing": {
+      "sectionTitle": "Plans & Pricing",
+      "sectionSubtitle": "Start free with one property. Scale as your portfolio grows.",
+      "toggleMonthly": "Monthly",
+      "toggleAnnual": "Annual",
+      "annualDiscount": "Save 20%",
+      "starter": {
+        "name": "Starter",
+        "tagline": "Perfect to get started",
+        "price": "Free",
+        "priceSuffix": "forever",
+        "priceAnnual": "Free",
+        "priceSuffixAnnual": "forever",
+        "cta": "See demo",
+        "bullet1": "1 property",
+        "bullet2": "Up to 10 units",
+        "bullet3": "Tenant portal included",
+        "bullet4": "Email support"
+      },
+      "pro": {
+        "name": "Pro",
+        "tagline": "For growing managers",
+        "price": "Contact for pricing",
+        "priceSuffix": "per month",
+        "priceAnnual": "Contact for pricing",
+        "priceSuffixAnnual": "per year",
+        "cta": "Contact us",
+        "badge": "Most popular",
+        "bullet1": "2 to 15 properties",
+        "bullet2": "Unlimited units",
+        "bullet3": "Airtable sync + CSV import",
+        "bullet4": "AI Executive Brief + analyst"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "tagline": "For large portfolios",
+        "price": "Custom",
+        "priceSuffix": "",
+        "priceAnnual": "Custom",
+        "priceSuffixAnnual": "",
+        "cta": "Contact sales",
+        "bullet1": "16+ properties",
+        "bullet2": "Custom SLA",
+        "bullet3": "Dedicated Airtable integration",
+        "bullet4": "Dedicated support account"
+      }
+    },
+    "footer": {
+      "copyright": "All rights reserved.",
+      "contact": "Contact"
+    }
   }
 }

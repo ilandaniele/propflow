@@ -392,5 +392,123 @@
       "unoccupied": "Desocupado",
       "createdAt": "Criado"
     }
+  },
+  "landing": {
+    "nav": {
+      "features": "Recursos",
+      "problems": "Problemas",
+      "pricing": "Preços",
+      "signIn": "Entrar",
+      "requestAccess": "Solicitar acesso"
+    },
+    "hero": {
+      "badge": "Plataforma de gestão para coliving e multi-quarto",
+      "headline": "Gerenciar propriedades compartilhadas é complexo. Seus dados não deveriam ser.",
+      "subtitle": "Centralize contratos, pagamentos, incidentes, tarefas e rentabilidade por unidade em um único painel conectado aos seus dados reais.",
+      "ctaPrimary": "Ver demo",
+      "ctaSecondary": "Ver preços",
+      "noSignup": "Sem cadastro público. O acesso é concedido pelo seu gestor de propriedades."
+    },
+    "dashboard": {
+      "title": "Prévia do painel",
+      "urlBar": "propflow.vercel.app/dashboard",
+      "kpis": {
+        "trueNetProfit": "Lucro Líquido Real",
+        "occupancy": "Ocupação",
+        "openIncidents": "Incidentes Abertos",
+        "pendingTasks": "Tarefas Pendentes",
+        "overdueBalance": "Saldo Vencido",
+        "belowCostRooms": "Quartos Abaixo do Custo"
+      }
+    },
+    "problems": {
+      "sectionTitle": "Gestores de coliving enfrentam estes desafios",
+      "sectionSubtitle": "PropFlow os resolve a partir de um único painel conectado aos seus dados reais.",
+      "card1": {
+        "title": "Pontos cegos em pagamentos mensais/semanais",
+        "body": "Consolidar receitas manualmente cria pontos cegos financeiros. Você não sabe em tempo real qual quarto está em dia e qual não está."
+      },
+      "card2": {
+        "title": "Custos ocultos de rotatividade",
+        "body": "Mudanças, limpeza, reparos, taxas e dívidas não pagas reduzem sua margem real. Esses custos ficam dispersos em planilhas e e-mails."
+      },
+      "card3": {
+        "title": "Ferramentas por propriedade escondem perdas por quarto",
+        "body": "Os gestores precisam saber qual unidade ou quarto tem desempenho inferior. Uma visão fragmentada por propriedade esconde isso."
+      },
+      "card4": {
+        "title": "Problemas operacionais dispersos",
+        "body": "Incidentes, tarefas, sanções e comunicação com inquilinos precisam estar conectados. Hoje vivem em ferramentas separadas."
+      }
+    },
+    "features": {
+      "sectionTitle": "Tudo que sua equipe precisa",
+      "sectionSubtitle": "Da visão geral do portfólio aos incidentes de inquilinos — construído para o fluxo de trabalho completo de gestão.",
+      "chip1": "Gestão multi-propriedade",
+      "chip2": "Contratos digitais",
+      "chip3": "Pagamentos e extratos",
+      "chip4": "Rastreamento de incidentes",
+      "chip5": "Portal do inquilino",
+      "chip6": "Integração WhatsApp",
+      "chip7": "Tarefas e comprovantes",
+      "chip8": "Sanções e disputas",
+      "chip9": "Avisos e comunidade",
+      "chip10": "Resumo Executivo IA",
+      "chip11": "Importação de dados CSV",
+      "chip12": "Rentabilidade por quarto",
+      "chip13": "Assinatura digital de contratos",
+      "chip14": "Controle de visitantes"
+    },
+    "pricing": {
+      "sectionTitle": "Planos e Preços",
+      "sectionSubtitle": "Comece grátis com uma propriedade. Escale conforme seu portfólio cresce.",
+      "toggleMonthly": "Mensal",
+      "toggleAnnual": "Anual",
+      "annualDiscount": "Economize 20%",
+      "starter": {
+        "name": "Starter",
+        "tagline": "Ideal para começar",
+        "price": "Grátis",
+        "priceSuffix": "para sempre",
+        "priceAnnual": "Grátis",
+        "priceSuffixAnnual": "para sempre",
+        "cta": "Ver demo",
+        "bullet1": "1 propriedade",
+        "bullet2": "Até 10 unidades",
+        "bullet3": "Portal do inquilino incluído",
+        "bullet4": "Suporte por e-mail"
+      },
+      "pro": {
+        "name": "Pro",
+        "tagline": "Para gestores em crescimento",
+        "price": "Consultar preço",
+        "priceSuffix": "por mês",
+        "priceAnnual": "Consultar preço",
+        "priceSuffixAnnual": "por ano",
+        "cta": "Entrar em contato",
+        "badge": "Mais popular",
+        "bullet1": "2 a 15 propriedades",
+        "bullet2": "Unidades ilimitadas",
+        "bullet3": "Airtable sync + importação CSV",
+        "bullet4": "Resumo Executivo IA + analista"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "tagline": "Para portfólios grandes",
+        "price": "Personalizado",
+        "priceSuffix": "",
+        "priceAnnual": "Personalizado",
+        "priceSuffixAnnual": "",
+        "cta": "Falar com vendas",
+        "bullet1": "16+ propriedades",
+        "bullet2": "SLA personalizado",
+        "bullet3": "Integração Airtable dedicada",
+        "bullet4": "Conta de suporte dedicada"
+      }
+    },
+    "footer": {
+      "copyright": "Todos os direitos reservados.",
+      "contact": "Contato"
+    }
   }
 }
