@@ -140,7 +140,67 @@
     "addNote": "Agregar nota interna",
     "notePlaceholder": "Escribe una nota interna sobre este inquilino...",
     "portalAccess": "Acceso al portal",
-    "noPortalAccess": "Sin acceso al portal"
+    "noPortalAccess": "Sin acceso al portal",
+    "portalPreview": {
+      "title": "Vista Previa del Portal",
+      "noLinkedAccount": "El inquilino no ha activado su cuenta del portal. Vincular desde el panel de Cuenta del Portal.",
+      "sections": {
+        "home": "Vista Previa del Inicio del Portal",
+        "visitors": "Historial de Visitas",
+        "notifications": "Notificaciones Recibidas",
+        "announcements": "Anuncios Visibles para el Inquilino",
+        "aiSessions": "Sesiones del Asistente IA"
+      },
+      "home": {
+        "tenantName": "Inquilino",
+        "unit": "Unidad",
+        "property": "Propiedad",
+        "monthlyRent": "Renta mensual",
+        "visitorCount": "Visitas (últimos 30 días)",
+        "noData": "Sin datos de vista previa del inicio",
+        "balance": "Saldo",
+        "pendingCharges": "Cargos pendientes",
+        "overdue": "Vencido",
+        "recentPayments": "Pagos recientes",
+        "noRecentPayments": "Sin pagos recientes",
+        "recentIncidents": "Incidencias recientes",
+        "noRecentIncidents": "Sin incidencias recientes"
+      },
+      "visitors": {
+        "date": "Fecha",
+        "name": "Visitante",
+        "purpose": "Propósito",
+        "entry": "Entrada",
+        "exit": "Salida",
+        "empty": "Sin registros de visitas para este inquilino"
+      },
+      "notifications": {
+        "title": "Título",
+        "preview": "Vista previa",
+        "sentAt": "Enviado",
+        "read": "Leído",
+        "unread": "No leído",
+        "empty": "Sin notificaciones",
+        "noAccount": "Sin datos — cuenta del portal no vinculada"
+      },
+      "announcements": {
+        "title": "Título",
+        "preview": "Vista previa",
+        "audience": "Audiencia",
+        "expiresAt": "Vence",
+        "audienceAll": "Todos los inquilinos",
+        "audienceUnit": "Unidad",
+        "audienceProperty": "Propiedad",
+        "empty": "Sin anuncios visibles para este inquilino"
+      },
+      "aiSessions": {
+        "startedAt": "Inicio",
+        "messages": "Mensajes",
+        "lastMessage": "Último mensaje",
+        "empty": "Sin sesiones de IA",
+        "noAccount": "Sin datos — cuenta del portal no vinculada"
+      }
+    }
   },
   "payments": {
     "title": "Pagos",
@@ -181,6 +241,15 @@
         "admin_approved": "Aprobado por admin",
         "rejected": "Rechazado",
         "duplicate_rejected": "Duplicado rechazado"
+      },
+      "ocr": {
+        "viewDetail": "Ver detalle OCR",
+        "rawText": "Texto extraído",
+        "matchedCharge": "Cargo asociado",
+        "matchedPayment": "Pago asociado",
+        "rejectionReason": "Motivo de rechazo",
+        "notMatched": "Sin asociar",
+        "rawTextPending": "Texto OCR no disponible"
       }
     }
   },

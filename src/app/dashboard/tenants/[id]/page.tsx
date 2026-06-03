@@ -20,6 +20,7 @@ import { WhatsAppTab } from './_tabs/WhatsAppTab';
 import { DocumentsTab } from './_tabs/DocumentsTab';
 import { SanctionsTab } from './_tabs/SanctionsTab';
 import { NotesTab } from './_tabs/NotesTab';
+import { PortalPreviewTab } from './_tabs/PortalPreviewTab';
 
 export const metadata: Metadata = { title: 'Tenant Details' };
 
@@ -210,6 +211,15 @@ export default async function TenantDetailPage({ params }: Props) {
       id: 'activity',
       label: 'Activity',
       content: <ActivityTab events={activityEvents} />,
+    },
+    {
+      id: 'portal-preview',
+      label: 'Portal Preview',
+      content: (
+        <Suspense fallback={<TabFallback />}>
+          <PortalPreviewTab tenant={tenant} />
+        </Suspense>
+      ),
     },
   ];
 
