@@ -24,6 +24,25 @@ export async function proxy(request: NextRequest) {
       : []),
   ].join('; ');
 
+  // Public landing page — skip Supabase entirely (no auth needed, no env-var dependency).
+  // This prevents a 500 when NEXT_PUBLIC_SUPABASE_URL resolves to a placeholder in CI
+  // (Lighthouse job) or when env vars are absent in a cold-start production deployment.
+  if (path === '/') {
+    const landingResponse = NextResponse.next({ request });
+    landingResponse.headers.set('x-nonce', nonce);
+    landingResponse.headers.set('Content-Security-Policy', csp);
+    landingResponse.headers.set('X-Content-Type-Options', 'nosniff');
+    landingResponse.headers.set('X-Frame-Options', 'DENY');
+    landingResponse.headers.set(
+      'Strict-Transport-Security',
+      'max-age=63072000; includeSubDomains; preload'
+    );
+    landingResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+    landingResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    landingResponse.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+    return landingResponse;
+  }
+
   // Get session/user
   const { response, user } = await updateSession(request);
 
