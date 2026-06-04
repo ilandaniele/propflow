@@ -39,6 +39,7 @@ export interface Database {
           full_name: string | null;
           email: string | null;
           phone: string | null;
+          preferred_language: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -49,6 +50,7 @@ export interface Database {
           full_name?: string | null;
           email?: string | null;
           phone?: string | null;
+          preferred_language?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -58,6 +60,7 @@ export interface Database {
           full_name?: string | null;
           email?: string | null;
           phone?: string | null;
+          preferred_language?: string | null;
           updated_at?: string;
         };
       };

@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
+import { getLocale } from 'next-intl/server';
 import { getSessionFast } from '@/lib/supabase/server';
 import { getProfileFast, getOrgNameFast } from '@/lib/auth/guards';
 import { AdminSidebar } from '@/components/shell/AdminSidebar';
 import { AdminTopbar } from '@/components/shell/AdminTopbar';
+import type { Locale } from '@/i18n/config';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   // Fast path: read session from the middleware-validated cookie — zero network
@@ -26,11 +28,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // changes; tagging with 'org-{orgId}' allows targeted invalidation when needed.
   const orgName = await getOrgNameFast(profile.org_id);
 
+  // getLocale() reads the locale from the next-intl cookie/config — no DB round-trip.
+  // This is the single source of truth for the active locale in server components.
+  const currentLocale = (await getLocale()) as Locale;
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       <AdminSidebar orgName={orgName ?? undefined} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <AdminTopbar userName={profile.full_name} />
+        <AdminTopbar userName={profile.full_name} currentLocale={currentLocale} />
         <main className="flex-1 overflow-y-auto p-6" id="main-content">
           {children}
         </main>
