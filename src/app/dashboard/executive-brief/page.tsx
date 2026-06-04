@@ -157,7 +157,7 @@ export default async function ExecutiveBriefPage() {
       rawValue: currentKPIs.occupancyRate,
       delta: computeDelta(currentKPIs.occupancyRate, priorKPIs.occupancyRate),
       positiveIsGood: true,
-      sub: 'Tasa de ocupación actual',
+      sub: t('tiles.occupancySub'),
     },
     {
       key: 'net-profit',
@@ -166,7 +166,7 @@ export default async function ExecutiveBriefPage() {
       rawValue: currentKPIs.trueNetProfitMTD,
       delta: computeDelta(currentKPIs.trueNetProfitMTD, priorKPIs.trueNetProfitMTD),
       positiveIsGood: true,
-      sub: 'Ingresos - Gastos (mes actual)',
+      sub: t('tiles.netProfitSub'),
     },
     {
       key: 'past-due',
@@ -175,7 +175,7 @@ export default async function ExecutiveBriefPage() {
       rawValue: currentKPIs.pastDueBalance,
       delta: computeDelta(currentKPIs.pastDueBalance, priorKPIs.pastDueBalance),
       positiveIsGood: false, // higher past-due = worse
-      sub: 'Suma de saldos vencidos',
+      sub: t('tiles.pastDueSub'),
     },
     {
       key: 'incidents',
@@ -184,7 +184,7 @@ export default async function ExecutiveBriefPage() {
       rawValue: currentKPIs.activeIncidents,
       delta: computeDelta(currentKPIs.activeIncidents, priorKPIs.activeIncidents),
       positiveIsGood: false, // higher incidents = worse
-      sub: 'Incidentes no resueltos',
+      sub: t('tiles.incidentsSub'),
     },
   ];
 
@@ -194,7 +194,7 @@ export default async function ExecutiveBriefPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Executive Brief</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Resumen ejecutivo del portfolio — datos actualizados en tiempo real
+          {t('subtitle')}
         </p>
       </div>
 
@@ -215,7 +215,7 @@ export default async function ExecutiveBriefPage() {
           id="agents-section-title"
           className="text-base font-semibold text-slate-700 mb-3"
         >
-          Agentes de Análisis
+          {t('agentsSection')}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="agent-cards-grid">
           {/* Agent 1: Hidden Leak Detector — AVAILABLE (AC14) */}
@@ -305,7 +305,7 @@ export default async function ExecutiveBriefPage() {
           id="narrative-section-title"
           className="text-base font-semibold text-slate-700 mb-3"
         >
-          Narrativa IA
+          {t('narrativeSection')}
         </h2>
         <NarrativeSection />
       </section>

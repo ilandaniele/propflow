@@ -604,7 +604,11 @@
       "occupancy": "Occupancy",
       "netProfit": "True Net Profit MTD",
       "pastDue": "Past Due Balance",
-      "incidents": "Open Incidents"
+      "incidents": "Open Incidents",
+      "occupancySub": "Current occupancy rate",
+      "netProfitSub": "Income - Expenses (current month)",
+      "pastDueSub": "Sum of overdue balances",
+      "incidentsSub": "Unresolved incidents"
     },
     "agents": {
       "leakDetector": {

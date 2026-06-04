@@ -604,7 +604,11 @@
       "occupancy": "Ocupação",
       "netProfit": "Lucro Líquido Real MTD",
       "pastDue": "Saldo Vencido",
-      "incidents": "Incidentes Abertos"
+      "incidents": "Incidentes Abertos",
+      "occupancySub": "Taxa de ocupação atual",
+      "netProfitSub": "Receitas - Despesas (mês atual)",
+      "pastDueSub": "Soma de saldos vencidos",
+      "incidentsSub": "Incidentes não resolvidos"
     },
     "agents": {
       "leakDetector": {

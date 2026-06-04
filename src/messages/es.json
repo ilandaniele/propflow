@@ -604,7 +604,11 @@
       "occupancy": "Ocupación",
       "netProfit": "Ganancia Neta MTD",
       "pastDue": "Balance Vencido",
-      "incidents": "Incidentes Abiertos"
+      "incidents": "Incidentes Abiertos",
+      "occupancySub": "Tasa de ocupación actual",
+      "netProfitSub": "Ingresos - Gastos (mes actual)",
+      "pastDueSub": "Suma de saldos vencidos",
+      "incidentsSub": "Incidentes no resueltos"
     },
     "agents": {
       "leakDetector": {

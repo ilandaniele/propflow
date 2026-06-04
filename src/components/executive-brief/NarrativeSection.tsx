@@ -11,9 +11,11 @@
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Narrative } from './Narrative';
 
 export function NarrativeSection() {
+  const t = useTranslations('executiveBrief');
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export function NarrativeSection() {
       const data = await res.json();
       setMarkdown(data.markdown ?? '');
     } catch {
-      setError('Error de red. Inténtalo de nuevo.');
+      setError(t('narrative.empty'));
     } finally {
       setIsLoading(false);
     }
@@ -46,10 +48,10 @@ export function NarrativeSection() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">
-            Narrativa generada por IA
+            {t('narrative.title')}
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Resumen de Wins y Leaks basado en KPIs del portfolio (sin datos personales)
+            {t('narrative.subtitle')}
           </p>
         </div>
         <button
@@ -63,7 +65,7 @@ export function NarrativeSection() {
               : 'bg-brand-600 text-white hover:bg-brand-700',
           ].join(' ')}
         >
-          {isLoading ? 'Generando...' : 'Generar narrativa'}
+          {isLoading ? t('narrative.generating') : t('narrative.generate')}
         </button>
       </div>
 
@@ -86,7 +88,7 @@ export function NarrativeSection() {
           />
           {/* LLM09: disclaimer */}
           <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
-            Resumen generado por IA — verificar antes de actuar. Los datos son agregados y no incluyen información personal.
+            {t('narrative.disclaimer')}
           </p>
         </div>
       )}
@@ -95,7 +97,7 @@ export function NarrativeSection() {
       {markdown === null && !isLoading && !error && (
         <div className="py-8 text-center">
           <p className="text-sm text-slate-400">
-            Haz clic en &quot;Generar narrativa&quot; para obtener un análisis de Wins y Leaks de tu portfolio.
+            {t('narrative.empty')}
           </p>
         </div>
       )}
