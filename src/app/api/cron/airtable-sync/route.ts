@@ -81,8 +81,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     errorMessage?: string;
   }> = [];
 
+  const activeSyncTargets = SYNC_TARGETS.filter(t => !!process.env[t.tableEnvKey]);
+
   for (const orgId of orgIds) {
-    for (const { tableEnvKey, entity } of SYNC_TARGETS) {
+    for (const { tableEnvKey, entity } of activeSyncTargets) {
       try {
         const result = await syncAirtableTable(orgId, tableEnvKey);
         results.push({
