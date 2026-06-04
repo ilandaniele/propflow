@@ -12,6 +12,7 @@
  * calls useTranslations() itself (avoids hydration mismatch).
  */
 
+import { useLocale } from 'next-intl';
 import type { MonthlyTrend } from '@/lib/finance/reports';
 
 interface TrendChartProps {
@@ -38,11 +39,11 @@ const COLORS = {
   net: '#3b82f6',       // blue-500
 };
 
-function formatMonthLabel(ym: string): string {
-  // 'YYYY-MM' → 3-letter month abbreviation
-  const [, mm] = ym.split('-');
-  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-  return months[(parseInt(mm, 10) - 1) % 12] ?? mm;
+function formatMonthLabel(ym: string, locale: string): string {
+  // 'YYYY-MM' → locale-aware 3-letter month abbreviation
+  const [year, mm] = ym.split('-');
+  const date = new Date(parseInt(year, 10), parseInt(mm, 10) - 1, 1);
+  return new Intl.DateTimeFormat(locale, { month: 'short' }).format(date);
 }
 
 function formatAmount(n: number): string {
@@ -53,6 +54,7 @@ function formatAmount(n: number): string {
 }
 
 export function TrendChart({ data, labels }: TrendChartProps) {
+  const locale = useLocale();
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 text-slate-400 text-sm">
@@ -199,15 +201,15 @@ export function TrendChart({ data, labels }: TrendChartProps) {
               <g key={d.month}>
                 {/* Revenue dot */}
                 <circle cx={x} cy={toY(d.grossIncome)} r="3" fill={COLORS.revenue}>
-                  <title>{`${formatMonthLabel(d.month)} — ${labels.revenue}: ${formatAmount(d.grossIncome)}`}</title>
+                  <title>{`${formatMonthLabel(d.month, locale)} — ${labels.revenue}: ${formatAmount(d.grossIncome)}`}</title>
                 </circle>
                 {/* Expenses dot */}
                 <circle cx={x} cy={toY(d.totalExpenses)} r="3" fill={COLORS.expenses}>
-                  <title>{`${formatMonthLabel(d.month)} — ${labels.expenses}: ${formatAmount(d.totalExpenses)}`}</title>
+                  <title>{`${formatMonthLabel(d.month, locale)} — ${labels.expenses}: ${formatAmount(d.totalExpenses)}`}</title>
                 </circle>
                 {/* Net dot */}
                 <circle cx={x} cy={toY(d.trueNetProfit)} r="3" fill={COLORS.net}>
-                  <title>{`${formatMonthLabel(d.month)} — ${labels.netProfit}: ${formatAmount(d.trueNetProfit)}`}</title>
+                  <title>{`${formatMonthLabel(d.month, locale)} — ${labels.netProfit}: ${formatAmount(d.trueNetProfit)}`}</title>
                 </circle>
 
                 {/* X-axis month label */}
@@ -218,7 +220,7 @@ export function TrendChart({ data, labels }: TrendChartProps) {
                   fontSize="9"
                   fill="#94a3b8"
                 >
-                  {formatMonthLabel(d.month)}
+                  {formatMonthLabel(d.month, locale)}
                 </text>
               </g>
             );

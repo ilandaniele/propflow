@@ -14,6 +14,7 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { uploadCsvDryRun, commitCsvImport } from '@/app/actions/imports';
 import type { ActionResult } from '@/lib/errors';
 
@@ -25,28 +26,15 @@ type ImportCommitResult = import('@/lib/schemas/imports').ImportCommitResult;
 // Constants
 // ---------------------------------------------------------------------------
 
-const IMPORT_TYPES = [
-  { value: 'monthly_billed',    label: 'Facturado mensual',   description: 'Monto facturado por habitación/periodo' },
-  { value: 'monthly_collected', label: 'Cobrado mensual',     description: 'Monto cobrado por habitación/periodo' },
-  { value: 'monthly_summary',   label: 'Resumen mensual',     description: 'Totales por propiedad/periodo' },
-] as const;
+const IMPORT_TYPE_VALUES = [
+  { value: 'monthly_billed'    as const },
+  { value: 'monthly_collected' as const },
+  { value: 'monthly_summary'   as const },
+];
 
 const CURRENT_YEAR  = new Date().getFullYear();
 const YEARS         = Array.from({ length: 3 }, (_, i) => CURRENT_YEAR - i);
-const MONTHS        = [
-  { value: '01', label: 'Enero' },
-  { value: '02', label: 'Febrero' },
-  { value: '03', label: 'Marzo' },
-  { value: '04', label: 'Abril' },
-  { value: '05', label: 'Mayo' },
-  { value: '06', label: 'Junio' },
-  { value: '07', label: 'Julio' },
-  { value: '08', label: 'Agosto' },
-  { value: '09', label: 'Septiembre' },
-  { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' },
-  { value: '12', label: 'Diciembre' },
-];
+const MONTH_VALUES  = ['01','02','03','04','05','06','07','08','09','10','11','12'] as const;
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -222,11 +210,24 @@ type DryRunState = ActionResult<ImportDryRunResult>;
 type CommitState = ActionResult<ImportCommitResult>;
 
 export default function CsvImportPage() {
+  const t = useTranslations('adminImport');
+
+  // Build translated IMPORT_TYPES and MONTHS
+  const IMPORT_TYPES = IMPORT_TYPE_VALUES.map((item) => ({
+    value: item.value,
+    label: t(`csv.types.${item.value}`),
+    description: '',
+  }));
+  const MONTHS = MONTH_VALUES.map((value, i) => ({
+    value,
+    label: t.raw('months')[i] as string,
+  }));
+
   // Period selector
   const now = new Date();
   const [selectedYear,  setSelectedYear]  = useState(String(now.getFullYear()));
   const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
-  const [selectedType,  setSelectedType]  = useState<string>(IMPORT_TYPES[0].value);
+  const [selectedType,  setSelectedType]  = useState<string>(IMPORT_TYPE_VALUES[0].value);
 
   // File state
   const [file, setFile] = useState<File | null>(null);

@@ -29,6 +29,10 @@ export interface FinanceKpiTileProps {
   sub?: string;
   /** data-testid for the tile root */
   testId?: string;
+  /** Translated suffix shown after the delta percentage, e.g. "% vs prior period" */
+  deltaSuffix?: string;
+  /** Translated label shown when delta is null, e.g. "No prior data" */
+  noPriorData?: string;
 }
 
 export function KpiTile({
@@ -39,6 +43,8 @@ export function KpiTile({
   positiveIsGood = true,
   sub,
   testId,
+  deltaSuffix = '% vs prior period',
+  noPriorData = 'No prior data',
 }: FinanceKpiTileProps) {
   // Value colour
   const valueColor =
@@ -78,11 +84,11 @@ export function KpiTile({
           )}
           <span>
             {delta > 0 ? '+' : ''}
-            {delta.toFixed(1)}% vs per. anterior
+            {delta.toFixed(1)}{deltaSuffix}
           </span>
         </div>
       ) : (
-        <p className="text-xs text-slate-300">Sin datos previos</p>
+        <p className="text-xs text-slate-300">{noPriorData}</p>
       )}
     </article>
   );

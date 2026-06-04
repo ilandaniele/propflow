@@ -65,7 +65,11 @@ export function DashboardPreview() {
             {[40, 65, 55, 80, 70, 90, 75, 85, 60, 95, 78, 88].map((h, i) => (
               <div
                 key={i}
-                className="flex-1 rounded-sm bg-gradient-to-t from-brand-600 to-brand-400 opacity-70"
+                className={`flex-1 rounded-sm bg-gradient-to-t opacity-70 ${
+                  i % 2 === 0
+                    ? 'from-brand-700 to-brand-500'
+                    : 'from-brand-500 to-brand-300'
+                }`}
                 style={{ height: `${h}%` }}
               />
             ))}

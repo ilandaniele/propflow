@@ -9,19 +9,20 @@
  * - "This will NOT import data" warning
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { uploadCsvDryRun } from '@/app/actions/imports';
 import type { ActionResult } from '@/lib/errors';
 
 // Type-only import — erased at compile time, safe in client component
 type ImportDryRunResult = import('@/lib/schemas/imports').ImportDryRunResult;
 
-const IMPORT_TYPES = [
-  { value: 'monthly_billed',    label: 'Facturado mensual' },
-  { value: 'monthly_collected', label: 'Cobrado mensual' },
-  { value: 'monthly_summary',   label: 'Resumen mensual' },
-  { value: 'room_performance',  label: 'Rendimiento de habitaciones' },
-] as const;
+const IMPORT_TYPE_VALUES = [
+  { value: 'monthly_billed'    as const },
+  { value: 'monthly_collected' as const },
+  { value: 'monthly_summary'   as const },
+  { value: 'room_performance'  as const },
+];
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const CURRENT_YEAR  = new Date().getFullYear();
@@ -50,14 +51,20 @@ function IssueBadge({ severity }: { severity: 'error' | 'warning' }) {
 }
 
 export default function CheckFilesPage() {
-  const [importType, setImportType] = useState<string>(IMPORT_TYPES[0].value);
+  const t = useTranslations('adminImport');
+  const IMPORT_TYPES = IMPORT_TYPE_VALUES.map((item) => ({
+    value: item.value,
+    label: t(`csv.types.${item.value}`),
+  }));
+
+  const [importType, setImportType] = useState<string>(IMPORT_TYPE_VALUES[0].value);
   const [file,       setFile]       = useState<File | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [result,     setResult]     = useState<ActionResult<ImportDryRunResult> | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const dropped = e.dataTransfer.files[0];
     if (dropped && dropped.size <= MAX_FILE_BYTES) {
@@ -66,7 +73,7 @@ export default function CheckFilesPage() {
     } else if (dropped) {
       alert('El archivo supera el límite de 5 MB.');
     }
-  }, []);
+  };
 
   const handleCheck = async () => {
     if (!file) return;

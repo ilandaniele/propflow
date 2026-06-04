@@ -604,7 +604,13 @@
       "occupancy": "Ocupação",
       "netProfit": "Lucro Líquido Real MTD",
       "pastDue": "Saldo Vencido",
-      "incidents": "Incidentes Abertos"
+      "incidents": "Incidentes Abertos",
+      "occupancySub": "Taxa de ocupação atual",
+      "netProfitSub": "Receitas - Despesas (mês atual)",
+      "pastDueSub": "Soma de saldos vencidos",
+      "incidentsSub": "Incidentes não resolvidos",
+      "deltaSuffix": "% vs período anterior",
+      "noPriorData": "Sem dados anteriores"
     },
     "agents": {
       "leakDetector": {
@@ -641,7 +647,10 @@
       "billed": "Faturado",
       "collected": "Cobrado",
       "gap": "Diferença",
-      "severity": "Severidade"
+      "severity": "Severidade",
+      "severityHigh": "Alto",
+      "severityMedium": "Médio",
+      "error": "Análise falhou. Tente novamente."
     },
     "narrative": {
       "title": "Narrativa gerada por IA",
@@ -650,7 +659,8 @@
       "generating": "Gerando...",
       "disclaimer": "Resumo gerado por IA — verificar antes de agir.",
       "empty": "Clique em «Gerar narrativa» para obter uma análise de Ganhos e Perdas."
-    }
+    },
+    "agentLabel": "Agente de IA"
   },
   "analyst": {
     "title": "Analista IA",
@@ -675,6 +685,20 @@
     }
   },
   "adminImport": {
+    "months": [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro"
+    ],
     "title": "Importação de Dados",
     "subtitle": "Importe dados mensais de faturamento, desempenho de quartos e gerencie mapeamentos.",
     "tabs": {
@@ -835,7 +859,9 @@
       "debtService": "Serviço da Dívida",
       "platformFees": "Taxas de Plataforma",
       "occupancy": "Ocupação",
-      "pastDue": "Saldo em Atraso"
+      "pastDue": "Saldo em Atraso",
+      "deltaSuffix": "% vs período anterior",
+      "noPriorData": "Sem dados anteriores"
     },
     "trend": {
       "cardTitle": "Tendência de 12 Meses",

@@ -27,6 +27,10 @@ export interface KpiTileData {
   rawValue: number;
   /** Optional sub-label shown below the value */
   sub?: string;
+  /** Translated suffix shown after the delta percentage, e.g. "% vs prior period" */
+  deltaSuffix: string;
+  /** Translated label shown when delta is null, e.g. "No prior data" */
+  noPriorData: string;
 }
 
 interface KpiGridProps {
@@ -47,7 +51,7 @@ export function KpiGrid({ tiles }: KpiGridProps) {
 }
 
 function KpiTile({ tile }: { tile: KpiTileData }) {
-  const { label, value, delta, positiveIsGood, sub } = tile;
+  const { label, value, delta, positiveIsGood, sub, deltaSuffix, noPriorData } = tile;
 
   // Determine delta colour
   let deltaColor = 'text-slate-400';
@@ -87,12 +91,12 @@ function KpiTile({ tile }: { tile: KpiTileData }) {
           )}
           <span>
             {delta > 0 ? '+' : ''}
-            {delta.toFixed(1)}% vs periodo anterior
+            {delta.toFixed(1)}{deltaSuffix}
           </span>
         </div>
       )}
       {delta === null && (
-        <p className="text-xs text-slate-300">Sin datos previos</p>
+        <p className="text-xs text-slate-300">{noPriorData}</p>
       )}
     </article>
   );

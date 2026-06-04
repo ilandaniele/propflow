@@ -23,6 +23,7 @@ import { AgentCard } from '@/components/executive-brief/AgentCard';
 import { LeakDetectorRunner } from '@/components/executive-brief/LeakDetectorRunner';
 import { NarrativeSection } from '@/components/executive-brief/NarrativeSection';
 import { runHiddenLeakDetector } from '@/app/actions/executive-brief';
+import { getTranslations } from 'next-intl/server';
 
 export const metadata: Metadata = { title: 'Executive Brief | PropFlow' };
 
@@ -141,48 +142,60 @@ export default async function ExecutiveBriefPage() {
   }
 
   const supabase = await createClient();
+  const t = await getTranslations('executiveBrief');
 
   const [currentKPIs, priorKPIs] = await Promise.all([
     fetchPeriodKPIs(supabase, currentPeriodBounds()),
     fetchPeriodKPIs(supabase, priorPeriodBounds()),
   ]);
 
+  const deltaSuffix = t('tiles.deltaSuffix');
+  const noPriorData = t('tiles.noPriorData');
+
   const tiles: KpiTileData[] = [
     {
       key: 'occupancy',
-      label: 'Ocupación',
+      label: t('tiles.occupancy'),
       value: `${currentKPIs.occupancyRate}%`,
       rawValue: currentKPIs.occupancyRate,
       delta: computeDelta(currentKPIs.occupancyRate, priorKPIs.occupancyRate),
       positiveIsGood: true,
-      sub: 'Tasa de ocupación actual',
+      sub: t('tiles.occupancySub'),
+      deltaSuffix,
+      noPriorData,
     },
     {
       key: 'net-profit',
-      label: 'Ganancia Neta MTD',
+      label: t('tiles.netProfit'),
       value: `$${currentKPIs.trueNetProfitMTD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       rawValue: currentKPIs.trueNetProfitMTD,
       delta: computeDelta(currentKPIs.trueNetProfitMTD, priorKPIs.trueNetProfitMTD),
       positiveIsGood: true,
-      sub: 'Ingresos - Gastos (mes actual)',
+      sub: t('tiles.netProfitSub'),
+      deltaSuffix,
+      noPriorData,
     },
     {
       key: 'past-due',
-      label: 'Balance Vencido',
+      label: t('tiles.pastDue'),
       value: `$${currentKPIs.pastDueBalance.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       rawValue: currentKPIs.pastDueBalance,
       delta: computeDelta(currentKPIs.pastDueBalance, priorKPIs.pastDueBalance),
       positiveIsGood: false, // higher past-due = worse
-      sub: 'Suma de saldos vencidos',
+      sub: t('tiles.pastDueSub'),
+      deltaSuffix,
+      noPriorData,
     },
     {
       key: 'incidents',
-      label: 'Incidentes Abiertos',
+      label: t('tiles.incidents'),
       value: String(currentKPIs.activeIncidents),
       rawValue: currentKPIs.activeIncidents,
       delta: computeDelta(currentKPIs.activeIncidents, priorKPIs.activeIncidents),
       positiveIsGood: false, // higher incidents = worse
-      sub: 'Incidentes no resueltos',
+      sub: t('tiles.incidentsSub'),
+      deltaSuffix,
+      noPriorData,
     },
   ];
 
@@ -192,7 +205,7 @@ export default async function ExecutiveBriefPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Executive Brief</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Resumen ejecutivo del portfolio — datos actualizados en tiempo real
+          {t('subtitle')}
         </p>
       </div>
 
@@ -202,7 +215,7 @@ export default async function ExecutiveBriefPage() {
           id="kpi-section-title"
           className="text-base font-semibold text-slate-700 mb-3"
         >
-          KPIs del Mes
+          {t('kpiSection')}
         </h2>
         <KpiGrid tiles={tiles} />
       </section>
@@ -213,7 +226,7 @@ export default async function ExecutiveBriefPage() {
           id="agents-section-title"
           className="text-base font-semibold text-slate-700 mb-3"
         >
-          Agentes de Análisis
+          {t('agentsSection')}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="agent-cards-grid">
           {/* Agent 1: Hidden Leak Detector — AVAILABLE (AC14) */}
@@ -222,8 +235,8 @@ export default async function ExecutiveBriefPage() {
           {/* Agent 2: Market Rate Auditor — coming soon */}
           <AgentCard
             id="market-rate-auditor"
-            title="Market Rate Auditor"
-            description="Compara las tarifas de tus unidades con el mercado para identificar oportunidades de mejora."
+            title={t('agents.marketRate.title')}
+            description={t('agents.marketRate.description')}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -247,8 +260,8 @@ export default async function ExecutiveBriefPage() {
           {/* Agent 3: P&L Delta Analyzer — coming soon */}
           <AgentCard
             id="pnl-delta-analyzer"
-            title="P&L Delta Analyzer"
-            description="Analiza las variaciones de ingresos y gastos entre periodos para identificar tendencias."
+            title={t('agents.pnlDelta.title')}
+            description={t('agents.pnlDelta.description')}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -272,8 +285,8 @@ export default async function ExecutiveBriefPage() {
           {/* Agent 4: Create Custom Agent — coming soon */}
           <AgentCard
             id="create-custom-agent"
-            title="Create Custom Agent"
-            description="Diseña tu propio agente de análisis personalizado para las necesidades de tu portfolio."
+            title={t('agents.customAgent.title')}
+            description={t('agents.customAgent.description')}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -303,7 +316,7 @@ export default async function ExecutiveBriefPage() {
           id="narrative-section-title"
           className="text-base font-semibold text-slate-700 mb-3"
         >
-          Narrativa IA
+          {t('narrativeSection')}
         </h2>
         <NarrativeSection />
       </section>

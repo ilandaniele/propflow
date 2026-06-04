@@ -6,6 +6,7 @@
  */
 
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
 
@@ -33,13 +34,7 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ImportTypeLabel({ type }: { type: string }) {
-  const labels: Record<string, string> = {
-    monthly_billed:    'Facturado',
-    monthly_collected: 'Cobrado',
-    monthly_summary:   'Resumen',
-    room_performance:  'Rendimiento',
-  };
+function ImportTypeLabel({ type, labels }: { type: string; labels: Record<string, string> }) {
   return <span>{labels[type] ?? type}</span>;
 }
 
@@ -70,6 +65,14 @@ export default async function ImportLogsPage({
   } catch {
     redirect('/login');
   }
+
+  const t = await getTranslations('adminImport');
+  const typeLabels: Record<string, string> = {
+    monthly_billed:    t('csv.types.monthly_billed'),
+    monthly_collected: t('csv.types.monthly_collected'),
+    monthly_summary:   t('csv.types.monthly_summary'),
+    room_performance:  t('csv.types.room_performance'),
+  };
 
   const params = await searchParams;
   const page   = Math.max(0, parseInt(params.page ?? '0', 10));
@@ -152,7 +155,7 @@ export default async function ImportLogsPage({
             {rows.map((row) => (
               <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                 <td className="px-4 py-3 text-slate-700">
-                  <ImportTypeLabel type={row.import_type} />
+                  <ImportTypeLabel type={row.import_type} labels={typeLabels} />
                 </td>
                 <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={row.original_filename}>
                   {row.original_filename}

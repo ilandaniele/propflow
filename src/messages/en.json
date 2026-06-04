@@ -604,7 +604,13 @@
       "occupancy": "Occupancy",
       "netProfit": "True Net Profit MTD",
       "pastDue": "Past Due Balance",
-      "incidents": "Open Incidents"
+      "incidents": "Open Incidents",
+      "occupancySub": "Current occupancy rate",
+      "netProfitSub": "Income - Expenses (current month)",
+      "pastDueSub": "Sum of overdue balances",
+      "incidentsSub": "Unresolved incidents",
+      "deltaSuffix": "% vs prior period",
+      "noPriorData": "No prior data"
     },
     "agents": {
       "leakDetector": {
@@ -641,7 +647,10 @@
       "billed": "Billed",
       "collected": "Collected",
       "gap": "Gap",
-      "severity": "Severity"
+      "severity": "Severity",
+      "severityHigh": "High",
+      "severityMedium": "Medium",
+      "error": "Analysis failed. Please retry."
     },
     "narrative": {
       "title": "AI-generated narrative",
@@ -650,7 +659,8 @@
       "generating": "Generating...",
       "disclaimer": "AI-generated summary — verify before acting.",
       "empty": "Click Generate narrative to get a Wins and Leaks analysis."
-    }
+    },
+    "agentLabel": "AI Agent"
   },
   "analyst": {
     "title": "AI Analyst",
@@ -675,6 +685,20 @@
     }
   },
   "adminImport": {
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
     "title": "Data Import",
     "subtitle": "Import monthly billing data, room performance, and manage mapping dictionaries.",
     "tabs": {
@@ -835,7 +859,9 @@
       "debtService": "Debt Service",
       "platformFees": "Platform Fees",
       "occupancy": "Occupancy",
-      "pastDue": "Past Due Balance"
+      "pastDue": "Past Due Balance",
+      "deltaSuffix": "% vs prior period",
+      "noPriorData": "No prior data"
     },
     "trend": {
       "cardTitle": "12-Month Trend",

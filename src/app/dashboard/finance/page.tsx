@@ -208,6 +208,8 @@ export default async function FinancePage() {
             delta={trueNetProfit.delta}
             positiveIsGood={true}
             testId="kpi-true-net-profit"
+            deltaSuffix={t('kpis.deltaSuffix')}
+            noPriorData={t('kpis.noPriorData')}
           />
           <KpiTile
             label={t('kpis.turnCost')}
@@ -216,6 +218,8 @@ export default async function FinancePage() {
             delta={turnCost.delta}
             positiveIsGood={false}
             testId="kpi-turn-cost"
+            deltaSuffix={t('kpis.deltaSuffix')}
+            noPriorData={t('kpis.noPriorData')}
           />
           <KpiTile
             label={t('kpis.capEx')}
@@ -224,6 +228,8 @@ export default async function FinancePage() {
             delta={capEx.delta}
             positiveIsGood={false}
             testId="kpi-capex"
+            deltaSuffix={t('kpis.deltaSuffix')}
+            noPriorData={t('kpis.noPriorData')}
           />
           <KpiTile
             label={t('kpis.debtService')}
@@ -232,6 +238,8 @@ export default async function FinancePage() {
             delta={debtService.delta}
             positiveIsGood={false}
             testId="kpi-debt-service"
+            deltaSuffix={t('kpis.deltaSuffix')}
+            noPriorData={t('kpis.noPriorData')}
           />
           <KpiTile
             label={t('kpis.platformFees')}
@@ -240,6 +248,8 @@ export default async function FinancePage() {
             delta={platformFees.delta}
             positiveIsGood={false}
             testId="kpi-platform-fees"
+            deltaSuffix={t('kpis.deltaSuffix')}
+            noPriorData={t('kpis.noPriorData')}
           />
           <KpiTile
             label={t('kpis.occupancy')}
@@ -248,6 +258,8 @@ export default async function FinancePage() {
             delta={occupancy.delta}
             positiveIsGood={true}
             testId="kpi-occupancy"
+            deltaSuffix={t('kpis.deltaSuffix')}
+            noPriorData={t('kpis.noPriorData')}
           />
           <KpiTile
             label={t('kpis.pastDue')}
@@ -256,6 +268,8 @@ export default async function FinancePage() {
             delta={pastDue.delta}
             positiveIsGood={false}
             testId="kpi-past-due"
+            deltaSuffix={t('kpis.deltaSuffix')}
+            noPriorData={t('kpis.noPriorData')}
           />
         </div>
       </div>

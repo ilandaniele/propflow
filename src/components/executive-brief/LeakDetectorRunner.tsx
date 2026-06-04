@@ -10,6 +10,7 @@
  */
 
 import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { AgentCard } from './AgentCard';
 import type { LeakFinding } from '@/lib/finance/leak-detector';
 import type { ActionResult } from '@/lib/errors';
@@ -19,6 +20,7 @@ interface LeakDetectorRunnerProps {
 }
 
 export function LeakDetectorRunner({ runAction }: LeakDetectorRunnerProps) {
+  const t = useTranslations('executiveBrief');
   const [isPending, startTransition] = useTransition();
   const [findings, setFindings] = useState<LeakFinding[] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export function LeakDetectorRunner({ runAction }: LeakDetectorRunnerProps) {
     startTransition(async () => {
       const result = await runAction();
       if (result.error) {
-        setErrorMsg(result.error.message ?? 'Error inesperado');
+        setErrorMsg(t('leakResults.error'));
       } else {
         setFindings(result.data ?? []);
       }
@@ -39,8 +41,8 @@ export function LeakDetectorRunner({ runAction }: LeakDetectorRunnerProps) {
     <div className="flex flex-col gap-4">
       <AgentCard
         id="hidden-leak-detector"
-        title="Hidden Leak Detector"
-        description="Detecta unidades con diferencia entre facturado y cobrado mayor al 15%."
+        title={t('agents.leakDetector.title')}
+        description={t('agents.leakDetector.description')}
         icon={
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -81,16 +83,16 @@ export function LeakDetectorRunner({ runAction }: LeakDetectorRunnerProps) {
         >
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-slate-900">
-              Resultados — Fugas detectadas
+              {t('leakResults.title')}
             </h4>
             <span className="text-xs text-slate-500">
-              {findings.length === 0 ? 'Sin fugas detectadas' : `${findings.length} fuga(s)`}
+              {findings.length === 0 ? t('leakResults.noLeaks') : `${findings.length} leak(s)`}
             </span>
           </div>
 
           {findings.length === 0 ? (
             <p className="px-4 py-6 text-sm text-slate-500 text-center">
-              No se encontraron fugas. Todas las unidades tienen menos del 15% de diferencia.
+              {t('leakResults.noLeaks')}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -98,19 +100,19 @@ export function LeakDetectorRunner({ runAction }: LeakDetectorRunnerProps) {
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Unidad
+                      {t('leakResults.unit')}
                     </th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Facturado
+                      {t('leakResults.billed')}
                     </th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Cobrado
+                      {t('leakResults.collected')}
                     </th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Diferencia
+                      {t('leakResults.gap')}
                     </th>
                     <th className="px-4 py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Severidad
+                      {t('leakResults.severity')}
                     </th>
                   </tr>
                 </thead>
@@ -133,7 +135,7 @@ export function LeakDetectorRunner({ runAction }: LeakDetectorRunnerProps) {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <SeverityBadge severity={f.severity} />
+                        <SeverityBadge severity={f.severity} t={t} />
                       </td>
                     </tr>
                   ))}
@@ -147,14 +149,20 @@ export function LeakDetectorRunner({ runAction }: LeakDetectorRunnerProps) {
   );
 }
 
-function SeverityBadge({ severity }: { severity: 'medium' | 'high' }) {
+function SeverityBadge({
+  severity,
+  t,
+}: {
+  severity: 'medium' | 'high';
+  t: (key: string) => string;
+}) {
   return severity === 'high' ? (
     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200">
-      Alto
+      {t('leakResults.severityHigh')}
     </span>
   ) : (
     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
-      Medio
+      {t('leakResults.severityMedium')}
     </span>
   );
 }

@@ -9,7 +9,8 @@
  * - "Upload Room Performance" button → dry-run + commit
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { uploadCsvDryRun, commitCsvImport } from '@/app/actions/imports';
 import type { ActionResult } from '@/lib/errors';
 
@@ -17,22 +18,9 @@ import type { ActionResult } from '@/lib/errors';
 type ImportDryRunResult = import('@/lib/schemas/imports').ImportDryRunResult;
 type ImportCommitResult = import('@/lib/schemas/imports').ImportCommitResult;
 
-const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 3 }, (_, i) => CURRENT_YEAR - i);
-const MONTHS = [
-  { value: '01', label: 'Enero' },
-  { value: '02', label: 'Febrero' },
-  { value: '03', label: 'Marzo' },
-  { value: '04', label: 'Abril' },
-  { value: '05', label: 'Mayo' },
-  { value: '06', label: 'Junio' },
-  { value: '07', label: 'Julio' },
-  { value: '08', label: 'Agosto' },
-  { value: '09', label: 'Septiembre' },
-  { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' },
-  { value: '12', label: 'Diciembre' },
-];
+const CURRENT_YEAR  = new Date().getFullYear();
+const YEARS         = Array.from({ length: 3 }, (_, i) => CURRENT_YEAR - i);
+const MONTH_VALUES  = ['01','02','03','04','05','06','07','08','09','10','11','12'] as const;
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -46,6 +34,12 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 export default function RoomPerformancePage() {
+  const t = useTranslations('adminImport');
+  const MONTHS = MONTH_VALUES.map((value, i) => ({
+    value,
+    label: t.raw('months')[i] as string,
+  }));
+
   const now = new Date();
   const [year,  setYear]  = useState(String(now.getFullYear()));
   const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
@@ -60,7 +54,7 @@ export default function RoomPerformancePage() {
 
   const period = `${year}-${month}`;
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const dropped = e.dataTransfer.files[0];
     if (dropped && dropped.size <= MAX_FILE_BYTES) {
@@ -71,7 +65,7 @@ export default function RoomPerformancePage() {
     } else if (dropped) {
       alert('El archivo supera el límite de 5 MB.');
     }
-  }, []);
+  };
 
   const handleUploadAndDryRun = async () => {
     if (!file) return;
