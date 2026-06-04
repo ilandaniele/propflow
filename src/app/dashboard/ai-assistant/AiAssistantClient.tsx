@@ -81,8 +81,7 @@ export function AiAssistantClient() {
             const data = line.slice(6);
             if (data === '[DONE]') break;
             try {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const parsed = JSON.parse(data) as any;
+              const parsed = JSON.parse(data) as { text?: unknown };
               if (parsed.text) {
                 accumulatedContent.current += String(parsed.text);
                 const snapshot = accumulatedContent.current;

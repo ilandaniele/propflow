@@ -88,7 +88,7 @@ export default async function TenantsPage() {
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
               Portal Linked
             </p>
-            <p className="text-2xl font-bold mb-1 text-violet-700">{linkedCount}</p>
+            <p className="text-2xl font-bold mb-1 text-brand-700">{linkedCount}</p>
             <p className="text-xs text-slate-400">of {list.length} tenants have portal access</p>
           </article>
         </div>

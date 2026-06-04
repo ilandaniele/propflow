@@ -69,7 +69,7 @@ export function ClickableRow({ href, children, className }: ClickableRowProps) {
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={[
-        'cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset',
+        'cursor-pointer hover:bg-slate-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset',
         className ?? '',
       ]
         .join(' ')

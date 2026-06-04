@@ -21,7 +21,7 @@ export function DashboardPreview() {
   // Static mock KPI data — no real data, purely presentational
   const kpis = [
     { labelKey: 'kpis.trueNetProfit' as const, value: '$8.240', colorClass: 'text-green-600' },
-    { labelKey: 'kpis.occupancy' as const, value: '91%', colorClass: 'text-violet-600' },
+    { labelKey: 'kpis.occupancy' as const, value: '91%', colorClass: 'text-brand-600' },
     { labelKey: 'kpis.openIncidents' as const, value: '3', colorClass: 'text-amber-600' },
     { labelKey: 'kpis.pendingTasks' as const, value: '7', colorClass: 'text-blue-600' },
     { labelKey: 'kpis.overdueBalance' as const, value: '$1.200', colorClass: 'text-red-600' },
@@ -65,7 +65,7 @@ export function DashboardPreview() {
             {[40, 65, 55, 80, 70, 90, 75, 85, 60, 95, 78, 88].map((h, i) => (
               <div
                 key={i}
-                className="flex-1 rounded-sm bg-gradient-to-t from-violet-600 to-violet-400 opacity-70"
+                className="flex-1 rounded-sm bg-gradient-to-t from-brand-600 to-brand-400 opacity-70"
                 style={{ height: `${h}%` }}
               />
             ))}

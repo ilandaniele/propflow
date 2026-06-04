@@ -130,11 +130,11 @@ export async function generateContractPdf(
   const { data: org } = await supabase.from('organizations').select('name').eq('id', ctx.orgId).single();
 
   // Resolve variables from trusted DB data — never from client input (IC-B1)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested join (tenant:tenants, unit:units, property:properties) not resolved by codegen; widening to any is safe here since data comes from DB
   const tenant = contract.tenant as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested join (unit:units) not generically typed by the JS client
   const unit = contract.unit as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- unit?.property is a further nested join level; shape verified by the select() above
   const property = unit?.property as any;
 
   const variables: ContractVariables = {
@@ -222,7 +222,7 @@ export async function sendSignatureRequest(
 
   if (!contract) return Errors.NOT_FOUND();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested join (tenant:tenants) not generically typed by the JS client; shape verified by select() above
   const tenant = contract.tenant as any;
   if (!tenant?.email) {
     return Errors.VALIDATION_ERROR({ formErrors: ['Tenant has no email address'], fieldErrors: {} });
@@ -258,7 +258,7 @@ export async function sendSignatureRequest(
   // Send email with tokenized link (non-blocking; failure logged, not fatal)
   const siteUrl = env.NEXT_PUBLIC_SITE_URL;
   const signUrl = `${siteUrl}/sign/${sigRequest.token}`;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested join (unit:units → property:properties) not generically typed; shape verified by select() above
   const property = (contract.unit as any)?.property;
 
   const emailContent = buildSignatureRequestEmail({

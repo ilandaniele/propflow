@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
-import { computeOccupancyRate, computeRentCollectedThisMonth } from '@/lib/kpi';
 import {
+  computeOccupancyRate,
+  computeRentCollectedThisMonth,
   computeOccupancy,
   computePastDueBalance,
   computeTrueNetProfit,
@@ -139,7 +140,7 @@ export default async function DashboardPage() {
               title="Rent Collected"
               value={`$${rentCollected.toLocaleString()}`}
               sub="This month (approved)"
-              color="text-violet-600"
+              color="text-brand-600"
               icon={
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>
@@ -262,9 +263,9 @@ function QuickAction({ href, label, description }: { href: string; label: string
   return (
     <Link
       href={href}
-      className="group block bg-white rounded-xl border border-slate-200 p-5 hover:border-violet-300 hover:shadow-md transition-all duration-150"
+      className="group block bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition-all duration-150"
     >
-      <p className="font-semibold text-slate-900 text-sm mb-1 group-hover:text-violet-700 transition-colors">{label}</p>
+      <p className="font-semibold text-slate-900 text-sm mb-1 group-hover:text-brand-700 transition-colors">{label}</p>
       <p className="text-xs text-slate-500">{description}</p>
     </Link>
   );

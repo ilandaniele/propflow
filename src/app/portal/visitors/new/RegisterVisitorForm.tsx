@@ -28,9 +28,9 @@ export function RegisterVisitorForm() {
 
   return (
     <form action={async (formData) => {
-      const result = await action(formData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(result as any)?.error) setSuccess(true);
+      // useActionState dispatch is typed as returning void; cast via unknown to read inline result
+      const result = await (action as unknown as (fd: FormData) => Promise<ActionResult>)(formData);
+      if (!result?.error) setSuccess(true);
     }} className="space-y-4">
       <Input label="Visitor name" name="visitor_name" required placeholder="Jane Doe" />
       <div className="space-y-1">

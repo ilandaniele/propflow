@@ -48,7 +48,7 @@ export default async function IncidentsPage() {
             const createdBy = incident.profiles as { full_name: string | null } | null;
             return (
               <Link key={incident.id} href={`/dashboard/incidents/${incident.id}`} className="block">
-                <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 hover:border-violet-300 hover:shadow-md transition-all duration-150 flex items-center justify-between gap-4">
+                <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 hover:border-brand-300 hover:shadow-md transition-all duration-150 flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <PriorityPill priority={incident.priority} />

@@ -43,7 +43,7 @@ export interface AnalystResult {
   question: string;
   answer: string;
   /** Tabular data rows — shape depends on slug */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally flexible: each slug returns a different row shape; callers are expected to narrow the type per slug
   data: any[];
   columns?: string[];
   source: 'deterministic';
