@@ -675,6 +675,7 @@
     }
   },
   "adminImport": {
+    "months": ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"],
     "title": "Importación de Datos",
     "subtitle": "Importa datos mensuales de facturación, rendimiento de habitaciones y gestiona mapeos.",
     "tabs": {

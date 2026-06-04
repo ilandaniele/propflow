@@ -23,6 +23,7 @@ import { AgentCard } from '@/components/executive-brief/AgentCard';
 import { LeakDetectorRunner } from '@/components/executive-brief/LeakDetectorRunner';
 import { NarrativeSection } from '@/components/executive-brief/NarrativeSection';
 import { runHiddenLeakDetector } from '@/app/actions/executive-brief';
+import { getTranslations } from 'next-intl/server';
 
 export const metadata: Metadata = { title: 'Executive Brief | PropFlow' };
 
@@ -141,6 +142,7 @@ export default async function ExecutiveBriefPage() {
   }
 
   const supabase = await createClient();
+  const t = await getTranslations('executiveBrief');
 
   const [currentKPIs, priorKPIs] = await Promise.all([
     fetchPeriodKPIs(supabase, currentPeriodBounds()),
@@ -150,7 +152,7 @@ export default async function ExecutiveBriefPage() {
   const tiles: KpiTileData[] = [
     {
       key: 'occupancy',
-      label: 'Ocupación',
+      label: t('tiles.occupancy'),
       value: `${currentKPIs.occupancyRate}%`,
       rawValue: currentKPIs.occupancyRate,
       delta: computeDelta(currentKPIs.occupancyRate, priorKPIs.occupancyRate),
@@ -159,7 +161,7 @@ export default async function ExecutiveBriefPage() {
     },
     {
       key: 'net-profit',
-      label: 'Ganancia Neta MTD',
+      label: t('tiles.netProfit'),
       value: `$${currentKPIs.trueNetProfitMTD.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       rawValue: currentKPIs.trueNetProfitMTD,
       delta: computeDelta(currentKPIs.trueNetProfitMTD, priorKPIs.trueNetProfitMTD),
@@ -168,7 +170,7 @@ export default async function ExecutiveBriefPage() {
     },
     {
       key: 'past-due',
-      label: 'Balance Vencido',
+      label: t('tiles.pastDue'),
       value: `$${currentKPIs.pastDueBalance.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       rawValue: currentKPIs.pastDueBalance,
       delta: computeDelta(currentKPIs.pastDueBalance, priorKPIs.pastDueBalance),
@@ -177,7 +179,7 @@ export default async function ExecutiveBriefPage() {
     },
     {
       key: 'incidents',
-      label: 'Incidentes Abiertos',
+      label: t('tiles.incidents'),
       value: String(currentKPIs.activeIncidents),
       rawValue: currentKPIs.activeIncidents,
       delta: computeDelta(currentKPIs.activeIncidents, priorKPIs.activeIncidents),
@@ -202,7 +204,7 @@ export default async function ExecutiveBriefPage() {
           id="kpi-section-title"
           className="text-base font-semibold text-slate-700 mb-3"
         >
-          KPIs del Mes
+          {t('kpiSection')}
         </h2>
         <KpiGrid tiles={tiles} />
       </section>

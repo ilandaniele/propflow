@@ -675,6 +675,7 @@
     }
   },
   "adminImport": {
+    "months": ["January","February","March","April","May","June","July","August","September","October","November","December"],
     "title": "Data Import",
     "subtitle": "Import monthly billing data, room performance, and manage mapping dictionaries.",
     "tabs": {
