@@ -28,9 +28,31 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    // dangerouslyAllowSVG is intentionally NOT set (ASVS V13.1.5 — SVG can carry XSS)
     remotePatterns: [
-      // Add Supabase storage domain if serving images from Supabase
-      // { protocol: 'https', hostname: '*.supabase.co' },
+      // Supabase Storage — signed URLs for unit-images, tenant-avatars, incident-photos, etc.
+      // Pattern matches: https://<project-ref>.supabase.co/storage/v1/object/sign/**
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/sign/**',
+      },
+      // Also allow public object paths (for admin service-role direct reads if needed)
+      {
+        protocol: 'https',
+        hostname: '*.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+      // Airtable CDN — Room attachment URLs are served directly from Airtable CDN (IC-1).
+      // No Supabase Storage copy is made for Airtable attachments.
+      {
+        protocol: 'https',
+        hostname: 'dl.airtable.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'v5.airtableusercontent.com',
+      },
     ],
   },
 
