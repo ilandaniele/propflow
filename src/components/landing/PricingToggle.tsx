@@ -26,8 +26,8 @@ export function PricingToggle({ isAnnual, onToggle }: PricingToggleProps) {
         aria-checked={isAnnual}
         aria-label={t('toggleAnnual')}
         onClick={() => onToggle(!isAnnual)}
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 ${
-          isAnnual ? 'bg-violet-600' : 'bg-slate-300'
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 ${
+          isAnnual ? 'bg-brand-600' : 'bg-slate-300'
         }`}
       >
         <span

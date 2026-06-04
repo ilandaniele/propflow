@@ -54,7 +54,7 @@ export function AgentCard({
       >
         {/* Header */}
         <div className="flex items-start gap-3">
-          <div className="p-2.5 rounded-lg bg-violet-50 text-violet-600 shrink-0">
+          <div className="p-2.5 rounded-lg bg-brand-50 text-brand-600 shrink-0">
             {icon}
           </div>
           <div className="min-w-0">
@@ -85,7 +85,7 @@ export function AgentCard({
             isRunning
               ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
               : status === 'available'
-              ? 'bg-violet-600 text-white hover:bg-violet-700'
+              ? 'bg-brand-600 text-white hover:bg-brand-700'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
           ].join(' ')}
           aria-label={status === 'available' ? `Ejecutar ${title}` : `Ver detalles de ${title}`}

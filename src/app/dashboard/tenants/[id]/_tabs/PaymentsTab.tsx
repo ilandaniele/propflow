@@ -153,7 +153,7 @@ export async function PaymentsTab({ tenantId }: Props) {
 
                 {/* OCR detail disclosure — zero JS, SSR-safe */}
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-xs text-indigo-600 hover:text-indigo-800 select-none w-fit">
+                  <summary className="cursor-pointer text-xs text-brand-600 hover:text-brand-800 select-none w-fit">
                     {t('receipts.ocr.viewDetail')}
                   </summary>
                   <dl className="mt-2 space-y-1.5 rounded-md bg-slate-50 p-3 text-xs">

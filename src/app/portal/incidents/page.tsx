@@ -53,7 +53,7 @@ export default async function PortalIncidentsPage() {
         <div className="space-y-2">
           {list.map((incident) => (
             <Link key={incident.id} href={`/portal/incidents/${incident.id}`} className="block">
-              <Card padding="sm" className="hover:border-violet-300 transition-colors">
+              <Card padding="sm" className="hover:border-brand-300 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">

@@ -35,7 +35,7 @@ function SearchButton() {
     <button
       type="submit"
       disabled={pending}
-      className="px-4 py-2 text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg transition-colors"
+      className="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-50 rounded-lg transition-colors"
     >
       {pending ? 'Searching…' : 'Search'}
     </button>
@@ -128,7 +128,7 @@ export function LinkPortalAccount({ tenantId, tenantEmail }: Props) {
             defaultValue={tenantEmail ?? ''}
             required
             placeholder="user@example.com"
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
         <SearchButton />
@@ -156,8 +156,8 @@ export function LinkPortalAccount({ tenantId, tenantEmail }: Props) {
               onClick={() => setSelectedMatch(match)}
               className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
                 selectedMatch?.profileId === match.profileId
-                  ? 'border-violet-400 bg-violet-50'
-                  : 'border-slate-200 bg-white hover:border-violet-300'
+                  ? 'border-brand-400 bg-brand-50'
+                  : 'border-slate-200 bg-white hover:border-brand-300'
               }`}
             >
               <span className="font-medium text-slate-900">{match.fullName ?? '(no name)'}</span>

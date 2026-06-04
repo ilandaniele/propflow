@@ -146,7 +146,7 @@ export default async function PortalOverviewPage() {
           <div className="space-y-2">
             {incidents.map((i) => (
               <Link key={i.id} href={`/portal/incidents/${i.id}`}>
-                <Card padding="sm" className="hover:border-violet-300 transition-colors">
+                <Card padding="sm" className="hover:border-brand-300 transition-colors">
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-slate-900 text-sm truncate">{i.title}</p>
                     <StatusPill status={i.status} />

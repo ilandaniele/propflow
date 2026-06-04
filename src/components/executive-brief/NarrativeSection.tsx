@@ -60,7 +60,7 @@ export function NarrativeSection() {
             'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
             isLoading
               ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              : 'bg-violet-600 text-white hover:bg-violet-700',
+              : 'bg-brand-600 text-white hover:bg-brand-700',
           ].join(' ')}
         >
           {isLoading ? 'Generando...' : 'Generar narrativa'}

@@ -89,7 +89,7 @@ export function SensitivitySlider({
           step={1}
           value={occupancyDeltaPp}
           onChange={(e) => setOccupancyDeltaPp(Number(e.target.value))}
-          className="w-full accent-violet-600"
+          className="w-full accent-brand-600"
           aria-valuemin={-10}
           aria-valuemax={10}
           aria-valuenow={occupancyDeltaPp}
@@ -124,7 +124,7 @@ export function SensitivitySlider({
           step={1}
           value={opexDeltaPp}
           onChange={(e) => setOpexDeltaPp(Number(e.target.value))}
-          className="w-full accent-violet-600"
+          className="w-full accent-brand-600"
           aria-valuemin={-20}
           aria-valuemax={20}
           aria-valuenow={opexDeltaPp}

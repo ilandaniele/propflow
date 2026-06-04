@@ -77,10 +77,10 @@ export function ProblemCards() {
           {cards.map(({ icon: Icon, titleKey, bodyKey }) => (
             <div
               key={titleKey}
-              className="relative bg-slate-900 border border-slate-800 rounded-2xl p-7 hover:border-violet-700/50 transition-colors duration-200"
+              className="relative bg-slate-900 border border-slate-800 rounded-2xl p-7 hover:border-brand-700/50 transition-colors duration-200"
               data-testid="problem-card"
             >
-              <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-violet-900/40 text-violet-400 mb-5">
+              <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-brand-900/40 text-brand-400 mb-5">
                 <Icon />
               </div>
               <h3 className="text-base font-semibold text-white mb-3">

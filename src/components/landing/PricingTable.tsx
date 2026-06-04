@@ -6,7 +6,7 @@ import { PricingToggle } from './PricingToggle';
 
 function CheckIcon() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-violet-600 shrink-0 mt-0.5">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-brand-600 shrink-0 mt-0.5">
       <polyline points="20 6 9 17 4 12"/>
     </svg>
   );
@@ -29,14 +29,14 @@ function TierCard({ name, tagline, price, priceSuffix, bullets, cta, ctaHref, ba
     <div
       className={`relative flex flex-col rounded-2xl border p-7 transition-shadow duration-200 ${
         highlight
-          ? 'border-violet-500 shadow-xl shadow-violet-500/10 bg-white'
+          ? 'border-brand-500 shadow-xl shadow-brand-500/10 bg-white'
           : 'border-slate-200 bg-white hover:shadow-lg'
       }`}
       data-testid="pricing-tier"
     >
       {badge && (
         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-600 text-white shadow-sm">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-brand-600 text-white shadow-sm">
             {badge}
           </span>
         </div>
@@ -69,7 +69,7 @@ function TierCard({ name, tagline, price, priceSuffix, bullets, cta, ctaHref, ba
         href={ctaHref}
         className={`inline-flex items-center justify-center h-11 px-6 rounded-xl text-sm font-semibold transition-colors ${
           highlight
-            ? 'bg-violet-600 text-white hover:bg-violet-700 shadow-sm shadow-violet-500/20'
+            ? 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm shadow-brand-500/20'
             : 'bg-slate-900 text-white hover:bg-slate-700'
         }`}
       >
