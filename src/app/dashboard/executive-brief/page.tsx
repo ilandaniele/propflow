@@ -224,8 +224,8 @@ export default async function ExecutiveBriefPage() {
           {/* Agent 2: Market Rate Auditor — coming soon */}
           <AgentCard
             id="market-rate-auditor"
-            title="Market Rate Auditor"
-            description="Compara las tarifas de tus unidades con el mercado para identificar oportunidades de mejora."
+            title={t('agents.marketRate.title')}
+            description={t('agents.marketRate.description')}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -249,8 +249,8 @@ export default async function ExecutiveBriefPage() {
           {/* Agent 3: P&L Delta Analyzer — coming soon */}
           <AgentCard
             id="pnl-delta-analyzer"
-            title="P&L Delta Analyzer"
-            description="Analiza las variaciones de ingresos y gastos entre periodos para identificar tendencias."
+            title={t('agents.pnlDelta.title')}
+            description={t('agents.pnlDelta.description')}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -274,8 +274,8 @@ export default async function ExecutiveBriefPage() {
           {/* Agent 4: Create Custom Agent — coming soon */}
           <AgentCard
             id="create-custom-agent"
-            title="Create Custom Agent"
-            description="Diseña tu propio agente de análisis personalizado para las necesidades de tu portfolio."
+            title={t('agents.customAgent.title')}
+            description={t('agents.customAgent.description')}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"

@@ -645,7 +645,10 @@
       "billed": "Faturado",
       "collected": "Cobrado",
       "gap": "Diferença",
-      "severity": "Severidade"
+      "severity": "Severidade",
+      "severityHigh": "Alto",
+      "severityMedium": "Médio",
+      "error": "Análise falhou. Tente novamente."
     },
     "narrative": {
       "title": "Narrativa gerada por IA",
@@ -654,7 +657,8 @@
       "generating": "Gerando...",
       "disclaimer": "Resumo gerado por IA — verificar antes de agir.",
       "empty": "Clique em «Gerar narrativa» para obter uma análise de Ganhos e Perdas."
-    }
+    },
+    "agentLabel": "Agente de IA"
   },
   "analyst": {
     "title": "Analista IA",
@@ -679,7 +683,20 @@
     }
   },
   "adminImport": {
-    "months": ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+    "months": [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro"
+    ],
     "title": "Importação de Dados",
     "subtitle": "Importe dados mensais de faturamento, desempenho de quartos e gerencie mapeamentos.",
     "tabs": {

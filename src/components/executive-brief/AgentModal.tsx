@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 
 export interface AgentModalProps {
   /** Whether the modal is open */
@@ -19,6 +20,7 @@ export interface AgentModalProps {
 }
 
 export function AgentModal({ open, agentName, onClose }: AgentModalProps) {
+  const t = useTranslations('executiveBrief');
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -64,12 +66,12 @@ export function AgentModal({ open, agentName, onClose }: AgentModalProps) {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">{agentName}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Agente de IA</p>
+            <p className="text-xs text-slate-500 mt-0.5">{t('agentLabel')}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Cerrar"
+            aria-label={t('close')}
             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
             <svg
@@ -111,10 +113,9 @@ export function AgentModal({ open, agentName, onClose }: AgentModalProps) {
             </svg>
           </span>
           <div>
-            <p className="text-sm font-semibold text-amber-800">Próximamente</p>
+            <p className="text-sm font-semibold text-amber-800">{t('comingSoon')}</p>
             <p className="text-sm text-amber-700 mt-1">
-              Este agente está en desarrollo. Describe qué quieres que haga y te
-              avisaremos cuando esté disponible.
+              {t('comingSoonModal.body')}
             </p>
           </div>
         </div>
@@ -126,7 +127,7 @@ export function AgentModal({ open, agentName, onClose }: AgentModalProps) {
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
           >
-            Cerrar
+            {t('close')}
           </button>
         </div>
       </div>

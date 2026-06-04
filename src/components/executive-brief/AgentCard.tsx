@@ -3,11 +3,12 @@
 /**
  * AgentCard — individual AI agent card (AC14).
  *
- * For status='available' → clicking "Ejecutar" calls onRun().
+ * For status='available' → clicking Run calls onRun().
  * For status='coming_soon' → clicking opens the AgentModal "Coming soon" dialog.
  */
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { AgentModal } from './AgentModal';
 
 export interface AgentCardProps {
@@ -36,6 +37,7 @@ export function AgentCard({
   onRun,
   isRunning = false,
 }: AgentCardProps) {
+  const t = useTranslations('executiveBrief');
   const [modalOpen, setModalOpen] = useState(false);
 
   function handleCta() {
@@ -66,11 +68,11 @@ export function AgentCard({
         {/* Status badge */}
         {status === 'coming_soon' ? (
           <span className="self-start text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
-            Próximamente
+            {t('comingSoon')}
           </span>
         ) : (
           <span className="self-start text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
-            Disponible
+            {t('available')}
           </span>
         )}
 
@@ -88,9 +90,9 @@ export function AgentCard({
               ? 'bg-brand-600 text-white hover:bg-brand-700'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
           ].join(' ')}
-          aria-label={status === 'available' ? `Ejecutar ${title}` : `Ver detalles de ${title}`}
+          aria-label={status === 'available' ? `${t('run')} ${title}` : `${t('viewDetails')} ${title}`}
         >
-          {isRunning ? 'Ejecutando...' : status === 'available' ? 'Ejecutar' : 'Ver detalles'}
+          {isRunning ? t('running') : status === 'available' ? t('run') : t('viewDetails')}
         </button>
       </article>
 
