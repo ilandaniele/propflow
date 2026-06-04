@@ -17,7 +17,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
-import { computeOccupancyRate } from '@/lib/kpi';
+import { computeOccupancyRate } from '@/lib/finance/kpis';
 import { KpiGrid, type KpiTileData } from '@/components/executive-brief/KpiGrid';
 import { AgentCard } from '@/components/executive-brief/AgentCard';
 import { LeakDetectorRunner } from '@/components/executive-brief/LeakDetectorRunner';

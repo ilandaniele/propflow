@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeOccupancyRate, isCurrentMonth, computeRentCollectedThisMonth } from '@/lib/kpi';
+import { computeOccupancyRate, isCurrentMonth, computeRentCollectedThisMonth } from '@/lib/finance/kpis';
 
 describe('computeOccupancyRate', () => {
   it('returns 100% when all units occupied', () => {

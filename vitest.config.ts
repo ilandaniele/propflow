@@ -16,7 +16,6 @@ export default defineConfig({
       provider: 'v8',
       include: [
         'src/lib/finance/**',
-        'src/lib/kpi.ts',
         'src/lib/schemas/**',
         'src/lib/errors.ts',
         'src/lib/log.ts',

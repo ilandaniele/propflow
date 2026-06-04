@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
-import { computeOccupancyRate, computeRentCollectedThisMonth } from '@/lib/kpi';
 import {
+  computeOccupancyRate,
+  computeRentCollectedThisMonth,
   computeOccupancy,
   computePastDueBalance,
   computeTrueNetProfit,

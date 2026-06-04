@@ -246,3 +246,31 @@ export function computePastDueBalance(
   const delta = computeDelta(value, priorAmount ?? null);
   return { value, formatted, delta };
 }
+
+// ---------------------------------------------------------------------------
+// Legacy helpers — consolidated from src/lib/kpi.ts (AC2)
+//
+// These three functions were previously in the now-deleted src/lib/kpi.ts.
+// Signatures and behaviour are identical to the originals so all call-sites
+// continue to work without modification.
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use computeOccupancy() for the full KpiResult form. */
+export function computeOccupancyRate(occupiedUnits: number, totalUnits: number): number {
+  if (totalUnits === 0) return 0;
+  return Math.round((occupiedUnits / totalUnits) * 100);
+}
+
+export function isCurrentMonth(dateStr: string): boolean {
+  const date = new Date(dateStr);
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
+export function computeRentCollectedThisMonth(
+  approvedPayments: Array<{ amount: number; paid_at: string }>
+): number {
+  return approvedPayments
+    .filter((p) => isCurrentMonth(p.paid_at))
+    .reduce((sum, p) => sum + p.amount, 0);
+}
