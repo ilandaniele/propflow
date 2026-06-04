@@ -608,7 +608,9 @@
       "occupancySub": "Taxa de ocupação atual",
       "netProfitSub": "Receitas - Despesas (mês atual)",
       "pastDueSub": "Soma de saldos vencidos",
-      "incidentsSub": "Incidentes não resolvidos"
+      "incidentsSub": "Incidentes não resolvidos",
+      "deltaSuffix": "% vs período anterior",
+      "noPriorData": "Sem dados anteriores"
     },
     "agents": {
       "leakDetector": {
@@ -857,7 +859,9 @@
       "debtService": "Serviço da Dívida",
       "platformFees": "Taxas de Plataforma",
       "occupancy": "Ocupação",
-      "pastDue": "Saldo em Atraso"
+      "pastDue": "Saldo em Atraso",
+      "deltaSuffix": "% vs período anterior",
+      "noPriorData": "Sem dados anteriores"
     },
     "trend": {
       "cardTitle": "Tendência de 12 Meses",

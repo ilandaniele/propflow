@@ -149,6 +149,9 @@ export default async function ExecutiveBriefPage() {
     fetchPeriodKPIs(supabase, priorPeriodBounds()),
   ]);
 
+  const deltaSuffix = t('tiles.deltaSuffix');
+  const noPriorData = t('tiles.noPriorData');
+
   const tiles: KpiTileData[] = [
     {
       key: 'occupancy',
@@ -158,6 +161,8 @@ export default async function ExecutiveBriefPage() {
       delta: computeDelta(currentKPIs.occupancyRate, priorKPIs.occupancyRate),
       positiveIsGood: true,
       sub: t('tiles.occupancySub'),
+      deltaSuffix,
+      noPriorData,
     },
     {
       key: 'net-profit',
@@ -167,6 +172,8 @@ export default async function ExecutiveBriefPage() {
       delta: computeDelta(currentKPIs.trueNetProfitMTD, priorKPIs.trueNetProfitMTD),
       positiveIsGood: true,
       sub: t('tiles.netProfitSub'),
+      deltaSuffix,
+      noPriorData,
     },
     {
       key: 'past-due',
@@ -176,6 +183,8 @@ export default async function ExecutiveBriefPage() {
       delta: computeDelta(currentKPIs.pastDueBalance, priorKPIs.pastDueBalance),
       positiveIsGood: false, // higher past-due = worse
       sub: t('tiles.pastDueSub'),
+      deltaSuffix,
+      noPriorData,
     },
     {
       key: 'incidents',
@@ -185,6 +194,8 @@ export default async function ExecutiveBriefPage() {
       delta: computeDelta(currentKPIs.activeIncidents, priorKPIs.activeIncidents),
       positiveIsGood: false, // higher incidents = worse
       sub: t('tiles.incidentsSub'),
+      deltaSuffix,
+      noPriorData,
     },
   ];
 

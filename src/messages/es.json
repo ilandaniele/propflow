@@ -608,7 +608,9 @@
       "occupancySub": "Tasa de ocupación actual",
       "netProfitSub": "Ingresos - Gastos (mes actual)",
       "pastDueSub": "Suma de saldos vencidos",
-      "incidentsSub": "Incidentes no resueltos"
+      "incidentsSub": "Incidentes no resueltos",
+      "deltaSuffix": "% vs periodo anterior",
+      "noPriorData": "Sin datos previos"
     },
     "agents": {
       "leakDetector": {
@@ -892,7 +894,9 @@
       "debtService": "Servicio de Deuda",
       "platformFees": "Tarifas de Plataforma",
       "occupancy": "Ocupación",
-      "pastDue": "Balance Vencido"
+      "pastDue": "Balance Vencido",
+      "deltaSuffix": "% vs periodo anterior",
+      "noPriorData": "Sin datos previos"
     },
     "trend": {
       "cardTitle": "Tendencia de 12 Meses",
