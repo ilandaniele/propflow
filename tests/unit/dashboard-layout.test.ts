@@ -115,6 +115,21 @@ vi.mock('@/components/shell/AdminTopbar', () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock next-intl/server — getLocale() is a server-only API that throws in
+// non-React-Server environments (including Vitest's jsdom/node). Return 'es'
+// as the default locale; individual tests can override via mockResolvedValue.
+// ---------------------------------------------------------------------------
+
+vi.mock('next-intl/server', () => ({
+  getLocale: vi.fn().mockResolvedValue('es'),
+  getTranslations: vi.fn().mockResolvedValue((key: string) => key),
+  getFormatter: vi.fn(),
+  getNow: vi.fn(),
+  getTimeZone: vi.fn(),
+  getMessages: vi.fn(),
+}));
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -144,13 +159,18 @@ function setupTenantSession(userId = 'tenant-1', orgId = 'org-1') {
   mockState.orgName = null;
 }
 
-function resetState() {
+async function resetState() {
   mockState.session = null;
   mockState.profile = null;
   mockState.orgName = null;
   mockGetSessionFast.mockClear();
   mockGetProfileFast.mockClear();
   mockGetOrgNameFast.mockClear();
+  // Clear locale and component mocks so locale-specific tests start clean
+  const { getLocale } = await import('next-intl/server');
+  (getLocale as ReturnType<typeof vi.fn>).mockClear();
+  const { AdminTopbar } = await import('@/components/shell/AdminTopbar');
+  (AdminTopbar as ReturnType<typeof vi.fn>).mockClear();
 }
 
 // ---------------------------------------------------------------------------
@@ -301,5 +321,32 @@ describe('DashboardLayout — fast-auth path (AC3)', () => {
     // getCachedUser is the only entry point to getUser() in this codebase.
     // If it was never called, getUser() was never called either.
     expect(getCachedUser).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Locale: getLocale() is called and currentLocale is forwarded to AdminTopbar
+  // -------------------------------------------------------------------------
+
+  it('calls getLocale() during layout render (locale wired into layout)', async () => {
+    setupAdminSession();
+    const { default: DashboardLayout } = await import('@/app/dashboard/layout');
+    const { getLocale } = await import('next-intl/server');
+
+    // Default mock returns 'es' — layout must call getLocale() to get the locale
+    await DashboardLayout({ children: null });
+
+    expect(getLocale).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders without error when getLocale returns "en"', async () => {
+    setupAdminSession();
+    const { default: DashboardLayout } = await import('@/app/dashboard/layout');
+    const { getLocale } = await import('next-intl/server');
+
+    (getLocale as ReturnType<typeof vi.fn>).mockResolvedValueOnce('en');
+
+    // Layout must resolve cleanly — no redirect, no throw — for any supported locale
+    await expect(DashboardLayout({ children: null })).resolves.not.toThrow();
+    expect(getLocale).toHaveBeenCalledTimes(1);
   });
 });
