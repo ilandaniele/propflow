@@ -40,8 +40,7 @@ export default async function TasksPage() {
           <div className="p-8 text-center text-sm text-slate-400">No tasks yet</div>
         ) : (
           (tasks ?? []).map((t) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const tenant = t.tenant as any;
+            const tenant = t.tenant as unknown as { id: string; full_name: string | null } | null;
             return (
               <div key={t.id} className="flex items-center gap-4 px-4 py-3">
                 <div className="flex-1 min-w-0">

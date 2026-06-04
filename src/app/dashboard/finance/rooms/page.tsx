@@ -87,7 +87,7 @@ export default async function RoomProfitabilityPage({
 
   // ── Map rows ─────────────────────────────────────────────────────────────
   // Supabase join returns relation columns as objects or arrays — cast via any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (properties) returns object or array; no generic type resolves this mixed shape
   const units: UnitRow[] = (rawUnits ?? []).map((u: any) => {
     const prop = Array.isArray(u.properties) ? u.properties[0] : u.properties;
     return {
@@ -97,7 +97,7 @@ export default async function RoomProfitabilityPage({
     };
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (contracts) returns object or array; no generic type resolves this mixed shape
   const payments: RoomPaymentRow[] = (paymentData ?? []).flatMap((p: any) => {
     const contract = Array.isArray(p.contracts) ? p.contracts[0] : p.contracts;
     if (!contract?.unit_id) return [];

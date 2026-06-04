@@ -58,7 +58,7 @@ export async function GET(
   }
 
   // Return minimal contract preview (no PII beyond what the signer already knows)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested join (contract:contracts → unit:units → property:properties, tenant:tenants) not generically typed by the JS client
   const contract = sigReq.contract as any;
   return NextResponse.json({
     sigRequestId: sigReq.id,

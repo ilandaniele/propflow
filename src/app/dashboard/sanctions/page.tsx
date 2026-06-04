@@ -43,8 +43,7 @@ export default async function SanctionsPage() {
           <div className="p-8 text-center text-sm text-slate-400">No sanctions yet</div>
         ) : (
           (sanctions ?? []).map((s) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const tenant = s.tenant as any;
+            const tenant = s.tenant as unknown as { id: string; full_name: string | null } | null;
             return (
               <div key={s.id} className="px-4 py-3 flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">

@@ -120,7 +120,7 @@ export default async function FinancePage() {
   // Supabase join returns expense_categories as an object (many-to-one) or array.
   // We cast via unknown to handle the generated type mismatch.
   const mapWithCategory = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join returns expense_categories as object or array; no generic type resolves this mixed shape
     rows: any[] | null
   ): ExpenseWithCategory[] =>
     (rows ?? []).map((e) => {

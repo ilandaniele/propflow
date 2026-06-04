@@ -120,7 +120,7 @@ export async function getWorstPerformingRooms(
   const collectedByUnit = new Map<string, number>();
 
   for (const charge of charges ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (contracts) not generically typed by the JS client; unit_id shape verified by select()
     const contract = (charge as any).contracts;
     if (!contract?.unit_id) continue;
     const prev = billedByUnit.get(contract.unit_id) ?? 0;
@@ -128,7 +128,7 @@ export async function getWorstPerformingRooms(
   }
 
   for (const payment of payments ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (contracts) not generically typed by the JS client; unit_id shape verified by select()
     const contract = (payment as any).contracts;
     if (!contract?.unit_id) continue;
     const prev = collectedByUnit.get(contract.unit_id) ?? 0;
@@ -136,7 +136,7 @@ export async function getWorstPerformingRooms(
   }
 
   const rows: RoomPerformanceRow[] = units.map((u) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (properties) not generically typed by the JS client; name shape verified by select()
     const prop = (u as any).properties;
     const billed = billedByUnit.get(u.id) ?? 0;
     const collected = collectedByUnit.get(u.id) ?? 0;
@@ -212,7 +212,7 @@ export async function getHighestExpenseProperties(
   const byProperty = new Map<string, { name: string; total: number }>();
 
   for (const expense of expenses) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (properties) not generically typed by the JS client; name shape verified by select()
     const prop = (expense as any).properties;
     const propId = expense.property_id ?? '__no_property__';
     const propName = prop?.name ?? 'Sin propiedad';
@@ -396,7 +396,7 @@ export async function getHighestRiskTenants(
   const rows: RiskTenantRow[] = tenants
     .filter((t) => balanceByTenant.has(t.id) || (incidentsByTenant.get(t.id) ?? 0) > 0)
     .map((t) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (units) not generically typed by the JS client; label shape verified by select()
       const unit = (t as any).units;
       const overdueBalance = balanceByTenant.get(t.id) ?? 0;
       const openIncidents = incidentsByTenant.get(t.id) ?? 0;

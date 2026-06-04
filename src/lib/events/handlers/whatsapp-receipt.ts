@@ -266,8 +266,7 @@ export async function handleWhatsAppReceipt(
 // ---------------------------------------------------------------------------
 
 async function notifyAdmin(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adminClient: any,
+  adminClient: ReturnType<typeof createAdminClient>,
   orgId: string,
   tenantId: string,
   confidence: number | null | undefined,

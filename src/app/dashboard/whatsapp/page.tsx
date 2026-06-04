@@ -49,8 +49,7 @@ export default async function WhatsAppInboxPage() {
           </div>
         ) : (
           (conversations ?? []).map((conv) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const tenantName = (conv.tenant as any)?.full_name;
+            const tenantName = (conv.tenant as unknown as { full_name: string | null } | null)?.full_name;
             return (
               <Link
                 key={conv.id}

@@ -103,8 +103,7 @@ async function processOrg(
     contractsProcessed += contracts.length;
 
     for (const contract of contracts) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tenant = contract.tenant as any;
+      const tenant = contract.tenant as unknown as { id: string; full_name: string | null; email: string | null; profile_id: string | null } | null;
       if (!tenant?.email) continue;
 
       // Dedup: check if a lease_renewal reminder for this contract was already sent today
@@ -187,8 +186,7 @@ async function processOrg(
     chargesProcessed += charges.length;
 
     for (const charge of charges) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tenant = charge.tenant as any;
+      const tenant = charge.tenant as unknown as { id: string; full_name: string | null; email: string | null; profile_id: string | null } | null;
       if (!tenant?.email) continue;
 
       const { data: existing } = await ctx.adminClient
@@ -267,8 +265,7 @@ async function processOrg(
     const now = new Date().toISOString();
 
     for (const task of tasks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tenant = task.tenant as any;
+      const tenant = task.tenant as unknown as { id: string; full_name: string | null; email: string | null; profile_id: string | null; preferred_language: string | null; whatsapp_phone: string | null; whatsapp_opt_in: boolean | null } | null;
       if (!tenant) continue;
 
       // Check if task is expired
