@@ -3,14 +3,20 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireAdmin, requireTenant } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { CreateTenantSchema, UpdateTenantSchema, AssignTenantToUnitSchema } from '@/lib/schemas/tenant';
 import { LinkTenantPortalAccountSchema, SearchAuthUserByEmailSchema } from '@/lib/schemas/tenants';
-import { mutationRateLimit } from '@/lib/ratelimit';
+import { mutationRateLimit, actionRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 import { z } from 'zod';
 import type { ActionResult } from '@/lib/errors';
+import {
+  validateImageFile,
+  buildStoragePath,
+  uploadImage,
+  deleteImage,
+} from '@/lib/storage/index';
 
 // Phase 4 schemas for tenant profile additions
 const UpdateTenantAvatarSchema = z.object({
@@ -451,6 +457,222 @@ export async function linkTenantPortalAccount(
   revalidatePath('/dashboard/tenants');
 
   return ok({ profileId });
+}
+
+// ─── W3: Tenant self-service avatar ──────────────────────────────────────────
+
+const TENANT_AVATAR_BUCKET = 'tenant-avatars';
+const ONE_MINUTE_MS_TENANT = 60_000;
+
+/** 5 requests / minute / tenant for avatar uploads (stricter — public-facing) */
+function tenantAvatarRateLimit(userId: string) {
+  return actionRateLimit(`tenant-avatar:upload:${userId}`, 5, ONE_MINUTE_MS_TENANT);
+}
+
+/**
+ * Tenant self-service: upload own avatar.
+ *
+ * Security guarantees:
+ * 1. requireTenant() — caller must be an authenticated tenant.
+ * 2. Rate limit: 5/min per tenant (stricter than admin path).
+ * 3. IDOR guard: looks up tenant row by profile_id = ctx.userId — tenant can only
+ *    update their own row. No client-supplied tenant_id accepted.
+ * 4. validateImageFile() — MIME allowlist + magic-byte sniff + 5 MB cap.
+ * 5. Storage path built server-side ({orgId}/{tenantId}/{uuid}.{ext}) — no user filename.
+ * 6. Old avatar deleted from storage before writing new one (no orphaned objects).
+ *
+ * Returns { ok: true } on success.
+ */
+export async function updateOwnTenantAvatar(
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  // 1. Auth — tenant role required
+  let ctx;
+  try { ctx = await requireTenant(); } catch { return Errors.UNAUTHORIZED(); }
+
+  // 2. Rate limit (5/min per tenant)
+  const rl = tenantAvatarRateLimit(ctx.userId);
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  // 3. IDOR: look up tenant row by profile_id = ctx.userId (server-determined identity)
+  const supabase = await createClient();
+  const { data: tenantRow, error: tenantFetchError } = await supabase
+    .from('tenants')
+    .select('id, photo_url')
+    .eq('profile_id', ctx.userId)
+    .eq('org_id', ctx.orgId)
+    .limit(1)
+    .single();
+
+  if (tenantFetchError || !tenantRow) {
+    log.warn('[updateOwnTenantAvatar] no tenant row for profile', { userId: ctx.userId });
+    return Errors.FORBIDDEN();
+  }
+
+  const tenantId: string = tenantRow.id;
+
+  // 4. Validate uploaded file
+  const file = formData.get('file');
+  if (!(file instanceof File)) {
+    return Errors.VALIDATION_ERROR({ file: ['File is required'] });
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const validation = validateImageFile(buffer, file.type);
+
+  if (!validation.valid) {
+    if (validation.error?.includes('exceeds')) return Errors.IMAGE_TOO_LARGE();
+    return Errors.IMAGE_INVALID_MIME();
+  }
+
+  // 5. Delete old avatar from storage if one exists
+  const existingPhotoUrl: string | null = tenantRow.photo_url ?? null;
+  if (existingPhotoUrl) {
+    // photo_url stores the storage path (e.g. "{orgId}/{tenantId}/{uuid}.ext")
+    // Extract the path portion: strip any signed-URL prefix if present
+    const oldPath = extractStoragePath(existingPhotoUrl);
+    if (oldPath) {
+      try {
+        await deleteImage(TENANT_AVATAR_BUCKET, oldPath);
+      } catch (err) {
+        // Log but don't fail — stale objects are acceptable; new upload proceeds
+        log.warn('[updateOwnTenantAvatar] old avatar delete failed', {
+          path: oldPath,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+
+  // 6. Build storage path and upload
+  const storagePath = buildStoragePath(ctx.orgId, tenantId, file.type as import('@/lib/storage/index').AllowedMimeType);
+
+  try {
+    await uploadImage(TENANT_AVATAR_BUCKET, storagePath, buffer, file.type as import('@/lib/storage/index').AllowedMimeType);
+  } catch (err) {
+    log.error('[updateOwnTenantAvatar] upload failed', {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return Errors.INTERNAL();
+  }
+
+  // 7. Persist new photo_url (store raw storage path — signed URL generated on read)
+  const { error: updateError } = await supabase
+    .from('tenants')
+    .update({ photo_url: storagePath, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+    .eq('org_id', ctx.orgId);
+
+  if (updateError) {
+    log.error('[updateOwnTenantAvatar] db update failed', { code: updateError.code });
+    return Errors.INTERNAL();
+  }
+
+  revalidatePath('/portal/profile');
+  revalidatePath('/portal');
+
+  return ok(undefined);
+}
+
+/**
+ * Tenant self-service: delete own avatar.
+ *
+ * Security guarantees identical to updateOwnTenantAvatar — identity from
+ * requireTenant() + tenant row lookup by profile_id, never client-supplied id.
+ */
+export async function deleteOwnTenantAvatar(
+  _prev: ActionResult
+): Promise<ActionResult> {
+  // 1. Auth
+  let ctx;
+  try { ctx = await requireTenant(); } catch { return Errors.UNAUTHORIZED(); }
+
+  // 2. Rate limit (5/min per tenant)
+  const rl = tenantAvatarRateLimit(ctx.userId);
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  // 3. IDOR: look up tenant row by profile_id = ctx.userId
+  const supabase = await createClient();
+  const { data: tenantRow, error: tenantFetchError } = await supabase
+    .from('tenants')
+    .select('id, photo_url')
+    .eq('profile_id', ctx.userId)
+    .eq('org_id', ctx.orgId)
+    .limit(1)
+    .single();
+
+  if (tenantFetchError || !tenantRow) {
+    log.warn('[deleteOwnTenantAvatar] no tenant row for profile', { userId: ctx.userId });
+    return Errors.FORBIDDEN();
+  }
+
+  const tenantId: string = tenantRow.id;
+
+  // 4. Delete from storage if a photo exists
+  const existingPhotoUrl: string | null = tenantRow.photo_url ?? null;
+  if (existingPhotoUrl) {
+    const oldPath = extractStoragePath(existingPhotoUrl);
+    if (oldPath) {
+      try {
+        await deleteImage(TENANT_AVATAR_BUCKET, oldPath);
+      } catch (err) {
+        log.warn('[deleteOwnTenantAvatar] storage delete failed', {
+          path: oldPath,
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+
+  // 5. Clear photo_url in DB
+  const { error: updateError } = await supabase
+    .from('tenants')
+    .update({ photo_url: null, updated_at: new Date().toISOString() })
+    .eq('id', tenantId)
+    .eq('org_id', ctx.orgId);
+
+  if (updateError) {
+    log.error('[deleteOwnTenantAvatar] db update failed', { code: updateError.code });
+    return Errors.INTERNAL();
+  }
+
+  revalidatePath('/portal/profile');
+
+  return ok(undefined);
+}
+
+/**
+ * Extracts the raw storage path from photo_url.
+ *
+ * photo_url may be stored as either:
+ *   (a) a raw path: "{orgId}/{tenantId}/{uuid}.{ext}"
+ *   (b) a signed URL: "https://...supabase.co/storage/v1/object/sign/tenant-avatars/{path}?token=..."
+ *
+ * In case (a), return the value as-is.
+ * In case (b), extract the path segment after "tenant-avatars/".
+ */
+function extractStoragePath(photoUrl: string): string | null {
+  if (!photoUrl) return null;
+
+  // Signed URL pattern — extract path after bucket name
+  const signedUrlMatch = photoUrl.match(/\/object\/sign\/tenant-avatars\/(.+?)(?:\?|$)/);
+  if (signedUrlMatch?.[1]) {
+    return decodeURIComponent(signedUrlMatch[1]);
+  }
+
+  // Public URL pattern
+  const publicUrlMatch = photoUrl.match(/\/object\/public\/tenant-avatars\/(.+?)(?:\?|$)/);
+  if (publicUrlMatch?.[1]) {
+    return decodeURIComponent(publicUrlMatch[1]);
+  }
+
+  // Assume raw path (UUID-based path like "{orgId}/{tenantId}/{uuid}.jpg")
+  if (!photoUrl.startsWith('http')) {
+    return photoUrl;
+  }
+
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
