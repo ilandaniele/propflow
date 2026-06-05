@@ -13,6 +13,7 @@ import {
 import { AirtableOccupancyDelta } from '@/components/portfolio/AirtableOccupancyDelta';
 import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
+import { checkEntityHealth, entityLabel } from '@/lib/dashboard/health';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -47,13 +48,18 @@ export default async function DashboardPage() {
       // Airtable occupancy snapshot — gracefully returns null when no rows exist
       supabase
         .from('airtable_snapshots')
-        .select('payload, synced_at')
+        .select('data, synced_at')
         .eq('org_id', ctx.orgId)
-        .eq('entity', 'kpi')
+        .eq('table_name', 'kpis')
         .order('synced_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
     ]);
+
+  // Entity health check — runs in parallel with the main data fetches above.
+  // Only called after requireAdmin() succeeds — admin-only data path.
+  const entityHealth = await checkEntityHealth(supabase, ctx.orgId);
+  const unhealthyEntities = entityHealth.filter((e) => e.count === 0 || e.error !== null);
 
   const units = unitsRes.data ?? [];
   const approvedPayments = paymentsRes.data ?? [];
@@ -87,11 +93,11 @@ export default async function DashboardPage() {
   // --- Airtable occupancy delta ---
   const airtableRow = airtableRes.data;
   const airtableSnapshot =
-    airtableRow && airtableRow.payload
+    airtableRow && airtableRow.data
       ? {
           occupancyRate:
-            typeof (airtableRow.payload as Record<string, unknown>).occupancy_rate === 'number'
-              ? ((airtableRow.payload as Record<string, unknown>).occupancy_rate as number)
+            typeof (airtableRow.data as Record<string, unknown>).occupancy_rate === 'number'
+              ? ((airtableRow.data as Record<string, unknown>).occupancy_rate as number)
               : 0,
           syncedAt: airtableRow.synced_at as string,
         }
@@ -107,6 +113,28 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
         <p className="text-sm text-slate-500 mt-1">Your organization&apos;s overview</p>
       </div>
+
+      {/* Diagnostic banner — admin only, only when one or more entity tables are empty or errored */}
+      {unhealthyEntities.length > 0 && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-900"
+        >
+          <p className="font-semibold mb-1">
+            ⚠ Algunos datos no se están cargando correctamente.
+          </p>
+          <p className="mb-1">
+            Verificá:{' '}
+            {unhealthyEntities.map((e) => entityLabel(e.entity)).join(', ')}.
+          </p>
+          <p className="text-amber-800">
+            Posibles causas: credenciales de Supabase en Vercel (
+            <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_URL</code> /{' '}
+            <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
+            ), migraciones pendientes, o perfil sin organización asignada.
+          </p>
+        </div>
+      )}
 
       {!hasData ? (
         <Card>
