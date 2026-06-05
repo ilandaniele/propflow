@@ -200,6 +200,10 @@
         "empty": "No AI sessions",
         "noAccount": "No data — portal account not linked"
       }
+    },
+    "photo": {
+      "upload": "Upload photo",
+      "remove": "Remove photo"
     }
   },
   "payments": {
@@ -474,6 +478,18 @@
       "tenant": "Tenant",
       "unoccupied": "Unoccupied",
       "createdAt": "Created"
+    },
+    "images": {
+      "tab": "Images",
+      "upload": "Upload image",
+      "empty": "No images uploaded for this unit.",
+      "setCover": "Set as cover",
+      "delete": "Delete image",
+      "deleteConfirm": "Delete this image?",
+      "uploadError": "Could not upload the image. Check the format and file size.",
+      "invalidMime": "File type not allowed. Only JPG, PNG and WebP are accepted.",
+      "fileTooLarge": "File is too large. Maximum allowed size is 5 MB.",
+      "cover": "Cover"
     }
   },
   "landing": {

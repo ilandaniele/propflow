@@ -200,6 +200,10 @@
         "empty": "Sem sessões de IA",
         "noAccount": "Sem dados — conta do portal não vinculada"
       }
+    },
+    "photo": {
+      "upload": "Enviar foto",
+      "remove": "Remover foto"
     }
   },
   "payments": {
@@ -474,6 +478,18 @@
       "tenant": "Inquilino",
       "unoccupied": "Desocupado",
       "createdAt": "Criado"
+    },
+    "images": {
+      "tab": "Imagens",
+      "upload": "Enviar imagem",
+      "empty": "Nenhuma imagem carregada para esta unidade.",
+      "setCover": "Definir como capa",
+      "delete": "Excluir imagem",
+      "deleteConfirm": "Excluir esta imagem?",
+      "uploadError": "Não foi possível enviar a imagem. Verifique o formato e o tamanho do arquivo.",
+      "invalidMime": "Tipo de arquivo não permitido. Apenas JPG, PNG e WebP são aceitos.",
+      "fileTooLarge": "Arquivo muito grande. O tamanho máximo permitido é 5 MB.",
+      "cover": "Capa"
     }
   },
   "landing": {
