@@ -584,6 +584,7 @@ export async function updateOwnTenantAvatar(
 export async function deleteOwnTenantAvatar(
   _prev: ActionResult
 ): Promise<ActionResult> {
+  void _prev;
   // 1. Auth
   let ctx;
   try { ctx = await requireTenant(); } catch { return Errors.UNAUTHORIZED(); }

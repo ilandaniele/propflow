@@ -17,7 +17,7 @@
  * Response:
  *   200 { url: string, expiresIn: 3600 }
  *   400 if path is missing or malformed
- *   403 if path org_id does not match caller's org
+ *   404 if path org_id does not match caller's org (prevents enumeration)
  *   404 if tenant cannot access that unit (not their assigned unit)
  *   500 on signed-URL generation failure (logged, no internals leaked)
  */
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // 3. IDOR guard: path must start with the caller's org_id
   if (pathOrgId !== ctx.orgId) {
-    return NextResponse.json(Errors.FORBIDDEN(), { status: 403 });
+    return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
   // 4. Tenant-specific IDOR: must be tenant's assigned unit
