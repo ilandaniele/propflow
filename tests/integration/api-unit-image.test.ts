@@ -194,26 +194,26 @@ describe('AC8 — tenant cannot read images of a unit they do not occupy', () =>
 
 // ── AC9: Cross-org path query rejected ───────────────────────────────────────
 
-describe('AC9 — cross-org signed URL path returns 403', () => {
-  it('returns 403 when admin requests a path for a different org', async () => {
+describe('AC9 — cross-org signed URL path returns 404', () => {
+  it('returns 404 when admin requests a path for a different org', async () => {
     mockState.role = 'admin';
     mockState.orgId = 'org-acme';
 
     // Path starts with org-beta — different org
     const response = await GET(makeRequest('org-beta/unit-u1/uuid.jpg'));
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(404);
 
     const body = await response.json();
-    expect(body.error?.code).toBe('FORBIDDEN');
+    expect(body.error?.code).toBe('NOT_FOUND');
   });
 
-  it('returns 403 when tenant requests a path for a different org', async () => {
+  it('returns 404 when tenant requests a path for a different org', async () => {
     mockState.role = 'tenant';
     mockState.orgId = 'org-acme';
     mockState.tenantUnitId = 'unit-u1';
 
     const response = await GET(makeRequest('org-other/unit-u1/uuid.jpg'));
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(404);
   });
 });
 
