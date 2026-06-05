@@ -200,6 +200,20 @@
         "empty": "No AI sessions",
         "noAccount": "No data — portal account not linked"
       }
+    },
+    "photo": {
+      "upload": "Upload photo",
+      "remove": "Remove photo",
+      "invalidMime": "File type not allowed. Only JPG, PNG and WebP are accepted.",
+      "fileTooLarge": "File is too large. Maximum 5 MB.",
+      "uploadError": "Could not upload photo. Check the format and size.",
+      "removeError": "Could not remove photo."
+    },
+    "profile": {
+      "title": "My Profile",
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone"
     }
   },
   "payments": {
@@ -474,6 +488,18 @@
       "tenant": "Tenant",
       "unoccupied": "Unoccupied",
       "createdAt": "Created"
+    },
+    "images": {
+      "tab": "Images",
+      "upload": "Upload image",
+      "empty": "No images uploaded for this unit.",
+      "setCover": "Set as cover",
+      "delete": "Delete image",
+      "deleteConfirm": "Delete this image?",
+      "uploadError": "Could not upload the image. Check the format and file size.",
+      "invalidMime": "File type not allowed. Only JPG, PNG and WebP are accepted.",
+      "fileTooLarge": "File is too large. Maximum allowed size is 5 MB.",
+      "cover": "Cover"
     }
   },
   "landing": {
@@ -923,5 +949,12 @@
     "addUnitsPrompt": "Add units and contracts to enable the forecasting simulator.",
     "assumptionsNote": "Projections use last month's actuals as the baseline. The model assumes revenue scales linearly with occupancy and that operating expenses change proportionally with the OpEx slider. This is a simplified model — actual results may differ.",
     "noData": "No data available"
+  },
+  "portal": {
+    "gallery": {
+      "title": "Unit Photos",
+      "empty": "No photos available for this unit.",
+      "cover": "Cover"
+    }
   }
 }

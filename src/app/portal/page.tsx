@@ -1,17 +1,23 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { getLocale, getTranslations } from 'next-intl/server';
 import { createClient } from '@/lib/supabase/server';
 import { requireTenant } from '@/lib/auth/guards';
 import { Card } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { UnitImageGallery } from '@/components/images/UnitImageGallery';
+import { getUnitImagesTenant } from '@/app/actions/unit-images';
 
 export const metadata: Metadata = { title: 'My Portal' };
 
 export default async function PortalOverviewPage() {
   let ctx;
   try { ctx = await requireTenant(); } catch { redirect('/login'); }
+
+  const locale = await getLocale();
+  const t = await getTranslations({ locale, namespace: 'portal' });
 
   const supabase = await createClient();
 
@@ -37,17 +43,19 @@ export default async function PortalOverviewPage() {
     );
   }
 
-  const [contractRes, statementRes, incidentsRes, recentPaymentsRes] = await Promise.all([
+  const [contractRes, statementRes, incidentsRes, recentPaymentsRes, unitImagesRes] = await Promise.all([
     supabase.from('contracts').select('*').eq('tenant_id', tenantRecord.id).eq('status', 'active').eq('org_id', ctx.orgId).single(),
     supabase.from('tenant_statement').select('*').eq('tenant_id', tenantRecord.id).single(),
     supabase.from('incidents').select('id, title, status, created_at').eq('tenant_id', tenantRecord.id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(3),
     supabase.from('payments').select('*').eq('tenant_id', tenantRecord.id).eq('org_id', ctx.orgId).order('paid_at', { ascending: false }).limit(3),
+    getUnitImagesTenant(),
   ]);
 
   const contract = contractRes.data;
   const statement = statementRes.data;
   const incidents = incidentsRes.data ?? [];
   const recentPayments = recentPaymentsRes.data ?? [];
+  const unitImages = unitImagesRes.data ?? [];
   const unit = tenantRecord.units as unknown as { label: string; properties: { name: string } | null } | null;
 
   return (
@@ -103,6 +111,19 @@ export default async function PortalOverviewPage() {
         <Card padding="sm">
           <p className="text-sm text-slate-500">No active contract</p>
         </Card>
+      )}
+
+      {/* Unit image gallery — read-only; IDOR enforced by getUnitImagesTenant() */}
+      {unitImages.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900 mb-3">{t('gallery.title')}</h2>
+          <Card padding="sm">
+            <UnitImageGallery
+              images={unitImages}
+              labels={{ cover: t('gallery.cover'), empty: t('gallery.empty') }}
+            />
+          </Card>
+        </div>
       )}
 
       {/* Recent payments */}

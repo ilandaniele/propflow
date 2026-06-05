@@ -103,6 +103,8 @@ export interface Database {
           bedrooms: number | null;
           monthly_rent_default: number | null;
           status: 'vacant' | 'occupied';
+          // Added in migration 000025
+          toilet_type: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -115,6 +117,7 @@ export interface Database {
           bedrooms?: number | null;
           monthly_rent_default?: number | null;
           status?: 'vacant' | 'occupied';
+          toilet_type?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -124,6 +127,7 @@ export interface Database {
           bedrooms?: number | null;
           monthly_rent_default?: number | null;
           status?: 'vacant' | 'occupied';
+          toilet_type?: string | null;
           updated_at?: string;
         };
       };
@@ -137,6 +141,11 @@ export interface Database {
           phone: string | null;
           unit_id: string | null;
           notes: string | null;
+          // Added in migration 000022 (Phase 4 columns) — drive-by fix for type drift
+          photo_url: string | null;
+          whatsapp_phone: string | null;
+          whatsapp_opt_in: boolean | null;
+          reliability_scores: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -149,6 +158,10 @@ export interface Database {
           phone?: string | null;
           unit_id?: string | null;
           notes?: string | null;
+          photo_url?: string | null;
+          whatsapp_phone?: string | null;
+          whatsapp_opt_in?: boolean | null;
+          reliability_scores?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -159,6 +172,10 @@ export interface Database {
           phone?: string | null;
           unit_id?: string | null;
           notes?: string | null;
+          photo_url?: string | null;
+          whatsapp_phone?: string | null;
+          whatsapp_opt_in?: boolean | null;
+          reliability_scores?: Json | null;
           updated_at?: string;
         };
       };
@@ -347,6 +364,54 @@ export interface Database {
         Update: {
           body?: string;
           updated_at?: string;
+        };
+      };
+      // Added in migration 000035
+      unit_images: {
+        Row: {
+          id: string;
+          org_id: string;
+          unit_id: string;
+          storage_path: string;
+          filename: string;
+          mime_type: 'image/jpeg' | 'image/png' | 'image/webp';
+          size_bytes: number;
+          width: number | null;
+          height: number | null;
+          is_cover: boolean;
+          caption: string | null;
+          sort_order: number;
+          uploaded_by: string;
+          uploaded_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          unit_id: string;
+          storage_path: string;
+          filename: string;
+          mime_type: 'image/jpeg' | 'image/png' | 'image/webp';
+          size_bytes: number;
+          width?: number | null;
+          height?: number | null;
+          is_cover?: boolean;
+          caption?: string | null;
+          sort_order?: number;
+          uploaded_by: string;
+          uploaded_at?: string;
+        };
+        Update: {
+          storage_path?: string;
+          filename?: string;
+          mime_type?: 'image/jpeg' | 'image/png' | 'image/webp';
+          size_bytes?: number;
+          width?: number | null;
+          height?: number | null;
+          is_cover?: boolean;
+          caption?: string | null;
+          sort_order?: number;
+          uploaded_by?: string;
+          uploaded_at?: string;
         };
       };
     };
@@ -1030,4 +1095,58 @@ export interface AccountMappingUpdate {
   internal_category?: string | null;
   is_income?: boolean;
   affects_net_profit?: boolean;
+}
+
+// =============================================================================
+// W1: unit_images table types (migration 000035)
+// =============================================================================
+
+export type UnitImageMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
+
+export interface UnitImage {
+  id: string;
+  org_id: string;
+  unit_id: string;
+  storage_path: string;
+  filename: string;
+  mime_type: UnitImageMimeType;
+  size_bytes: number;
+  width: number | null;
+  height: number | null;
+  is_cover: boolean;
+  caption: string | null;
+  sort_order: number;
+  uploaded_by: string;
+  uploaded_at: string;
+}
+
+export interface UnitImageInsert {
+  id?: string;
+  org_id: string;
+  unit_id: string;
+  storage_path: string;
+  filename: string;
+  mime_type: UnitImageMimeType;
+  size_bytes: number;
+  width?: number | null;
+  height?: number | null;
+  is_cover?: boolean;
+  caption?: string | null;
+  sort_order?: number;
+  uploaded_by: string;
+  uploaded_at?: string;
+}
+
+export interface UnitImageUpdate {
+  storage_path?: string;
+  filename?: string;
+  mime_type?: UnitImageMimeType;
+  size_bytes?: number;
+  width?: number | null;
+  height?: number | null;
+  is_cover?: boolean;
+  caption?: string | null;
+  sort_order?: number;
+  uploaded_by?: string;
+  uploaded_at?: string;
 }

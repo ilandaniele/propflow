@@ -200,6 +200,20 @@
         "empty": "Sem sessões de IA",
         "noAccount": "Sem dados — conta do portal não vinculada"
       }
+    },
+    "photo": {
+      "upload": "Enviar foto",
+      "remove": "Remover foto",
+      "invalidMime": "Tipo de arquivo não permitido. Apenas JPG, PNG e WebP são aceitos.",
+      "fileTooLarge": "Arquivo muito grande. Máximo 5 MB.",
+      "uploadError": "Não foi possível enviar a foto. Verifique o formato e o tamanho.",
+      "removeError": "Não foi possível remover a foto."
+    },
+    "profile": {
+      "title": "Meu Perfil",
+      "name": "Nome",
+      "email": "Email",
+      "phone": "Telefone"
     }
   },
   "payments": {
@@ -474,6 +488,18 @@
       "tenant": "Inquilino",
       "unoccupied": "Desocupado",
       "createdAt": "Criado"
+    },
+    "images": {
+      "tab": "Imagens",
+      "upload": "Enviar imagem",
+      "empty": "Nenhuma imagem carregada para esta unidade.",
+      "setCover": "Definir como capa",
+      "delete": "Excluir imagem",
+      "deleteConfirm": "Excluir esta imagem?",
+      "uploadError": "Não foi possível enviar a imagem. Verifique o formato e o tamanho do arquivo.",
+      "invalidMime": "Tipo de arquivo não permitido. Apenas JPG, PNG e WebP são aceitos.",
+      "fileTooLarge": "Arquivo muito grande. O tamanho máximo permitido é 5 MB.",
+      "cover": "Capa"
     }
   },
   "landing": {
@@ -923,5 +949,12 @@
     "addUnitsPrompt": "Adicione unidades e contratos para habilitar o simulador de projeções.",
     "assumptionsNote": "As projeções usam os dados reais do mês anterior como base. O modelo assume que a receita escala linearmente com a ocupação e que as despesas operacionais mudam proporcionalmente com o slider OpEx. Este é um modelo simplificado — os resultados reais podem variar.",
     "noData": "Dados não disponíveis"
+  },
+  "portal": {
+    "gallery": {
+      "title": "Fotos da Unidade",
+      "empty": "Não há fotos disponíveis para esta unidade.",
+      "cover": "Capa"
+    }
   }
 }

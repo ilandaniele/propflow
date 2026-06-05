@@ -200,6 +200,20 @@
         "empty": "Sin sesiones de IA",
         "noAccount": "Sin datos — cuenta del portal no vinculada"
       }
+    },
+    "photo": {
+      "upload": "Subir foto",
+      "remove": "Eliminar foto",
+      "invalidMime": "Tipo de archivo no permitido. Solo se aceptan JPG, PNG y WebP.",
+      "fileTooLarge": "El archivo es demasiado grande. Máximo 5 MB.",
+      "uploadError": "No se pudo subir la foto. Revisá el formato y el tamaño.",
+      "removeError": "No se pudo eliminar la foto."
+    },
+    "profile": {
+      "title": "Mi Perfil",
+      "name": "Nombre",
+      "email": "Email",
+      "phone": "Teléfono"
     }
   },
   "payments": {
@@ -474,6 +488,18 @@
       "tenant": "Inquilino",
       "unoccupied": "Desocupado",
       "createdAt": "Creado"
+    },
+    "images": {
+      "tab": "Imágenes",
+      "upload": "Subir imagen",
+      "empty": "No hay imágenes cargadas para esta unidad.",
+      "setCover": "Usar como portada",
+      "delete": "Eliminar imagen",
+      "deleteConfirm": "¿Eliminar esta imagen?",
+      "uploadError": "No se pudo subir la imagen. Revisá el formato y el tamaño del archivo.",
+      "invalidMime": "Tipo de archivo no permitido. Solo se aceptan JPG, PNG y WebP.",
+      "fileTooLarge": "El archivo es demasiado grande. El tamaño máximo es 5 MB.",
+      "cover": "Portada"
     }
   },
   "landing": {
@@ -922,6 +948,13 @@
       "next": "Siguiente",
       "noData": "No hay habitaciones registradas.",
       "pageInfo": "Página {page} de {total}"
+    }
+  },
+  "portal": {
+    "gallery": {
+      "title": "Fotos de la Unidad",
+      "empty": "No hay fotos disponibles para esta unidad.",
+      "cover": "Portada"
     }
   }
 }
