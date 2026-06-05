@@ -134,7 +134,12 @@ export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
           <NotificationBadge variant="desktop" />
 
           <LanguageDropdown currentLocale={currentLocale} />
-          <span className="text-sm text-slate-600">{userName}</span>
+          <Link
+            href="/portal/profile"
+            className="text-sm text-slate-600 hover:text-slate-900 hover:underline"
+          >
+            {userName}
+          </Link>
           <button
             onClick={() => startTransition(() => signOut())}
             disabled={isPending}

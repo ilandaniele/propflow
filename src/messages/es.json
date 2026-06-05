@@ -203,7 +203,17 @@
     },
     "photo": {
       "upload": "Subir foto",
-      "remove": "Eliminar foto"
+      "remove": "Eliminar foto",
+      "invalidMime": "Tipo de archivo no permitido. Solo se aceptan JPG, PNG y WebP.",
+      "fileTooLarge": "El archivo es demasiado grande. Máximo 5 MB.",
+      "uploadError": "No se pudo subir la foto. Revisá el formato y el tamaño.",
+      "removeError": "No se pudo eliminar la foto."
+    },
+    "profile": {
+      "title": "Mi Perfil",
+      "name": "Nombre",
+      "email": "Email",
+      "phone": "Teléfono"
     }
   },
   "payments": {
@@ -938,6 +948,13 @@
       "next": "Siguiente",
       "noData": "No hay habitaciones registradas.",
       "pageInfo": "Página {page} de {total}"
+    }
+  },
+  "portal": {
+    "gallery": {
+      "title": "Fotos de la Unidad",
+      "empty": "No hay fotos disponibles para esta unidad.",
+      "cover": "Portada"
     }
   }
 }
