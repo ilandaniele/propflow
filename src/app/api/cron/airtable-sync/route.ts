@@ -1,12 +1,19 @@
 /**
  * POST /api/cron/airtable-sync
- * Daily 4:00 UTC cron — syncs all configured Airtable tables into airtable_snapshots.
+ * Daily 4:00 UTC cron — syncs all configured Airtable tables into:
+ *   1. airtable_snapshots (raw JSON — existing behavior, AC10)
+ *   2. main domain tables: properties, tenants, contracts, payments (new)
  *
- * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — same pattern
- * as existing cron routes).
- * Uses service-role Supabase client via syncAirtableTable (cron runs outside user session).
+ * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC1).
+ * Uses service-role Supabase client via syncAirtableTable / syncEntityTable
+ * (cron runs outside any user session).
  *
- * Response: JSON summary with per-table counts and statuses.
+ * Sync order for entities: properties → tenants → contracts → payments (IC4).
+ * Per-entity failure is isolated — others continue (AC6, IC5).
+ * Missing table env var → entity skipped, no log row written (AC7).
+ *
+ * Response: 200 JSON summary with snapshotResults + entityResults.
+ *           500 only when ALL entity syncs fail.
  */
 
 export const dynamic = 'force-dynamic';
@@ -16,16 +23,38 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { syncAirtableTable } from '@/lib/airtable/sync';
+import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
+import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
+import { getAirtableClient } from '@/lib/airtable/client';
 
-// Ordered list of (tableEnvKey, friendly name) pairs to sync on each run
+// ---------------------------------------------------------------------------
+// Sync target lists
+// ---------------------------------------------------------------------------
+
+/** Legacy snapshot-only targets (rooms, performance, kpis) — AC10 preserved. */
 const SYNC_TARGETS: Array<{ tableEnvKey: string; entity: string }> = [
   { tableEnvKey: 'AIRTABLE_TABLE_ROOMS',       entity: 'rooms' },
   { tableEnvKey: 'AIRTABLE_TABLE_PERFORMANCE', entity: 'performance' },
   { tableEnvKey: 'AIRTABLE_TABLE_KPIS',        entity: 'kpis' },
 ];
 
+/**
+ * Entity sync targets — ordered properties→tenants→contracts→payments (IC4).
+ * Each step feeds its idMap into the next step's link resolver.
+ */
+const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
+  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES', entity: 'properties' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',  entity: 'tenants' },
+  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',   entity: 'contracts' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',       entity: 'payments' },
+];
+
+// ---------------------------------------------------------------------------
+// Route handler
+// ---------------------------------------------------------------------------
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // ── Auth: constant-time CRON_SECRET comparison ───────────────────────────
+  // ── Auth: constant-time CRON_SECRET comparison (AC1) ─────────────────────
   const authHeader = request.headers.get('authorization') ?? '';
   const cronSecret = process.env.CRON_SECRET;
 
@@ -49,7 +78,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── Determine which orgs to sync ─────────────────────────────────────────
-  // We sync all organizations that have at least one admin profile.
   const adminClient = createAdminClient();
   const { data: orgs, error: orgsError } = await adminClient
     .from('organizations')
@@ -67,11 +95,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (orgIds.length === 0) {
     console.info('[cron/airtable-sync] No organizations found — nothing to sync');
-    return NextResponse.json({ status: 'ok', results: [] });
+    return NextResponse.json({ status: 'ok', snapshotResults: [], entityResults: [] });
   }
 
-  // ── Run sync for each org × each table ───────────────────────────────────
-  const results: Array<{
+  // ── Phase 1: Legacy snapshot sync (rooms/performance/kpis — AC10) ────────
+  const snapshotResults: Array<{
     orgId: string;
     entity: string;
     count: number;
@@ -87,7 +115,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     for (const { tableEnvKey, entity } of activeSyncTargets) {
       try {
         const result = await syncAirtableTable(orgId, tableEnvKey);
-        results.push({
+        snapshotResults.push({
           orgId,
           entity,
           count: result.count,
@@ -97,7 +125,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           errorMessage: result.errorMessage,
         });
 
-        console.info('[cron/airtable-sync] synced', {
+        console.info('[cron/airtable-sync] snapshot synced', {
           orgId,
           entity,
           count: result.count,
@@ -106,8 +134,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         });
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'unknown error';
-        console.error('[cron/airtable-sync] sync failed', { orgId, entity, error: msg });
-        results.push({
+        console.error('[cron/airtable-sync] snapshot sync failed', { orgId, entity, error: msg });
+        snapshotResults.push({
           orgId,
           entity,
           count: 0,
@@ -120,13 +148,97 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const totalUpserted = results.reduce((sum, r) => sum + r.count, 0);
-  const errorCount = results.filter(r => r.status === 'error').length;
+  // ── Phase 2: Entity sync (properties/tenants/contracts/payments) ──────────
+  const entityResults: Array<{
+    orgId: string;
+    entity: EntityName;
+    count: number;
+    skippedLinks: number;
+    status: string;
+    errorMessage?: string;
+  }> = [];
 
-  return NextResponse.json({
-    status: errorCount === 0 ? 'ok' : 'partial',
-    totalUpserted,
-    errorCount,
-    results,
-  });
+  // Build the Airtable client once — it validates PAT/BASE_ID on construction.
+  // If Airtable is not configured at all, skip entity sync entirely.
+  let airtableClient;
+  try {
+    airtableClient = getAirtableClient();
+  } catch (configErr) {
+    const msg = configErr instanceof Error ? configErr.message : 'Airtable not configured';
+    console.warn('[cron/airtable-sync] Airtable not configured — skipping entity sync:', msg);
+    return NextResponse.json({
+      status: 'ok',
+      ran_at: new Date().toISOString(),
+      snapshotResults,
+      entityResults,
+    });
+  }
+
+  for (const orgId of orgIds) {
+    // idMaps persists across entity steps within a single org run (IC4 link resolution)
+    const idMaps: Partial<Record<EntityName, IdMap>> = {};
+
+    for (const { tableEnvKey, entity } of ENTITY_SYNC_TARGETS) {
+      // AC7: skip when env var is absent
+      const tableId = resolveEntityTableEnvKey(tableEnvKey);
+      if (!tableId) {
+        console.info(`[cron/airtable-sync] ${tableEnvKey} not set — skipping ${entity}`);
+        // Populate empty idMap so downstream entities don't fail on a missing entry
+        idMaps[entity] = new Map();
+        continue;
+      }
+
+      // AC6: syncEntityTable catches its own errors and returns status='error'
+      const result = await syncEntityTable(
+        orgId,
+        entity,
+        tableEnvKey,
+        adminClient,
+        airtableClient,
+        idMaps
+      );
+
+      entityResults.push({
+        orgId,
+        entity: result.entity,
+        count: result.count,
+        skippedLinks: result.skippedLinks,
+        status: result.status,
+        errorMessage: result.errorMessage,
+      });
+
+      console.info('[cron/airtable-sync] entity synced', {
+        orgId,
+        entity: result.entity,
+        count: result.count,
+        skippedLinks: result.skippedLinks,
+        status: result.status,
+      });
+    }
+  }
+
+  // ── Build combined response ───────────────────────────────────────────────
+  const snapshotErrorCount = snapshotResults.filter(r => r.status === 'error').length;
+  const entityErrorCount   = entityResults.filter(r => r.status === 'error').length;
+  const entityTotal        = entityResults.length;
+  const allEntityFailed    = entityTotal > 0 && entityErrorCount === entityTotal;
+
+  // IC5: 500 only when ALL entity syncs fail
+  const httpStatus = allEntityFailed ? 500 : 200;
+  const overallStatus =
+    allEntityFailed
+      ? 'error'
+      : (snapshotErrorCount + entityErrorCount) === 0
+        ? 'ok'
+        : 'partial';
+
+  return NextResponse.json(
+    {
+      status: overallStatus,
+      ran_at: new Date().toISOString(),
+      snapshotResults,
+      entityResults,
+    },
+    { status: httpStatus }
+  );
 }

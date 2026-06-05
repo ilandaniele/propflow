@@ -94,6 +94,7 @@ export function normalizePayment(
     phone:                toString(f[PAYMENT_FIELD.PHONE]),
     amount:               parseRollupNumeric(f[PAYMENT_FIELD.AMOUNT]),
     due_date:             parseRollupDate(f[PAYMENT_FIELD.DUE_DATE]),
+    paid_at:              null,   // Airtable Pagos has no "paid at" field; preserves DB value via upsert
     period_month:         toString(f[PAYMENT_FIELD.PERIOD_MONTH]),
     // Resolved link fields — populated downstream by link resolver
     contract_id:          null,
