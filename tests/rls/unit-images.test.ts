@@ -107,7 +107,7 @@ describe.skipIf(skipIfNoSupabase)('RLS: unit_images table', () => {
       .insert({
         unit_id:     unitAId,
         org_id:      orgAId,
-        path:        `${orgAId}/${unitAId}/test-rls-image.jpg`,
+        storage_path: `${orgAId}/${unitAId}/test-rls-image.jpg`,
         filename:    'test-rls-image.jpg',
         mime_type:   'image/jpeg',
         size_bytes:  102400,
@@ -188,7 +188,7 @@ describe.skipIf(skipIfNoSupabase)('RLS: unit_images table', () => {
       .insert({
         unit_id:     unitAId,
         org_id:      orgAId,
-        path:        `${orgAId}/${unitAId}/tenant-sneaky-upload.jpg`,
+        storage_path: `${orgAId}/${unitAId}/tenant-sneaky-upload.jpg`,
         filename:    'tenant-sneaky-upload.jpg',
         mime_type:   'image/jpeg',
         size_bytes:  1024,

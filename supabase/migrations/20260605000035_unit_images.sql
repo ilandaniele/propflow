@@ -4,7 +4,7 @@ CREATE TABLE unit_images (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   unit_id      UUID        NOT NULL REFERENCES units(id) ON DELETE CASCADE,
   org_id       UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  path         TEXT        NOT NULL,
+  storage_path TEXT        NOT NULL,
   filename     TEXT        NOT NULL,
   mime_type    TEXT        NOT NULL,
   size_bytes   INTEGER     NOT NULL,
