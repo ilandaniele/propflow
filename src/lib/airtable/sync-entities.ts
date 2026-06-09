@@ -108,7 +108,7 @@ export async function syncEntityTable(
     // IC8: for tenants, pre-build a unitMap from the units table so unit_id can be
     // resolved by (property_id, label) before the upsert — avoids a separate UPDATE pass.
     // This query is cheap (org-scoped, small table) and runs only for the tenants entity.
-    let unitMap: UnitMap = new Map();
+    const unitMap: UnitMap = new Map();
     if (entity === 'tenants') {
       const { data: unitRows } = await adminClient
         .from('units')
