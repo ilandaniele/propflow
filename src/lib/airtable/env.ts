@@ -24,6 +24,8 @@ export interface AirtableEnv {
   tablePropiedades: string | null;
   tablePagos: string | null;
   tableHistorial: string | null;
+  tablePortafolio: string | null;
+  tableResponsables: string | null;
 }
 
 export class AirtableNotConfiguredError extends Error {
@@ -69,7 +71,9 @@ export function assertAirtableEnv(): AirtableEnv {
   const tableResidentes  = process.env['AIRTABLE_TABLE_RESIDENTES']  ?? null;
   const tablePropiedades = process.env['AIRTABLE_TABLE_PROPIEDADES'] ?? null;
   const tablePagos       = process.env['AIRTABLE_TABLE_PAGOS']       ?? null;
-  const tableHistorial   = process.env['AIRTABLE_TABLE_HISTORIAL']   ?? null;
+  const tableHistorial      = process.env['AIRTABLE_TABLE_HISTORIAL']      ?? null;
+  const tablePortafolio     = process.env['AIRTABLE_TABLE_PORTAFOLIO']     ?? null;
+  const tableResponsables   = process.env['AIRTABLE_TABLE_RESPONSABLES']   ?? null;
 
   if (missing.length > 0) {
     throw new AirtableNotConfiguredError(missing);
@@ -85,6 +89,8 @@ export function assertAirtableEnv(): AirtableEnv {
     tablePropiedades,
     tablePagos,
     tableHistorial,
+    tablePortafolio,
+    tableResponsables,
   };
 }
 
