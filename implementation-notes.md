@@ -49,3 +49,8 @@ This W1 only touches lib/schemas/errors/types/migration — no React components 
 
 - `src/types/index.ts` re-exports Profile type — not modified (only database.ts touched)
 - Existing storage policies on incident-photos, receipts, contracts, task-proofs — not touched
+
+## Service payments sync (PR #21)
+- parseMonthlyData skips Airtable "copy" columns (view duplicates) to prevent monthly_data corruption
+- Synthetic airtable_external_id = `${record.id}::${serviceType}` — one row per (property, service type)
+- monthly_data JSONB: { "YYYY-MM": { amount, eecc, receipt_url } }

@@ -33,13 +33,24 @@ import { normalizeContract } from '@/lib/airtable/normalizers/normalizeContract'
 import { normalizePayment } from '@/lib/airtable/normalizers/normalizePayment';
 import { normalizePortafolio } from '@/lib/airtable/normalizers/normalizePortafolio';
 import { normalizeResponsable } from '@/lib/airtable/normalizers/normalizeResponsable';
+import { normalizeServicePayment } from '@/lib/airtable/normalizers/normalizeServicePayments';
 import { getAirtableClient } from '@/lib/airtable/client';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type EntityName = 'properties' | 'tenants' | 'contracts' | 'payments' | 'units' | 'responsables';
+export type EntityName =
+  | 'properties'
+  | 'tenants'
+  | 'contracts'
+  | 'payments'
+  | 'units'
+  | 'responsables'
+  | 'service_payments_agua'
+  | 'service_payments_internet'
+  | 'service_payments_gas'
+  | 'service_payments_luz';
 
 export interface EntitySyncResult {
   entity: EntityName;
@@ -58,6 +69,26 @@ export type IdMap = Map<string, string>;
 // A Map<"property_id::label", unit_uuid> for resolving unit_id by (property_id, label).
 // Built from the units table for the org before tenants are upserted.
 export type UnitMap = Map<string, string>;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Map entity name to the Supabase DB table name.
+ * The 4 service payment variants all target the same table.
+ */
+function entityToDbTable(entity: EntityName): string {
+  if (
+    entity === 'service_payments_agua' ||
+    entity === 'service_payments_internet' ||
+    entity === 'service_payments_gas' ||
+    entity === 'service_payments_luz'
+  ) {
+    return 'service_payments';
+  }
+  return entity;
+}
 
 // ---------------------------------------------------------------------------
 // Main export
@@ -140,6 +171,7 @@ export async function syncEntityTable(
     );
 
     // ── 3. Upsert into main domain table ─────────────────────────────────────
+    const dbTable = entityToDbTable(entity);
     const BATCH = 200;
     let upsertedCount = 0;
     let upsertError: string | undefined;
@@ -147,7 +179,7 @@ export async function syncEntityTable(
     for (let i = 0; i < domainRows.length; i += BATCH) {
       const batch = domainRows.slice(i, i + BATCH);
       const { error } = await adminClient
-        .from(entity)
+        .from(dbTable)
         .upsert(batch, {
           onConflict: 'org_id,airtable_external_id',
           ignoreDuplicates: false,
@@ -179,9 +211,15 @@ export async function syncEntityTable(
     // Query the just-upserted rows to get (airtable_external_id → id) mapping.
     // Only bother if later entities will use this map.
     if (!upsertError) {
-      const extIds = records.map(r => r.id);
+      // For service_payments, the external_id is synthetic ("recXXX::agua") not the raw record id
+      const extIds = entity === 'service_payments_agua' ||
+        entity === 'service_payments_internet' ||
+        entity === 'service_payments_gas' ||
+        entity === 'service_payments_luz'
+        ? records.map(r => `${r.id}::${entity.replace('service_payments_', '')}`)
+        : records.map(r => r.id);
       const { data: freshRows } = await adminClient
-        .from(entity)
+        .from(dbTable)
         .select('id, airtable_external_id')
         .eq('org_id', orgId)
         .in('airtable_external_id', extIds);
@@ -282,12 +320,16 @@ function entityToSnapshotName(entity: EntityName): string {
   // Maps to the snapshot bucket name used by the legacy sync (table_name column).
   // Using entity name directly so it's clear and consistent.
   const map: Record<EntityName, string> = {
-    properties:   'propiedades',
-    tenants:      'residentes',
-    contracts:    'historial',
-    payments:     'pagos',
-    units:        'portafolio',
-    responsables: 'responsables',
+    properties:               'propiedades',
+    tenants:                  'residentes',
+    contracts:                'historial',
+    payments:                 'pagos',
+    units:                    'portafolio',
+    responsables:             'responsables',
+    service_payments_agua:    'pagos_agua',
+    service_payments_internet:'pagos_internet',
+    service_payments_gas:     'pagos_gas',
+    service_payments_luz:     'pagos_luz',
   };
   return map[entity];
 }
@@ -423,6 +465,30 @@ function buildDomainRow(
     case 'responsables': {
       const normalized = normalizeResponsable(record, orgId);
       const row = toDbRow(normalized);
+      row['airtable_synced_at'] = new Date().toISOString();
+      return row;
+    }
+
+    case 'service_payments_agua':
+    case 'service_payments_internet':
+    case 'service_payments_gas':
+    case 'service_payments_luz': {
+      const serviceType = entity.replace('service_payments_', '') as 'agua' | 'internet' | 'gas' | 'luz';
+      const normalized = normalizeServicePayment(record, orgId, serviceType);
+
+      let propertyId: string | null = null;
+      if (normalized._airtable_property_ext_id) {
+        const resolved = idMaps.properties?.get(normalized._airtable_property_ext_id) ?? null;
+        if (!resolved) {
+          onUnresolved(
+            `${entity} ${record.id} → property ${normalized._airtable_property_ext_id} not in idMap`
+          );
+        }
+        propertyId = resolved;
+      }
+
+      const row = toDbRow(normalized);
+      row['property_id'] = propertyId;
       row['airtable_synced_at'] = new Date().toISOString();
       return row;
     }
