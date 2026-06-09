@@ -39,14 +39,23 @@ const SYNC_TARGETS: Array<{ tableEnvKey: string; entity: string }> = [
 ];
 
 /**
- * Entity sync targets — ordered properties→tenants→contracts→payments (IC4).
- * Each step feeds its idMap into the next step's link resolver.
+ * Entity sync targets — ordered properties→responsables→units→tenants→contracts→payments.
+ *
+ * Sync order rationale:
+ *   1. properties    — no FK deps; populates propertiesMap
+ *   2. responsables  — no FK deps; populates responsablesMap (needed by tenants)
+ *   3. units         — needs propertiesMap; populates unitsMap (needed by tenants)
+ *   4. tenants       — needs propertiesMap + unitsMap + responsablesMap
+ *   5. contracts     — needs tenantsMap
+ *   6. payments      — needs contractsMap
  */
 const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
-  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES', entity: 'properties' },
-  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',  entity: 'tenants' },
-  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',   entity: 'contracts' },
-  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',       entity: 'payments' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',   entity: 'properties' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',  entity: 'responsables' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',    entity: 'units' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',    entity: 'tenants' },
+  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',     entity: 'contracts' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',         entity: 'payments' },
 ];
 
 // ---------------------------------------------------------------------------

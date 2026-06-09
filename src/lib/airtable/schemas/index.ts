@@ -154,3 +154,42 @@ export const NormalizedPaymentSchema = z.object({
 });
 
 export type NormalizedPayment = z.infer<typeof NormalizedPaymentSchema>;
+
+// ---------------------------------------------------------------------------
+// Portafolio (→ units)
+// ---------------------------------------------------------------------------
+
+export const NormalizedUnitSchema = z.object({
+  org_id:                z.string(),
+  airtable_external_id:  z.string(),
+  airtable_synced_at:    z.string().nullable().optional(),
+  label:                 z.string().nullable(),
+  toilet_type:           z.enum(['private', 'shared']).nullable(),
+  area_m2:               z.number().nullable(),
+  status:                z.enum(['available', 'occupied', 'maintenance']).nullable(),
+  _airtable_property_ext_id: z.string().nullable(),
+});
+
+export type NormalizedUnitSchemaType = z.infer<typeof NormalizedUnitSchema>;
+
+// ---------------------------------------------------------------------------
+// Responsables (→ responsables)
+// ---------------------------------------------------------------------------
+
+export const NormalizedResponsableSchema = z.object({
+  org_id:                z.string(),
+  airtable_external_id:  z.string(),
+  airtable_synced_at:    z.string().nullable().optional(),
+  full_name:             z.string().nullable(),
+  dni:                   z.string().nullable(),
+  phone:                 z.string().nullable(),
+  email:                 z.string().nullable(),
+  employment:            z.string().nullable(),
+  company:               z.string().nullable(),
+  job_title:             z.string().nullable(),
+  industry:              z.string().nullable(),
+  status:                z.string().nullable(),
+  photo_url:             z.string().nullable(),
+});
+
+export type NormalizedResponsableSchemaType = z.infer<typeof NormalizedResponsableSchema>;

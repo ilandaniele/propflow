@@ -31,13 +31,15 @@ import { normalizeProperty } from '@/lib/airtable/normalizers/normalizeProperty'
 import { normalizeTenant } from '@/lib/airtable/normalizers/normalizeTenant';
 import { normalizeContract } from '@/lib/airtable/normalizers/normalizeContract';
 import { normalizePayment } from '@/lib/airtable/normalizers/normalizePayment';
+import { normalizePortafolio } from '@/lib/airtable/normalizers/normalizePortafolio';
+import { normalizeResponsable } from '@/lib/airtable/normalizers/normalizeResponsable';
 import { getAirtableClient } from '@/lib/airtable/client';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type EntityName = 'properties' | 'tenants' | 'contracts' | 'payments';
+export type EntityName = 'properties' | 'tenants' | 'contracts' | 'payments' | 'units' | 'responsables';
 
 export interface EntitySyncResult {
   entity: EntityName;
@@ -280,10 +282,12 @@ function entityToSnapshotName(entity: EntityName): string {
   // Maps to the snapshot bucket name used by the legacy sync (table_name column).
   // Using entity name directly so it's clear and consistent.
   const map: Record<EntityName, string> = {
-    properties: 'propiedades',
-    tenants:    'residentes',
-    contracts:  'historial',
-    payments:   'pagos',
+    properties:   'propiedades',
+    tenants:      'residentes',
+    contracts:    'historial',
+    payments:     'pagos',
+    units:        'portafolio',
+    responsables: 'responsables',
   };
   return map[entity];
 }
@@ -332,9 +336,31 @@ function buildDomainRow(
         unitId = resolvedUnitId;
       }
 
+      // Resolve responsable_id from responsablesMap if available.
+      // The Residentes table has a linked Responsables field — extract the first linked id
+      // from the raw record directly, as NormalizedTenant doesn't carry this field yet.
+      let responsableId: string | null = null;
+      const responsablesMap = idMaps.responsables;
+      if (responsablesMap) {
+        // Extract first linked id from the 'Responsable' field (may be array of rec ids)
+        const responsableLinks = record.fields['Responsable'];
+        const responsableExtId = Array.isArray(responsableLinks) && responsableLinks.length > 0
+          ? (typeof responsableLinks[0] === 'string' ? responsableLinks[0] : null)
+          : null;
+        if (responsableExtId) {
+          responsableId = responsablesMap.get(responsableExtId) ?? null;
+          if (!responsableId) {
+            onUnresolved(`tenant ${record.id} → responsable ${responsableExtId} not in idMap`);
+          }
+        }
+      }
+
       const row = toDbRow(normalized);
       row['property_id'] = propertyId;
       row['unit_id'] = unitId;
+      if (responsableId !== null) {
+        row['responsable_id'] = responsableId;
+      }
       return row;
     }
 
@@ -369,6 +395,35 @@ function buildDomainRow(
 
       const row = toDbRow(normalized);
       row['contract_id'] = contractId;
+      return row;
+    }
+
+    case 'units': {
+      const normalized = normalizePortafolio(record, orgId);
+      let propertyId: string | null = null;
+
+      if (normalized._airtable_property_ext_id) {
+        const resolved = idMaps.properties?.get(normalized._airtable_property_ext_id) ?? null;
+        if (!resolved) {
+          onUnresolved(`unit ${record.id} → property ${normalized._airtable_property_ext_id} not in idMap`);
+        }
+        propertyId = resolved;
+      }
+
+      const row = toDbRow(normalized);
+      // Only set property_id when we have a resolved value; never overwrite with null
+      // to avoid clobbering a value set by a previous sync or manual edit.
+      if (propertyId !== null) {
+        row['property_id'] = propertyId;
+      }
+      row['airtable_synced_at'] = new Date().toISOString();
+      return row;
+    }
+
+    case 'responsables': {
+      const normalized = normalizeResponsable(record, orgId);
+      const row = toDbRow(normalized);
+      row['airtable_synced_at'] = new Date().toISOString();
       return row;
     }
   }
