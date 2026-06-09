@@ -245,6 +245,22 @@ describe('parseMonthlyData', () => {
     expect(result['2026-06']?.receipt_url).toBe('https://plain.pdf');
   });
 
+  it('copy column does not overwrite canonical column for the same month', () => {
+    const fields: Record<string, unknown> = {
+      'Monto 01 - 26 (A) agua': 150,       // canonical column — should be used
+      'Monto 01 - 26 (A) copy': 999,       // Airtable view duplicate — must be ignored
+      'EECC 01 - 26': 'eecc-jan',
+      'Const. 01 - 26 (A)': null,
+    };
+
+    const result = parseMonthlyData(fields, 'A', 'EECC', 'A');
+
+    // Only one entry for 2026-01
+    expect(Object.keys(result).filter(k => k === '2026-01')).toHaveLength(1);
+    // Value comes from the canonical column, not the copy
+    expect(result['2026-01']?.amount).toBe(150);
+  });
+
   it('columns from other service types not included (suffix filter)', () => {
     const fields: Record<string, unknown> = {
       'Monto 01 - 26 (A) agua': 100,  // agua

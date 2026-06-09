@@ -66,6 +66,11 @@ export function parseMonthlyData(
     const suffixToken = `(${amountSuffix})`;
     if (!key.includes(suffixToken)) continue;
 
+    // Skip Airtable view-generated duplicate columns (e.g. "Monto 01 - 26 (A) copy").
+    // These share the same suffix token but would overwrite the canonical column value.
+    const keyLower = key.toLowerCase();
+    if (keyLower.includes('copy')) continue;
+
     const mm = amountMatch[1];
     const yy = amountMatch[2];
     const monthKey = `20${yy}-${mm}`;
