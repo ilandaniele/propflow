@@ -60,6 +60,8 @@ type SelectResult = { data: unknown[] | null; error: null };
 let propiedadesUpsertError: { message: string } | null = null;
 let residentsUpsertError: { message: string } | null = null;
 let orgsSelectResult: Array<{ id: string }> = [{ id: ORG_ID }];
+// Units returned by the unitMap query; key = org_id (ignored in mock, returns all)
+let unitsSelectResult: Array<{ id: string; property_id: string; label: string }> = [];
 
 function makeSupabaseBuilder(table: string) {
   const builder: Record<string, unknown> = {};
@@ -99,7 +101,13 @@ function makeSupabaseBuilder(table: string) {
   };
 
   const selectChain = {
-    eq: (_col: string, _val: string) => eqChain,
+    eq: (_col: string, _val: string): typeof eqChain | SelectResult => {
+      // units query terminates at .eq('org_id', orgId) — return data directly
+      if (table === 'units') {
+        return { data: unitsSelectResult, error: null };
+      }
+      return eqChain;
+    },
   };
 
   builder['select'] = (_cols?: string): typeof selectChain | SelectResult => {
@@ -181,7 +189,7 @@ function makePropiedadRecord(id = 'recPROP001') {
   };
 }
 
-function makeResidenteRecord(id = 'recTENANT001', propiedadExtId?: string) {
+function makeResidenteRecord(id = 'recTENANT001', propiedadExtId?: string, unitLabel?: string) {
   return {
     id,
     createdTime: '2024-01-01T00:00:00.000Z',
@@ -190,6 +198,7 @@ function makeResidenteRecord(id = 'recTENANT001', propiedadExtId?: string) {
       Apellido: 'Pérez',
       'N° DNI': '12345678',
       ...(propiedadExtId ? { Propiedad: [propiedadExtId] } : {}),
+      ...(unitLabel ? { 'N° de habitación': [unitLabel] } : {}),
     },
   };
 }
@@ -634,5 +643,83 @@ describe('POST /api/cron/airtable-sync — AC11: airtable_synced_at stamped', ()
     const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
     expect(row['airtable_synced_at']).toBeDefined();
     expect(typeof row['airtable_synced_at']).toBe('string');
+  });
+});
+
+describe('POST /api/cron/airtable-sync — AC4: unit_id resolution via unitMap', () => {
+  const PROP_UUID = 'supabase-prop-uuid-001';
+  const UNIT_UUID = 'supabase-unit-uuid-001';
+
+  beforeEach(() => {
+    upsertCalls.length = 0;
+    insertCalls.length = 0;
+    mockAirtableClient.listRecords.mockClear();
+    propiedadesUpsertError = null;
+    residentsUpsertError = null;
+    orgsSelectResult = [{ id: ORG_ID }];
+    unitsSelectResult = [];
+    Object.keys(airtableRecordsByKey).forEach(k => delete airtableRecordsByKey[k]);
+    Object.keys(airtableTableErrors).forEach(k => delete airtableTableErrors[k]);
+  });
+
+  afterEach(() => {
+    unitsSelectResult = [];
+    Object.keys(airtableRecordsByKey).forEach(k => delete airtableRecordsByKey[k]);
+    Object.keys(airtableTableErrors).forEach(k => delete airtableTableErrors[k]);
+  });
+
+  it('resolves unit_id when unit label matches (property_id + label found in unitMap)', async () => {
+    // Property upsert → idMap maps recPROP001 → PROP_UUID
+    airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [makePropiedadRecord('recPROP001')];
+    // Residente linked to recPROP001 with unit label "Hab. 1"
+    airtableRecordsByKey['AIRTABLE_TABLE_RESIDENTES'] = [
+      makeResidenteRecord('recTENANT001', 'recPROP001', 'Hab. 1'),
+    ];
+    // units table returns a matching unit row
+    unitsSelectResult = [
+      { id: UNIT_UUID, property_id: PROP_UUID, label: 'Hab. 1' },
+    ];
+
+    await callRoute(authHeader());
+
+    const tenantUpsert = upsertCalls.find(c => c.table === 'tenants');
+    expect(tenantUpsert).toBeDefined();
+    const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
+    expect(row['unit_id']).toBe(UNIT_UUID);
+    expect(row['property_id']).toBe(PROP_UUID);
+  });
+
+  it('sets unit_id to null and does not abort when unit label has no match in unitMap', async () => {
+    airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [makePropiedadRecord('recPROP001')];
+    // Residente with a unit label that has no matching unit row
+    airtableRecordsByKey['AIRTABLE_TABLE_RESIDENTES'] = [
+      makeResidenteRecord('recTENANT001', 'recPROP001', 'Hab. UNKNOWN'),
+    ];
+    // units table returns rows but none matching "Hab. UNKNOWN"
+    unitsSelectResult = [
+      { id: UNIT_UUID, property_id: PROP_UUID, label: 'Hab. 1' },
+    ];
+
+    const res = await callRoute(authHeader());
+    expect(res.status).toBe(200);
+
+    const tenantUpsert = upsertCalls.find(c => c.table === 'tenants');
+    expect(tenantUpsert).toBeDefined();
+    const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
+    // unit_id stays null — same null-FK-continue pattern as AC5
+    expect(row['unit_id']).toBeNull();
+  });
+
+  it('does not include _airtable_unit_label in the upserted tenant row', async () => {
+    airtableRecordsByKey['AIRTABLE_TABLE_RESIDENTES'] = [
+      makeResidenteRecord('recTENANT001', 'recPROP001', 'Hab. 1'),
+    ];
+
+    await callRoute(authHeader());
+
+    const tenantUpsert = upsertCalls.find(c => c.table === 'tenants');
+    expect(tenantUpsert).toBeDefined();
+    const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
+    expect(Object.keys(row).filter(k => k.startsWith('_airtable_'))).toHaveLength(0);
   });
 });

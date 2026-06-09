@@ -53,6 +53,10 @@ export interface EntitySyncResult {
 // and handed to the next dependent entity's link resolver.
 export type IdMap = Map<string, string>;
 
+// A Map<"property_id::label", unit_uuid> for resolving unit_id by (property_id, label).
+// Built from the units table for the org before tenants are upserted.
+export type UnitMap = Map<string, string>;
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -101,11 +105,31 @@ export async function syncEntityTable(
     // ── 2. Normalize + resolve links ─────────────────────────────────────────
     let skippedLinks = 0;
 
+    // IC8: for tenants, pre-build a unitMap from the units table so unit_id can be
+    // resolved by (property_id, label) before the upsert — avoids a separate UPDATE pass.
+    // This query is cheap (org-scoped, small table) and runs only for the tenants entity.
+    let unitMap: UnitMap = new Map();
+    if (entity === 'tenants') {
+      const { data: unitRows } = await adminClient
+        .from('units')
+        .select('id, property_id, label')
+        .eq('org_id', orgId);
+
+      if (unitRows) {
+        for (const u of unitRows as Array<{ id: string; property_id: string; label: string }>) {
+          if (u.property_id && u.label) {
+            unitMap.set(`${u.property_id}::${u.label}`, u.id);
+          }
+        }
+      }
+    }
+
     const { domainRows, snapshotRows } = buildRows(
       entity,
       orgId,
       records,
       idMaps,
+      unitMap,
       (warningMsg: string) => {
         // AC5: log warning to stdout; increment counter (we log once to airtable_sync_logs at end)
         console.warn(`[sync-entities][${entity}][${orgId}] unresolved link: ${warningMsg}`);
@@ -226,6 +250,7 @@ function buildRows(
   orgId: string,
   records: AirtableRecord[],
   idMaps: Partial<Record<EntityName, IdMap>>,
+  unitMap: UnitMap,
   onUnresolved: UnresolvedWarningCb
 ): BuiltRows {
   const now = new Date().toISOString();
@@ -236,7 +261,7 @@ function buildRows(
   const snapshotRows: BuiltRows['snapshotRows'] = [];
 
   for (const record of records) {
-    const domainRow = buildDomainRow(entity, orgId, record, idMaps, onUnresolved);
+    const domainRow = buildDomainRow(entity, orgId, record, idMaps, unitMap, onUnresolved);
     domainRows.push(domainRow);
 
     snapshotRows.push({
@@ -268,6 +293,7 @@ function buildDomainRow(
   orgId: string,
   record: AirtableRecord,
   idMaps: Partial<Record<EntityName, IdMap>>,
+  unitMap: UnitMap,
   onUnresolved: UnresolvedWarningCb
 ): Record<string, unknown> {
   switch (entity) {
@@ -289,10 +315,26 @@ function buildDomainRow(
         propertyId = resolved;
       }
 
-      // IC8: resolve unit_id by (property_id, label) — done post-upsert in a separate
-      // pass at the route level (unit lookup requires DB query); here we set null.
+      // IC8: resolve unit_id by (property_id, label) using the pre-built unitMap.
+      // unitMap keys are "property_id::label"; both components must be non-null to resolve.
+      // If not found, unit_id stays null and a warning is logged (AC5 null-FK-continue pattern).
+      // WARNING: never interpolate PII field values (dni, birth_date, first_name, last_name)
+      // here — log only Airtable record IDs.
+      let unitId: string | null = null;
+      if (propertyId && normalized._airtable_unit_label) {
+        const mapKey = `${propertyId}::${normalized._airtable_unit_label}`;
+        const resolvedUnitId = unitMap.get(mapKey) ?? null;
+        if (!resolvedUnitId) {
+          onUnresolved(
+            `tenant ${record.id} → unit label "${normalized._airtable_unit_label}" not found in units for property ${propertyId}`
+          );
+        }
+        unitId = resolvedUnitId;
+      }
+
       const row = toDbRow(normalized);
       row['property_id'] = propertyId;
+      row['unit_id'] = unitId;
       return row;
     }
 
