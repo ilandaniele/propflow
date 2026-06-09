@@ -14,7 +14,10 @@ ALTER TABLE public.properties
   ADD COLUMN IF NOT EXISTS supply_number_luz   TEXT,
   ADD COLUMN IF NOT EXISTS total_rooms         INTEGER,
   ADD COLUMN IF NOT EXISTS current_residents   INTEGER,
-  ADD COLUMN IF NOT EXISTS description         TEXT;
+  ADD COLUMN IF NOT EXISTS description         TEXT,
+  ADD COLUMN IF NOT EXISTS codigo_pago_internet TEXT,
+  ADD COLUMN IF NOT EXISTS n_cliente_gas        TEXT,
+  ADD COLUMN IF NOT EXISTS n_suministro_agua    TEXT;
 
 -- ─── tenants ─────────────────────────────────────────────────────────────────
 -- Airtable Residentes fields: Codigo, Nombre, Apellido, N° DNI, Fecha de nacimiento,

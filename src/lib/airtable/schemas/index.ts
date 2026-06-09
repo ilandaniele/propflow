@@ -61,6 +61,9 @@ export const NormalizedPropertySchema = z.object({
   total_rooms:           z.number().int().nullable().optional(),
   current_residents:     z.number().int().nullable().optional(),
   description:           z.string().nullable().optional(),
+  codigo_pago_internet:  z.string().nullable().optional(),
+  n_cliente_gas:         z.string().nullable().optional(),
+  n_suministro_agua:     z.string().nullable().optional(),
 });
 
 export type NormalizedProperty = z.infer<typeof NormalizedPropertySchema>;

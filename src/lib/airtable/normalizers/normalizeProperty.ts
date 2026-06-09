@@ -16,14 +16,17 @@ import type { NormalizedProperty } from '@/lib/airtable/schemas';
 // ---------------------------------------------------------------------------
 
 export const PROPERTY_FIELD = {
-  NAME:              'Propiedad',
-  ADDRESS:           'Dirección',
-  MODALITY:          'Modalidad',
-  DISTRICT:          'Distrito',
-  DESCRIPTION:       'Descripción',
-  SUPPLY_NUMBER_LUZ: 'N° de suministro (L)',
-  CURRENT_RESIDENTS: 'N° de residentes actuales',
-  TOTAL_ROOMS:       'N° total de habitaciones',
+  NAME:                  'Propiedad',
+  ADDRESS:               'Dirección',
+  MODALITY:              'Modalidad',
+  DISTRICT:              'Distrito',
+  DESCRIPTION:           'Descripción',
+  SUPPLY_NUMBER_LUZ:     'N° de suministro (L)',
+  CURRENT_RESIDENTS:     'N° de residentes actuales',
+  TOTAL_ROOMS:           'N° total de habitaciones',
+  CODIGO_PAGO_INTERNET:  'Código de pago (I)',
+  N_CLIENTE_GAS:         'N° de cliente (G)',
+  N_SUMINISTRO_AGUA:     'N° de suministro (A)',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -73,5 +76,8 @@ export function normalizeProperty(
     supply_number_luz:    toString(f[PROPERTY_FIELD.SUPPLY_NUMBER_LUZ]),
     current_residents:    toInt(f[PROPERTY_FIELD.CURRENT_RESIDENTS]),
     total_rooms:          toInt(f[PROPERTY_FIELD.TOTAL_ROOMS]),
+    codigo_pago_internet: toString(f[PROPERTY_FIELD.CODIGO_PAGO_INTERNET]),
+    n_cliente_gas:        toString(f[PROPERTY_FIELD.N_CLIENTE_GAS]),
+    n_suministro_agua:    toString(f[PROPERTY_FIELD.N_SUMINISTRO_AGUA]),
   };
 }
