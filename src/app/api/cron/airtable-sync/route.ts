@@ -39,23 +39,31 @@ const SYNC_TARGETS: Array<{ tableEnvKey: string; entity: string }> = [
 ];
 
 /**
- * Entity sync targets — ordered properties→responsables→units→tenants→contracts→payments.
+ * Entity sync targets — ordered properties→responsables→units→service_payments→tenants→contracts→payments.
  *
  * Sync order rationale:
- *   1. properties    — no FK deps; populates propertiesMap
- *   2. responsables  — no FK deps; populates responsablesMap (needed by tenants)
- *   3. units         — needs propertiesMap; populates unitsMap (needed by tenants)
- *   4. tenants       — needs propertiesMap + unitsMap + responsablesMap
- *   5. contracts     — needs tenantsMap
- *   6. payments      — needs contractsMap
+ *   1. properties             — no FK deps; populates propertiesMap
+ *   2. responsables           — no FK deps; populates responsablesMap (needed by tenants)
+ *   3. units                  — needs propertiesMap; populates unitsMap (needed by tenants)
+ *   4. service_payments_agua  — needs propertiesMap (for property_id FK)
+ *   5. service_payments_internet — needs propertiesMap
+ *   6. service_payments_gas   — needs propertiesMap
+ *   7. service_payments_luz   — needs propertiesMap
+ *   8. tenants                — needs propertiesMap + unitsMap + responsablesMap
+ *   9. contracts              — needs tenantsMap
+ *  10. payments               — needs contractsMap
  */
 const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
-  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',   entity: 'properties' },
-  { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',  entity: 'responsables' },
-  { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',    entity: 'units' },
-  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',    entity: 'tenants' },
-  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',     entity: 'contracts' },
-  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',         entity: 'payments' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',    entity: 'properties' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',   entity: 'responsables' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',     entity: 'units' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_AGUA',     entity: 'service_payments_agua' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_INTERNET', entity: 'service_payments_internet' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_GAS',      entity: 'service_payments_gas' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_LUZ',      entity: 'service_payments_luz' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',     entity: 'tenants' },
+  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',      entity: 'contracts' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',          entity: 'payments' },
 ];
 
 // ---------------------------------------------------------------------------

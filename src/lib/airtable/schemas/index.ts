@@ -193,3 +193,24 @@ export const NormalizedResponsableSchema = z.object({
 });
 
 export type NormalizedResponsableSchemaType = z.infer<typeof NormalizedResponsableSchema>;
+
+// ---------------------------------------------------------------------------
+// Pago de servicios (→ service_payments)
+// ---------------------------------------------------------------------------
+
+export const NormalizedServicePaymentSchema = z.object({
+  org_id:               z.string(),
+  airtable_external_id: z.string(),
+  airtable_synced_at:   z.string().optional(),
+  service_type:         z.enum(['agua', 'internet', 'gas', 'luz']),
+  supply_number:        z.string().nullable(),
+  tope:                 z.number().nullable().optional(),
+  monthly_data:         z.record(z.object({
+    amount:      z.number().nullable(),
+    eecc:        z.string().nullable(),
+    receipt_url: z.string().nullable(),
+  })),
+  _airtable_property_ext_id: z.string().nullable(),
+});
+
+export type NormalizedServicePaymentSchemaType = z.infer<typeof NormalizedServicePaymentSchema>;
