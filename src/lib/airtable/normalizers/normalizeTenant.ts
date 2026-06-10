@@ -105,9 +105,9 @@ export function normalizeTenant(
     phone:                toString(f[TENANT_FIELD.PHONE]),
     email:                toString(f[TENANT_FIELD.EMAIL]),
     tenant_status:        toString(f[TENANT_FIELD.STATUS]),
-    // Resolved link fields — property/unit set by link resolver if available;
-    // Residentes no longer carries these directly in the new schema.
-    property_id:          null,
+    // Resolved link field — unit set by link resolver if available.
+    // NOTE: tenants has NO property_id column (property derives via unit_id),
+    // so that key must never appear here.
     unit_id:              null,
     // Private link helper — responsable resolved in sync-entities.ts
     _airtable_property_ext_id: null,

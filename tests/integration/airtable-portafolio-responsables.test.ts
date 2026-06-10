@@ -243,7 +243,7 @@ describe('Portafolio sync — AC1 + AC2: units upsert with area_m2 and property_
     expect(row['airtable_external_id']).toBe('recUNIT001');
     expect(row['label']).toBe('Hab. 1');
     expect(row['toilet_type']).toBe('private');
-    expect(row['status']).toBe('available');
+    expect(row['status']).toBe('vacant');
   });
 
   it('AC2: property_id resolved from propertiesMap in units upsert', async () => {

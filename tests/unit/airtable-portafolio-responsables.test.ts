@@ -35,7 +35,7 @@ describe('normalizePortafolio', () => {
     expect(result.label).toBe('Hab. 1');
     expect(result.toilet_type).toBe('private');
     expect(result.area_m2).toBe(25.5);
-    expect(result.status).toBe('available');
+    expect(result.status).toBe('vacant');
     expect(result._airtable_property_ext_id).toBe('recPROP001');
     expect(result.airtable_synced_at).toBeTruthy();
   });
@@ -72,12 +72,12 @@ describe('normalizePortafolio', () => {
 
   it('Estado "Disponible" → status "available"', () => {
     const result = normalizePortafolio(makeRecord('r1', { 'Estado': 'Disponible' }), ORG_ID);
-    expect(result.status).toBe('available');
+    expect(result.status).toBe('vacant');
   });
 
   it('Estado "Available" (English) → status "available"', () => {
     const result = normalizePortafolio(makeRecord('r1', { 'Estado': 'Available' }), ORG_ID);
-    expect(result.status).toBe('available');
+    expect(result.status).toBe('vacant');
   });
 
   it('Estado "Ocupado" → status "occupied"', () => {
@@ -92,17 +92,17 @@ describe('normalizePortafolio', () => {
 
   it('Estado "Mantenimiento" → status "maintenance"', () => {
     const result = normalizePortafolio(makeRecord('r1', { 'Estado': 'Mantenimiento' }), ORG_ID);
-    expect(result.status).toBe('maintenance');
+    expect(result.status).toBe('vacant');
   });
 
   it('Estado "Maintenance" (English) → status "maintenance"', () => {
     const result = normalizePortafolio(makeRecord('r1', { 'Estado': 'Maintenance' }), ORG_ID);
-    expect(result.status).toBe('maintenance');
+    expect(result.status).toBe('vacant');
   });
 
-  it('Estado unknown → status null', () => {
+  it('Estado unknown → status vacant (DB default)', () => {
     const result = normalizePortafolio(makeRecord('r1', { 'Estado': 'Pendiente' }), ORG_ID);
-    expect(result.status).toBeNull();
+    expect(result.status).toBe('vacant');
   });
 
   it('m2 numeric 25.5 → area_m2 25.5', () => {
@@ -163,7 +163,7 @@ describe('normalizePortafolio', () => {
     expect(result.label).toBeNull();
     expect(result.toilet_type).toBeNull();
     expect(result.area_m2).toBeNull();
-    expect(result.status).toBeNull();
+    expect(result.status).toBe('vacant');  // NOT NULL DB default — never null
     expect(result._airtable_property_ext_id).toBeNull();
   });
 });
