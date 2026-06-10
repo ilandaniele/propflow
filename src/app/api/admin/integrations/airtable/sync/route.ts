@@ -20,6 +20,7 @@ const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = 
   { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',   entity: 'responsables' },
   { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',     entity: 'units' },
   { tableEnvKey: 'AIRTABLE_TABLE_PAGO_SERVICIOS',  entity: 'service_payments' },
+  { tableEnvKey: 'AIRTABLE_TABLE_MANTENIMIENTO',   entity: 'incidents' },
   { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',     entity: 'tenants' },
   { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',      entity: 'contracts' },
   { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',          entity: 'payments' },

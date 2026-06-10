@@ -21,6 +21,7 @@ const KNOWN_TABLE_VARS = [
   'AIRTABLE_TABLE_PORTAFOLIO',
   'AIRTABLE_TABLE_RESPONSABLES',
   'AIRTABLE_TABLE_PAGO_SERVICIOS',
+  'AIRTABLE_TABLE_MANTENIMIENTO',
 ] as const;
 
 export async function GET(_request: NextRequest): Promise<NextResponse> {
