@@ -14,7 +14,7 @@
  */
 
 import { AirtableRecord, AirtableRecordSchema } from '@/lib/schemas/airtable';
-import { assertAirtableEnv, resolveTableEnvKey } from './env';
+import { assertAirtableEnv, assertAirtableBase, resolveTableEnvKey } from './env';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
@@ -252,6 +252,8 @@ let _client: AirtableClient | null = null;
  * Safe to call at the top of a Server Action before any DB work.
  */
 export function getAirtableClient(): AirtableClient {
+  // Warn when AIRTABLE_BASE_ID doesn't match the expected base for this project.
+  assertAirtableBase();
   if (!_client) {
     _client = new AirtableClient();
   }
