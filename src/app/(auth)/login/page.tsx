@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { signIn, type AuthState } from '@/app/actions/auth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -11,17 +12,6 @@ import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 const GOOGLE_CALLBACK_URL = `${SITE_URL}/auth/callback`;
-
-const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  oauth_cancelled: 'Autenticación con Google cancelada.',
-  invalid_callback: 'Error en el callback de autenticación. Intenta nuevamente.',
-  missing_email: 'Google no proporcionó un email. Verifica la configuración de tu cuenta.',
-  email_conflict: 'Ya existe una cuenta con este email. Inicia sesión con email y contraseña.',
-  airtable_unavailable: 'Tu cuenta fue creada, pero no pudimos sincronizar con Airtable. El administrador puede completar la sincronización.',
-  local_created_airtable_failed: 'Tu cuenta fue creada localmente. La sincronización con Airtable falló y será reintentada.',
-  // legacy param — keep backward compat
-  oauth_failed: 'Error en la autenticación con Google. Intenta nuevamente.',
-};
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -33,10 +23,13 @@ function SubmitButton() {
 }
 
 export default function LoginPage() {
+  const t = useTranslations('authErrors');
   const [state, action] = useActionState<AuthState, FormData>(signIn, {});
   const searchParams = useSearchParams();
   const oauthError = searchParams.get('error');
-  const oauthErrorMessage = oauthError ? (OAUTH_ERROR_MESSAGES[oauthError] ?? 'Error de autenticación. Intenta nuevamente.') : null;
+  const oauthErrorMessage = oauthError
+    ? (t(oauthError as Parameters<typeof t>[0]) || t('default'))
+    : null;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-4">

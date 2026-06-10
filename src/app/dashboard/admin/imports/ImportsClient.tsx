@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -24,15 +25,6 @@ interface ImportLog {
   imported_by_name: string | null;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  tenant:           'Inquilinos',
-  payment:          'Pagos',
-  room_performance: 'Rendimiento',
-  financial:        'Financiero',
-};
-
-function typeLabel(t: string) { return TYPE_LABELS[t] ?? t; }
-
 function statusVariant(s: string): 'warning' | 'success' | 'danger' | 'info' | 'default' {
   switch (s) {
     case 'pending':   return 'warning';
@@ -40,16 +32,6 @@ function statusVariant(s: string): 'warning' | 'success' | 'danger' | 'info' | '
     case 'failed':    return 'danger';
     case 'partial':   return 'info';
     default:          return 'default';
-  }
-}
-
-function statusLabel(s: string): string {
-  switch (s) {
-    case 'pending':   return 'Pendiente';
-    case 'completed': return 'Completado';
-    case 'failed':    return 'Fallido';
-    case 'partial':   return 'Parcial';
-    default:          return s;
   }
 }
 
@@ -61,6 +43,7 @@ function fmtDate(d: string | null): string {
 const LIMIT = 20;
 
 export function ImportsClient() {
+  const t = useTranslations('importLogs');
   const [logs, setLogs] = useState<ImportLog[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -107,38 +90,38 @@ export function ImportsClient() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Historial de Importaciones</h1>
+        <h1 className="text-xl font-bold text-slate-900">{t('title')}</h1>
       </div>
 
       {/* Filters */}
       <Card padding="sm">
         <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Tipo</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('filterType')}</label>
             <select
               value={filterType}
               onChange={e => { setFilterType(e.target.value); setPage(1); }}
               className="text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">Todos</option>
-              <option value="tenant">Inquilinos</option>
-              <option value="payment">Pagos</option>
-              <option value="room_performance">Rendimiento</option>
-              <option value="financial">Financiero</option>
+              <option value="">{t('allTypes')}</option>
+              <option value="tenant">{t('typeTenant')}</option>
+              <option value="payment">{t('typePayment')}</option>
+              <option value="room_performance">{t('typeRoomPerformance')}</option>
+              <option value="financial">{t('typeFinancial')}</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Estado</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('filterStatus')}</label>
             <select
               value={filterStatus}
               onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
               className="text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">Todos</option>
-              <option value="pending">Pendiente</option>
-              <option value="completed">Completado</option>
-              <option value="failed">Fallido</option>
-              <option value="partial">Parcial</option>
+              <option value="">{t('allStatuses')}</option>
+              <option value="pending">{t('statusPending')}</option>
+              <option value="completed">{t('statusCompleted')}</option>
+              <option value="failed">{t('statusFailed')}</option>
+              <option value="partial">{t('statusPartial')}</option>
             </select>
           </div>
           {(filterType || filterStatus) && (
@@ -146,7 +129,7 @@ export function ImportsClient() {
               onClick={() => { setFilterType(''); setFilterStatus(''); setPage(1); }}
               className="text-xs text-slate-400 hover:text-slate-600 underline"
             >
-              Limpiar filtros
+              {t('clearFilters')}
             </button>
           )}
         </div>
@@ -154,15 +137,15 @@ export function ImportsClient() {
 
       <Card padding="none">
         <CardHeader className="px-5 pt-5 pb-4">
-          <CardTitle>Importaciones</CardTitle>
-          {total > 0 && <span className="text-xs text-slate-400">{total} registros</span>}
+          <CardTitle>{t('sectionTitle')}</CardTitle>
+          {total > 0 && <span className="text-xs text-slate-400">{t('records', { count: total })}</span>}
         </CardHeader>
 
         {loading ? (
           <SkeletonTable rows={5} cols={8} />
         ) : logs.length === 0 ? (
           <div className="px-5 pb-5">
-            <EmptyState title="No hay registros de importación." description="Las importaciones aparecerán aquí una vez se realicen." />
+            <EmptyState title={t('noLogs')} description={t('noLogsDesc')} />
           </div>
         ) : (
           <>
@@ -170,17 +153,17 @@ export function ImportsClient() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Fecha</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Tipo</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Archivo</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Importado por</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Estado</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600">Recibidos</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600">Creados</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600">Actualizados</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600">Omitidos</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600">Fallidos</th>
-                    <th className="px-4 py-3 text-center font-medium text-slate-600">Acciones</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colDate')}</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colType')}</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colFile')}</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colImportedBy')}</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colStatus')}</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colReceived')}</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colCreated')}</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colUpdated')}</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colSkipped')}</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colFailed')}</th>
+                    <th className="px-4 py-3 text-center font-medium text-slate-600">{t('colActions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -188,11 +171,23 @@ export function ImportsClient() {
                     <>
                       <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">{fmtDate(log.created_at)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{typeLabel(log.import_type)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {log.import_type === 'tenant' ? t('typeTenant')
+                            : log.import_type === 'payment' ? t('typePayment')
+                            : log.import_type === 'room_performance' ? t('typeRoomPerformance')
+                            : log.import_type === 'financial' ? t('typeFinancial')
+                            : log.import_type}
+                        </td>
                         <td className="px-4 py-3 text-slate-600 text-xs max-w-[150px] truncate">{log.file_name ?? '—'}</td>
                         <td className="px-4 py-3 text-slate-600 text-xs">{log.imported_by_name ?? '—'}</td>
                         <td className="px-4 py-3">
-                          <Badge variant={statusVariant(log.status)}>{statusLabel(log.status)}</Badge>
+                          <Badge variant={statusVariant(log.status)}>
+                            {log.status === 'pending' ? t('statusPending')
+                              : log.status === 'completed' ? t('statusCompleted')
+                              : log.status === 'failed' ? t('statusFailed')
+                              : log.status === 'partial' ? t('statusPartial')
+                              : log.status}
+                          </Badge>
                         </td>
                         <td className="px-4 py-3 text-right text-slate-600">{log.rows_received}</td>
                         <td className="px-4 py-3 text-right text-green-700">{log.rows_created}</td>
@@ -204,7 +199,7 @@ export function ImportsClient() {
                             onClick={() => toggleExpand(log.id)}
                             className="text-xs text-brand-600 hover:text-brand-700 underline"
                           >
-                            {expandedId === log.id ? 'Cerrar' : 'Detalles'}
+                            {expandedId === log.id ? t('detailsOpen') : t('detailsClose')}
                           </button>
                         </td>
                       </tr>
@@ -212,16 +207,16 @@ export function ImportsClient() {
                         <tr key={`${log.id}-detail`}>
                           <td colSpan={11} className="px-6 py-4 bg-slate-50 border-b border-slate-100">
                             {loadingDetail ? (
-                              <p className="text-xs text-slate-400 animate-pulse">Cargando detalles...</p>
+                              <p className="text-xs text-slate-400 animate-pulse">{t('loadingDetails')}</p>
                             ) : expandedDetail ? (
                               <div className="space-y-3 text-xs">
                                 {Array.isArray((expandedDetail as Record<string, unknown>).error_details) &&
                                   ((expandedDetail as Record<string, unknown>).error_details as unknown[]).length > 0 && (
                                   <div>
-                                    <p className="font-medium text-red-700 mb-1">Errores:</p>
+                                    <p className="font-medium text-red-700 mb-1">{t('detailErrors')}</p>
                                     <ul className="space-y-0.5 text-red-700 max-h-32 overflow-y-auto">
                                       {((expandedDetail as Record<string, unknown>).error_details as Record<string, unknown>[]).map((e, i) => (
-                                        <li key={i}>Fila {String(e.rowNumber)}: {String(e.message)}</li>
+                                        <li key={i}>{t('rowPrefix', { row: String(e.rowNumber) })} {String(e.message)}</li>
                                       ))}
                                     </ul>
                                   </div>
@@ -229,20 +224,20 @@ export function ImportsClient() {
                                 {Array.isArray((expandedDetail as Record<string, unknown>).validation_warnings) &&
                                   ((expandedDetail as Record<string, unknown>).validation_warnings as unknown[]).length > 0 && (
                                   <div>
-                                    <p className="font-medium text-yellow-700 mb-1">Advertencias:</p>
+                                    <p className="font-medium text-yellow-700 mb-1">{t('detailWarnings')}</p>
                                     <ul className="space-y-0.5 text-yellow-700 max-h-32 overflow-y-auto">
                                       {((expandedDetail as Record<string, unknown>).validation_warnings as Record<string, unknown>[]).map((w, i) => (
-                                        <li key={i}>Fila {String(w.rowNumber)}: {String(w.message)}</li>
+                                        <li key={i}>{t('rowPrefix', { row: String(w.rowNumber) })} {String(w.message)}</li>
                                       ))}
                                     </ul>
                                   </div>
                                 )}
                                 {!Array.isArray((expandedDetail as Record<string, unknown>).error_details) && (
-                                  <p className="text-slate-400">Sin detalles adicionales.</p>
+                                  <p className="text-slate-400">{t('noDetails')}</p>
                                 )}
                               </div>
                             ) : (
-                              <p className="text-xs text-slate-400">No se pudieron cargar los detalles.</p>
+                              <p className="text-xs text-slate-400">{t('errorLoadingDetails')}</p>
                             )}
                           </td>
                         </tr>
@@ -255,10 +250,10 @@ export function ImportsClient() {
 
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-5 py-4 border-t border-slate-100">
-                <span className="text-xs text-slate-400">Página {page} de {totalPages}</span>
+                <span className="text-xs text-slate-400">{t('pageInfo', { page, total: totalPages })}</span>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                  <Button size="sm" variant="secondary" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>Siguiente</Button>
+                  <Button size="sm" variant="secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>{t('prev')}</Button>
+                  <Button size="sm" variant="secondary" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>{t('next')}</Button>
                 </div>
               </div>
             )}
@@ -267,7 +262,7 @@ export function ImportsClient() {
       </Card>
 
       <div className="flex gap-3">
-        <Link href="/dashboard/admin/tenants" className="text-xs text-brand-600 hover:underline">← Volver a Inquilinos</Link>
+        <Link href="/dashboard/admin/tenants" className="text-xs text-brand-600 hover:underline">{t('backToTenants')}</Link>
       </div>
     </div>
   );
