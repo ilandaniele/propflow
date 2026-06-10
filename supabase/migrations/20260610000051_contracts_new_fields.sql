@@ -37,6 +37,12 @@ BEGIN
   END IF;
 END $$;
 
-ALTER TABLE public.service_payments
-  ADD CONSTRAINT service_payments_service_type_check
-    CHECK (service_type IN ('agua', 'internet', 'gas', 'luz', 'otro'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'service_payments_service_type_check'
+  ) THEN
+    ALTER TABLE public.service_payments ADD CONSTRAINT service_payments_service_type_check
+      CHECK (service_type IN ('agua', 'internet', 'gas', 'luz', 'otro'));
+  END IF;
+END $$;
