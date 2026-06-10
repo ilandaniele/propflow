@@ -27,7 +27,8 @@ import type { AuthState } from '@/app/actions/auth';
 export type { AuthState };
 
 const CreateOrgSchema = z.object({
-  orgName: z.string().trim().min(2, 'Org name must be at least 2 characters').max(120, 'Org name must be at most 120 characters'),
+  orgName:       z.string().trim().min(2, 'Org name must be at least 2 characters').max(120, 'Org name must be at most 120 characters'),
+  termsAccepted: z.coerce.boolean().optional(),
 });
 
 export async function createOrg(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -63,7 +64,8 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
 
   // 4. Validate input
   const parsed = CreateOrgSchema.safeParse({
-    orgName: formData.get('orgName'),
+    orgName:       formData.get('orgName'),
+    termsAccepted: formData.get('termsAccepted'),
   });
 
   if (!parsed.success) {
@@ -76,12 +78,28 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
       ? user.user_metadata.full_name
       : undefined;
 
-    await provisionOrgAndProfile(
+    const result = await provisionOrgAndProfile(
       user.id,
       user.email ?? '',
       parsed.data.orgName,
       fullName
     );
+
+    // Store terms acceptance if user accepted during onboarding
+    if (parsed.data.termsAccepted && result?.profileId) {
+      const { createAdminClient } = await import('@/lib/supabase/admin');
+      const admin = createAdminClient();
+      const now = new Date().toISOString();
+      await admin
+        .from('profiles')
+        .update({
+          terms_accepted_at:   now,
+          terms_version:       '1.0',
+          privacy_accepted_at: now,
+          privacy_version:     '1.0',
+        })
+        .eq('id', result.profileId);
+    }
   } catch (err) {
     const errMsg = err instanceof Error ? err.name : 'unknown';
     log.error('[onboarding] provisioning failed', { errMsg, userId: user.id });

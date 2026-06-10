@@ -1,3 +1,8 @@
+// Airtable Base: "Untitled Base"
+// Base ID: apphpwPe2olkGRSTkb
+// Found at: https://airtable.com/apphpwPe2olkGRSTkb/...
+// Set AIRTABLE_BASE_ID=apphpwPe2olkGRSTkb in your environment.
+
 /**
  * Airtable env validation — server-only.
  *
@@ -104,6 +109,27 @@ export function assertAirtableEnv(): AirtableEnv {
     tablePagosGas,
     tablePagosLuz,
   };
+}
+
+/** Known Airtable base ID for this project (Untitled Base). */
+const EXPECTED_BASE_ID = 'apphpwPe2olkGRSTkb';
+
+/**
+ * Validates that AIRTABLE_BASE_ID matches the expected base for this project.
+ * Logs a warning when a different ID is set — the config may still work if the
+ * operator intentionally overrides the base, but the mismatch should be visible.
+ *
+ * Call this alongside assertAirtableEnv() at the start of any Airtable operation.
+ * Does NOT throw — a wrong base ID may be intentional in multi-tenant deployments.
+ */
+export function assertAirtableBase(): void {
+  const id = process.env['AIRTABLE_BASE_ID'];
+  if (id && id !== EXPECTED_BASE_ID) {
+    console.warn(
+      `[Airtable] WARNING: AIRTABLE_BASE_ID is "${id}" but expected "${EXPECTED_BASE_ID}" (Untitled Base). Verify this is intentional.`
+    );
+  }
+  // Missing base ID is handled by assertAirtableEnv() — no duplicate throw here.
 }
 
 /**

@@ -1,0 +1,93 @@
+/**
+ * POST /api/admin/integrations/airtable/sync
+ *
+ * Triggers an on-demand Airtable sync for the admin's org only.
+ * Auth: require admin session.
+ */
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
+import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
+import { getAirtableClient } from '@/lib/airtable/client';
+
+const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
+  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',    entity: 'properties' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',   entity: 'responsables' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',     entity: 'units' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_AGUA',     entity: 'service_payments_agua' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_INTERNET', entity: 'service_payments_internet' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_GAS',      entity: 'service_payments_gas' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS_LUZ',      entity: 'service_payments_luz' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',     entity: 'tenants' },
+  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',      entity: 'contracts' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',          entity: 'payments' },
+];
+
+export async function POST(_request: NextRequest): Promise<NextResponse> {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch {
+    return NextResponse.json(
+      { error: { code: 'UNAUTHORIZED', message: 'Admin access required.' } },
+      { status: 401 }
+    );
+  }
+
+  let airtableClient;
+  try {
+    airtableClient = getAirtableClient();
+  } catch {
+    return NextResponse.json(
+      { error: { code: 'AIRTABLE_NOT_CONFIGURED', message: 'Airtable is not configured for this instance.' } },
+      { status: 503 }
+    );
+  }
+
+  const adminClient = createAdminClient();
+  const orgId = ctx.orgId;
+
+  const idMaps: Partial<Record<EntityName, IdMap>> = {};
+  const results: Array<{
+    entity: EntityName;
+    count: number;
+    skippedLinks: number;
+    status: string;
+    errorMessage?: string;
+  }> = [];
+
+  for (const { tableEnvKey, entity } of ENTITY_SYNC_TARGETS) {
+    const tableId = resolveEntityTableEnvKey(tableEnvKey);
+    if (!tableId) {
+      idMaps[entity] = new Map();
+      continue;
+    }
+
+    const result = await syncEntityTable(
+      orgId,
+      entity,
+      tableEnvKey,
+      adminClient,
+      airtableClient,
+      idMaps
+    );
+
+    results.push({
+      entity: result.entity,
+      count: result.count,
+      skippedLinks: result.skippedLinks,
+      status: result.status,
+      errorMessage: result.errorMessage,
+    });
+  }
+
+  return NextResponse.json({
+    triggered: true,
+    orgId,
+    ran_at: new Date().toISOString(),
+    results,
+  });
+}
