@@ -1,7 +1,7 @@
 // Airtable Base: "Untitled Base"
-// Base ID: apphpwPe2olkGRSTkb
-// Found at: https://airtable.com/apphpwPe2olkGRSTkb/...
-// Set AIRTABLE_BASE_ID=apphpwPe2olkGRSTkb in your environment.
+// Base ID: apphwPe2oIkGRSTkb
+// Found at: https://airtable.com/apphwPe2oIkGRSTkb/...
+// Set AIRTABLE_BASE_ID=apphwPe2oIkGRSTkb in your environment.
 
 /**
  * Airtable env validation — server-only.
@@ -112,7 +112,7 @@ export function assertAirtableEnv(): AirtableEnv {
 }
 
 /** Known Airtable base ID for this project (Untitled Base). */
-const EXPECTED_BASE_ID = 'apphpwPe2olkGRSTkb';
+const EXPECTED_BASE_ID = 'apphwPe2oIkGRSTkb';
 
 /**
  * Validates that AIRTABLE_BASE_ID matches the expected base for this project.

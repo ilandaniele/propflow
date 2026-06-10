@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { assertAirtableBase, assertAirtableEnv, AirtableNotConfiguredError } from '@/lib/airtable/env';
 
-const EXPECTED_BASE_ID = 'apphpwPe2olkGRSTkb';
+const EXPECTED_BASE_ID = 'apphwPe2oIkGRSTkb';
 
 function clearEnv() {
   delete process.env['AIRTABLE_PAT'];
