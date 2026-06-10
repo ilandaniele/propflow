@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 
 interface CsvImportModalProps {
@@ -34,6 +35,7 @@ export function CsvImportModal({
   checkUrl,
   importUrl,
 }: CsvImportModalProps) {
+  const t = useTranslations('csvImport');
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [checking, setChecking] = useState(false);
@@ -77,7 +79,7 @@ export function CsvImportModal({
       const res = await fetch(checkUrl, { method: 'POST', body: fd });
       const data = await res.json();
       if (!res.ok) {
-        setErrors([{ rowNumber: 0, field: 'file', message: data.error?.message ?? 'Error al analizar el archivo.' }]);
+        setErrors([{ rowNumber: 0, field: 'file', message: data.error?.message ?? t('errorParsing') }]);
         setRowsValid(0); setRowsInvalid(1);
       } else {
         setPreviewRows(data.preview_rows ?? []);
@@ -87,7 +89,7 @@ export function CsvImportModal({
         setRowsInvalid(data.rows_invalid ?? 0);
       }
     } catch {
-      setErrors([{ rowNumber: 0, field: 'file', message: 'Error de red al verificar el archivo.' }]);
+      setErrors([{ rowNumber: 0, field: 'file', message: t('errorNetwork') }]);
     } finally {
       setChecking(false);
     }
@@ -125,7 +127,7 @@ export function CsvImportModal({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-base font-semibold text-slate-900">Importar CSV</h2>
+          <h2 className="text-base font-semibold text-slate-900">{t('title')}</h2>
           <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
         </div>
 
@@ -135,15 +137,15 @@ export function CsvImportModal({
           {/* Step: upload */}
           {step === 'upload' && (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600">Selecciona un archivo CSV para importar pagos.</p>
+              <p className="text-sm text-slate-600">{t('selectFile')}</p>
               <div
                 className="border-2 border-dashed border-slate-200 rounded-lg p-8 text-center cursor-pointer hover:border-brand-400 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); handleFileSelect(e.dataTransfer.files[0] ?? null); }}
               >
-                <p className="text-slate-400 text-sm">Arrastra un archivo aquí o haz clic para seleccionar</p>
-                <p className="text-xs text-slate-300 mt-1">Solo archivos .csv · máx. 5 MB</p>
+                <p className="text-slate-400 text-sm">{t('dragHint')}</p>
+                <p className="text-xs text-slate-300 mt-1">{t('fileLimit')}</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -159,13 +161,13 @@ export function CsvImportModal({
           {step === 'preview' && (
             <div className="space-y-4">
               {checking ? (
-                <p className="text-sm text-slate-500 animate-pulse">Analizando archivo...</p>
+                <p className="text-sm text-slate-500 animate-pulse">{t('analyzing')}</p>
               ) : (
                 <>
                   <div className="flex gap-4 text-sm">
-                    <span className="text-green-700 font-medium">{rowsValid} filas válidas</span>
-                    {rowsInvalid > 0 && <span className="text-red-700 font-medium">{rowsInvalid} filas inválidas</span>}
-                    {warnings.length > 0 && <span className="text-yellow-700">{warnings.length} advertencias</span>}
+                    <span className="text-green-700 font-medium">{t('validRows', { count: rowsValid })}</span>
+                    {rowsInvalid > 0 && <span className="text-red-700 font-medium">{t('invalidRows', { count: rowsInvalid })}</span>}
+                    {warnings.length > 0 && <span className="text-yellow-700">{t('warnings', { count: warnings.length })}</span>}
                   </div>
 
                   {errors.length > 0 && (
@@ -174,14 +176,14 @@ export function CsvImportModal({
                         className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-red-700"
                         onClick={() => setErrorsExpanded(e => !e)}
                       >
-                        <span>{errors.length} error(es) encontrados</span>
+                        <span>{t('errorsFound', { count: errors.length })}</span>
                         <span>{errorsExpanded ? '▲' : '▼'}</span>
                       </button>
                       {errorsExpanded && (
                         <ul className="px-4 pb-3 space-y-1 max-h-40 overflow-y-auto">
                           {errors.map((e, i) => (
                             <li key={i} className="text-xs text-red-700">
-                              {e.rowNumber > 0 ? `Fila ${e.rowNumber} — ` : ''}{e.field}: {e.message}
+                              {e.rowNumber > 0 ? t('rowPrefix', { row: e.rowNumber }) : ''}{e.field}: {e.message}
                             </li>
                           ))}
                         </ul>
@@ -194,11 +196,11 @@ export function CsvImportModal({
                       <table className="w-full text-xs">
                         <thead className="bg-slate-50">
                           <tr>
-                            <th className="px-3 py-2 text-left text-slate-500">#</th>
-                            <th className="px-3 py-2 text-left text-slate-500">Fecha</th>
-                            <th className="px-3 py-2 text-right text-slate-500">Monto</th>
-                            <th className="px-3 py-2 text-left text-slate-500">Estado</th>
-                            <th className="px-3 py-2 text-left text-slate-500">Referencia</th>
+                            <th className="px-3 py-2 text-left text-slate-500">{t('previewCols.row')}</th>
+                            <th className="px-3 py-2 text-left text-slate-500">{t('previewCols.date')}</th>
+                            <th className="px-3 py-2 text-right text-slate-500">{t('previewCols.amount')}</th>
+                            <th className="px-3 py-2 text-left text-slate-500">{t('previewCols.status')}</th>
+                            <th className="px-3 py-2 text-left text-slate-500">{t('previewCols.reference')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -224,7 +226,7 @@ export function CsvImportModal({
           {step === 'progress' && (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-brand-600 border-t-transparent mx-auto mb-4" />
-              <p className="text-sm text-slate-600">Importando registros...</p>
+              <p className="text-sm text-slate-600">{t('importing')}</p>
             </div>
           )}
 
@@ -232,12 +234,12 @@ export function CsvImportModal({
           {step === 'result' && result && (
             <div className="space-y-4">
               <div className="rounded-lg bg-green-50 border border-green-200 p-4">
-                <p className="text-sm font-medium text-green-800 mb-3">Importación completada</p>
+                <p className="text-sm font-medium text-green-800 mb-3">{t('completed')}</p>
                 <dl className="grid grid-cols-2 gap-2 text-sm">
-                  <div><dt className="text-slate-500">Creados</dt><dd className="font-medium text-green-700">{result.created}</dd></div>
-                  <div><dt className="text-slate-500">Actualizados</dt><dd className="font-medium text-blue-700">{result.updated}</dd></div>
-                  <div><dt className="text-slate-500">Omitidos</dt><dd className="font-medium text-slate-700">{result.skipped}</dd></div>
-                  <div><dt className="text-slate-500">Fallidos</dt><dd className="font-medium text-red-700">{result.failed}</dd></div>
+                  <div><dt className="text-slate-500">{t('created')}</dt><dd className="font-medium text-green-700">{result.created}</dd></div>
+                  <div><dt className="text-slate-500">{t('updated')}</dt><dd className="font-medium text-blue-700">{result.updated}</dd></div>
+                  <div><dt className="text-slate-500">{t('skipped')}</dt><dd className="font-medium text-slate-700">{result.skipped}</dd></div>
+                  <div><dt className="text-slate-500">{t('failed')}</dt><dd className="font-medium text-red-700">{result.failed}</dd></div>
                 </dl>
               </div>
             </div>
@@ -246,17 +248,17 @@ export function CsvImportModal({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
-          <Button variant="secondary" onClick={handleClose}>Cerrar</Button>
+          <Button variant="secondary" onClick={handleClose}>{t('close')}</Button>
           {step === 'preview' && !checking && (
             <Button
               onClick={handleImport}
               disabled={hasBlockingErrors || rowsValid === 0}
             >
-              Importar {rowsValid} fila{rowsValid !== 1 ? 's' : ''}
+              {rowsValid !== 1 ? t('importButtonPlural', { count: rowsValid }) : t('importButton', { count: rowsValid })}
             </Button>
           )}
           {step === 'result' && (
-            <Button variant="secondary" onClick={reset}>Importar otro</Button>
+            <Button variant="secondary" onClick={reset}>{t('importAnother')}</Button>
           )}
         </div>
       </div>

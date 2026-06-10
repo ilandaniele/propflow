@@ -120,6 +120,12 @@ vi.mock(
   () => ({ CreateUnitForm: () => React.createElement('div', { 'data-testid': 'create-unit-form' }) }),
 );
 
+// TenantsCsvButtons is a client component using useTranslations; stub it.
+vi.mock(
+  '@/app/dashboard/tenants/TenantsCsvButtons',
+  () => ({ TenantsCsvButtons: () => React.createElement('div', { 'data-testid': 'tenants-csv-buttons' }) }),
+);
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------

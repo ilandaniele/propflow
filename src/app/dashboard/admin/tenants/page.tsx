@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -32,25 +33,6 @@ function syncStatusVariant(s: string | null): 'success' | 'warning' | 'danger' |
   }
 }
 
-function syncStatusLabel(s: string | null): string {
-  switch (s) {
-    case 'synced':       return 'Sincronizado';
-    case 'pending':      return 'Pendiente';
-    case 'failed':       return 'Error';
-    case 'needs_review': return 'Revisar';
-    default:             return s ?? '—';
-  }
-}
-
-function tenantStatusLabel(s: string | null): string {
-  switch (s) {
-    case 'active':   return 'Activo';
-    case 'inactive': return 'Inactivo';
-    case 'pending':  return 'Pendiente';
-    default:         return s ?? '—';
-  }
-}
-
 function tenantStatusVariant(s: string | null): 'success' | 'default' | 'warning' {
   switch (s) {
     case 'active':   return 'success';
@@ -61,6 +43,7 @@ function tenantStatusVariant(s: string | null): 'success' | 'default' | 'warning
 }
 
 export default function AdminTenantsPage() {
+  const t = useTranslations('adminTenants');
   const [tenants, setTenants]       = useState<TenantRow[]>([]);
   const [total, setTotal]           = useState(0);
   const [page, setPage]             = useState(1);
@@ -105,7 +88,7 @@ export default function AdminTenantsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Inquilinos</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{total} total</p>
         </div>
         <div className="flex gap-2">
@@ -113,16 +96,16 @@ export default function AdminTenantsPage() {
             href="/api/admin/tenants/import/template"
             className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           >
-            Descargar Plantilla
+            {t('downloadTemplate')}
           </a>
           <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
-            Importar Inquilinos
+            {t('importTenants')}
           </Button>
           <Link href="/dashboard/admin/imports" className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
-            Ver importaciones
+            {t('viewHistory')}
           </Link>
           <Link href="/dashboard/admin/tenants/new">
-            <Button variant="primary" size="sm">+ Nuevo inquilino</Button>
+            <Button variant="primary" size="sm">+ {t('newTenant')}</Button>
           </Link>
         </div>
       </div>
@@ -131,7 +114,7 @@ export default function AdminTenantsPage() {
       <div className="flex flex-wrap gap-3">
         <input
           type="search"
-          placeholder="Buscar por nombre o email…"
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="flex-1 min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -141,21 +124,21 @@ export default function AdminTenantsPage() {
           onChange={e => setStatus(e.target.value)}
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
-          <option value="">Todos los estados</option>
-          <option value="active">Activo</option>
-          <option value="inactive">Inactivo</option>
-          <option value="pending">Pendiente</option>
+          <option value="">{t('allStatuses')}</option>
+          <option value="active">{t('tenantStatus.active')}</option>
+          <option value="inactive">{t('tenantStatus.inactive')}</option>
+          <option value="pending">{t('tenantStatus.pending')}</option>
         </select>
         <select
           value={syncFilter}
           onChange={e => setSyncFilter(e.target.value)}
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
-          <option value="">Todo sync</option>
-          <option value="synced">Sincronizado</option>
-          <option value="pending">Pendiente</option>
-          <option value="failed">Error</option>
-          <option value="needs_review">Revisar</option>
+          <option value="">{t('allSync')}</option>
+          <option value="synced">{t('syncStatus.synced')}</option>
+          <option value="pending">{t('syncStatus.pending')}</option>
+          <option value="failed">{t('syncStatus.failed')}</option>
+          <option value="needs_review">{t('syncStatus.needs_review')}</option>
         </select>
       </div>
 
@@ -169,53 +152,53 @@ export default function AdminTenantsPage() {
           </div>
         ) : tenants.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-slate-400 text-sm">No hay inquilinos registrados.</p>
+            <p className="text-slate-400 text-sm">{t('noTenants')}</p>
           </div>
         ) : (
-          <table className="w-full" aria-label="Lista de inquilinos">
+          <table className="w-full" aria-label={t('title')}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Nombre</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Email</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Propiedad / Unidad</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Estado</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Sync</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Portal</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colName')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">{t('colEmail')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">{t('colPropertyUnit')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colStatus')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">{t('colSync')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">{t('colPortal')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {tenants.map(t => {
-                const unit = t.units;
+              {tenants.map(tenant => {
+                const unit = tenant.units;
                 const unitLabel = unit
                   ? `${unit.properties?.name ?? ''} — ${unit.label}`
                   : null;
                 return (
                   <tr
-                    key={t.id}
+                    key={tenant.id}
                     className="hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => window.location.href = `/dashboard/admin/tenants/${t.id}`}
+                    onClick={() => window.location.href = `/dashboard/admin/tenants/${tenant.id}`}
                   >
                     <td className="px-5 py-4 font-medium text-slate-900 text-sm">
-                      {t.full_name ?? '—'}
+                      {tenant.full_name ?? '—'}
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">
-                      {t.email ?? <span className="text-slate-300">—</span>}
+                      {tenant.email ?? <span className="text-slate-300">—</span>}
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
-                      {unitLabel ?? <span className="text-slate-300">Sin asignar</span>}
+                      {unitLabel ?? <span className="text-slate-300">{t('unassigned')}</span>}
                     </td>
                     <td className="px-5 py-4">
-                      <Badge variant={tenantStatusVariant(t.tenant_status)}>
-                        {tenantStatusLabel(t.tenant_status)}
+                      <Badge variant={tenantStatusVariant(tenant.tenant_status)}>
+                        {tenant.tenant_status ? t(`tenantStatus.${tenant.tenant_status}` as Parameters<typeof t>[0]) : '—'}
                       </Badge>
                     </td>
                     <td className="px-5 py-4 hidden lg:table-cell">
-                      <Badge variant={syncStatusVariant(t.sync_status)}>
-                        {syncStatusLabel(t.sync_status)}
+                      <Badge variant={syncStatusVariant(tenant.sync_status)}>
+                        {tenant.sync_status ? t(`syncStatus.${tenant.sync_status}` as Parameters<typeof t>[0]) : '—'}
                       </Badge>
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden lg:table-cell">
-                      {t.portal_access ?? <span className="text-slate-300">—</span>}
+                      {tenant.portal_access ?? <span className="text-slate-300">—</span>}
                     </td>
                   </tr>
                 );
@@ -236,7 +219,7 @@ export default function AdminTenantsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-slate-500">
-            Página {page} de {totalPages} — {total} resultados
+            {t('pageInfo', { page, total: totalPages, count: total })}
           </p>
           <div className="flex gap-2">
             <Button
@@ -245,7 +228,7 @@ export default function AdminTenantsPage() {
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
             >
-              Anterior
+              {t('prev')}
             </Button>
             <Button
               variant="ghost"
@@ -253,7 +236,7 @@ export default function AdminTenantsPage() {
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
             >
-              Siguiente
+              {t('next')}
             </Button>
           </div>
         </div>

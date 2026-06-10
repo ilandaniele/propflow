@@ -12,6 +12,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 
@@ -31,6 +32,7 @@ type InviteState =
   | { phase: 'error'; message: string };
 
 export default function InviteAcceptPage() {
+  const t = useTranslations('invite');
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token') ?? '';
@@ -43,19 +45,20 @@ export default function InviteAcceptPage() {
   // On mount: peek at the invitation (public metadata — no auth required)
   useEffect(() => {
     if (!token) {
-      setState({ phase: 'error', message: 'El enlace de invitación no es válido.' });
+      setState({ phase: 'error', message: t('invalidLink') });
       return;
     }
     void fetch(`/api/invite/peek?token=${encodeURIComponent(token)}`)
       .then(r => r.json())
       .then((json: { maskedEmail?: string; orgName?: string; error?: { message?: string } }) => {
         if (json.error || !json.maskedEmail) {
-          setState({ phase: 'error', message: json.error?.message ?? 'Invitación no encontrada o vencida.' });
+          setState({ phase: 'error', message: json.error?.message ?? t('notFound') });
         } else {
           setState({ phase: 'ready', maskedEmail: json.maskedEmail, orgName: json.orgName ?? 'PropFlow' });
         }
       })
-      .catch(() => setState({ phase: 'error', message: 'No se pudo cargar la invitación.' }));
+      .catch(() => setState({ phase: 'error', message: t('loadError') }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // Check if user is already signed in — if so, try to accept immediately
@@ -86,7 +89,7 @@ export default function InviteAcceptPage() {
       setState({ phase: 'done' });
       router.replace(json.redirectTo ?? '/portal');
     } else {
-      setState({ phase: 'error', message: json.error?.message ?? 'No se pudo aceptar la invitación.' });
+      setState({ phase: 'error', message: json.error?.message ?? t('errorAccept') });
     }
   }
 
@@ -108,11 +111,11 @@ export default function InviteAcceptPage() {
       },
     });
     if (error) {
-      setSignInErr('No se pudo iniciar sesión con Google. Intenta de nuevo.');
+      setSignInErr(t('googleError'));
       setState(prev =>
         (prev.phase === 'signing_in')
           ? { phase: 'ready', maskedEmail: prev.maskedEmail, orgName: prev.orgName }
-          : { phase: 'error', message: 'No se pudo iniciar sesión.' }
+          : { phase: 'error', message: t('errorSignIn') }
       );
     }
   }
@@ -128,11 +131,11 @@ export default function InviteAcceptPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setSignInErr(error.message ?? 'Credenciales incorrectas.');
+      setSignInErr(error.message ?? t('errorSignIn'));
       setState(prev =>
         prev.phase === 'signing_in'
           ? { phase: 'ready', maskedEmail: prev.maskedEmail, orgName: prev.orgName }
-          : { phase: 'error', message: 'No se pudo iniciar sesión.' }
+          : { phase: 'error', message: t('errorSignIn') }
       );
       return;
     }
@@ -144,7 +147,7 @@ export default function InviteAcceptPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-slate-500">Cargando...</p>
+          <p className="text-sm text-slate-500">{t('loadingTitle')}</p>
         </div>
       </div>
     );
@@ -154,10 +157,10 @@ export default function InviteAcceptPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
         <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full text-center space-y-4">
-          <h1 className="text-xl font-semibold text-slate-900">Enlace no válido</h1>
+          <h1 className="text-xl font-semibold text-slate-900">{t('invalidLinkTitle')}</h1>
           <p className="text-sm text-slate-600">{state.message}</p>
           <Button variant="primary" onClick={() => router.push('/login')}>
-            Ir a inicio de sesión
+            {t('goToLogin')}
           </Button>
         </div>
       </div>
@@ -169,7 +172,7 @@ export default function InviteAcceptPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-center space-y-2">
           <div className="w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-slate-500">Activando tu acceso...</p>
+          <p className="text-sm text-slate-500">{t('activating')}</p>
         </div>
       </div>
     );
@@ -182,13 +185,13 @@ export default function InviteAcceptPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="bg-white border border-slate-200 rounded-xl p-8 max-w-md w-full space-y-6">
         <div className="text-center space-y-1">
-          <h1 className="text-xl font-semibold text-slate-900">Invitación al portal</h1>
+          <h1 className="text-xl font-semibold text-slate-900">{t('portalTitle')}</h1>
           <p className="text-sm text-slate-500">
-            Has sido invitado a unirte al portal de inquilinos de <strong>{orgName}</strong>.
+            {t('portalDesc', { orgName })}
           </p>
           {maskedEmail && (
             <p className="text-xs text-slate-400 mt-1">
-              Esta invitación fue enviada a <span className="font-mono">{maskedEmail}</span>. Debes iniciar sesión con esa cuenta.
+              {t('emailHint', { maskedEmail })}
             </p>
           )}
         </div>
@@ -207,19 +210,19 @@ export default function InviteAcceptPage() {
             loading={state.phase === 'signing_in'}
             disabled={state.phase === 'signing_in'}
           >
-            Continuar con Google
+            {t('continueGoogle')}
           </Button>
 
           <div className="flex items-center gap-3">
             <hr className="flex-1 border-slate-200" />
-            <span className="text-xs text-slate-400">o con correo y contraseña</span>
+            <span className="text-xs text-slate-400">{t('orWithEmail')}</span>
             <hr className="flex-1 border-slate-200" />
           </div>
 
           <form onSubmit={signInWithEmail} className="space-y-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="email">
-                Correo electrónico
+                {t('fieldEmail')}
               </label>
               <input
                 id="email"
@@ -233,7 +236,7 @@ export default function InviteAcceptPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="password">
-                Contraseña
+                {t('fieldPassword')}
               </label>
               <input
                 id="password"
@@ -252,7 +255,7 @@ export default function InviteAcceptPage() {
               loading={state.phase === 'signing_in'}
               disabled={state.phase === 'signing_in'}
             >
-              Iniciar sesión
+              {t('signIn')}
             </Button>
           </form>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -64,6 +65,7 @@ export default function AdminTenantDetailPage({
 }) {
   const { tenantId } = use(params);
   const router = useRouter();
+  const t = useTranslations('adminTenants');
   const creating = isNew(tenantId);
 
   const [tenant, setTenant]     = useState<TenantDetail | null>(null);
@@ -98,27 +100,27 @@ export default function AdminTenantDetailPage({
       .then(r => r.json())
       .then((json: { tenant?: TenantDetail; error?: unknown }) => {
         if (json.tenant) {
-          const t = json.tenant;
-          setTenant(t);
+          const ten = json.tenant;
+          setTenant(ten);
           setForm({
-            first_name:               t.first_name               ?? '',
-            last_name:                t.last_name                ?? '',
-            email:                    t.email                    ?? '',
-            phone:                    t.phone                    ?? '',
-            dni:                      t.dni                      ?? '',
-            birth_date:               t.birth_date               ?? '',
-            emergency_contact_name:   t.emergency_contact_name   ?? '',
-            emergency_contact_phone:  t.emergency_contact_phone  ?? '',
-            tenant_status:            t.tenant_status            ?? 'pending',
-            notes:                    t.notes                    ?? '',
-            preferred_language:       t.preferred_language       ?? 'es',
-            photo_url:                t.photo_url                ?? '',
+            first_name:               ten.first_name               ?? '',
+            last_name:                ten.last_name                ?? '',
+            email:                    ten.email                    ?? '',
+            phone:                    ten.phone                    ?? '',
+            dni:                      ten.dni                      ?? '',
+            birth_date:               ten.birth_date               ?? '',
+            emergency_contact_name:   ten.emergency_contact_name   ?? '',
+            emergency_contact_phone:  ten.emergency_contact_phone  ?? '',
+            tenant_status:            ten.tenant_status            ?? 'pending',
+            notes:                    ten.notes                    ?? '',
+            preferred_language:       ten.preferred_language       ?? 'es',
+            photo_url:                ten.photo_url                ?? '',
           });
         }
       })
-      .catch(() => setError('No se pudo cargar el inquilino.'))
+      .catch(() => setError(t('errorLoading')))
       .finally(() => setLoading(false));
-  }, [tenantId, creating]);
+  }, [tenantId, creating, t]);
 
   async function handleSendInvite() {
     setInviteError(null);
@@ -134,14 +136,14 @@ export default function AdminTenantDetailPage({
         error?: { message?: string };
       };
       if (!res.ok || !json.invited) {
-        setInviteError(json.error?.message ?? 'Error al enviar la invitación.');
+        setInviteError(json.error?.message ?? t('errorLoading'));
         return;
       }
       setInviteResult({ inviteUrl: json.inviteUrl!, emailSent: json.emailSent ?? false, expiresAt: json.expiresAt! });
       // Reflect portal_access='invited' in local state
       setTenant(prev => prev ? { ...prev, portal_access: 'invited' } : prev);
     } catch {
-      setInviteError('Error de red. Intenta de nuevo.');
+      setInviteError(t('errorLoading'));
     } finally {
       setInviting(false);
     }
@@ -194,7 +196,7 @@ export default function AdminTenantDetailPage({
       };
 
       if (!res.ok) {
-        setError(json.error?.message ?? 'Error al guardar.');
+        setError(json.error?.message ?? t('errorLoading'));
         return;
       }
 
@@ -207,10 +209,10 @@ export default function AdminTenantDetailPage({
         return;
       }
 
-      setSuccess('Cambios guardados correctamente.');
+      setSuccess(t('saveChanges'));
       if (json.tenant) setTenant(json.tenant);
     } catch {
-      setError('Error de red. Intenta de nuevo.');
+      setError(t('errorLoading'));
     } finally {
       setSaving(false);
     }
@@ -225,14 +227,16 @@ export default function AdminTenantDetailPage({
     );
   }
 
-  const pageTitle = creating ? 'Nuevo inquilino' : (tenant?.first_name ? `${tenant.first_name} ${tenant.last_name ?? ''}`.trim() : 'Editar inquilino');
+  const pageTitle = creating
+    ? t('newTenant')
+    : (tenant?.first_name ? `${tenant.first_name} ${tenant.last_name ?? ''}`.trim() : t('editTenant'));
 
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900">{pageTitle}</h1>
         <Button variant="ghost" size="sm" onClick={() => router.back()}>
-          Volver
+          {t('back')}
         </Button>
       </div>
 
@@ -249,19 +253,19 @@ export default function AdminTenantDetailPage({
       )}
       {syncWarning && (
         <div role="alert" className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg px-4 py-3">
-          Los datos se guardaron en PropFlow, pero la sincronizacion con Airtable fallo. Reintenta desde la pagina de integraciones.
+          {t('syncWarning')}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* Section 1: Informacion Personal */}
+        {/* Section 1: Personal Information */}
         <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-          <h2 className="text-base font-semibold text-slate-800">Informacion Personal</h2>
+          <h2 className="text-base font-semibold text-slate-800">{t('sectionPersonal')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="first_name">
-                Nombre(s) <span className="text-red-500">*</span>
+                {t('fieldFirstName')} <span className="text-red-500">*</span>
               </label>
               <input
                 id="first_name"
@@ -275,7 +279,7 @@ export default function AdminTenantDetailPage({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="last_name">
-                Apellido(s) <span className="text-red-500">*</span>
+                {t('fieldLastName')} <span className="text-red-500">*</span>
               </label>
               <input
                 id="last_name"
@@ -289,7 +293,7 @@ export default function AdminTenantDetailPage({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="email">
-                Correo electronico <span className="text-red-500">*</span>
+                {t('fieldEmail')} <span className="text-red-500">*</span>
               </label>
               <input
                 id="email"
@@ -303,7 +307,7 @@ export default function AdminTenantDetailPage({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="phone">
-                Numero celular <span className="text-red-500">*</span>
+                {t('fieldPhone')} <span className="text-red-500">*</span>
               </label>
               <input
                 id="phone"
@@ -317,7 +321,7 @@ export default function AdminTenantDetailPage({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="dni">
-                N° DNI
+                {t('fieldDni')}
               </label>
               <input
                 id="dni"
@@ -330,7 +334,7 @@ export default function AdminTenantDetailPage({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="birth_date">
-                Fecha de nacimiento
+                {t('fieldBirthDate')}
               </label>
               <input
                 id="birth_date"
@@ -347,12 +351,12 @@ export default function AdminTenantDetailPage({
         {/* Photo */}
         {!creating && (
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-            <h2 className="text-base font-semibold text-slate-800">Foto de perfil</h2>
+            <h2 className="text-base font-semibold text-slate-800">{t('sectionPhoto')}</h2>
             <div className="flex items-start gap-4">
               {form.photo_url ? (
                 <img
                   src={form.photo_url}
-                  alt="Foto de perfil"
+                  alt={t('photoAlt')}
                   className="w-16 h-16 rounded-full object-cover border border-slate-200 flex-shrink-0"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
@@ -365,7 +369,7 @@ export default function AdminTenantDetailPage({
               )}
               <div className="flex-1">
                 <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="photo_url">
-                  URL de la foto
+                  {t('photoUrlLabel')}
                 </label>
                 <input
                   id="photo_url"
@@ -376,19 +380,21 @@ export default function AdminTenantDetailPage({
                   placeholder="https://..."
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
-                <p className="text-xs text-slate-400 mt-1">URL pública de la imagen. Se sincroniza con Airtable si el campo "Foto de perfil" existe.</p>
+                <p className="text-xs text-slate-400 mt-1">{t('photoUrlNote')}</p>
               </div>
             </div>
           </section>
         )}
 
-        {/* Section 2: Contacto de Emergencia */}
+        {/* Section 2: Emergency Contact */}
         <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-          <h2 className="text-base font-semibold text-slate-800">Contacto de Emergencia <span className="text-xs font-normal text-slate-400">(opcional)</span></h2>
+          <h2 className="text-base font-semibold text-slate-800">
+            {t('sectionEmergency')} <span className="text-xs font-normal text-slate-400">{t('sectionEmergencyOptional')}</span>
+          </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="emergency_contact_name">
-                Nombre
+                {t('fieldEmergencyName')}
               </label>
               <input
                 id="emergency_contact_name"
@@ -401,7 +407,7 @@ export default function AdminTenantDetailPage({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="emergency_contact_phone">
-                Telefono
+                {t('fieldEmergencyPhone')}
               </label>
               <input
                 id="emergency_contact_phone"
@@ -415,28 +421,28 @@ export default function AdminTenantDetailPage({
           </div>
         </section>
 
-        {/* Section 3: Asignacion de Propiedad (read-only) */}
+        {/* Section 3: Property Assignment (read-only) */}
         {!creating && tenant && (
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-2">
-            <h2 className="text-base font-semibold text-slate-800">Asignacion de Propiedad</h2>
-            <p className="text-xs text-slate-500">La asignacion se gestiona desde el contrato.</p>
+            <h2 className="text-base font-semibold text-slate-800">{t('sectionProperty')}</h2>
+            <p className="text-xs text-slate-500">{t('sectionPropertyNote')}</p>
             {tenant.units ? (
               <p className="text-sm text-slate-700">
                 {tenant.units.properties?.name ?? ''}{tenant.units.properties?.name ? ' — ' : ''}{tenant.units.label}
               </p>
             ) : (
-              <p className="text-sm text-slate-400">Sin asignar</p>
+              <p className="text-sm text-slate-400">{t('unassigned')}</p>
             )}
           </section>
         )}
 
-        {/* Section 4: Estado e Integracion */}
+        {/* Section 4: Status & Integration */}
         <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-          <h2 className="text-base font-semibold text-slate-800">Estado e Integracion</h2>
+          <h2 className="text-base font-semibold text-slate-800">{t('sectionStatus')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="tenant_status">
-                Estado del inquilino
+                {t('fieldTenantStatus')}
               </label>
               <select
                 id="tenant_status"
@@ -445,14 +451,14 @@ export default function AdminTenantDetailPage({
                 onChange={field('tenant_status')}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
-                <option value="pending">Pendiente</option>
-                <option value="active">Activo</option>
-                <option value="inactive">Inactivo</option>
+                <option value="pending">{t('statusPending')}</option>
+                <option value="active">{t('statusActive')}</option>
+                <option value="inactive">{t('statusInactive')}</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="preferred_language">
-                Idioma preferido
+                {t('fieldLanguage')}
               </label>
               <select
                 id="preferred_language"
@@ -461,8 +467,8 @@ export default function AdminTenantDetailPage({
                 onChange={field('preferred_language')}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
-                <option value="es">Espanol</option>
-                <option value="en">Ingles</option>
+                <option value="es">{t('langEs')}</option>
+                <option value="en">{t('langEn')}</option>
               </select>
             </div>
           </div>
@@ -478,16 +484,16 @@ export default function AdminTenantDetailPage({
               </div>
               {tenant.last_synced_at && (
                 <p className="text-xs text-slate-400">
-                  Ultima sincronizacion: {new Date(tenant.last_synced_at).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' })}
+                  {t('lastSync', { date: new Date(tenant.last_synced_at).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) })}
                 </p>
               )}
               {tenant.airtable_external_id && (
                 <p className="text-xs text-slate-400">
-                  Airtable ID: <span className="font-mono">{tenant.airtable_external_id}</span>
+                  {t('airtableId')} <span className="font-mono">{tenant.airtable_external_id}</span>
                 </p>
               )}
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-xs text-slate-500">Acceso portal:</span>
+                <span className="text-xs text-slate-500">{t('portalAccess')}</span>
                 <Badge variant={
                   tenant.portal_access === 'active'      ? 'success' :
                   tenant.portal_access === 'invited'     ? 'info'    :
@@ -502,7 +508,7 @@ export default function AdminTenantDetailPage({
                     disabled={inviting}
                     className="text-xs text-brand-600 hover:underline disabled:opacity-60"
                   >
-                    {inviting ? 'Enviando…' : tenant.portal_access === 'invited' ? 'Reenviar invitacion' : 'Enviar invitacion'}
+                    {inviting ? t('sending') : tenant.portal_access === 'invited' ? t('resendInvite') : t('sendInvite')}
                   </button>
                 )}
               </div>
@@ -512,7 +518,7 @@ export default function AdminTenantDetailPage({
               {inviteResult && (
                 <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
                   <p className="text-xs text-green-700 font-medium">
-                    {inviteResult.emailSent ? 'Invitacion enviada por correo.' : 'Invitacion creada — copia el enlace para compartirlo manualmente.'}
+                    {inviteResult.emailSent ? t('inviteSentEmail') : t('inviteCreatedManual')}
                   </p>
                   <div className="flex items-center gap-2">
                     <input
@@ -525,11 +531,11 @@ export default function AdminTenantDetailPage({
                       onClick={() => void navigator.clipboard.writeText(inviteResult.inviteUrl)}
                       className="text-xs text-brand-600 hover:underline whitespace-nowrap"
                     >
-                      Copiar
+                      {t('copyLink')}
                     </button>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Vence: {new Date(inviteResult.expiresAt).toLocaleDateString('es', { dateStyle: 'medium' })}
+                    {t('inviteExpires', { date: new Date(inviteResult.expiresAt).toLocaleDateString('es', { dateStyle: 'medium' }) })}
                   </p>
                 </div>
               )}
@@ -537,16 +543,16 @@ export default function AdminTenantDetailPage({
           )}
         </section>
 
-        {/* Section 5: Notas internas */}
+        {/* Section 5: Internal notes */}
         <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-          <h2 className="text-base font-semibold text-slate-800">Notas internas</h2>
+          <h2 className="text-base font-semibold text-slate-800">{t('sectionNotes')}</h2>
           <textarea
             id="notes"
             name="notes"
             rows={4}
             value={form.notes}
             onChange={field('notes')}
-            placeholder="Notas solo visibles para el equipo admin…"
+            placeholder={t('notesPlaceholder')}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
           />
         </section>
@@ -554,10 +560,10 @@ export default function AdminTenantDetailPage({
         {/* Submit */}
         <div className="flex justify-end gap-3">
           <Button type="button" variant="secondary" onClick={() => router.back()}>
-            Cancelar
+            {t('cancel')}
           </Button>
           <Button type="submit" variant="primary" loading={saving}>
-            {creating ? 'Crear inquilino' : 'Guardar cambios'}
+            {creating ? t('createTenant') : t('saveChanges')}
           </Button>
         </div>
       </form>

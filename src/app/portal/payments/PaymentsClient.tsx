@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -39,22 +40,6 @@ interface Movement {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const MOVEMENT_LABELS: Record<string, string> = {
-  rent_charge:     'Cargo de renta',
-  payment:         'Pago',
-  partial_payment: 'Pago parcial',
-  deposit:         'Depósito',
-  sanction:        'Penalidad',
-  discount:        'Descuento',
-  adjustment:      'Ajuste',
-  refund:          'Reembolso',
-  other:           'Otro cargo',
-};
-
-function movementLabel(type: string): string {
-  return MOVEMENT_LABELS[type] ?? type;
-}
-
 function statusVariant(status: string): 'warning' | 'success' | 'info' | 'danger' | 'default' {
   switch (status) {
     case 'pending':      return 'warning';
@@ -62,16 +47,6 @@ function statusVariant(status: string): 'warning' | 'success' | 'info' | 'danger
     case 'under_review': return 'info';
     case 'rejected':     return 'danger';
     default:             return 'default';
-  }
-}
-
-function statusLabel(status: string): string {
-  switch (status) {
-    case 'pending':      return 'Pendiente';
-    case 'approved':     return 'Aprobado';
-    case 'under_review': return 'En revisión';
-    case 'rejected':     return 'Rechazado';
-    default:             return status;
   }
 }
 
@@ -87,6 +62,7 @@ function fmtDate(d: string | null): string {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function PaymentsClient() {
+  const t = useTranslations('tenantPayments');
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [total, setTotal] = useState(0);
@@ -159,16 +135,16 @@ export function PaymentsClient() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Mis Pagos</h1>
+        <h1 className="text-xl font-bold text-slate-900">{t('title')}</h1>
         <div className="flex gap-2">
           <a
             href="/api/tenant/payments/import/template"
             className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           >
-            Descargar Plantilla CSV
+            {t('downloadTemplate')}
           </a>
           <Button size="sm" onClick={() => setImportOpen(true)}>
-            Importar CSV
+            {t('importCsv')}
           </Button>
         </div>
       </div>
@@ -179,10 +155,10 @@ export function PaymentsClient() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Total pagado', value: fmtAmount(summary?.total_paid ?? 0, currency), color: 'text-green-600' },
-            { label: 'Pendiente', value: fmtAmount(summary?.total_pending ?? 0, currency), color: 'text-yellow-600' },
-            { label: 'Vencido', value: fmtAmount(summary?.total_overdue ?? 0, currency), color: 'text-red-600' },
-            { label: 'Balance actual', value: fmtAmount(summary?.current_balance ?? 0, currency), color: 'text-slate-900' },
+            { label: t('summaryTotalPaid'),  value: fmtAmount(summary?.total_paid ?? 0, currency),       color: 'text-green-600' },
+            { label: t('summaryPending'),    value: fmtAmount(summary?.total_pending ?? 0, currency),    color: 'text-yellow-600' },
+            { label: t('summaryOverdue'),    value: fmtAmount(summary?.total_overdue ?? 0, currency),    color: 'text-red-600' },
+            { label: t('summaryBalance'),    value: fmtAmount(summary?.current_balance ?? 0, currency),  color: 'text-slate-900' },
           ].map(({ label, value, color }) => (
             <Card key={label} padding="md">
               <p className="text-xs text-slate-500 mb-1">{label}</p>
@@ -196,20 +172,20 @@ export function PaymentsClient() {
       <Card padding="sm">
         <div className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Estado</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('filterStatus')}</label>
             <select
               value={filterStatus}
               onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
               className="text-sm border border-slate-200 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">Todos</option>
-              <option value="pending">Pendiente</option>
-              <option value="approved">Aprobado</option>
-              <option value="under_review">En revisión</option>
+              <option value="">{t('filterAllStatuses')}</option>
+              <option value="pending">{t('paymentStatus.pending')}</option>
+              <option value="approved">{t('paymentStatus.approved')}</option>
+              <option value="under_review">{t('paymentStatus.under_review')}</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Periodo (YYYY-MM)</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('filterPeriod')}</label>
             <input
               type="month"
               value={filterPeriod}
@@ -218,7 +194,7 @@ export function PaymentsClient() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Desde</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('filterFrom')}</label>
             <input
               type="date"
               value={filterDateFrom}
@@ -227,7 +203,7 @@ export function PaymentsClient() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-500 mb-1">Hasta</label>
+            <label className="block text-xs text-slate-500 mb-1">{t('filterTo')}</label>
             <input
               type="date"
               value={filterDateTo}
@@ -240,7 +216,7 @@ export function PaymentsClient() {
               onClick={() => { setFilterStatus(''); setFilterPeriod(''); setFilterDateFrom(''); setFilterDateTo(''); setPage(1); }}
               className="text-xs text-slate-400 hover:text-slate-600 underline"
             >
-              Limpiar filtros
+              {t('clearFilters')}
             </button>
           )}
         </div>
@@ -249,14 +225,14 @@ export function PaymentsClient() {
       {/* Movements table */}
       <Card padding="none">
         <CardHeader className="px-5 pt-5 pb-4">
-          <CardTitle>Movimientos</CardTitle>
-          {total > 0 && <span className="text-xs text-slate-400">{total} registros</span>}
+          <CardTitle>{t('sectionMovements')}</CardTitle>
+          {total > 0 && <span className="text-xs text-slate-400">{t('records', { count: total })}</span>}
         </CardHeader>
         {loadingMovements ? (
           <SkeletonTable rows={5} cols={7} />
         ) : movements.length === 0 ? (
           <div className="px-5 pb-5">
-            <EmptyState title="No hay pagos registrados para este inquilino." description="Los movimientos aparecerán aquí una vez que se registren pagos." />
+            <EmptyState title={t('noPayments')} description={t('noPaymentsDesc')} />
           </div>
         ) : (
           <>
@@ -268,21 +244,21 @@ export function PaymentsClient() {
                       className="px-4 py-3 text-left font-medium text-slate-600 cursor-pointer select-none"
                       onClick={() => toggleSort('paid_at')}
                     >
-                      Fecha <SortIcon col="paid_at" />
+                      {t('colDate')} <SortIcon col="paid_at" />
                     </th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Descripción</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Tipo</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colDescription')}</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colType')}</th>
                     <th
                       className="px-4 py-3 text-right font-medium text-slate-600 cursor-pointer select-none"
                       onClick={() => toggleSort('amount')}
                     >
-                      Debe <SortIcon col="amount" />
+                      {t('colDebit')} <SortIcon col="amount" />
                     </th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600">Haber</th>
-                    <th className="px-4 py-3 text-right font-medium text-slate-600">Saldo</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Estado</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-600">Referencia</th>
-                    <th className="px-4 py-3 text-center font-medium text-slate-600">Acciones</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colCredit')}</th>
+                    <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colBalance')}</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colStatus')}</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colReference')}</th>
+                    <th className="px-4 py-3 text-center font-medium text-slate-600">{t('colActions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -298,7 +274,7 @@ export function PaymentsClient() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {movementLabel(m.movement_type)}
+                        {t(`movementTypes.${m.movement_type}` as Parameters<typeof t>[0]) || m.movement_type}
                       </td>
                       <td className="px-4 py-3 text-right text-red-700 font-medium whitespace-nowrap">
                         {!m.is_credit ? fmtAmount(m.amount, m.currency) : '—'}
@@ -312,7 +288,9 @@ export function PaymentsClient() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant={statusVariant(m.status)}>{statusLabel(m.status)}</Badge>
+                        <Badge variant={statusVariant(m.status)}>
+                          {t(`paymentStatus.${m.status}` as Parameters<typeof t>[0]) || m.status}
+                        </Badge>
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs">{m.reference ?? '—'}</td>
                       <td className="px-4 py-3 text-center">
@@ -321,10 +299,10 @@ export function PaymentsClient() {
                             href={m.receipt_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Descargar comprobante"
+                            title={t('receiptTitle')}
                             className="text-brand-600 hover:text-brand-700 text-xs underline"
                           >
-                            Comprobante
+                            {t('receipt')}
                           </a>
                         ) : (
                           <span className="text-slate-300">—</span>
@@ -340,14 +318,14 @@ export function PaymentsClient() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-5 py-4 border-t border-slate-100">
                 <span className="text-xs text-slate-400">
-                  Página {page} de {totalPages}
+                  {t('pageInfo', { page, total: totalPages })}
                 </span>
                 <div className="flex gap-2">
                   <Button size="sm" variant="secondary" disabled={page === 1} onClick={() => setPage(p => p - 1)}>
-                    Anterior
+                    {t('prev')}
                   </Button>
                   <Button size="sm" variant="secondary" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-                    Siguiente
+                    {t('next')}
                   </Button>
                 </div>
               </div>

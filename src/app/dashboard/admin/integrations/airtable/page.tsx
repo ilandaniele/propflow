@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -44,6 +45,7 @@ function syncLogStatusVariant(s: string): 'success' | 'warning' | 'danger' | 'de
 }
 
 export default function AirtableSyncPage() {
+  const t = useTranslations('airtableIntegration');
   const [status, setStatus]   = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -72,13 +74,13 @@ export default function AirtableSyncPage() {
       const json = await res.json() as { triggered?: boolean; results?: Array<{ entity: string; count: number; status: string }> };
       if (res.ok && json.triggered) {
         const total = (json.results ?? []).reduce((acc, r) => acc + r.count, 0);
-        setSyncResult(`Sincronizacion completada. ${total} registros procesados.`);
+        setSyncResult(t('syncCompleted', { count: total }));
       } else {
-        setSyncResult('Error al iniciar la sincronizacion.');
+        setSyncResult(t('syncError'));
       }
       await fetchStatus();
     } catch {
-      setSyncResult('Error de red. Intenta de nuevo.');
+      setSyncResult(t('networkError'));
     } finally {
       setSyncing(false);
     }
@@ -91,8 +93,8 @@ export default function AirtableSyncPage() {
     <div className="space-y-6 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Integracion Airtable</h1>
-          <p className="text-sm text-slate-500 mt-1">Estado de la sincronizacion con la base de Airtable</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('subtitle')}</p>
         </div>
         <Button
           variant="primary"
@@ -100,7 +102,7 @@ export default function AirtableSyncPage() {
           loading={syncing}
           onClick={handleSync}
         >
-          {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
+          {syncing ? t('syncing') : t('syncNow')}
         </Button>
       </div>
 
@@ -117,19 +119,19 @@ export default function AirtableSyncPage() {
           <Skeleton className="h-32 w-full" />
         </div>
       ) : !status ? (
-        <p className="text-sm text-slate-400">No se pudo cargar el estado de integracion.</p>
+        <p className="text-sm text-slate-400">{t('loadError')}</p>
       ) : (
         <>
-          {/* Section 1: Estado de conexion */}
+          {/* Section 1: Connection status */}
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <h2 className="text-base font-semibold text-slate-800">Estado de conexion</h2>
+            <h2 className="text-base font-semibold text-slate-800">{t('sectionConnection')}</h2>
             <div className="flex items-center gap-3">
               <span
                 className={`w-3 h-3 rounded-full ${status.connectivity.connected ? 'bg-green-500' : 'bg-red-500'}`}
-                aria-label={status.connectivity.connected ? 'Conectado' : 'Sin conexion'}
+                aria-label={status.connectivity.connected ? t('connected') : t('disconnected')}
               />
               <span className="text-sm font-medium text-slate-700">
-                {status.connectivity.connected ? 'Conectado' : 'Sin conexion'}
+                {status.connectivity.connected ? t('connected') : t('disconnected')}
               </span>
               {status.connectivity.latency_ms !== null && (
                 <span className="text-xs text-slate-400">{status.connectivity.latency_ms} ms</span>
@@ -139,27 +141,27 @@ export default function AirtableSyncPage() {
               <p className="text-xs text-red-500">{status.connectivity.error}</p>
             )}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <dt className="text-slate-500">Base</dt>
+              <dt className="text-slate-500">{t('fieldBase')}</dt>
               <dd className="text-slate-700 font-medium">{status.base_name ?? '—'}</dd>
-              <dt className="text-slate-500">Base ID</dt>
+              <dt className="text-slate-500">{t('fieldBaseId')}</dt>
               <dd className="text-slate-700 font-mono text-xs">{status.base_id ?? '—'}</dd>
-              <dt className="text-slate-500">Verificado</dt>
+              <dt className="text-slate-500">{t('fieldVerified')}</dt>
               <dd className="text-slate-700 text-xs">
                 {new Date(status.checked_at).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' })}
               </dd>
             </dl>
           </section>
 
-          {/* Section 2: Estadisticas de inquilinos */}
+          {/* Section 2: Tenant stats */}
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <h2 className="text-base font-semibold text-slate-800">Estadisticas de inquilinos</h2>
-            <p className="text-xs text-slate-500">{totalTenants} inquilinos en total</p>
+            <h2 className="text-base font-semibold text-slate-800">{t('sectionStats')}</h2>
+            <p className="text-xs text-slate-500">{t('totalTenants', { count: totalTenants })}</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {[
-                { key: 'synced',       label: 'Sincronizados', variant: 'success' as const },
-                { key: 'pending',      label: 'Pendientes',    variant: 'warning' as const },
-                { key: 'failed',       label: 'Con error',     variant: 'danger'  as const },
-                { key: 'needs_review', label: 'Por revisar',   variant: 'info'    as const },
+                { key: 'synced',       label: t('statSynced'),      variant: 'success' as const },
+                { key: 'pending',      label: t('statPending'),     variant: 'warning' as const },
+                { key: 'failed',       label: t('statFailed'),      variant: 'danger'  as const },
+                { key: 'needs_review', label: t('statNeedsReview'), variant: 'info'    as const },
               ].map(({ key, label, variant }) => (
                 <div key={key} className="text-center p-3 bg-slate-50 rounded-lg">
                   <p className="text-2xl font-bold text-slate-800">{syncStats[key] ?? 0}</p>
@@ -169,19 +171,19 @@ export default function AirtableSyncPage() {
             </div>
           </section>
 
-          {/* Section 3: Ultimas sincronizaciones */}
+          {/* Section 3: Recent syncs */}
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <h2 className="text-base font-semibold text-slate-800">Ultimas sincronizaciones</h2>
+            <h2 className="text-base font-semibold text-slate-800">{t('sectionRecentSync')}</h2>
             {status.recent_sync_logs.length === 0 ? (
-              <p className="text-sm text-slate-400">Sin registros de sincronizacion.</p>
+              <p className="text-sm text-slate-400">{t('noSyncLogs')}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    <th className="text-left py-2 text-xs text-slate-500 font-semibold">Tabla</th>
-                    <th className="text-left py-2 text-xs text-slate-500 font-semibold">Estado</th>
-                    <th className="text-right py-2 text-xs text-slate-500 font-semibold">Registros</th>
-                    <th className="text-right py-2 text-xs text-slate-500 font-semibold hidden sm:table-cell">Fecha</th>
+                    <th className="text-left py-2 text-xs text-slate-500 font-semibold">{t('colTable')}</th>
+                    <th className="text-left py-2 text-xs text-slate-500 font-semibold">{t('colStatus')}</th>
+                    <th className="text-right py-2 text-xs text-slate-500 font-semibold">{t('colRecords')}</th>
+                    <th className="text-right py-2 text-xs text-slate-500 font-semibold hidden sm:table-cell">{t('colDate')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -202,10 +204,10 @@ export default function AirtableSyncPage() {
             )}
           </section>
 
-          {/* Section 4: Variables de entorno */}
+          {/* Section 4: Environment variables */}
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-3">
-            <h2 className="text-base font-semibold text-slate-800">Variables de entorno</h2>
-            <p className="text-xs text-slate-500">Solo se muestran los nombres, nunca los valores.</p>
+            <h2 className="text-base font-semibold text-slate-800">{t('sectionEnvVars')}</h2>
+            <p className="text-xs text-slate-500">{t('envVarsNote')}</p>
             <ul className="space-y-1">
               {status.env_vars.map(v => (
                 <li key={v.name} className="flex items-center gap-2 text-sm">
@@ -213,7 +215,7 @@ export default function AirtableSyncPage() {
                   <span className={`font-mono text-xs ${v.configured ? 'text-slate-700' : 'text-slate-400'}`}>
                     {v.name}
                   </span>
-                  {!v.configured && <span className="text-xs text-slate-400">(no configurado)</span>}
+                  {!v.configured && <span className="text-xs text-slate-400">{t('envNotConfigured')}</span>}
                 </li>
               ))}
             </ul>
