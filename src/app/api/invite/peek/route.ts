@@ -12,13 +12,9 @@
 
 export const dynamic = 'force-dynamic';
 
-import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-
-function sha256(input: string): string {
-  return crypto.createHash('sha256').update(input, 'utf8').digest('hex');
-}
+import { sha256 } from '@/lib/crypto/hash';
 
 function maskEmail(email: string): string {
   const [local, domain] = email.split('@');
@@ -47,10 +43,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   if (invitation.status !== 'pending' || new Date(invitation.expires_at) < new Date()) {
-    const msg = invitation.status === 'accepted'
-      ? 'Esta invitación ya fue aceptada.'
-      : 'Esta invitación ha vencido o ya no es válida.';
-    return NextResponse.json({ error: { code: 'INVALID_TOKEN', message: msg } }, { status: 410 });
+    return NextResponse.json({ error: { code: 'INVALID_TOKEN', message: 'Esta invitación ha vencido o ya no es válida.' } }, { status: 410 });
   }
 
   // Fetch org name

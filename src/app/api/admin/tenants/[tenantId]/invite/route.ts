@@ -20,12 +20,9 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/notifications/email';
 import { log } from '@/lib/log';
+import { sha256 } from '@/lib/crypto/hash';
 
 const INVITE_TTL_DAYS = 7;
-
-function sha256(input: string): string {
-  return crypto.createHash('sha256').update(input, 'utf8').digest('hex');
-}
 
 function buildInviteEmail(opts: {
   inviteUrl: string;

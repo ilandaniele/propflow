@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS tenant_invitations_tenant_idx ON tenant_invitations (
 ALTER TABLE tenant_invitations ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "org members read own invitations" ON tenant_invitations FOR SELECT
-  USING (org_id IN (SELECT org_id FROM profiles WHERE id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 CREATE POLICY "service_role full access tenant_invitations" ON tenant_invitations FOR ALL TO service_role
   USING (true) WITH CHECK (true);

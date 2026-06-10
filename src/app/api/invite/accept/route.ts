@@ -22,20 +22,16 @@
 
 export const dynamic = 'force-dynamic';
 
-import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { log } from '@/lib/log';
+import { sha256 } from '@/lib/crypto/hash';
 
 const BodySchema = z.object({
   token: z.string().min(1).max(512),
 });
-
-function sha256(input: string): string {
-  return crypto.createHash('sha256').update(input, 'utf8').digest('hex');
-}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // 1. Parse + validate body
