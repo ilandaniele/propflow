@@ -209,10 +209,15 @@ export async function syncEntityTable(
             airtable_synced_at: string | null;
             sync_status: string | null;
           }>) {
+            // Grace window: the upsert itself bumps updated_at (DB trigger) a few ms
+            // AFTER airtable_synced_at is stamped in the normalizer, so a strict
+            // comparison would flag every row on every re-sync. Only flag edits
+            // that happened meaningfully later (> 60s) than the last sync.
+            const GRACE_MS = 60_000;
             if (
               t.updated_at &&
               t.airtable_synced_at &&
-              new Date(t.updated_at) > new Date(t.airtable_synced_at)
+              new Date(t.updated_at).getTime() > new Date(t.airtable_synced_at).getTime() + GRACE_MS
             ) {
               needsReviewIds.add(t.airtable_external_id);
             }
