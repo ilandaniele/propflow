@@ -39,7 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Get profile for email security check + tenant record
   const { data: profile } = await admin.from('profiles').select('email').eq('id', ctx.userId).single();
-  const tenantEmail = profile?.email ?? '';
+  const tenantEmail = (profile?.email ?? '').trim().toLowerCase();
 
   const { data: tenantRecord } = await admin
     .from('tenants').select('id').eq('profile_id', ctx.userId).eq('org_id', ctx.orgId).single();

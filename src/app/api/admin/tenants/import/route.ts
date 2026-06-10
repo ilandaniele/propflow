@@ -83,9 +83,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   for (const row of validRows) {
     try {
-      const existing = row.external_tenant_id
-        ? extIdMap[row.external_tenant_id]
-        : emailMap[row.email];
+      const byExtId = row.external_tenant_id ? extIdMap[row.external_tenant_id] : undefined;
+      const byEmail = row.email ? emailMap[row.email] : undefined;
+
+      // Detect collision: both identifiers present but resolve to different tenants
+      if (byExtId && byEmail && byExtId.id !== byEmail.id) {
+        console.warn(
+          '[api/admin/tenants/import] external_tenant_id and email resolve to different tenants — skipping row',
+          { external_tenant_id: row.external_tenant_id, email: row.email, extIdTenant: byExtId.id, emailTenant: byEmail.id }
+        );
+        skipped++;
+        continue;
+      }
+
+      const existing = byExtId ?? byEmail;
 
       const tenantPayload = {
         org_id: ctx.orgId,
