@@ -409,7 +409,7 @@ describe('POST /api/cron/airtable-sync — AC5: unresolved link → null FK, con
     const tenantUpsert = upsertCalls.find(c => c.table === 'tenants');
     expect(tenantUpsert).toBeDefined();
     const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
-    expect(row['property_id']).toBeNull();
+    expect(row['property_id']).toBeUndefined(); // tenants has no property_id column — key intentionally absent
   });
 });
 
@@ -689,7 +689,7 @@ describe('POST /api/cron/airtable-sync — AC4: unit_id resolution via unitMap',
     // The Residentes table no longer carries Propiedad or unit-label links;
     // property_id for a tenant is resolved indirectly via their contract in the contracts sync.
     expect(row['unit_id']).toBeNull();
-    expect(row['property_id']).toBeNull();
+    expect(row['property_id']).toBeUndefined(); // tenants has no property_id column — key intentionally absent
   });
 
   it('sets unit_id to null and does not abort when unit label has no match in unitMap', async () => {

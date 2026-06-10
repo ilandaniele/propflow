@@ -47,16 +47,14 @@ export function normalizePortafolio(record: AirtableRecord, orgId: string) {
     typeof f[PORTAFOLIO_FIELD.STATUS] === 'string'
       ? (f[PORTAFOLIO_FIELD.STATUS] as string).toLowerCase()
       : null;
-  // Estado is a formula in the new schema (e.g. "Disponible", "Ocupado").
-  // Tolerate any unexpected value by returning null (DB column is nullable).
+  // Estado is a formula in the new schema and may include emoji/gender variants
+  // (e.g. "🟢 Disponible", "Ocupada"). DB constraint: status TEXT NOT NULL
+  // CHECK (status IN ('vacant','occupied')) — substring-match and always emit
+  // one of the two allowed values ('vacant' is the DB default).
   const status =
-    rawStatus === 'disponible' || rawStatus === 'available'
-      ? 'available'
-      : rawStatus === 'ocupado' || rawStatus === 'occupied'
+    rawStatus !== null && (rawStatus.includes('ocup') || rawStatus.includes('occupied'))
       ? 'occupied'
-      : rawStatus === 'mantenimiento' || rawStatus === 'maintenance'
-      ? 'maintenance'
-      : null;
+      : 'vacant';
 
   const rawM2 = f[PORTAFOLIO_FIELD.AREA_M2];
   const area_m2 =
