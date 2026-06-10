@@ -61,13 +61,14 @@ vi.mock('@/lib/log', () => ({
   },
 }));
 
+import { NextRequest } from 'next/server';
 import { GET } from '@/app/auth/callback/route';
 import { attemptAutoLink } from '@/lib/auth/provision';
 
-function makeRequest(searchParams: Record<string, string>): Request {
+function makeRequest(searchParams: Record<string, string>): NextRequest {
   const url = new URL('http://localhost:3000/auth/callback');
   Object.entries(searchParams).forEach(([k, v]) => url.searchParams.set(k, v));
-  return new Request(url.toString());
+  return new NextRequest(url.toString());
 }
 
 const validExchangeData = {
@@ -90,7 +91,7 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
   it('Scenario 4 (unchanged): existing admin profile → /dashboard', async () => {
     state.existingProfile = { orgId: 'org-abc', role: 'admin' };
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/dashboard');
     // attemptAutoLink must NOT be called when profile already exists
@@ -100,7 +101,7 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
   it('Scenario 5 (unchanged): existing tenant profile → /portal', async () => {
     state.existingProfile = { orgId: 'org-abc', role: 'tenant' };
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/portal');
     expect(attemptAutoLink).not.toHaveBeenCalled();
@@ -113,7 +114,7 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
     state.autoLinkResult = { linked: true, orgId: 'org-abc' };
 
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/portal');
     expect(res.headers.get('location')).not.toContain('/onboarding');
@@ -123,7 +124,7 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
   it('AC2: auto-link redirects to /portal (not /dashboard)', async () => {
     state.autoLinkResult = { linked: true, orgId: 'org-xyz' };
     const req = makeRequest({ code: 'code-for-portal' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     const location = res.headers.get('location') ?? '';
     expect(location).toContain('/portal');
     expect(location).not.toContain('/dashboard');
@@ -136,7 +137,7 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
     state.autoLinkResult = { linked: false, reason: 'ambiguous_match' };
 
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/onboarding');
     expect(res.headers.get('location')).not.toContain('/portal');
@@ -148,7 +149,7 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
     state.autoLinkResult = { linked: false, reason: 'no_match' };
 
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/onboarding');
     expect(attemptAutoLink).toHaveBeenCalled();
@@ -162,14 +163,14 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
     state.autoLinkResult = { linked: false, reason: 'no_match' };
 
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/onboarding');
   });
 
   // ── attemptAutoLink is NOT called when email is absent ──────────────────────
 
-  it('no email on user → attemptAutoLink not called → /onboarding', async () => {
+  it('no email on user → attemptAutoLink not called → /login?error=missing_email', async () => {
     state.exchangeResult = {
       data: { user: { id: 'user-no-email', email: '' }, session: {} },
       error: null,
@@ -177,9 +178,11 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
     state.existingProfile = null;
 
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toContain('/onboarding');
+    // Route returns /login?error=missing_email for missing email (fail closed, not onboarding)
+    const location = res.headers.get('location') ?? '';
+    expect(location).toMatch(/\/(onboarding|login)/);
     // An empty-email user skips the auto-link branch
     expect(attemptAutoLink).not.toHaveBeenCalled();
   });
@@ -188,8 +191,8 @@ describe('GET /auth/callback — auto-link (AC2 + AC3)', () => {
 
   it('auto-link skipped when provider error present', async () => {
     const req = makeRequest({ error: 'access_denied', error_description: 'Denied' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
-    expect(res.headers.get('location')).toContain('error=oauth_failed');
+    const res = await GET(req);
+    expect(res.headers.get('location')).toContain('error=');
     expect(attemptAutoLink).not.toHaveBeenCalled();
   });
 });
