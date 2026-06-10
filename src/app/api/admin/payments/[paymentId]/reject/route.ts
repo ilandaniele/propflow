@@ -1,7 +1,7 @@
 /**
  * PATCH /api/admin/payments/[paymentId]/reject
- * Sets payment status to 'pending' with a rejection note.
- * Note: 'rejected' is not in the CHECK constraint, so we reset to 'pending'.
+ * Sets payment status to 'rejected' with an optional rejection note.
+ * Migration 000050 added 'rejected' to the payments_status_check constraint.
  */
 
 export const dynamic = 'force-dynamic';
@@ -44,7 +44,7 @@ export async function PATCH(
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Payment not found.' } }, { status: 404 });
   }
 
-  const updatePayload: Record<string, unknown> = { status: 'pending' };
+  const updatePayload: Record<string, unknown> = { status: 'rejected' };
   if (reason) updatePayload['notes'] = reason;
 
   const { error } = await admin

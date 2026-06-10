@@ -55,11 +55,12 @@ function movementLabel(type: string): string {
   return MOVEMENT_LABELS[type] ?? type;
 }
 
-function statusVariant(status: string): 'warning' | 'success' | 'info' | 'default' {
+function statusVariant(status: string): 'warning' | 'success' | 'info' | 'danger' | 'default' {
   switch (status) {
     case 'pending':      return 'warning';
     case 'approved':     return 'success';
     case 'under_review': return 'info';
+    case 'rejected':     return 'danger';
     default:             return 'default';
   }
 }
@@ -69,6 +70,7 @@ function statusLabel(status: string): string {
     case 'pending':      return 'Pendiente';
     case 'approved':     return 'Aprobado';
     case 'under_review': return 'En revisión';
+    case 'rejected':     return 'Rechazado';
     default:             return status;
   }
 }
