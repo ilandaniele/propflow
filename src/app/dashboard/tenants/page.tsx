@@ -11,6 +11,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { ClickableRow } from '@/components/ui/ClickableRow';
 import { computePastDueBalance } from '@/lib/finance/kpis';
 import { CreateTenantForm } from './CreateTenantForm';
+import { TenantsCsvButtons } from './TenantsCsvButtons';
 
 export const metadata: Metadata = { title: 'Tenants' };
 
@@ -47,7 +48,10 @@ export default async function TenantsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Tenants</h1>
           <p className="text-sm text-slate-500 mt-1">{list.length} total</p>
         </div>
-        <CreateTenantForm />
+        <div className="flex items-center gap-2">
+          <TenantsCsvButtons />
+          <CreateTenantForm />
+        </div>
       </div>
 
       {/* Aggregate KPI header */}

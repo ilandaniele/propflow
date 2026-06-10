@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill } from '@/components/ui/Badge';
 import { ApprovePaymentButton } from './ApprovePaymentButton';
 import { CreateChargeForm } from './CreateChargeForm';
+import { AdminPaymentsCsvButtons } from './AdminPaymentsCsvButtons';
 
 export const metadata: Metadata = { title: 'Payments' };
 
@@ -34,7 +35,10 @@ export default async function PaymentsPage() {
             <p className="text-sm text-amber-600 font-medium mt-1">{pendingCount} pending approval</p>
           )}
         </div>
-        <CreateChargeForm contracts={contracts as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
+        <div className="flex items-center gap-2">
+          <AdminPaymentsCsvButtons />
+          <CreateChargeForm contracts={contracts as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
+        </div>
       </div>
 
       {payments.length === 0 ? (
