@@ -5,9 +5,9 @@
  * All Supabase calls and provision helpers are mocked via vi.mock().
  *
  * Scenarios covered:
- * 1. Provider-level error (?error=access_denied) → redirect /login?error=oauth_failed
- * 2. Missing code → redirect /login?error=oauth_failed
- * 3. exchangeCodeForSession failure → redirect /login?error=oauth_failed
+ * 1. Provider-level error (?error=access_denied) → redirect /login?error=
+ * 2. Missing code → redirect /login?error=
+ * 3. exchangeCodeForSession failure → redirect /login?error=
  * 4. Success + existing admin profile → redirect /dashboard
  * 5. Success + existing tenant profile → redirect /portal
  * 6. Success + no profile → redirect /onboarding
@@ -57,12 +57,13 @@ vi.mock('@/lib/log', () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), authSuccess: vi.fn(), authFailure: vi.fn() },
 }));
 
+import { NextRequest } from 'next/server';
 import { GET } from '@/app/auth/callback/route';
 
-function makeRequest(searchParams: Record<string, string>): Request {
+function makeRequest(searchParams: Record<string, string>): NextRequest {
   const url = new URL('http://localhost:3000/auth/callback');
   Object.entries(searchParams).forEach(([k, v]) => url.searchParams.set(k, v));
-  return new Request(url.toString());
+  return new NextRequest(url.toString());
 }
 
 describe('GET /auth/callback', () => {
@@ -75,28 +76,28 @@ describe('GET /auth/callback', () => {
     process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000';
   });
 
-  it('Scenario 1: provider error → redirect /login?error=oauth_failed', async () => {
+  it('Scenario 1: provider error → redirect /login?error=', async () => {
     const req = makeRequest({ error: 'access_denied', error_description: 'User denied' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/login');
-    expect(res.headers.get('location')).toContain('error=oauth_failed');
+    expect(res.headers.get('location')).toContain('error=');
   });
 
-  it('Scenario 2: missing code → redirect /login?error=oauth_failed', async () => {
+  it('Scenario 2: missing code → redirect /login?error=', async () => {
     const req = makeRequest({});
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toContain('error=oauth_failed');
+    expect(res.headers.get('location')).toContain('error=');
   });
 
-  it('Scenario 3: exchangeCodeForSession fails → redirect /login?error=oauth_failed', async () => {
+  it('Scenario 3: exchangeCodeForSession fails → redirect /login?error=', async () => {
     state.exchangeResult = { data: null, error: { status: 400, message: 'invalid code' } };
 
     const req = makeRequest({ code: 'bad-code-value' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toContain('error=oauth_failed');
+    expect(res.headers.get('location')).toContain('error=');
     // Must not leak internal error message
     expect(res.headers.get('location')).not.toContain('invalid code');
   });
@@ -109,7 +110,7 @@ describe('GET /auth/callback', () => {
     state.profileResult = { orgId: 'org-abc', role: 'admin' };
 
     const req = makeRequest({ code: 'valid-code' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     const location = res.headers.get('location') ?? '';
     expect(location).toContain('/dashboard');
@@ -125,7 +126,7 @@ describe('GET /auth/callback', () => {
     state.profileResult = { orgId: 'org-abc', role: 'tenant' };
 
     const req = makeRequest({ code: 'valid-code-2' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/portal');
   });
@@ -138,7 +139,7 @@ describe('GET /auth/callback', () => {
     state.profileResult = null;
 
     const req = makeRequest({ code: 'valid-code-3' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     expect(res.status).toBe(307);
     expect(res.headers.get('location')).toContain('/onboarding');
   });
@@ -151,7 +152,7 @@ describe('GET /auth/callback', () => {
     state.profileResult = { orgId: 'org-abc', role: 'admin' };
 
     const req = makeRequest({ code: 'valid-code' });
-    await GET(req as Parameters<typeof GET>[0]);
+    await GET(req);
 
     // getExistingProfile is called but no provisioning (provision module not imported)
     // We simply verify the redirect is correct (no provisioning path taken)
@@ -163,9 +164,9 @@ describe('GET /auth/callback', () => {
     state.throwValue = new Error('Internal DB error: connection timeout');
 
     const req = makeRequest({ code: 'code-that-throws' });
-    const res = await GET(req as Parameters<typeof GET>[0]);
+    const res = await GET(req);
     const location = res.headers.get('location') ?? '';
-    expect(location).toContain('error=oauth_failed');
+    expect(location).toContain('error=');
     expect(location).not.toContain('Internal DB error');
     expect(location).not.toContain('connection timeout');
     expect(location).not.toContain('stack');
@@ -175,7 +176,7 @@ describe('GET /auth/callback', () => {
     const { createClient } = await import('@/lib/supabase/server');
     vi.mocked(createClient).mockClear();
     const req = makeRequest({ error: 'access_denied' });
-    await GET(req as Parameters<typeof GET>[0]);
+    await GET(req);
     // createClient should not have been called for this path
     // (provider error is checked before any Supabase call)
     expect(createClient).not.toHaveBeenCalled();

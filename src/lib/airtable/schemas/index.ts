@@ -94,6 +94,9 @@ export const NormalizedTenantSchema = z.object({
   // Resolved link fields — populated by link resolver after normalisation
   property_id:           z.string().uuid().nullable().optional(),
   unit_id:               z.string().uuid().nullable().optional(),
+  // Profile photo URL — mapped from Airtable "Foto de perfil" attachment field
+  // Only present if the field exists in Airtable; never clobbers existing photo_url with null
+  photo_url:             z.string().nullable().optional(),
   // Raw linked-record id — used by link resolver, not written to DB
   _airtable_property_ext_id: z.string().nullable().optional(),
   _airtable_unit_label:      z.string().nullable().optional(),

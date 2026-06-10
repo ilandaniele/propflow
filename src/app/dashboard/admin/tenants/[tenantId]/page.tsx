@@ -25,6 +25,7 @@ interface TenantDetail {
   notes: string | null;
   responsable_id: string | null;
   unit_id: string | null;
+  photo_url: string | null;
   units?: { label: string; properties?: { name: string } | null } | null;
   responsables?: { full_name: string } | null;
 }
@@ -41,6 +42,7 @@ interface FormState {
   tenant_status: string;
   notes: string;
   preferred_language: string;
+  photo_url: string;
 }
 
 function syncStatusVariant(s: string | null): 'success' | 'warning' | 'danger' | 'info' | 'default' {
@@ -70,6 +72,9 @@ export default function AdminTenantDetailPage({
   const [error, setError]       = useState<string | null>(null);
   const [success, setSuccess]   = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState(false);
+  const [inviting, setInviting]     = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ inviteUrl: string; emailSent: boolean; expiresAt: string } | null>(null);
+  const [inviteError, setInviteError]   = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({
     first_name: '',
@@ -83,6 +88,7 @@ export default function AdminTenantDetailPage({
     tenant_status: 'pending',
     notes: '',
     preferred_language: 'es',
+    photo_url: '',
   });
 
   useEffect(() => {
@@ -106,12 +112,40 @@ export default function AdminTenantDetailPage({
             tenant_status:            t.tenant_status            ?? 'pending',
             notes:                    t.notes                    ?? '',
             preferred_language:       t.preferred_language       ?? 'es',
+            photo_url:                t.photo_url                ?? '',
           });
         }
       })
       .catch(() => setError('No se pudo cargar el inquilino.'))
       .finally(() => setLoading(false));
   }, [tenantId, creating]);
+
+  async function handleSendInvite() {
+    setInviteError(null);
+    setInviteResult(null);
+    setInviting(true);
+    try {
+      const res  = await fetch(`/api/admin/tenants/${tenantId}/invite`, { method: 'POST' });
+      const json = await res.json() as {
+        invited?: boolean;
+        inviteUrl?: string;
+        emailSent?: boolean;
+        expiresAt?: string;
+        error?: { message?: string };
+      };
+      if (!res.ok || !json.invited) {
+        setInviteError(json.error?.message ?? 'Error al enviar la invitación.');
+        return;
+      }
+      setInviteResult({ inviteUrl: json.inviteUrl!, emailSent: json.emailSent ?? false, expiresAt: json.expiresAt! });
+      // Reflect portal_access='invited' in local state
+      setTenant(prev => prev ? { ...prev, portal_access: 'invited' } : prev);
+    } catch {
+      setInviteError('Error de red. Intenta de nuevo.');
+    } finally {
+      setInviting(false);
+    }
+  }
 
   const field = (name: keyof FormState) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -140,6 +174,7 @@ export default function AdminTenantDetailPage({
         tenant_status:            form.tenant_status,
         notes:                    form.notes        || undefined,
         preferred_language:       form.preferred_language,
+        photo_url:                form.photo_url    || undefined,
       };
 
       // For POST we need email + required fields, skip undefined
@@ -309,6 +344,44 @@ export default function AdminTenantDetailPage({
           </div>
         </section>
 
+        {/* Photo */}
+        {!creating && (
+          <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+            <h2 className="text-base font-semibold text-slate-800">Foto de perfil</h2>
+            <div className="flex items-start gap-4">
+              {form.photo_url ? (
+                <img
+                  src={form.photo_url}
+                  alt="Foto de perfil"
+                  className="w-16 h-16 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 border border-slate-200">
+                  <span className="text-2xl text-slate-400 select-none">
+                    {(form.first_name?.[0] ?? '?').toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-600 mb-1" htmlFor="photo_url">
+                  URL de la foto
+                </label>
+                <input
+                  id="photo_url"
+                  name="photo_url"
+                  type="url"
+                  value={form.photo_url}
+                  onChange={field('photo_url')}
+                  placeholder="https://..."
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">URL pública de la imagen. Se sincroniza con Airtable si el campo "Foto de perfil" existe.</p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Section 2: Contacto de Emergencia */}
         <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
           <h2 className="text-base font-semibold text-slate-800">Contacto de Emergencia <span className="text-xs font-normal text-slate-400">(opcional)</span></h2>
@@ -413,18 +486,53 @@ export default function AdminTenantDetailPage({
                   Airtable ID: <span className="font-mono">{tenant.airtable_external_id}</span>
                 </p>
               )}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs text-slate-500">Acceso portal:</span>
-                <span className="text-xs text-slate-600">{tenant.portal_access ?? 'not_invited'}</span>
-                <button
-                  type="button"
-                  className="text-xs text-brand-600 hover:underline cursor-not-allowed opacity-60"
-                  disabled
-                  title="Funcionalidad proxima"
-                >
-                  Enviar invitacion
-                </button>
+                <Badge variant={
+                  tenant.portal_access === 'active'      ? 'success' :
+                  tenant.portal_access === 'invited'     ? 'info'    :
+                  tenant.portal_access === 'suspended'   ? 'danger'  : 'default'
+                }>
+                  {tenant.portal_access ?? 'not_invited'}
+                </Badge>
+                {tenant.portal_access !== 'active' && (
+                  <button
+                    type="button"
+                    onClick={handleSendInvite}
+                    disabled={inviting}
+                    className="text-xs text-brand-600 hover:underline disabled:opacity-60"
+                  >
+                    {inviting ? 'Enviando…' : tenant.portal_access === 'invited' ? 'Reenviar invitacion' : 'Enviar invitacion'}
+                  </button>
+                )}
               </div>
+              {inviteError && (
+                <div role="alert" className="text-xs text-red-600 mt-1">{inviteError}</div>
+              )}
+              {inviteResult && (
+                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg space-y-2">
+                  <p className="text-xs text-green-700 font-medium">
+                    {inviteResult.emailSent ? 'Invitacion enviada por correo.' : 'Invitacion creada — copia el enlace para compartirlo manualmente.'}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={inviteResult.inviteUrl}
+                      className="flex-1 text-xs font-mono bg-white border border-green-200 rounded px-2 py-1 truncate"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void navigator.clipboard.writeText(inviteResult.inviteUrl)}
+                      className="text-xs text-brand-600 hover:underline whitespace-nowrap"
+                    >
+                      Copiar
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Vence: {new Date(inviteResult.expiresAt).toLocaleDateString('es', { dateStyle: 'medium' })}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </section>
