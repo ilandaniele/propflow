@@ -68,7 +68,7 @@ export default async function PortalContractPage() {
                   </div>
                   <div>
                     <dt className="text-xs text-slate-500 mb-0.5">End Date</dt>
-                    <dd className="text-slate-900">{contract.end_date}</dd>
+                    <dd className="text-slate-900">{contract.end_date ?? '—'}</dd>
                   </div>
                 </dl>
               </Card>

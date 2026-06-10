@@ -507,18 +507,51 @@ function buildDomainRow(
 
     case 'contracts': {
       const normalized: NormalizedContract = normalizeContract(record, orgId);
-      let tenantId: string | null = null;
 
+      // Skip rows that can't satisfy NOT NULL constraints:
+      //   tenant_id NOT NULL — must resolve from idMaps.tenants
+      //   unit_id   NOT NULL — must resolve from idMaps.units (via _airtable_unit_ext_id)
+      //   start_date NOT NULL
+      //   monthly_rent NOT NULL + CHECK > 0
+      // This mirrors the skip pattern used for payments.
+      if (!normalized.start_date) {
+        onUnresolved(`contract ${record.id} skipped: start_date missing (NOT NULL)`);
+        return { __skip: true };
+      }
+      if (!normalized.monthly_rent || normalized.monthly_rent <= 0) {
+        onUnresolved(`contract ${record.id} skipped: monthly_rent missing or <= 0 (NOT NULL + CHECK > 0)`);
+        return { __skip: true };
+      }
+
+      // Resolve tenant_id — required (NOT NULL)
+      let tenantId: string | null = null;
       if (normalized._airtable_tenant_ext_id) {
-        const resolved = idMaps.tenants?.get(normalized._airtable_tenant_ext_id) ?? null;
-        if (!resolved) {
-          onUnresolved(`contract ${record.id} → tenant ${normalized._airtable_tenant_ext_id} not in idMap`);
+        tenantId = idMaps.tenants?.get(normalized._airtable_tenant_ext_id) ?? null;
+        if (!tenantId) {
+          onUnresolved(`contract ${record.id} → tenant ${normalized._airtable_tenant_ext_id} not in idMap — skipping (tenant_id NOT NULL)`);
+          return { __skip: true };
         }
-        tenantId = resolved;
+      } else {
+        onUnresolved(`contract ${record.id} skipped: no tenant link (tenant_id NOT NULL)`);
+        return { __skip: true };
+      }
+
+      // Resolve unit_id — required (NOT NULL)
+      let unitId: string | null = null;
+      if (normalized._airtable_unit_ext_id) {
+        unitId = idMaps.units?.get(normalized._airtable_unit_ext_id) ?? null;
+        if (!unitId) {
+          onUnresolved(`contract ${record.id} → unit ${normalized._airtable_unit_ext_id} not in idMap — skipping (unit_id NOT NULL)`);
+          return { __skip: true };
+        }
+      } else {
+        onUnresolved(`contract ${record.id} skipped: no unit link (unit_id NOT NULL)`);
+        return { __skip: true };
       }
 
       const row = toDbRow(normalized);
       row['tenant_id'] = tenantId;
+      row['unit_id']   = unitId;
       return row;
     }
 

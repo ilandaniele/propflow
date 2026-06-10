@@ -41,28 +41,45 @@ export const CONTRACT_FIELD = {
 // Status mapping
 // ---------------------------------------------------------------------------
 
-const CONTRACT_STATUS_MAP: Record<string, string> = {
+// DB CHECK: status IN ('active', 'expired', 'terminated')
+// 'inactive' is NOT a valid value — map all ended/terminated states to 'terminated'.
+// 'expired' is reserved for date-lapsed contracts (set by the app, not by Airtable sync).
+export type ContractStatus = 'active' | 'expired' | 'terminated';
+
+const CONTRACT_STATUS_MAP: Record<string, ContractStatus> = {
   Activo:      'active',
   Active:      'active',
   ACTIVO:      'active',
   ACTIVE:      'active',
   Vigente:     'active',
   VIGENTE:     'active',
-  Inactivo:    'inactive',
-  Inactive:    'inactive',
-  INACTIVO:    'inactive',
-  INACTIVE:    'inactive',
-  Finalizado:  'inactive',
-  FINALIZADO:  'inactive',
-  Finished:    'inactive',
-  FINISHED:    'inactive',
-  Terminado:   'inactive',
-  TERMINADO:   'inactive',
+  Inactivo:    'terminated',
+  Inactive:    'terminated',
+  INACTIVO:    'terminated',
+  INACTIVE:    'terminated',
+  Finalizado:  'terminated',
+  FINALIZADO:  'terminated',
+  Finished:    'terminated',
+  FINISHED:    'terminated',
+  Terminado:   'terminated',
+  TERMINADO:   'terminated',
+  Vencido:     'expired',
+  VENCIDO:     'expired',
+  Expired:     'expired',
+  EXPIRED:     'expired',
 };
 
-export function mapContractStatus(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  return CONTRACT_STATUS_MAP[raw.trim()] ?? null;
+/**
+ * Map a raw Airtable status string to one of the allowed DB CHECK values:
+ *   'active' | 'expired' | 'terminated'
+ *
+ * Returns 'terminated' as the safe default for unrecognised values so that
+ * the NOT NULL constraint on status is always satisfied during upsert.
+ * Callers should treat null input as an absent field and let the DB default ('active') apply.
+ */
+export function mapContractStatus(raw: string | null | undefined): ContractStatus {
+  if (!raw) return 'active';  // absent status → treat as active (DB default)
+  return CONTRACT_STATUS_MAP[raw.trim()] ?? 'terminated';
 }
 
 // ---------------------------------------------------------------------------

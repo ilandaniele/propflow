@@ -40,7 +40,7 @@ export async function ContractsTab({ tenantId }: Props) {
               <div key={c.id} className="py-4 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-900">${Number(c.monthly_rent).toLocaleString()}/mo</p>
-                  <p className="text-xs text-slate-500">{c.start_date} → {c.end_date}</p>
+                  <p className="text-xs text-slate-500">{c.start_date} → {c.end_date ?? '—'}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <StatusPill status={c.status} />

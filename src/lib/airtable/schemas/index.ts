@@ -122,7 +122,7 @@ export const NormalizedContractSchema = z.object({
   start_date:            z.string().nullable().optional(),  // DATE string
   end_date:              z.string().nullable().optional(),  // DATE string
   monthly_rent:          NullableNumeric,
-  status:                z.string().nullable().optional(),
+  status:                z.enum(['active', 'expired', 'terminated']),  // mapContractStatus always returns one of these
   deposit:               NullableNumeric,
   contract_code:         z.string().nullable().optional(),
   contract_type:         z.string().nullable().optional(),

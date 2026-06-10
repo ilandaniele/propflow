@@ -180,22 +180,22 @@ describe('mapContractStatus', () => {
     expect(mapContractStatus('Vigente')).toBe('active');
   });
 
-  it('maps Inactivo → inactive', () => {
-    expect(mapContractStatus('Inactivo')).toBe('inactive');
+  it('maps Inactivo → terminated', () => {
+    expect(mapContractStatus('Inactivo')).toBe('terminated');
   });
 
-  it('maps Finalizado → inactive', () => {
-    expect(mapContractStatus('Finalizado')).toBe('inactive');
+  it('maps Finalizado → terminated', () => {
+    expect(mapContractStatus('Finalizado')).toBe('terminated');
   });
 
-  it('returns null for unknown status values', () => {
-    expect(mapContractStatus('Pendiente')).toBeNull();
-    expect(mapContractStatus('unknown_value')).toBeNull();
+  it('maps unknown status values → terminated (DB CHECK-compliant default)', () => {
+    expect(mapContractStatus('Pendiente')).toBe('terminated');
+    expect(mapContractStatus('unknown_value')).toBe('terminated');
   });
 
-  it('returns null for null/undefined input', () => {
-    expect(mapContractStatus(null)).toBeNull();
-    expect(mapContractStatus(undefined)).toBeNull();
+  it('maps null/undefined input → active (DB default)', () => {
+    expect(mapContractStatus(null)).toBe('active');
+    expect(mapContractStatus(undefined)).toBe('active');
   });
 });
 
@@ -248,7 +248,7 @@ describe('normalizeContract', () => {
     const record = makeRecord('recCON004', {});
     const result = normalizeContract(record, ORG_ID);
     expect(result.airtable_external_id).toBe('recCON004');
-    expect(result.status).toBeNull();
+    expect(result.status).toBe('active');
     expect(result.monthly_rent).toBeNull();
     expect(result.tenant_id).toBeNull();
   });
