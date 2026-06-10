@@ -33,7 +33,7 @@ import { normalizeContract } from '@/lib/airtable/normalizers/normalizeContract'
 import { normalizePayment } from '@/lib/airtable/normalizers/normalizePayment';
 import { normalizePortafolio } from '@/lib/airtable/normalizers/normalizePortafolio';
 import { normalizeResponsable } from '@/lib/airtable/normalizers/normalizeResponsable';
-import { normalizeServicePayment } from '@/lib/airtable/normalizers/normalizeServicePayments';
+import { aggregateServicePaymentRecords } from '@/lib/airtable/normalizers/normalizeServicePayments';
 import { getAirtableClient } from '@/lib/airtable/client';
 
 // ---------------------------------------------------------------------------
@@ -47,10 +47,7 @@ export type EntityName =
   | 'payments'
   | 'units'
   | 'responsables'
-  | 'service_payments_agua'
-  | 'service_payments_internet'
-  | 'service_payments_gas'
-  | 'service_payments_luz';
+  | 'service_payments';
 
 export interface EntitySyncResult {
   entity: EntityName;
@@ -76,17 +73,8 @@ export type UnitMap = Map<string, string>;
 
 /**
  * Map entity name to the Supabase DB table name.
- * The 4 service payment variants all target the same table.
  */
 function entityToDbTable(entity: EntityName): string {
-  if (
-    entity === 'service_payments_agua' ||
-    entity === 'service_payments_internet' ||
-    entity === 'service_payments_gas' ||
-    entity === 'service_payments_luz'
-  ) {
-    return 'service_payments';
-  }
   return entity;
 }
 
@@ -155,6 +143,27 @@ export async function syncEntityTable(
           }
         }
       }
+    }
+
+    // For payments: build a contractId→tenantId map so we can satisfy tenant_id NOT NULL.
+    // The contracts sync ran before payments (IC4), so contracts rows exist in the DB.
+    // We store this map under idMaps['payments'] so buildDomainRow can access it.
+    if (entity === 'payments') {
+      const { data: contractRows } = await adminClient
+        .from('contracts')
+        .select('id, tenant_id')
+        .eq('org_id', orgId);
+
+      const contractToTenantMap: Map<string, string> = new Map();
+      if (contractRows) {
+        for (const c of contractRows as Array<{ id: string; tenant_id: string | null }>) {
+          if (c.id && c.tenant_id) {
+            contractToTenantMap.set(c.id, c.tenant_id);
+          }
+        }
+      }
+      // Stash it; buildDomainRow reads idMaps['payments'] for this lookup
+      idMaps['payments'] = contractToTenantMap;
     }
 
     const { domainRows, snapshotRows } = buildRows(
@@ -259,12 +268,10 @@ export async function syncEntityTable(
     // Query the just-upserted rows to get (airtable_external_id → id) mapping.
     // Only bother if later entities will use this map.
     if (!upsertError) {
-      // For service_payments, the external_id is synthetic ("recXXX::agua") not the raw record id
-      const extIds = entity === 'service_payments_agua' ||
-        entity === 'service_payments_internet' ||
-        entity === 'service_payments_gas' ||
-        entity === 'service_payments_luz'
-        ? records.map(r => `${r.id}::${entity.replace('service_payments_', '')}`)
+      // For service_payments, the external_id is synthetic ("recXXX::serviceType")
+      // Collect them from domainRows which have the correct synthetic ids
+      const extIds = entity === 'service_payments'
+        ? domainRows.map(r => r['airtable_external_id'] as string).filter(Boolean)
         : records.map(r => r.id);
       const { data: freshRows } = await adminClient
         .from(dbTable)
@@ -342,14 +349,62 @@ function buildRows(
   onUnresolved: UnresolvedWarningCb
 ): BuiltRows {
   const now = new Date().toISOString();
-  // Derive stable snapshot table_name from entity name (matches existing convention)
   const snapshotTableName = entityToSnapshotName(entity);
 
+  // ── service_payments: bulk aggregation path ───────────────────────────────
+  // All records are processed together so that monthly_data can be grouped by
+  // (property, serviceType). This is a special-case that bypasses buildDomainRow.
+  if (entity === 'service_payments') {
+    const aggregated = aggregateServicePaymentRecords(records, orgId);
+
+    const domainRows: Record<string, unknown>[] = [];
+    for (const normalized of aggregated) {
+      let propertyId: string | null = null;
+      if (normalized._airtable_property_ext_id) {
+        const resolved = idMaps.properties?.get(normalized._airtable_property_ext_id) ?? null;
+        if (!resolved) {
+          onUnresolved(
+            `service_payments group ${normalized.airtable_external_id} → property ${normalized._airtable_property_ext_id} not in idMap`
+          );
+        }
+        propertyId = resolved;
+      }
+      const row = toDbRow(normalized as unknown as Record<string, unknown>);
+      row['property_id'] = propertyId;
+      domainRows.push(row);
+    }
+
+    // Snapshots — one per raw record (not per aggregated row)
+    const snapshotRows: BuiltRows['snapshotRows'] = records.map(record => ({
+      org_id:      orgId,
+      table_name:  snapshotTableName,
+      external_id: record.id,
+      data:        { id: record.id, createdTime: record.createdTime, fields: record.fields },
+      synced_at:   now,
+    }));
+
+    return { domainRows, snapshotRows };
+  }
+
+  // ── Standard per-record path ──────────────────────────────────────────────
   const domainRows: Record<string, unknown>[] = [];
   const snapshotRows: BuiltRows['snapshotRows'] = [];
 
   for (const record of records) {
     const domainRow = buildDomainRow(entity, orgId, record, idMaps, unitMap, onUnresolved);
+
+    // Filter sentinel rows that were marked as skip by normalizers
+    if (domainRow['__skip'] === true) {
+      snapshotRows.push({
+        org_id: orgId,
+        table_name: snapshotTableName,
+        external_id: record.id,
+        data: { id: record.id, createdTime: record.createdTime, fields: record.fields },
+        synced_at: now,
+      });
+      continue;
+    }
+
     domainRows.push(domainRow);
 
     snapshotRows.push({
@@ -366,18 +421,14 @@ function buildRows(
 
 function entityToSnapshotName(entity: EntityName): string {
   // Maps to the snapshot bucket name used by the legacy sync (table_name column).
-  // Using entity name directly so it's clear and consistent.
   const map: Record<EntityName, string> = {
-    properties:               'propiedades',
-    tenants:                  'residentes',
-    contracts:                'historial',
-    payments:                 'pagos',
-    units:                    'portafolio',
-    responsables:             'responsables',
-    service_payments_agua:    'pagos_agua',
-    service_payments_internet:'pagos_internet',
-    service_payments_gas:     'pagos_gas',
-    service_payments_luz:     'pagos_luz',
+    properties:       'propiedades',
+    tenants:          'residentes',
+    contracts:        'historial',
+    payments:         'movimientos',
+    units:            'portafolio',
+    responsables:     'responsables',
+    service_payments: 'pago_servicios',
   };
   return map[entity];
 }
@@ -472,8 +523,19 @@ function buildDomainRow(
     }
 
     case 'payments': {
-      const normalized: NormalizedPayment = normalizePayment(record, orgId);
+      const result = normalizePayment(record, orgId);
+
+      // normalizePayment now returns a discriminated union — skip rows that
+      // cannot satisfy DB NOT NULL constraints (amount=0, dates missing, etc.)
+      if (result.skip) {
+        onUnresolved(`payment ${record.id} skipped: ${result.reason}`);
+        // Return a sentinel that buildRows will filter out
+        return { __skip: true };
+      }
+
+      const normalized: NormalizedPayment = result.payment;
       let contractId: string | null = null;
+      let tenantId: string | null = null;
 
       if (normalized._airtable_contract_ext_id) {
         const resolved = idMaps.contracts?.get(normalized._airtable_contract_ext_id) ?? null;
@@ -483,8 +545,26 @@ function buildDomainRow(
         contractId = resolved;
       }
 
+      // If contract was unresolved, we cannot satisfy contract_id NOT NULL — skip
+      if (!contractId) {
+        onUnresolved(`payment ${record.id} skipped: contract_id could not be resolved (NOT NULL)`);
+        return { __skip: true };
+      }
+
+      // Resolve tenant_id via contractsMap → tenantsMap (two-hop resolution)
+      // The contractIdToTenantId map is passed via idMaps under key 'payments'
+      const contractToTenantMap = idMaps['payments'] as Map<string, string> | undefined;
+      if (contractToTenantMap) {
+        tenantId = contractToTenantMap.get(contractId) ?? null;
+      }
+      if (!tenantId) {
+        onUnresolved(`payment ${record.id} → tenant_id could not be resolved from contract ${contractId} (NOT NULL)`);
+        return { __skip: true };
+      }
+
       const row = toDbRow(normalized);
       row['contract_id'] = contractId;
+      row['tenant_id']   = tenantId;
       return row;
     }
 
@@ -517,28 +597,10 @@ function buildDomainRow(
       return row;
     }
 
-    case 'service_payments_agua':
-    case 'service_payments_internet':
-    case 'service_payments_gas':
-    case 'service_payments_luz': {
-      const serviceType = entity.replace('service_payments_', '') as 'agua' | 'internet' | 'gas' | 'luz';
-      const normalized = normalizeServicePayment(record, orgId, serviceType);
-
-      let propertyId: string | null = null;
-      if (normalized._airtable_property_ext_id) {
-        const resolved = idMaps.properties?.get(normalized._airtable_property_ext_id) ?? null;
-        if (!resolved) {
-          onUnresolved(
-            `${entity} ${record.id} → property ${normalized._airtable_property_ext_id} not in idMap`
-          );
-        }
-        propertyId = resolved;
-      }
-
-      const row = toDbRow(normalized);
-      row['property_id'] = propertyId;
-      row['airtable_synced_at'] = new Date().toISOString();
-      return row;
+    case 'service_payments': {
+      // service_payments uses bulk aggregation in buildRows — this per-record
+      // path should never be reached; return empty sentinel.
+      return { __skip: true };
     }
   }
 }

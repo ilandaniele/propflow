@@ -59,11 +59,16 @@ export const NormalizedPropertySchema = z.object({
   modality:              z.string().nullable().optional(),
   supply_number_luz:     z.string().nullable().optional(),
   total_rooms:           z.number().int().nullable().optional(),
+  // current_residents and description removed from new base schema but kept optional for backward compat
   current_residents:     z.number().int().nullable().optional(),
   description:           z.string().nullable().optional(),
+  // codigo_pago_internet removed from new schema (internet supply gone from Propiedades)
   codigo_pago_internet:  z.string().nullable().optional(),
   n_cliente_gas:         z.string().nullable().optional(),
   n_suministro_agua:     z.string().nullable().optional(),
+  // New fields in the new base schema
+  tope_luz:              z.number().nullable().optional(),
+  tope_agua:             z.number().nullable().optional(),
 });
 
 export type NormalizedProperty = z.infer<typeof NormalizedPropertySchema>;
@@ -84,12 +89,14 @@ export const NormalizedTenantSchema = z.object({
   codigo:                z.string().nullable().optional(),
   dni:                   z.string().nullable().optional(),
   birth_date:            NullableDateString,
+  // Contract-related fields — OPTIONAL in new base schema (moved to Historial/Contratos).
+  // These fields may not be present in Residentes records; absent = undefined = DB not overwritten.
   payment_due_day:       z.number().int().nullable().optional(),
-  monthly_rent:          NullableNumeric,
-  deposit:               NullableNumeric,
+  monthly_rent:          z.number().nullable().optional(),
+  deposit:               z.number().nullable().optional(),
   tenant_status:         z.string().nullable().optional(),
-  contract_start:        NullableDateString,
-  contract_end:          NullableDateString,
+  contract_start:        z.string().nullable().optional(),
+  contract_end:          z.string().nullable().optional(),
   duration_months:       z.number().int().nullable().optional(),
   // Resolved link fields — populated by link resolver after normalisation
   property_id:           z.string().uuid().nullable().optional(),
@@ -148,6 +155,7 @@ export const NormalizedPaymentSchema = z.object({
   due_date:              NullableDateString,
   phone:                 z.string().nullable().optional(),
   tenant_name:           z.string().nullable().optional(),
+  receipt_url:           z.string().nullable().optional(),
   // Resolved link fields
   contract_id:           z.string().uuid().nullable().optional(),
   tenant_id:             z.string().uuid().nullable().optional(),
@@ -205,7 +213,7 @@ export const NormalizedServicePaymentSchema = z.object({
   org_id:               z.string(),
   airtable_external_id: z.string(),
   airtable_synced_at:   z.string().optional(),
-  service_type:         z.enum(['agua', 'internet', 'gas', 'luz']),
+  service_type:         z.enum(['agua', 'internet', 'gas', 'luz', 'otro']),
   supply_number:        z.string().nullable(),
   tope:                 z.number().nullable().optional(),
   monthly_data:         z.record(z.object({

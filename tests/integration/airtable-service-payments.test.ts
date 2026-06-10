@@ -1,15 +1,17 @@
 /**
  * tests/integration/airtable-service-payments.test.ts
  *
- * Integration tests for Pago de servicios (agua/internet/gas/luz) sync.
+ * Integration tests for Pago de servicios sync — new single-table schema.
  *
- * Strategy: mock Supabase admin client and Airtable HTTP calls (no real network).
+ * The 4 old service payment tables (agua/internet/gas/luz) are now ONE
+ * "Pago de servicios" table with a "Tipo de servicio" select field.
+ * Env key: AIRTABLE_TABLE_PAGO_SERVICIOS
  *
  * Covers:
- *   AC2  — agua sync → service_payments upsert with service_type='agua', property_id resolved
- *   AC7  — synthetic ext_id: recId::gas in upsert payload
- *   AC8  — missing AIRTABLE_TABLE_PAGOS_INTERNET → internet skipped, others continue, HTTP 200
- *   AC10 — re-run same record → upsert called with ignoreDuplicates: false
+ *   AC2  — service_payments upsert with multiple service types, property_id resolved
+ *   AC7  — synthetic ext_id: recPROP001::agua in upsert payload
+ *   AC8  — missing AIRTABLE_TABLE_PAGO_SERVICIOS → service_payments skipped, HTTP 200
+ *   AC10 — re-run same records → upsert called with ignoreDuplicates: false
  *   PROP — property_id resolves from propertiesMap; null when unresolved, no abort
  */
 
@@ -20,22 +22,18 @@ import { NextRequest } from 'next/server';
 // Env setup — must be set before any module import that reads process.env
 // ---------------------------------------------------------------------------
 
-const CRON_SECRET = 'test-cron-secret-service-payments';
+const CRON_SECRET = 'test-cron-secret-service-payments-v2';
 const ORG_ID = '00000000-0000-0000-0000-000000000099';
 
 process.env['CRON_SECRET'] = CRON_SECRET;
 process.env['NEXT_PUBLIC_SUPABASE_URL'] = 'https://placeholder.supabase.co';
 process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] = 'placeholder_anon_key';
 process.env['SUPABASE_SERVICE_ROLE_KEY'] = 'placeholder_service_role_key';
-process.env['AIRTABLE_PAT'] = 'pat.service_payments_test_token';
-process.env['AIRTABLE_BASE_ID'] = 'appSERVICEPAYMENTSTEST';
+process.env['AIRTABLE_PAT'] = 'pat.service_payments_v2_test_token';
+process.env['AIRTABLE_BASE_ID'] = 'apphwPe2oIkGRSTkb';
 process.env['AIRTABLE_TABLE_PROPIEDADES'] = 'tblPROPIEDADES';
-process.env['AIRTABLE_TABLE_PAGOS_AGUA'] = 'tblPAGOS_AGUA';
-process.env['AIRTABLE_TABLE_PAGOS_GAS'] = 'tblPAGOS_GAS';
-process.env['AIRTABLE_TABLE_PAGOS_LUZ'] = 'tblPAGOS_LUZ';
-// Intentionally omit AIRTABLE_TABLE_PAGOS_INTERNET for AC8 test
-delete process.env['AIRTABLE_TABLE_PAGOS_INTERNET'];
-// Leave tenants/contracts/payments/etc unconfigured (not needed for these tests)
+process.env['AIRTABLE_TABLE_PAGO_SERVICIOS'] = 'tblPAGO_SERVICIOS';
+// Leave other entity tables unconfigured (not needed for these tests)
 delete process.env['AIRTABLE_TABLE_RESIDENTES'];
 delete process.env['AIRTABLE_TABLE_HISTORIAL'];
 delete process.env['AIRTABLE_TABLE_PAGOS'];
@@ -70,20 +68,18 @@ function makeSupabaseBuilder(table: string) {
 
   const eqChain = {
     in: (_col: string, _vals: string[]): SelectResult => {
-      // idMap select for properties
       if (table === 'properties') {
         return {
           data: [{ id: 'supabase-prop-uuid-001', airtable_external_id: 'recPROP001' }],
           error: null,
         };
       }
-      // idMap select for service_payments (synthetic ext_ids)
       if (table === 'service_payments') {
         return {
           data: [
-            { id: 'supabase-sp-uuid-001', airtable_external_id: 'recAGUA001::agua' },
-            { id: 'supabase-sp-uuid-002', airtable_external_id: 'recGAS001::gas' },
-            { id: 'supabase-sp-uuid-003', airtable_external_id: 'recLUZ001::luz' },
+            { id: 'supabase-sp-uuid-001', airtable_external_id: 'recPROP001::agua' },
+            { id: 'supabase-sp-uuid-002', airtable_external_id: 'recPROP001::gas' },
+            { id: 'supabase-sp-uuid-003', airtable_external_id: 'recPROP001::luz' },
           ],
           error: null,
         };
@@ -98,7 +94,6 @@ function makeSupabaseBuilder(table: string) {
   };
 
   builder['select'] = (_cols?: string): typeof selectChain | SelectResult => {
-    // organizations.select('id') returns data directly (no .eq chaining in route)
     if (table === 'organizations') {
       return { data: orgsSelectResult, error: null } as SelectResult;
     }
@@ -117,10 +112,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 // Mock legacy snapshot sync (not under test here)
 vi.mock('@/lib/airtable/sync', () => ({
   syncAirtableTable: vi.fn().mockResolvedValue({
-    count: 0,
-    status: 'success',
-    logId: 'mock-log-id',
-    durationMs: 10,
+    count: 0, status: 'success', logId: 'mock-log-id', durationMs: 10,
   }),
 }));
 
@@ -141,47 +133,63 @@ vi.mock('@/lib/airtable/client', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Test records
+// Test records — new "Pago de servicios" single-table format
 // ---------------------------------------------------------------------------
 
 const propRecord = {
   id: 'recPROP001',
   createdTime: '2026-01-01T00:00:00.000Z',
-  fields: { 'Propiedad': 'Casa test', 'Dirección': 'Calle 1' },
+  fields: {
+    'Propiedad':                  'Casa test',
+    'Dirección':                  'Calle 1',
+    'N° de suministro (Luz)':     'SUP-LUZ-001',
+    'N° de suministro (Agua)':    'SUP-AGU-001',
+  },
 };
 
+// Three service payment records in the single table
 const aguaRecord = {
-  id: 'recAGUA001',
+  id: 'recSP_AGUA_01',
   createdTime: '2026-01-01T00:00:00.000Z',
   fields: {
-    'Propiedad': ['recPROP001'],
-    'N° de suministro (A)': 'AGUA-SUP-001',
-    'Monto 01 - 26 (A) agua': 120,
-    'EECC 01 - 26': 'eecc-link',
-    'Const. 01 - 26 (A)': [{ url: 'https://bucket.co/agua.pdf' }],
+    'Tipo de servicio': 'Agua',
+    'Mes':              'Enero',
+    'Año':              '2026',
+    'Monto (S/)':       120,
+    'Tope (S/) auto':   null,
+    'Estado':           'Pagado',
+    'Constancia':       [{ url: 'https://bucket.co/agua.pdf', id: 'att1' }],
+    'Propiedad':        ['recPROP001'],
   },
 };
 
 const gasRecord = {
-  id: 'recGAS001',
+  id: 'recSP_GAS_01',
   createdTime: '2026-01-01T00:00:00.000Z',
   fields: {
-    'Propiedad': ['recPROP001'],
-    'N° de cliente (G)': 'GAS-CLIENT-001',
-    'Monto 02 - 26 (G)': 75,
-    'Const. 02 - 26 (G)': [{ url: 'https://bucket.co/gas.pdf' }],
+    'Tipo de servicio': 'Gas',
+    'Mes':              'Febrero',
+    'Año':              '2026',
+    'Monto (S/)':       75,
+    'Tope (S/) auto':   null,
+    'Estado':           'Pagado',
+    'Constancia':       [{ url: 'https://bucket.co/gas.pdf', id: 'att2' }],
+    'Propiedad':        ['recPROP001'],
   },
 };
 
 const luzRecord = {
-  id: 'recLUZ001',
+  id: 'recSP_LUZ_01',
   createdTime: '2026-01-01T00:00:00.000Z',
   fields: {
-    'Propiedad': ['recPROP001'],
-    'N° de suministro (L)': 'LUZ-SUP-001',
-    'Tope': 400,
-    'Monto 03 - 26 (L)': 350,
-    'Const. 03 - 26 (L)': [{ url: 'https://bucket.co/luz.pdf' }],
+    'Tipo de servicio': 'Luz',
+    'Mes':              'Marzo',
+    'Año':              '2026',
+    'Monto (S/)':       350,
+    'Tope (S/) auto':   400,
+    'Estado':           'Pagado',
+    'Constancia':       [{ url: 'https://bucket.co/luz.pdf', id: 'att3' }],
+    'Propiedad':        ['recPROP001'],
   },
 };
 
@@ -213,66 +221,60 @@ describe('airtable-service-payments integration', () => {
     insertCalls.length = 0;
     mockAirtableClient.listRecords.mockReset();
 
-    // Default: all tables populated (keyed by the env var KEY, as that's what listRecords receives)
-    airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [propRecord];
-    airtableRecordsByKey['AIRTABLE_TABLE_PAGOS_AGUA']  = [aguaRecord];
-    airtableRecordsByKey['AIRTABLE_TABLE_PAGOS_GAS']   = [gasRecord];
-    airtableRecordsByKey['AIRTABLE_TABLE_PAGOS_LUZ']   = [luzRecord];
+    airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES']    = [propRecord];
+    airtableRecordsByKey['AIRTABLE_TABLE_PAGO_SERVICIOS'] = [aguaRecord, gasRecord, luzRecord];
 
     mockAirtableClient.listRecords.mockImplementation(async (tableEnvKey: string) => {
       return airtableRecordsByKey[tableEnvKey] ?? [];
     });
   });
 
-  it('AC2 — agua sync → service_payments upsert with service_type=agua, property_id resolved, monthly_data JSONB', async () => {
+  it('AC2 — service_payments upsert with multiple types, property_id resolved, monthly_data JSONB', async () => {
     const { status } = await callRoute();
-
     expect(status).toBe(200);
 
     const spUpserts = upsertCalls.filter(c => c.table === 'service_payments');
     expect(spUpserts.length).toBeGreaterThan(0);
 
     const allRows = spUpserts.flatMap(c => c.rows) as Array<Record<string, unknown>>;
-    const aguaRow = allRows.find(r => r['service_type'] === 'agua');
 
+    const aguaRow = allRows.find(r => r['service_type'] === 'agua');
     expect(aguaRow).toBeDefined();
-    expect(aguaRow!['supply_number']).toBe('AGUA-SUP-001');
     expect(aguaRow!['property_id']).toBe('supabase-prop-uuid-001');
     expect(aguaRow!['monthly_data']).toBeDefined();
-
-    const monthly = aguaRow!['monthly_data'] as Record<string, unknown>;
-    expect(monthly['2026-01']).toBeDefined();
+    const aguaMonthly = aguaRow!['monthly_data'] as Record<string, unknown>;
+    expect(aguaMonthly['2026-01']).toBeDefined();
+    expect((aguaMonthly['2026-01'] as Record<string, unknown>)['amount']).toBe(120);
   });
 
-  it('AC7 — synthetic ext_id: recId::gas in upsert payload', async () => {
+  it('AC7 — synthetic ext_id: recPROP001::agua in upsert payload', async () => {
     await callRoute();
-
     const allRows = upsertCalls
       .filter(c => c.table === 'service_payments')
       .flatMap(c => c.rows) as Array<Record<string, unknown>>;
 
-    const gasRow = allRows.find(r => r['service_type'] === 'gas');
-    expect(gasRow).toBeDefined();
-    expect(gasRow!['airtable_external_id']).toBe('recGAS001::gas');
+    const aguaRow = allRows.find(r => r['service_type'] === 'agua');
+    expect(aguaRow).toBeDefined();
+    expect(aguaRow!['airtable_external_id']).toBe('recPROP001::agua');
   });
 
-  it('AC8 — missing AIRTABLE_TABLE_PAGOS_INTERNET → internet skipped, others continue, HTTP 200', async () => {
-    const { status, body } = await callRoute();
+  it('AC8 — missing AIRTABLE_TABLE_PAGO_SERVICIOS → service_payments skipped, HTTP 200', async () => {
+    delete process.env['AIRTABLE_TABLE_PAGO_SERVICIOS'];
 
+    const { status, body } = await callRoute();
     expect(status).toBe(200);
 
     const entityResults = body['entityResults'] as Array<Record<string, unknown>>;
-    const aguaResult = entityResults?.find(r => r['entity'] === 'service_payments_agua');
-    expect(aguaResult?.status).toBe('success');
+    const spResult = entityResults?.find(r => r['entity'] === 'service_payments');
+    // Should be absent (skipped) not errored
+    expect(spResult).toBeUndefined();
 
-    // internet entity should not appear (env var not set → skipped silently)
-    const internetResult = entityResults?.find(r => r['entity'] === 'service_payments_internet');
-    expect(internetResult).toBeUndefined();
+    // Restore for other tests
+    process.env['AIRTABLE_TABLE_PAGO_SERVICIOS'] = 'tblPAGO_SERVICIOS';
   });
 
-  it('AC10 — re-run same record → upsert called with ignoreDuplicates: false', async () => {
+  it('AC10 — re-run same records → upsert called with ignoreDuplicates: false', async () => {
     await callRoute();
-
     const spUpserts = upsertCalls.filter(c => c.table === 'service_payments');
     for (const call of spUpserts) {
       const opts = call.opts as Record<string, unknown>;
@@ -281,23 +283,19 @@ describe('airtable-service-payments integration', () => {
   });
 
   it('property not found → property_id null, no abort', async () => {
-    // Override: no properties returned so propertiesMap is empty
     airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [];
 
     const { status, body } = await callRoute();
-
-    // Should still return 200 (null FK → no abort, AC5 pattern)
     expect(status).toBe(200);
 
     const allRows = upsertCalls
       .filter(c => c.table === 'service_payments')
       .flatMap(c => c.rows) as Array<Record<string, unknown>>;
 
-    const aguaRow = allRows.find(r => r['service_type'] === 'agua');
-    if (aguaRow) {
-      expect(aguaRow['property_id']).toBeNull();
+    // All rows should have property_id = null (no idMap hit)
+    for (const row of allRows) {
+      expect(row['property_id']).toBeNull();
     }
-
     void body;
   });
 });

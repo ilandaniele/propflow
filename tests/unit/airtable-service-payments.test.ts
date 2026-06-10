@@ -1,13 +1,24 @@
 /**
- * Unit tests — normalizeServicePayment + parseMonthlyData
+ * Unit tests — normalizeServicePayments (new single-table schema)
+ *
+ * The old 4-table normalizer (agua/internet/gas/luz with parseMonthlyData) has been
+ * replaced by a single-table model. These tests cover the new functions:
+ *   - normalizeServicePaymentRecord (one Airtable record → intermediate)
+ *   - aggregateServicePaymentRecords (all records → one row per property+serviceType)
+ *   - mapServiceType, buildServiceMonthKey
+ *
+ * The deprecated normalizeServicePayment (legacy compat) is also tested for continuity.
  *
  * Pure function tests — no DB, no HTTP, no FS access.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
+  normalizeServicePaymentRecord,
+  aggregateServicePaymentRecords,
   normalizeServicePayment,
-  parseMonthlyData,
+  mapServiceType,
+  buildServiceMonthKey,
 } from '../../src/lib/airtable/normalizers/normalizeServicePayments';
 import type { AirtableRecord } from '../../src/lib/schemas/airtable';
 
@@ -22,252 +33,179 @@ function makeRecord(id: string, fields: Record<string, unknown>): AirtableRecord
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 // ---------------------------------------------------------------------------
-// normalizeServicePayment — agua
+// mapServiceType
 // ---------------------------------------------------------------------------
 
-describe('normalizeServicePayment — agua', () => {
-  it('happy path: supply_number, monthly_data with amount + eecc + receipt_url', () => {
-    const record = makeRecord('recABC001', {
-      'Propiedad': ['recPROP001'],
-      'N° de suministro (A)': '12345-A',
-      'Monto 01 - 26 (A) agua': 150,
-      'EECC 01 - 26': 'eecc-link',
-      'Const. 01 - 26 (A)': [{ url: 'https://bucket.co/receipt.pdf' }],
-    });
+describe('mapServiceType', () => {
+  it('Agua → agua', () => expect(mapServiceType('Agua')).toBe('agua'));
+  it('Luz → luz', () => expect(mapServiceType('Luz')).toBe('luz'));
+  it('Electricidad → luz', () => expect(mapServiceType('Electricidad')).toBe('luz'));
+  it('Gas → gas', () => expect(mapServiceType('Gas')).toBe('gas'));
+  it('Internet → internet', () => expect(mapServiceType('Internet')).toBe('internet'));
+  it('WiFi → internet', () => expect(mapServiceType('WiFi')).toBe('internet'));
+  it('Unknown → otro', () => expect(mapServiceType('Mantenimiento')).toBe('otro'));
+  it('undefined → otro', () => expect(mapServiceType(undefined)).toBe('otro'));
+});
 
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
+// ---------------------------------------------------------------------------
+// buildServiceMonthKey
+// ---------------------------------------------------------------------------
 
-    expect(result.org_id).toBe(ORG_ID);
-    expect(result.service_type).toBe('agua');
-    expect(result.supply_number).toBe('12345-A');
-    expect(result.airtable_external_id).toBe('recABC001::agua');
-    expect(result._airtable_property_ext_id).toBe('recPROP001');
-    expect(result.monthly_data['2026-01']).toEqual({
-      amount: 150,
-      eecc: 'eecc-link',
-      receipt_url: 'https://bucket.co/receipt.pdf',
-    });
-    expect(result.tope).toBeUndefined();
+describe('buildServiceMonthKey', () => {
+  it('Spanish full names', () => {
+    expect(buildServiceMonthKey('Enero',     '2026')).toBe('2026-01');
+    expect(buildServiceMonthKey('Marzo',     '2026')).toBe('2026-03');
+    expect(buildServiceMonthKey('Diciembre', '2026')).toBe('2026-12');
   });
-
-  it('sets airtable_external_id as record.id::agua', () => {
-    const record = makeRecord('recXYZ999', { 'Propiedad': [] });
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
-    expect(result.airtable_external_id).toBe('recXYZ999::agua');
+  it('numeric month strings', () => {
+    expect(buildServiceMonthKey('3',  '2026')).toBe('2026-03');
+    expect(buildServiceMonthKey('12', '2026')).toBe('2026-12');
   });
-
-  it('amount as string "150.50" → 150.5', () => {
-    const record = makeRecord('recA', {
-      'Monto 01 - 26 (A) agua': '150.50',
-      'Const. 01 - 26 (A)': null,
-    });
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
-    expect(result.monthly_data['2026-01']?.amount).toBe(150.5);
+  it('unknown month → raw concatenation', () => {
+    const result = buildServiceMonthKey('Quartember', '2026');
+    expect(result).toContain('2026');
   });
-
-  it('amount empty string → null', () => {
-    const record = makeRecord('recA', {
-      'Monto 01 - 26 (A) agua': '',
-      'EECC 01 - 26': 'some-eecc',
-    });
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
-    expect(result.monthly_data['2026-01']?.amount).toBeNull();
-    expect(result.monthly_data['2026-01']?.eecc).toBe('some-eecc');
-  });
-
-  it('amount NaN string → null', () => {
-    const record = makeRecord('recA', {
-      'Monto 01 - 26 (A) agua': 'not-a-number',
-      'EECC 01 - 26': null,
-      'Const. 01 - 26 (A)': null,
-    });
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
-    // no non-null value → month should not appear
-    expect(result.monthly_data['2026-01']).toBeUndefined();
-  });
-
-  it('empty Monto column → month NOT included in monthly_data', () => {
-    const record = makeRecord('recA', {
-      'Monto 01 - 26 (A) agua': null,
-      'EECC 01 - 26': null,
-      'Const. 01 - 26 (A)': null,
-    });
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
-    expect(result.monthly_data['2026-01']).toBeUndefined();
-  });
-
-  it('Propiedad linked array → _airtable_property_ext_id = first id', () => {
-    const record = makeRecord('recA', { 'Propiedad': ['recPROP001', 'recPROP002'] });
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
-    expect(result._airtable_property_ext_id).toBe('recPROP001');
-  });
-
-  it('missing all fields → no crash, empty monthly_data, null supply_number', () => {
-    const record = makeRecord('recA', {});
-    const result = normalizeServicePayment(record, ORG_ID, 'agua');
-    expect(result.supply_number).toBeNull();
-    expect(result.monthly_data).toEqual({});
-    expect(result._airtable_property_ext_id).toBeNull();
+  it('undefined año → ???? placeholder', () => {
+    expect(buildServiceMonthKey('Enero', undefined)).toContain('????');
   });
 });
 
 // ---------------------------------------------------------------------------
-// normalizeServicePayment — internet
+// normalizeServicePaymentRecord — single record
 // ---------------------------------------------------------------------------
 
-describe('normalizeServicePayment — internet', () => {
-  it('happy path: Código de pago populated, monthly_data parsed (no eecc column)', () => {
-    const record = makeRecord('recINT001', {
-      'Propiedad': ['recPROP002'],
-      'Código de pago (I)': 'COD-INT-9999',
-      'Monto 01 - 26 (I)': 299,
-      'Const. 01 - 26 (I)': 'https://bucket.co/int.pdf',
+describe('normalizeServicePaymentRecord — agua record', () => {
+  it('happy path: all fields populated', () => {
+    const record = makeRecord('recSP001', {
+      'Tipo de servicio': 'Agua',
+      'Mes':              'Enero',
+      'Año':              '2026',
+      'Monto (S/)':       150,
+      'Tope (S/) auto':   200,
+      'Estado':           'Pagado',
+      'Constancia':       [{ url: 'https://bucket.co/agua.pdf', id: 'att1' }],
+      'Propiedad':        ['recPROP001'],
     });
 
-    const result = normalizeServicePayment(record, ORG_ID, 'internet');
+    const inter = normalizeServicePaymentRecord(record);
 
-    expect(result.service_type).toBe('internet');
-    expect(result.supply_number).toBe('COD-INT-9999');
-    expect(result.airtable_external_id).toBe('recINT001::internet');
-    expect(result.monthly_data['2026-01']).toEqual({
-      amount: 299,
-      eecc: null,
-      receipt_url: 'https://bucket.co/int.pdf',
-    });
+    expect(inter.propertyExtId).toBe('recPROP001');
+    expect(inter.serviceType).toBe('agua');
+    expect(inter.monthKey).toBe('2026-01');
+    expect(inter.entry.amount).toBe(150);
+    expect(inter.entry.eecc).toBe('Pagado');
+    expect(inter.entry.receipt_url).toBe('https://bucket.co/agua.pdf');
+    expect(inter.tope).toBe(200);
   });
 
-  it('no eecc column → eecc always null', () => {
-    const record = makeRecord('recINT002', {
-      'Monto 02 - 26 (I)': 100,
-      'EECC 02 - 26': 'should-be-ignored',
+  it('tope null when Tope (S/) auto absent', () => {
+    const record = makeRecord('recSP002', {
+      'Tipo de servicio': 'Gas',
+      'Mes':              'Febrero',
+      'Año':              '2026',
+      'Monto (S/)':       80,
+      'Propiedad':        ['recPROP001'],
     });
-    const result = normalizeServicePayment(record, ORG_ID, 'internet');
-    // parseMonthlyData with eeccPrefix=null → eecc always null
-    expect(result.monthly_data['2026-02']?.eecc).toBeNull();
+    const inter = normalizeServicePaymentRecord(record);
+    expect(inter.tope).toBeNull();
+  });
+
+  it('null propertyExtId when Propiedad absent', () => {
+    const record = makeRecord('recSP003', {
+      'Tipo de servicio': 'Luz',
+      'Mes':              'Marzo',
+      'Año':              '2026',
+      'Monto (S/)':       300,
+    });
+    const inter = normalizeServicePaymentRecord(record);
+    expect(inter.propertyExtId).toBeNull();
+  });
+
+  it('null receipt_url when Constancia absent', () => {
+    const record = makeRecord('recSP004', {
+      'Tipo de servicio': 'Internet',
+      'Mes':              'Abril',
+      'Año':              '2026',
+      'Monto (S/)':       120,
+      'Propiedad':        ['recPROP001'],
+    });
+    const inter = normalizeServicePaymentRecord(record);
+    expect(inter.entry.receipt_url).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// normalizeServicePayment — gas
+// aggregateServicePaymentRecords — grouping / monthly_data build
 // ---------------------------------------------------------------------------
 
-describe('normalizeServicePayment — gas', () => {
-  it('happy path: N° de cliente populated', () => {
-    const record = makeRecord('recGAS001', {
-      'Propiedad': ['recPROP003'],
-      'N° de cliente (G)': 'GAS-CLIENT-42',
-      'Monto 03 - 26 (G)': 85.5,
-      'Const. 03 - 26 (G)': [{ url: 'https://bucket.co/gas.pdf' }],
-    });
+describe('aggregateServicePaymentRecords — new single-table model', () => {
+  it('groups 3 records for same property+service → 1 row with 3 monthly_data entries', () => {
+    const records = [
+      makeRecord('recA', { 'Tipo de servicio': 'Agua', 'Mes': 'Enero',   'Año': '2026', 'Monto (S/)': 100, 'Propiedad': ['recPROP001'] }),
+      makeRecord('recB', { 'Tipo de servicio': 'Agua', 'Mes': 'Febrero', 'Año': '2026', 'Monto (S/)': 110, 'Propiedad': ['recPROP001'] }),
+      makeRecord('recC', { 'Tipo de servicio': 'Agua', 'Mes': 'Marzo',   'Año': '2026', 'Monto (S/)': 120, 'Propiedad': ['recPROP001'] }),
+    ];
+    const rows = aggregateServicePaymentRecords(records, ORG_ID);
+    expect(rows).toHaveLength(1);
+    expect(Object.keys(rows[0].monthly_data)).toHaveLength(3);
+    expect(rows[0].monthly_data['2026-01']?.amount).toBe(100);
+    expect(rows[0].monthly_data['2026-02']?.amount).toBe(110);
+    expect(rows[0].monthly_data['2026-03']?.amount).toBe(120);
+  });
 
-    const result = normalizeServicePayment(record, ORG_ID, 'gas');
+  it('produces one row per (property, serviceType)', () => {
+    const records = [
+      makeRecord('r1', { 'Tipo de servicio': 'Agua', 'Mes': 'Enero', 'Año': '2026', 'Monto (S/)': 100, 'Propiedad': ['recPROP001'] }),
+      makeRecord('r2', { 'Tipo de servicio': 'Luz',  'Mes': 'Enero', 'Año': '2026', 'Monto (S/)': 200, 'Propiedad': ['recPROP001'] }),
+    ];
+    const rows = aggregateServicePaymentRecords(records, ORG_ID);
+    expect(rows).toHaveLength(2);
+    expect(rows.map(r => r.service_type).sort()).toEqual(['agua', 'luz']);
+  });
 
-    expect(result.service_type).toBe('gas');
-    expect(result.supply_number).toBe('GAS-CLIENT-42');
-    expect(result.monthly_data['2026-03']).toEqual({
-      amount: 85.5,
-      eecc: null,
-      receipt_url: 'https://bucket.co/gas.pdf',
-    });
+  it('synthetic airtable_external_id = propertyExtId::serviceType', () => {
+    const records = [
+      makeRecord('r1', { 'Tipo de servicio': 'Gas', 'Mes': 'Enero', 'Año': '2026', 'Monto (S/)': 75, 'Propiedad': ['recPROP002'] }),
+    ];
+    const rows = aggregateServicePaymentRecords(records, ORG_ID);
+    expect(rows[0].airtable_external_id).toBe('recPROP002::gas');
+  });
+
+  it('skips records without a property link', () => {
+    const records = [
+      makeRecord('rNoProp', { 'Tipo de servicio': 'Agua', 'Mes': 'Enero', 'Año': '2026', 'Monto (S/)': 50 }),
+    ];
+    expect(aggregateServicePaymentRecords(records, ORG_ID)).toHaveLength(0);
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(aggregateServicePaymentRecords([], ORG_ID)).toHaveLength(0);
+  });
+
+  it('sets org_id on each row', () => {
+    const records = [
+      makeRecord('r1', { 'Tipo de servicio': 'Agua', 'Mes': 'Enero', 'Año': '2026', 'Monto (S/)': 100, 'Propiedad': ['recPROP001'] }),
+    ];
+    expect(aggregateServicePaymentRecords(records, ORG_ID)[0].org_id).toBe(ORG_ID);
   });
 });
 
 // ---------------------------------------------------------------------------
-// normalizeServicePayment — luz
+// Legacy normalizeServicePayment (deprecated compat) — still importable
 // ---------------------------------------------------------------------------
 
-describe('normalizeServicePayment — luz', () => {
-  it('happy path: N° suministro + tope populated', () => {
-    const record = makeRecord('recLUZ001', {
-      'Propiedad': ['recPROP004'],
-      'N° de suministro (L)': 'LUZ-SUM-777',
-      'Tope': 500,
-      'Monto 04 - 26 (L)': 320,
-      'Const. 04 - 26 (L)': [{ url: 'https://bucket.co/luz.pdf' }],
+describe('normalizeServicePayment — legacy compat (deprecated)', () => {
+  it('returns a NormalizedServicePayment with the given serviceType', () => {
+    const record = makeRecord('recLEGACY', {
+      'Tipo de servicio': 'Luz',
+      'Mes':              'Enero',
+      'Año':              '2026',
+      'Monto (S/)':       300,
+      'Propiedad':        ['recPROP005'],
     });
-
     const result = normalizeServicePayment(record, ORG_ID, 'luz');
-
     expect(result.service_type).toBe('luz');
-    expect(result.supply_number).toBe('LUZ-SUM-777');
-    expect(result.tope).toBe(500);
-    expect(result.monthly_data['2026-04']).toEqual({
-      amount: 320,
-      eecc: null,
-      receipt_url: 'https://bucket.co/luz.pdf',
-    });
-  });
-
-  it('tope null when not set', () => {
-    const record = makeRecord('recLUZ002', {});
-    const result = normalizeServicePayment(record, ORG_ID, 'luz');
-    expect(result.tope).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// parseMonthlyData — edge cases
-// ---------------------------------------------------------------------------
-
-describe('parseMonthlyData', () => {
-  it('multiple months parsed correctly', () => {
-    const fields: Record<string, unknown> = {
-      'Monto 01 - 26 (A) agua': 100,
-      'EECC 01 - 26': 'eecc-jan',
-      'Const. 01 - 26 (A)': [{ url: 'http://rec1.pdf' }],
-      'Monto 02 - 26 (A) agua': 200,
-      'EECC 02 - 26': null,
-      'Const. 02 - 26 (A)': null,
-    };
-
-    const result = parseMonthlyData(fields, 'A', 'EECC', 'A');
-
-    expect(Object.keys(result)).toHaveLength(2);
-    expect(result['2026-01']?.amount).toBe(100);
-    expect(result['2026-02']?.amount).toBe(200);
-  });
-
-  it('receipt_url as attachment array → takes first .url', () => {
-    const fields: Record<string, unknown> = {
-      'Monto 05 - 26 (L)': 1,
-      'Const. 05 - 26 (L)': [{ url: 'https://first.pdf' }, { url: 'https://second.pdf' }],
-    };
-    const result = parseMonthlyData(fields, 'L', null, 'L');
-    expect(result['2026-05']?.receipt_url).toBe('https://first.pdf');
-  });
-
-  it('receipt_url as plain string', () => {
-    const fields: Record<string, unknown> = {
-      'Monto 06 - 26 (I)': 50,
-      'Const. 06 - 26 (I)': 'https://plain.pdf',
-    };
-    const result = parseMonthlyData(fields, 'I', null, 'I');
-    expect(result['2026-06']?.receipt_url).toBe('https://plain.pdf');
-  });
-
-  it('copy column does not overwrite canonical column for the same month', () => {
-    const fields: Record<string, unknown> = {
-      'Monto 01 - 26 (A) agua': 150,       // canonical column — should be used
-      'Monto 01 - 26 (A) copy': 999,       // Airtable view duplicate — must be ignored
-      'EECC 01 - 26': 'eecc-jan',
-      'Const. 01 - 26 (A)': null,
-    };
-
-    const result = parseMonthlyData(fields, 'A', 'EECC', 'A');
-
-    // Only one entry for 2026-01
-    expect(Object.keys(result).filter(k => k === '2026-01')).toHaveLength(1);
-    // Value comes from the canonical column, not the copy
-    expect(result['2026-01']?.amount).toBe(150);
-  });
-
-  it('columns from other service types not included (suffix filter)', () => {
-    const fields: Record<string, unknown> = {
-      'Monto 01 - 26 (A) agua': 100,  // agua
-      'Monto 01 - 26 (I)': 200,       // internet
-    };
-    // Parsing as internet — should only pick up (I)
-    const result = parseMonthlyData(fields, 'I', null, 'I');
-    expect(result['2026-01']?.amount).toBe(200);
+    expect(result.airtable_external_id).toBe('recLEGACY::luz');
+    expect(result.org_id).toBe(ORG_ID);
   });
 });

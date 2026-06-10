@@ -1,8 +1,13 @@
 /**
  * normalizeResponsable — server-only.
  *
- * Maps a raw Airtable record from the Responsables table to a NormalizedResponsable
- * ready to be upserted into public.responsables.
+ * Maps a raw Airtable record from the Responsables table (new base schema) to a
+ * normalized shape ready to be upserted into public.responsables.
+ *
+ * New schema changes:
+ *   - Full name field is now "Nombre completo" (was "Nombre(s) y apellidos")
+ *   - Employment field is "Tipo de empleo" (was "Empleo")
+ *   - Estado field NO LONGER EXISTS — status key is omitted from the result
  *
  * Design: pure function, no side effects, no DB calls.
  */
@@ -10,19 +15,18 @@
 import type { AirtableRecord } from '@/lib/schemas/airtable';
 
 // ---------------------------------------------------------------------------
-// Field name constants (match Airtable column names in the Responsables table)
+// Field name constants
 // ---------------------------------------------------------------------------
 
 export const RESPONSABLE_FIELD = {
-  FULL_NAME:  'Nombre(s) y apellidos',
+  FULL_NAME:  'Nombre completo',      // was "Nombre(s) y apellidos"
   DNI:        'N° DNI',
   PHONE:      'Número celular',
   EMAIL:      'Correo electrónico',
-  EMPLOYMENT: 'Empleo',
+  EMPLOYMENT: 'Tipo de empleo',       // was "Empleo"
   COMPANY:    'Empresa',
   JOB_TITLE:  'Cargo',
   INDUSTRY:   'Rubro del negocio',
-  STATUS:     'Estado',
   PHOTO_DNI:  'Foto DNI',
 } as const;
 
@@ -36,17 +40,6 @@ export function normalizeResponsable(record: AirtableRecord, orgId: string) {
   const attachments = Array.isArray(f[RESPONSABLE_FIELD.PHOTO_DNI])
     ? (f[RESPONSABLE_FIELD.PHOTO_DNI] as Array<{ url?: string }>)
     : [];
-
-  const rawStatus =
-    typeof f[RESPONSABLE_FIELD.STATUS] === 'string'
-      ? (f[RESPONSABLE_FIELD.STATUS] as string).toLowerCase()
-      : null;
-  const status =
-    rawStatus === 'activo' || rawStatus === 'active'
-      ? 'active'
-      : rawStatus === 'inactivo' || rawStatus === 'inactive'
-      ? 'inactive'
-      : null;
 
   return {
     org_id:               orgId,
@@ -84,7 +77,8 @@ export function normalizeResponsable(record: AirtableRecord, orgId: string) {
       typeof f[RESPONSABLE_FIELD.INDUSTRY] === 'string'
         ? (f[RESPONSABLE_FIELD.INDUSTRY] as string)
         : null,
-    status,
+    // "Estado" field no longer exists in the new Responsables schema.
+    // The key is intentionally absent so upsert does not null-overwrite existing DB values.
     photo_url: attachments[0]?.url ?? null,
   };
 }

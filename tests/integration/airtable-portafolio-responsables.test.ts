@@ -157,35 +157,33 @@ function makePropiedadRecord(id = 'recPROP001') {
 
 function makePortafolioRecord(id = 'recUNIT001', propExtId = 'recPROP001') {
   return makeRecord(id, {
-    'N° de habitación': 'Hab. 1',
-    Propiedad:          [{ id: propExtId }],
-    Baño:               'Privado',
-    'm2':               18.5,
-    Estado:             'Disponible',
+    'N° Habitación': 'Hab. 1',           // new schema field name (was "N° de habitación")
+    Propiedad:       [{ id: propExtId }],
+    Baño:            'Privado',
+    'm2':            18.5,
+    Estado:          'Disponible',
   });
 }
 
 function makeResponsableRecord(id = 'recRESP001') {
   return makeRecord(id, {
-    'Nombre(s) y apellidos': 'Ana Garza',
-    'N° DNI':                '87654321',
-    'Número celular':        '+51 900 100 200',
-    'Correo electrónico':    'ana@example.com',
-    Empleo:                  'Independiente',
-    Empresa:                 'Propia',
-    Cargo:                   'Dueño',
-    'Rubro del negocio':     'Comercio',
-    Estado:                  'Activo',
-    'Foto DNI':              [{ url: 'https://cdn.example.com/ana.jpg' }],
+    'Nombre completo':   'Ana Garza',        // new name (was "Nombre(s) y apellidos")
+    'N° DNI':            '87654321',
+    'Número celular':    '+51 900 100 200',
+    'Correo electrónico':'ana@example.com',
+    'Tipo de empleo':    'Independiente',    // new name (was "Empleo")
+    Empresa:             'Propia',
+    Cargo:               'Dueño',
+    'Rubro del negocio': 'Comercio',
+    // "Estado" field REMOVED from new Responsables schema — intentionally absent
+    'Foto DNI':          [{ url: 'https://cdn.example.com/ana.jpg' }],
   });
 }
 
 function makeResidenteRecord(id = 'recTENANT001', responsableExtId?: string) {
   return makeRecord(id, {
-    'Nombre(s) y apellidos': 'Carlos López',
+    'Nombre(s) y Apellidos': 'Carlos López', // EXACT field name with capital A
     'N° DNI':                '11111111',
-    Propiedad:               ['recPROP001'],
-    'N° de habitación':      ['Hab. 1'],
     ...(responsableExtId ? { Responsable: [responsableExtId] } : {}),
   });
 }
