@@ -38,6 +38,7 @@ export const TENANT_FIELD = {
   MONTHLY_RENT:    'Renta',
   DEPOSIT:         'Garantía',
   STATUS:          'Estado',
+  PHOTO:           'Foto de perfil',  // Airtable attachment field — must be created manually first
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,20 @@ function extractFirstLinkedLabel(value: unknown): string | null {
   return null;
 }
 
+/**
+ * Extract the URL from the first attachment in an Airtable attachment array.
+ * Returns undefined (not null) so callers can distinguish "field absent" from
+ * "field present but empty" — callers must NOT clobber existing values with null
+ * when this returns undefined.
+ */
+function extractFirstAttachmentUrl(value: unknown): string | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const first = value[0] as Record<string, unknown> | undefined;
+  if (!first) return undefined;
+  const url = first['url'];
+  return typeof url === 'string' && url ? url : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // normalizeTenant
 // ---------------------------------------------------------------------------
@@ -100,7 +115,32 @@ export function normalizeTenant(
   const propertyExtId = extractFirstLinkedId(f[TENANT_FIELD.PROPERTY_NAME]);
   const unitLabel     = extractFirstLinkedLabel(f[TENANT_FIELD.UNIT_LABEL]);
 
-  return {
+  // Attachment field — only map if present in this record; do NOT clobber existing photo_url with null
+  const photoUrl = TENANT_FIELD.PHOTO in f
+    ? (extractFirstAttachmentUrl(f[TENANT_FIELD.PHOTO]) ?? null)
+    : undefined;
+
+  const normalized: ReturnType<typeof buildNormalized> = buildNormalized({
+    orgId, record, fullName, firstName, lastName, propertyExtId, unitLabel, photoUrl,
+    f,
+  });
+  return normalized;
+}
+
+// Extracted to keep normalizeTenant readable
+function buildNormalized(args: {
+  orgId: string;
+  record: AirtableRecord;
+  fullName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  propertyExtId: string | null;
+  unitLabel: string | null;
+  photoUrl: string | null | undefined;
+  f: AirtableRecord['fields'];
+}): NormalizedTenant {
+  const { orgId, record, fullName, firstName, lastName, propertyExtId, unitLabel, photoUrl, f } = args;
+  const result: NormalizedTenant = {
     org_id:               orgId,
     airtable_external_id: record.id,
     airtable_synced_at:   new Date().toISOString(),
@@ -126,4 +166,10 @@ export function normalizeTenant(
     _airtable_property_ext_id: propertyExtId,
     _airtable_unit_label:      unitLabel,
   };
+  // photo_url: only include in normalized result when the Airtable field was present.
+  // undefined means "not in record" — callers must use SQL coalesce / skip if undefined.
+  if (photoUrl !== undefined) {
+    result.photo_url = photoUrl;
+  }
+  return result;
 }

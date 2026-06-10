@@ -21,6 +21,11 @@ interface ResidenteFields {
   birth_date?: string | null;
   emergency_contact_name?: string | null;
   emergency_contact_phone?: string | null;
+  /** Public URL of the tenant's profile photo. Written as an Airtable attachment.
+   *  The "Foto de perfil" attachment field must be created manually in Airtable first.
+   *  If Airtable rejects with HTTP 422 (UNKNOWN_FIELD_NAME), the field is dropped and
+   *  the record is re-submitted without it so the rest of the data still syncs. */
+  photo_url?: string | null;
 }
 
 /**
@@ -45,7 +50,7 @@ export async function upsertAirtableResidente(
   }
 
   // Build fields — omit null/undefined values
-  const fields: Record<string, string> = {
+  const fields: Record<string, unknown> = {
     'Nombre(s)':           tenant.first_name,
     'Apellidos':           tenant.last_name,
     'Correo electrónico':  tenant.email,
@@ -53,6 +58,9 @@ export async function upsertAirtableResidente(
   };
   if (tenant.dni)         fields['N° DNI']              = tenant.dni;
   if (tenant.birth_date)  fields['Fecha de nacimiento'] = tenant.birth_date;
+  // Attachment field — requires manual creation in Airtable before use.
+  // On 422 (UNKNOWN_FIELD_NAME) this field is removed and the record is retried.
+  if (tenant.photo_url)   fields['Foto de perfil']      = [{ url: tenant.photo_url }];
 
   const tableUrl = `${AIRTABLE_API_BASE}/${baseId}/${encodeURIComponent(tableName)}`;
   const headers  = {
@@ -68,6 +76,12 @@ export async function upsertAirtableResidente(
       body: JSON.stringify({ fields }),
       cache: 'no-store',
     });
+
+    if (res.status === 422 && tenant.photo_url) {
+      // Airtable field not created yet — retry without photo field
+      const { 'Foto de perfil': _dropped, ...fieldsWithoutPhoto } = fields;
+      return patchResidenteRecord(tableUrl, existingAirtableId, headers, fieldsWithoutPhoto);
+    }
 
     if (res.status === 404) {
       // Record was deleted in Airtable — fall through to create
@@ -86,10 +100,34 @@ export async function upsertAirtableResidente(
   return createResidenteRecord(tableUrl, headers, fields);
 }
 
+async function patchResidenteRecord(
+  tableUrl: string,
+  recordId: string,
+  headers: Record<string, string>,
+  fields: Record<string, unknown>
+): Promise<UpsertAirtableResidenteResult> {
+  const res = await fetch(`${tableUrl}/${recordId}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ fields }),
+    cache: 'no-store',
+  });
+
+  if (res.status === 404) {
+    return createResidenteRecord(tableUrl, headers, fields);
+  }
+  if (!res.ok) {
+    throw new Error(`[airtable/write] PATCH (retry) failed: HTTP ${res.status}`);
+  }
+  const data = await res.json() as { id?: string };
+  if (!data.id) throw new Error('[airtable/write] PATCH (retry) response missing record id');
+  return { airtableRecordId: data.id, created: false };
+}
+
 async function createResidenteRecord(
   tableUrl: string,
   headers: Record<string, string>,
-  fields: Record<string, string>
+  fields: Record<string, unknown>
 ): Promise<UpsertAirtableResidenteResult> {
   const res = await fetch(tableUrl, {
     method: 'POST',
@@ -97,6 +135,12 @@ async function createResidenteRecord(
     body: JSON.stringify({ fields }),
     cache: 'no-store',
   });
+
+  if (res.status === 422 && 'Foto de perfil' in fields) {
+    // Attachment field not created in Airtable yet — retry without it
+    const { 'Foto de perfil': _dropped, ...fieldsWithoutPhoto } = fields;
+    return createResidenteRecord(tableUrl, headers, fieldsWithoutPhoto);
+  }
 
   if (!res.ok) {
     throw new Error(`[airtable/write] POST failed: HTTP ${res.status}`);
