@@ -176,6 +176,54 @@ export async function syncEntityTable(
     let upsertedCount = 0;
     let upsertError: string | undefined;
 
+    // W5c: Conflict detection for tenants.
+    // Any tenant that has been locally edited in PropFlow after the last Airtable sync
+    // is flagged as 'needs_review' so the admin can reconcile manually.
+    // We still upsert Airtable data for all records — the flag is additive, not a skip.
+    if (entity === 'tenants' && domainRows.length > 0) {
+      const airtableExtIds = domainRows
+        .map(r => r['airtable_external_id'])
+        .filter((id): id is string => typeof id === 'string');
+
+      if (airtableExtIds.length > 0) {
+        const { data: existingTenants } = await adminClient
+          .from('tenants')
+          .select('airtable_external_id, updated_at, airtable_synced_at, sync_status')
+          .eq('org_id', orgId)
+          .in('airtable_external_id', airtableExtIds);
+
+        if (existingTenants) {
+          const needsReviewIds = new Set<string>();
+          for (const t of existingTenants as Array<{
+            airtable_external_id: string;
+            updated_at: string | null;
+            airtable_synced_at: string | null;
+            sync_status: string | null;
+          }>) {
+            if (
+              t.updated_at &&
+              t.airtable_synced_at &&
+              new Date(t.updated_at) > new Date(t.airtable_synced_at)
+            ) {
+              needsReviewIds.add(t.airtable_external_id);
+            }
+          }
+
+          if (needsReviewIds.size > 0) {
+            console.info(
+              `[sync-entities][tenants][${orgId}] conflict detected for ${needsReviewIds.size} tenant(s) — marking needs_review`
+            );
+            for (const row of domainRows) {
+              const extId = row['airtable_external_id'] as string | undefined;
+              if (extId && needsReviewIds.has(extId)) {
+                row['sync_status'] = 'needs_review';
+              }
+            }
+          }
+        }
+      }
+    }
+
     for (let i = 0; i < domainRows.length; i += BATCH) {
       const batch = domainRows.slice(i, i + BATCH);
       const { error } = await adminClient
