@@ -92,6 +92,28 @@ function toString(v: unknown): string | null {
   return String(v).trim() || null;
 }
 
+/**
+ * Convert a date value to ISO YYYY-MM-DD.
+ * Airtable date fields return ISO strings, but FORMULA fields (e.g.
+ * "Fecha fin contrato") return locale-formatted strings like "26/3/2027"
+ * (D/M/YYYY). Postgres rejects those, so normalize both shapes here.
+ * Returns null for unparseable input rather than passing garbage through.
+ */
+function toIsoDate(v: unknown): string | null {
+  const s = toString(v);
+  if (!s) return null;
+  // Already ISO (YYYY-MM-DD, possibly with time suffix)
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  // Locale D/M/YYYY or DD/MM/YYYY (Airtable formula output)
+  const dmy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmy) {
+    const [, d, m, y] = dmy;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return null;
+}
+
 function toInt(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   const n = typeof v === 'number' ? v : parseInt(String(v), 10);
@@ -141,8 +163,8 @@ export function normalizeContract(
     airtable_synced_at:   new Date().toISOString(),
     contract_code:        toString(f[CONTRACT_FIELD.CONTRACT_CODE]),
     contract_type:        toString(f[CONTRACT_FIELD.CONTRACT_TYPE]),
-    start_date:           toString(f[CONTRACT_FIELD.START_DATE]),
-    end_date:             toString(f[CONTRACT_FIELD.END_DATE]),
+    start_date:           toIsoDate(f[CONTRACT_FIELD.START_DATE]),
+    end_date:             toIsoDate(f[CONTRACT_FIELD.END_DATE]),
     duration_months:      toInt(f[CONTRACT_FIELD.DURATION_MONTHS]),
     monthly_rent:         toNumeric(f[CONTRACT_FIELD.MONTHLY_RENT]),
     deposit:              toNumeric(f[CONTRACT_FIELD.DEPOSIT]),

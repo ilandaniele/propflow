@@ -158,3 +158,20 @@ describe('mapContractStatus', () => {
     expect(mapContractStatus(undefined)).toBe('active');
   });
 });
+
+describe('toIsoDate via normalizeContract date fields', () => {
+  it('converts locale formula date "26/3/2027" to ISO', () => {
+    const c = normalizeContract(makeContractRecord({ [CONTRACT_FIELD.END_DATE]: '26/3/2027' }), ORG_ID);
+    expect(c.end_date).toBe('2027-03-26');
+  });
+
+  it('passes through ISO dates unchanged', () => {
+    const c = normalizeContract(makeContractRecord({ [CONTRACT_FIELD.START_DATE]: '2026-01-15' }), ORG_ID);
+    expect(c.start_date).toBe('2026-01-15');
+  });
+
+  it('returns null for unparseable date strings', () => {
+    const c = normalizeContract(makeContractRecord({ [CONTRACT_FIELD.END_DATE]: 'sin fecha' }), ORG_ID);
+    expect(c.end_date).toBeNull();
+  });
+});
