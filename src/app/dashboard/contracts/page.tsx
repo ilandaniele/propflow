@@ -65,7 +65,7 @@ export default async function ContractsPage() {
                     </td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">${contract.monthly_rent.toLocaleString()}/mo</td>
                     <td className="px-5 py-4 text-xs text-slate-500 hidden md:table-cell">
-                      {contract.start_date} → {contract.end_date}
+                      {contract.start_date} → {contract.end_date ?? '—'}
                     </td>
                     <td className="px-5 py-4"><StatusPill status={contract.status} /></td>
                   </tr>

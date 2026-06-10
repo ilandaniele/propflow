@@ -3,7 +3,7 @@ import { StatusPill } from '@/components/ui/Badge';
 
 interface OverviewTabProps {
   statement: { total_charges: number; total_approved_payments: number; balance: number; is_overdue: boolean } | null;
-  activeContract: { monthly_rent: number; start_date: string; end_date: string; status: string } | null;
+  activeContract: { monthly_rent: number; start_date: string; end_date: string | null; status: string } | null;
   activeIncidentsCount: number;
   pendingTasksCount: number;
   lastWhatsAppMessage: { body: string | null; created_at: string } | null;
@@ -49,7 +49,7 @@ export function OverviewTab({ statement, activeContract, activeIncidentsCount, p
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-500">Period</dt>
-              <dd>{activeContract.start_date} → {activeContract.end_date}</dd>
+              <dd>{activeContract.start_date} → {activeContract.end_date ?? '—'}</dd>
             </div>
             <div className="flex justify-between items-center">
               <dt className="text-slate-500">Status</dt>

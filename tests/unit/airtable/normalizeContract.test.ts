@@ -66,14 +66,14 @@ describe('normalizeContract — new base schema', () => {
     expect(c.status).toBe('active');
   });
 
-  it('maps "Finalizado" status → inactive', () => {
+  it('maps "Finalizado" status → terminated', () => {
     const c = normalizeContract(makeContractRecord({ [CONTRACT_FIELD.STATUS]: 'Finalizado' }), ORG_ID);
-    expect(c.status).toBe('inactive');
+    expect(c.status).toBe('terminated');
   });
 
-  it('maps unknown status → null', () => {
+  it('maps unknown status → terminated (safe CHECK-compliant default)', () => {
     const c = normalizeContract(makeContractRecord({ [CONTRACT_FIELD.STATUS]: 'Pendiente' }), ORG_ID);
-    expect(c.status).toBeNull();
+    expect(c.status).toBe('terminated');
   });
 
   it('extracts tenant ext id from "👤 Residentes" emoji field', () => {
@@ -143,18 +143,18 @@ describe('mapContractStatus', () => {
     }
   });
 
-  it('maps all inactive variants', () => {
+  it('maps all ended variants → terminated', () => {
     for (const v of ['Inactivo', 'Inactive', 'Finalizado', 'Terminado']) {
-      expect(mapContractStatus(v)).toBe('inactive');
+      expect(mapContractStatus(v)).toBe('terminated');
     }
   });
 
-  it('returns null for unknown value', () => {
-    expect(mapContractStatus('Pendiente')).toBeNull();
+  it('maps unknown value → terminated (DB CHECK only allows active/expired/terminated)', () => {
+    expect(mapContractStatus('Pendiente')).toBe('terminated');
   });
 
-  it('returns null for null/undefined', () => {
-    expect(mapContractStatus(null)).toBeNull();
-    expect(mapContractStatus(undefined)).toBeNull();
+  it('maps null/undefined → active (DB default)', () => {
+    expect(mapContractStatus(null)).toBe('active');
+    expect(mapContractStatus(undefined)).toBe('active');
   });
 });

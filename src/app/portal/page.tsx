@@ -100,7 +100,7 @@ export default async function PortalOverviewPage() {
             <div>
               <p className="text-xs text-slate-500 mb-0.5">Active Contract</p>
               <p className="font-semibold text-slate-900">${contract.monthly_rent.toLocaleString()}/month</p>
-              <p className="text-xs text-slate-500 mt-0.5">{contract.start_date} → {contract.end_date}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{contract.start_date} → {contract.end_date ?? '—'}</p>
             </div>
             <Link href="/portal/contract">
               <StatusPill status={contract.status} />
