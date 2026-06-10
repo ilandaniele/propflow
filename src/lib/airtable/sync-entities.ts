@@ -33,6 +33,7 @@ import { normalizeContract } from '@/lib/airtable/normalizers/normalizeContract'
 import { normalizePayment } from '@/lib/airtable/normalizers/normalizePayment';
 import { normalizePortafolio } from '@/lib/airtable/normalizers/normalizePortafolio';
 import { normalizeResponsable } from '@/lib/airtable/normalizers/normalizeResponsable';
+import { normalizeMantenimiento } from '@/lib/airtable/normalizers/normalizeMantenimiento';
 import { aggregateServicePaymentRecords } from '@/lib/airtable/normalizers/normalizeServicePayments';
 import { getAirtableClient } from '@/lib/airtable/client';
 
@@ -47,7 +48,8 @@ export type EntityName =
   | 'payments'
   | 'units'
   | 'responsables'
-  | 'service_payments';
+  | 'service_payments'
+  | 'incidents';
 
 export interface EntitySyncResult {
   entity: EntityName;
@@ -432,6 +434,7 @@ function entityToSnapshotName(entity: EntityName): string {
     contracts:        'historial',
     payments:         'movimientos',
     units:            'portafolio',
+    incidents:        'mantenimiento',
     responsables:     'responsables',
     service_payments: 'pago_servicios',
   };
@@ -634,6 +637,13 @@ function buildDomainRow(
       const row = toDbRow(normalized);
       row['airtable_synced_at'] = new Date().toISOString();
       return row;
+    }
+
+    case 'incidents': {
+      // Mantenimiento has no property/unit record links (Habitación is free text),
+      // so no idMap resolution — unit_id/property_id stay at their DB defaults.
+      const normalized = normalizeMantenimiento(record, orgId);
+      return toDbRow(normalized as unknown as Record<string, unknown>);
     }
 
     case 'service_payments': {

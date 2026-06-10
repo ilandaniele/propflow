@@ -32,6 +32,7 @@ export interface AirtableEnv {
   tablePortafolio:    string | null;
   tableResponsables:  string | null;
   tablePagoServicios: string | null;   // Single consolidated table (new base)
+  tableMantenimiento: string | null;   // Mantenimiento → incidents
 }
 
 export class AirtableNotConfiguredError extends Error {
@@ -81,6 +82,7 @@ export function assertAirtableEnv(): AirtableEnv {
   const tablePortafolio    = process.env['AIRTABLE_TABLE_PORTAFOLIO']    ?? null;
   const tableResponsables  = process.env['AIRTABLE_TABLE_RESPONSABLES']  ?? null;
   const tablePagoServicios = process.env['AIRTABLE_TABLE_PAGO_SERVICIOS'] ?? null;
+  const tableMantenimiento = process.env['AIRTABLE_TABLE_MANTENIMIENTO']  ?? null;
 
   if (missing.length > 0) {
     throw new AirtableNotConfiguredError(missing);
@@ -99,6 +101,7 @@ export function assertAirtableEnv(): AirtableEnv {
     tablePortafolio,
     tableResponsables,
     tablePagoServicios,
+    tableMantenimiento,
   };
 }
 

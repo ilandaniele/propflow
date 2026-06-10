@@ -13,4 +13,5 @@ export { normalizeContract, CONTRACT_FIELD, mapContractStatus } from './normaliz
 export { normalizePayment, PAYMENT_FIELD }     from './normalizePayment';
 export { normalizePortafolio, PORTAFOLIO_FIELD, type NormalizedUnit }       from './normalizePortafolio';
 export { normalizeResponsable, RESPONSABLE_FIELD, type NormalizedResponsable } from './normalizeResponsable';
+export { normalizeMantenimiento, type NormalizedIncident } from './normalizeMantenimiento';
 export { normalizeServicePayment, aggregateServicePaymentRecords, normalizeServicePaymentRecord, buildServiceMonthKey, mapServiceType, type ServiceType, type MonthEntry, type NormalizedServicePayment } from './normalizeServicePayments';
