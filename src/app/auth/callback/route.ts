@@ -1,25 +1,34 @@
 /**
  * GET /auth/callback
  *
- * Handles the OAuth PKCE callback from Supabase (and will handle future flows like
- * magic link if ever added). Never returns a JSON body — all paths are 302 redirects.
+ * Handles the OAuth PKCE callback from Supabase. Never returns a JSON body —
+ * all paths are 302 redirects.
  *
  * Flow:
- * 1. If provider-level error present → redirect /login?error=oauth_failed (fail closed).
+ * 1. If provider-level error present → redirect /login?error=oauth_cancelled (fail closed).
  * 2. Exchange the PKCE `code` for a session cookie.
- * 3. Read the authenticated user.
- * 4. Check for an existing profile row (via admin client — bypasses RLS, no session needed).
- *    a. Profile exists  → redirect by role (/dashboard for admin, /portal for tenant).
- *    b. No profile      → attempt auto-link (AC2/AC3):
- *       - Exactly 1 unlinked tenant row matches email → create profile + set profile_id → /portal
- *       - 0 or 2+ matches → redirect /onboarding (existing behaviour)
- * 5. Any unhandled error → redirect /login?error=oauth_failed (fail closed).
+ * 3. Read the authenticated user. Normalize email: trim + toLowerCase.
+ * 4. Check for an existing profile row (via admin client — bypasses RLS).
+ *    a. Profile exists → read auth_redirect_to cookie; redirect there or role home.
+ *    b. No profile    → attempt auto-link (AC2/AC3):
+ *       - Exactly 1 unlinked tenant row matches normalized email → create profile
+ *         + link tenant → read auth_redirect_to cookie or /portal
+ *       - 0 or 2+ matches → redirect /onboarding?type=tenant
+ * 5. Any unhandled error → redirect /login?error=invalid_callback (fail closed).
+ *
+ * Error query params:
+ *   oauth_cancelled          — user denied Google consent
+ *   invalid_callback         — missing code or exchange failed
+ *   missing_email            — Google returned no email
+ *   email_conflict           — duplicate email detected
+ *   airtable_unavailable     — account created but Airtable sync failed
+ *   local_created_airtable_failed — account created locally, sync failed
  *
  * Security:
- * - PKCE code_verifier is validated by Supabase internally — no extra check needed.
- * - Admin client is used only for the profile SELECT and auto-link flow (not for the session exchange).
- * - Never leaks error.message or stack traces to the client.
- * - All failure paths redirect to /login?error=oauth_failed with no session.
+ * - PKCE code_verifier is validated by Supabase internally.
+ * - Admin client used only for profile SELECT and auto-link (not session exchange).
+ * - Never leaks error.message or stack traces to client.
+ * - auth_redirect_to cookie is cleared after use.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -29,27 +38,58 @@ import { log } from '@/lib/log';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
-function failRedirect(request: NextRequest): NextResponse {
+const ALLOWED_REDIRECT_PATHS = ['/portal', '/dashboard', '/onboarding', '/settings'];
+
+function isSafeRedirectPath(path: string): boolean {
+  // Only allow relative paths starting with /; reject absolute URLs to prevent open redirect
+  if (!path.startsWith('/')) return false;
+  // Block protocol-relative URLs (//evil.com)
+  if (path.startsWith('//')) return false;
+  return ALLOWED_REDIRECT_PATHS.some(allowed => path === allowed || path.startsWith(allowed + '/'));
+}
+
+function readRedirectCookie(request: NextRequest): string | null {
+  const raw = request.cookies.get('auth_redirect_to')?.value;
+  if (!raw) return null;
+  try {
+    const decoded = decodeURIComponent(raw);
+    return isSafeRedirectPath(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearRedirectCookie(response: NextResponse): void {
+  response.cookies.set('auth_redirect_to', '', {
+    maxAge: 0,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+}
+
+function loginRedirect(request: NextRequest, errorCode: string): NextResponse {
   const url = new URL('/login', request.url);
-  url.searchParams.set('error', 'oauth_failed');
+  url.searchParams.set('error', errorCode);
   return NextResponse.redirect(url);
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
 
-  // Step 1: provider-level error (e.g. user denied consent)
+  // Step 1: provider-level error (e.g. user denied Google consent)
   const providerError = searchParams.get('error');
   if (providerError) {
-    const desc = searchParams.get('error_description') ?? 'unknown';
-    log.authFailure('', `oauth_provider_error:${providerError}:${desc}`);
-    return failRedirect(request);
+    // Log only error name/code — never description (may contain PII)
+    log.authFailure('', `oauth_provider_error:${providerError}`);
+    return loginRedirect(request, 'oauth_cancelled');
   }
 
   const code = searchParams.get('code');
   if (!code) {
     log.authFailure('', 'oauth_missing_code');
-    return failRedirect(request);
+    return loginRedirect(request, 'invalid_callback');
   }
 
   try {
@@ -59,72 +99,80 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     if (exchangeError || !exchangeData?.user) {
       log.authFailure('', `oauth_exchange_failed:${exchangeError?.status ?? 'unknown'}`);
-      return failRedirect(request);
+      return loginRedirect(request, 'invalid_callback');
     }
 
     const user = exchangeData.user;
-    log.authSuccess(user.id, user.email ?? '');
 
-    // Step 3: check for existing profile (admin client bypasses RLS — profile may not exist yet)
+    // Step 3: normalize email — trim + toLowerCase
+    const rawEmail = user.email ?? '';
+    if (!rawEmail) {
+      log.authFailure(user.id, 'oauth_missing_email');
+      return loginRedirect(request, 'missing_email');
+    }
+    const userEmail = rawEmail.trim().toLowerCase();
+
+    log.authSuccess(user.id, userEmail);
+
+    // Step 4: check for existing profile (admin client bypasses RLS)
     const profile = await getExistingProfile(user.id);
 
     if (profile) {
-      // Step 4a: profile exists → route by role
-      const destination = profile.role === 'admin'
-        ? new URL('/dashboard', SITE_URL)
-        : new URL('/portal', SITE_URL);
+      // Step 4a: profile exists → redirect by role (or auth_redirect_to cookie)
+      const cookieDest = readRedirectCookie(request);
+      const defaultDest = profile.role === 'admin' ? '/dashboard' : '/portal';
+      const destination = new URL(cookieDest ?? defaultDest, SITE_URL);
 
-      log.info('[callback] existing profile → routing by role', {
+      log.info('[callback] existing profile → routing', {
         event: 'oauth_callback_routed',
         userId: user.id,
         role: profile.role,
         destination: destination.pathname,
       });
 
-      return NextResponse.redirect(destination);
+      const response = NextResponse.redirect(destination);
+      clearRedirectCookie(response);
+      return response;
     }
 
-    // Step 4b: no profile — attempt auto-link by email (AC2 / AC3)
-    // Only runs when the user has no profile row at all (first login).
-    const userEmail = user.email ?? '';
+    // Step 4b: no profile — attempt auto-link by normalized email
+    const autoLinkResult = await attemptAutoLink(user.id, userEmail);
 
-    if (userEmail) {
-      const autoLinkResult = await attemptAutoLink(user.id, userEmail);
-
-      if (autoLinkResult.linked) {
-        // Exactly one tenant matched — profile created and tenant linked → send to portal
-        log.info('[callback] auto-link succeeded → redirecting to /portal', {
-          event: 'oauth_callback_auto_linked',
-          userId: user.id,
-        });
-        return NextResponse.redirect(new URL('/portal', SITE_URL));
-      }
-
-      if (autoLinkResult.reason === 'ambiguous_match') {
-        // Multiple tenants share this email — do NOT auto-link; fall through to onboarding
-        log.warn('[callback] auto-link skipped — ambiguous email match', {
-          event: 'oauth_callback_ambiguous',
-          userId: user.id,
-        });
-        // Fall through to onboarding below
-      }
-
-      // reason === 'no_match' || 'ambiguous_match' → onboarding
+    if (autoLinkResult.linked) {
+      log.info('[callback] auto-link succeeded → redirecting', {
+        event: 'oauth_callback_auto_linked',
+        userId: user.id,
+      });
+      const cookieDest = readRedirectCookie(request);
+      const destination = new URL(cookieDest ?? '/portal', SITE_URL);
+      const response = NextResponse.redirect(destination);
+      clearRedirectCookie(response);
+      return response;
     }
 
-    // Step 4c: no auto-link possible → onboarding
-    log.info('[callback] no profile + no auto-link → redirecting to onboarding', {
+    if (autoLinkResult.reason === 'ambiguous_match') {
+      log.warn('[callback] auto-link skipped — ambiguous email match', {
+        event: 'oauth_callback_ambiguous',
+        userId: user.id,
+      });
+    }
+
+    // Step 4c: no auto-link → send to onboarding as new tenant
+    log.info('[callback] no profile + no auto-link → onboarding', {
       event: 'oauth_callback_onboarding',
       userId: user.id,
     });
 
     const onboardingUrl = new URL('/onboarding', SITE_URL);
-    return NextResponse.redirect(onboardingUrl);
+    onboardingUrl.searchParams.set('type', 'tenant');
+    const response = NextResponse.redirect(onboardingUrl);
+    clearRedirectCookie(response);
+    return response;
 
   } catch (err) {
     // Step 5: catch-all fail closed — never expose internal error
     const errName = err instanceof Error ? err.name : 'unknown';
     log.error('[callback] unhandled error — failing closed', { errName });
-    return failRedirect(request);
+    return loginRedirect(request, 'invalid_callback');
   }
 }

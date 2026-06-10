@@ -4,7 +4,15 @@ import { useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 
 interface GoogleSignInButtonProps {
+  /** The URL Supabase should redirect to after OAuth (the /auth/callback route). */
   redirectTo: string;
+  /**
+   * Optional: the page path the user was trying to visit before being sent to login.
+   * When provided, it is stored in a short-lived cookie (auth_redirect_to, max-age 600)
+   * so the callback route can redirect there after successful auth.
+   * Must be a relative path starting with / (e.g. '/portal', '/dashboard/settings').
+   */
+  intendedDestination?: string;
 }
 
 /**
@@ -15,14 +23,28 @@ interface GoogleSignInButtonProps {
  * redirect. This is the recommended pattern per @supabase/ssr docs — a
  * Server Action cannot initiate an OAuth redirect because it runs on the
  * server and cannot access the browser cookie store for PKCE storage.
+ *
+ * When `intendedDestination` is set, stores it in a cookie before redirecting
+ * so the callback route can return the user to the right page post-auth.
  */
-export function GoogleSignInButton({ redirectTo }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ redirectTo, intendedDestination }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGoogleSignIn() {
     setLoading(true);
     setError(null);
+
+    // Store intended destination before the redirect so the callback can restore it.
+    if (intendedDestination && intendedDestination.startsWith('/')) {
+      document.cookie = [
+        `auth_redirect_to=${encodeURIComponent(intendedDestination)}`,
+        'max-age=600',
+        'path=/',
+        'SameSite=Lax',
+        ...(window.location.protocol === 'https:' ? ['Secure'] : []),
+      ].join('; ');
+    }
 
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,7 +64,7 @@ export function GoogleSignInButton({ redirectTo }: GoogleSignInButtonProps) {
 
     if (oauthError) {
       // signInWithOAuth failure (network issue, provider misconfigured, etc.)
-      setError('Could not start Google sign-in. Please try again.');
+      setError('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
       setLoading(false);
     }
     // On success, the browser is redirected to Google — loading stays true
@@ -54,7 +76,7 @@ export function GoogleSignInButton({ redirectTo }: GoogleSignInButtonProps) {
         type="button"
         onClick={handleGoogleSignIn}
         disabled={loading}
-        aria-label="Continue with Google"
+        aria-label="Continuar con Google"
         className={[
           'w-full inline-flex items-center justify-center gap-3',
           'h-11 px-4 rounded-md text-sm font-medium transition-colors duration-150',
@@ -101,7 +123,7 @@ export function GoogleSignInButton({ redirectTo }: GoogleSignInButtonProps) {
             />
           </svg>
         )}
-        <span>{loading ? 'Redirecting...' : 'Continue with Google'}</span>
+        <span>{loading ? 'Redirigiendo...' : 'Continuar con Google'}</span>
       </button>
 
       {error && (
