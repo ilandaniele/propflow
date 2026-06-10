@@ -668,14 +668,14 @@ describe('POST /api/cron/airtable-sync — AC4: unit_id resolution via unitMap',
     Object.keys(airtableTableErrors).forEach(k => delete airtableTableErrors[k]);
   });
 
-  it('resolves unit_id when unit label matches (property_id + label found in unitMap)', async () => {
-    // Property upsert → idMap maps recPROP001 → PROP_UUID
+  it('unit_id is null for tenants: Residentes table no longer has a unit label field in new schema', async () => {
+    // New base schema: "N° de habitación" (unit label link) was removed from Residentes.
+    // normalizeTenant always returns _airtable_unit_label: null → unit_id stays null.
     airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [makePropiedadRecord('recPROP001')];
-    // Residente linked to recPROP001 with unit label "Hab. 1"
     airtableRecordsByKey['AIRTABLE_TABLE_RESIDENTES'] = [
       makeResidenteRecord('recTENANT001', 'recPROP001', 'Hab. 1'),
     ];
-    // units table returns a matching unit row
+    // Even with a matching unit in the units table, unit_id stays null
     unitsSelectResult = [
       { id: UNIT_UUID, property_id: PROP_UUID, label: 'Hab. 1' },
     ];
@@ -685,8 +685,11 @@ describe('POST /api/cron/airtable-sync — AC4: unit_id resolution via unitMap',
     const tenantUpsert = upsertCalls.find(c => c.table === 'tenants');
     expect(tenantUpsert).toBeDefined();
     const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
-    expect(row['unit_id']).toBe(UNIT_UUID);
-    expect(row['property_id']).toBe(PROP_UUID);
+    // In new schema, unit_id and property_id are always null from the tenant normalizer.
+    // The Residentes table no longer carries Propiedad or unit-label links;
+    // property_id for a tenant is resolved indirectly via their contract in the contracts sync.
+    expect(row['unit_id']).toBeNull();
+    expect(row['property_id']).toBeNull();
   });
 
   it('sets unit_id to null and does not abort when unit label has no match in unitMap', async () => {

@@ -1,13 +1,11 @@
 /**
- * Unit tests for Airtable entity normalizers.
+ * Unit tests for Airtable entity normalizers — updated for new base schema.
  *
- * Covers:
- * - Happy path for each normalizer with a realistic mock Airtable record
- * - Linked-field array extraction (first element)
- * - Missing/null fields gracefully return null (no crash)
- * - Status mapping for contracts (Activo, Inactivo, Finalizado, unknown)
- * - Rollup field parsing for payments (array vs scalar)
- * - AC9: normalizers do not issue any HTTP calls (pure functions)
+ * New base ("Untitled Base" apphwPe2oIkGRSTkb) schema changes:
+ * - normalizeTenant: contract fields removed from Residentes; property/unit link gone
+ * - normalizeContract: tenant link is "👤 Residentes" (with emoji); field names updated
+ * - normalizePayment: now reads Movimientos; returns discriminated union {skip, payment}
+ * - normalizeProperty: renamed supply fields; removed description/current_residents
  */
 
 import { describe, it, expect } from 'vitest';
@@ -18,10 +16,6 @@ import { normalizePayment }  from '@/lib/airtable/normalizers/normalizePayment';
 
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
-// ---------------------------------------------------------------------------
-// Helper: build a minimal AirtableRecord
-// ---------------------------------------------------------------------------
-
 function makeRecord(id: string, fields: Record<string, unknown>) {
   return { id, createdTime: '2024-01-01T00:00:00.000Z', fields };
 }
@@ -31,16 +25,16 @@ function makeRecord(id: string, fields: Record<string, unknown>) {
 // ===========================================================================
 
 describe('normalizeProperty', () => {
-  it('maps all fields correctly from a complete record', () => {
+  it('maps all fields correctly from a complete record (new field names)', () => {
     const record = makeRecord('recPROP001', {
-      'Propiedad':                  'Casa Lima',
-      'Dirección':                  'Av. Larco 123',
-      'Modalidad':                  'Coliving',
-      'Distrito':                   'Miraflores',
-      'Descripción':                'Casa grande',
-      'N° de suministro (L)':       'SUP-001',
-      'N° de residentes actuales':  4,
-      'N° total de habitaciones':   8,
+      'Propiedad':                    'Casa Lima',
+      'Dirección':                    'Av. Larco 123',
+      'Modalidad':                    'Coliving',
+      'Distrito':                     'Miraflores',
+      'N° de suministro (Luz)':       'SUP-LUZ-001',   // new name
+      'N° de suministro (Agua)':      'SUP-AGU-001',   // new name
+      'N° de cliente (Gas)':          'GAS-001',        // new name
+      'N° total de habitaciones':     8,
     });
 
     const result = normalizeProperty(record, ORG_ID);
@@ -51,9 +45,9 @@ describe('normalizeProperty', () => {
     expect(result.address).toBe('Av. Larco 123');
     expect(result.modality).toBe('Coliving');
     expect(result.district).toBe('Miraflores');
-    expect(result.description).toBe('Casa grande');
-    expect(result.supply_number_luz).toBe('SUP-001');
-    expect(result.current_residents).toBe(4);
+    expect(result.supply_number_luz).toBe('SUP-LUZ-001');
+    expect(result.n_suministro_agua).toBe('SUP-AGU-001');
+    expect(result.n_cliente_gas).toBe('GAS-001');
     expect(result.total_rooms).toBe(8);
     expect(result.airtable_synced_at).toBeTruthy();
   });
@@ -70,15 +64,25 @@ describe('normalizeProperty', () => {
     expect(result.district).toBeNull();
     expect(result.modality).toBeNull();
     expect(result.total_rooms).toBeNull();
-    expect(result.current_residents).toBeNull();
+    // current_residents removed from new schema — not mapped, so undefined/absent
+    expect(result.current_residents).toBeUndefined();
   });
 
   it('falls back to record.id when Propiedad field is absent', () => {
     const record = makeRecord('recPROP003', {});
-
     const result = normalizeProperty(record, ORG_ID);
-
     expect(result.name).toBe('recPROP003');
+  });
+
+  it('maps Tope luz and Tope Agua when present', () => {
+    const record = makeRecord('recPROP004', {
+      'Propiedad':     'Casa con Topes',
+      'Tope luz (S/)': 300,
+      'Tope Agua (S/)': 100,
+    });
+    const result = normalizeProperty(record, ORG_ID);
+    expect(result.tope_luz).toBe(300);
+    expect(result.tope_agua).toBe(100);
   });
 });
 
@@ -87,25 +91,17 @@ describe('normalizeProperty', () => {
 // ===========================================================================
 
 describe('normalizeTenant', () => {
-  it('maps all fields correctly from a complete record', () => {
+  it('maps all fields correctly from a complete record (new schema)', () => {
     const record = makeRecord('recTEN001', {
-      'Nombre(s) y apellidos': 'Juan Pérez López',
-      'Codigo':                'COD-001',
+      'Nombre(s) y Apellidos': 'Juan Pérez López',  // formula — capital A
       'Nombre(s)':             'Juan',
       'Apellidos':             'Pérez López',
       'N° DNI':                '12345678',
       'Fecha de nacimiento':   '1990-05-15',
       'Número celular':        '+51987654321',
       'Correo electrónico':    'juan@example.com',
-      'N° de habitación':      ['101'],
-      'Propiedad':             ['recPROP001'],
-      'Fecha de inicio':       '2024-01-01',
-      'Duración':              12,
-      'Fecha fin':             '2025-01-01',
-      'Fecha de pago':         5,
-      'Renta':                 800,
-      'Garantía':              1600,
       'Estado':                'Activo',
+      // Contract fields are GONE from new Residentes schema — intentionally absent
     });
 
     const result = normalizeTenant(record, ORG_ID);
@@ -115,61 +111,55 @@ describe('normalizeTenant', () => {
     expect(result.full_name).toBe('Juan Pérez López');
     expect(result.first_name).toBe('Juan');
     expect(result.last_name).toBe('Pérez López');
-    expect(result.codigo).toBe('COD-001');
     expect(result.dni).toBe('12345678');
     expect(result.birth_date).toBe('1990-05-15');
     expect(result.phone).toBe('+51987654321');
     expect(result.email).toBe('juan@example.com');
-    expect(result.payment_due_day).toBe(5);
-    expect(result.monthly_rent).toBe(800);
-    expect(result.deposit).toBe(1600);
     expect(result.tenant_status).toBe('Activo');
-    expect(result.contract_start).toBe('2024-01-01');
-    expect(result.duration_months).toBe(12);
-    expect(result.contract_end).toBe('2025-01-01');
+    expect(result.airtable_synced_at).toBeTruthy();
   });
 
-  it('extracts first element from linked Propiedad array (AC4)', () => {
+  it('does NOT set contract fields (they no longer exist on Residentes)', () => {
     const record = makeRecord('recTEN002', {
-      'Nombre(s) y apellidos': 'Ana García',
-      'Propiedad':             ['recPROP001', 'recPROP002'],   // multiple — take first
-      'N° de habitación':      ['202', '203'],
+      'Nombre(s)': 'Ana',
+      'Apellidos': 'García',
     });
-
     const result = normalizeTenant(record, ORG_ID);
-
-    expect(result._airtable_property_ext_id).toBe('recPROP001');
-    expect(result._airtable_unit_label).toBe('202');
-    // property_id and unit_id start as null — resolved later
-    expect(result.property_id).toBeNull();
-    expect(result.unit_id).toBeNull();
+    // Contract-related keys should be absent (undefined), not null, so DB upsert
+    // does not overwrite values already set by the contracts sync.
+    expect(result.monthly_rent).toBeUndefined();
+    expect(result.deposit).toBeUndefined();
+    expect(result.contract_start).toBeUndefined();
+    expect(result.contract_end).toBeUndefined();
+    expect(result.duration_months).toBeUndefined();
+    expect(result.payment_due_day).toBeUndefined();
   });
 
-  it('returns null for linked fields when arrays are empty', () => {
-    const record = makeRecord('recTEN003', {
-      'Nombre(s) y apellidos': 'Carlos Ríos',
-      'Propiedad':             [],
-      'N° de habitación':      [],
-    });
-
+  it('sets _airtable_property_ext_id null (no longer on Residentes)', () => {
+    const record = makeRecord('recTEN003', { 'Nombre(s)': 'Carlos' });
     const result = normalizeTenant(record, ORG_ID);
-
     expect(result._airtable_property_ext_id).toBeNull();
     expect(result._airtable_unit_label).toBeNull();
   });
 
   it('does not crash when all optional fields are missing', () => {
     const record = makeRecord('recTEN004', {
-      'Nombre(s) y apellidos': 'Solo Nombre',
+      'Nombre(s) y Apellidos': 'Solo Nombre',
     });
-
     const result = normalizeTenant(record, ORG_ID);
-
     expect(result.full_name).toBe('Solo Nombre');
     expect(result.dni).toBeNull();
     expect(result.phone).toBeNull();
     expect(result.email).toBeNull();
-    expect(result.monthly_rent).toBeNull();
+  });
+
+  it('falls back to firstName+lastName concatenation when formula absent', () => {
+    const record = makeRecord('recTEN005', {
+      'Nombre(s)': 'Luis',
+      'Apellidos': 'Mendoza',
+    });
+    const result = normalizeTenant(record, ORG_ID);
+    expect(result.full_name).toBe('Luis Mendoza');
   });
 });
 
@@ -184,6 +174,10 @@ describe('mapContractStatus', () => {
 
   it('maps Active → active (English variant)', () => {
     expect(mapContractStatus('Active')).toBe('active');
+  });
+
+  it('maps Vigente → active', () => {
+    expect(mapContractStatus('Vigente')).toBe('active');
   });
 
   it('maps Inactivo → inactive', () => {
@@ -206,18 +200,18 @@ describe('mapContractStatus', () => {
 });
 
 describe('normalizeContract', () => {
-  it('maps all fields correctly from a complete record', () => {
+  it('maps all fields correctly from a complete record (new schema)', () => {
     const record = makeRecord('recCON001', {
-      'Contrato ID':            'CTR-2024-001',
-      'Residente':              ['recTEN001'],
-      'Tipo de contrato':       'Fijo',
-      'Fecha inicio':           '2024-01-01',
-      'Duración (meses)':       12,
-      'Fecha fin':              '2025-01-01',
-      'Renta':                  800,
-      'Garantía':               1600,
-      'Constancia de garantía': 'https://example.com/receipt.pdf',
-      'Estado':                 'Activo',
+      'Contrato ID':           'CTR-2024-001',
+      '👤 Residentes':         ['recTEN001'],        // emoji field — EXACT
+      'Habitacion':            ['recUNIT001'],        // no tilde
+      'Tipo de contrato':      'Fijo',
+      'Fecha de inicio':       '2024-01-01',          // new field name
+      'Duración pactada (meses)': 12,                 // new field name
+      'Fecha fin contrato':    '2025-01-01',          // new field name
+      'Renta pactada (S/)':    800,                   // new field name
+      'Garantía (S/)':         1600,                  // new field name
+      'Estado contrato':       'Activo',              // new field name
     });
 
     const result = normalizeContract(record, ORG_ID);
@@ -231,36 +225,28 @@ describe('normalizeContract', () => {
     expect(result.end_date).toBe('2025-01-01');
     expect(result.monthly_rent).toBe(800);
     expect(result.deposit).toBe(1600);
-    expect(result.deposit_receipt_url).toBe('https://example.com/receipt.pdf');
     expect(result.status).toBe('active');
     expect(result._airtable_tenant_ext_id).toBe('recTEN001');
+    expect(result._airtable_unit_ext_id).toBe('recUNIT001');
   });
 
-  it('extracts first element from linked Residente array', () => {
+  it('extracts first element from "👤 Residentes" emoji linked array', () => {
     const record = makeRecord('recCON002', {
-      'Residente': ['recTEN001', 'recTEN002'],
+      '👤 Residentes': ['recTEN001', 'recTEN002'],
     });
-
     const result = normalizeContract(record, ORG_ID);
-
     expect(result._airtable_tenant_ext_id).toBe('recTEN001');
   });
 
-  it('sets _airtable_tenant_ext_id to null when Residente array is empty', () => {
-    const record = makeRecord('recCON003', {
-      'Residente': [],
-    });
-
+  it('sets _airtable_tenant_ext_id to null when "👤 Residentes" is absent', () => {
+    const record = makeRecord('recCON003', {});
     const result = normalizeContract(record, ORG_ID);
-
     expect(result._airtable_tenant_ext_id).toBeNull();
   });
 
   it('does not crash when all optional fields are absent', () => {
     const record = makeRecord('recCON004', {});
-
     const result = normalizeContract(record, ORG_ID);
-
     expect(result.airtable_external_id).toBe('recCON004');
     expect(result.status).toBeNull();
     expect(result.monthly_rent).toBeNull();
@@ -269,64 +255,70 @@ describe('normalizeContract', () => {
 });
 
 // ===========================================================================
-// normalizePayment
+// normalizePayment (Movimientos schema)
 // ===========================================================================
 
 describe('normalizePayment', () => {
-  it('maps all fields correctly from a complete record', () => {
+  it('returns skip=false and maps fields correctly from a complete record', () => {
     const record = makeRecord('recPAY001', {
-      'Name':                   'PAY-2024-001',
-      'Nombre(s) y apellidos':  'Juan Pérez López',
-      'Número celular':         '+51987654321',
-      'Renta (from ID)':        800,
-      'Fecha de pago (from ID)': '2024-02-05',
-      'Mes actual':             'Febrero 2024',
+      '📋 Historial (Contratos)': ['recCON001'],   // emoji field — EXACT
+      'Nombres y Apellidos':       'Juan Pérez',
+      'Monto depositado (S/)':     800,
+      'Fecha de vencimiento':      '2024-02-05',
+      'Fecha de pago':             '2024-02-04',
+      'Mes':                       'Febrero',
+      'Año':                       '2024',
+      'Método de pago':            'Transferencia',
+      'Estado pago':               'Pagado',
     });
 
     const result = normalizePayment(record, ORG_ID);
 
-    expect(result.org_id).toBe(ORG_ID);
-    expect(result.airtable_external_id).toBe('recPAY001');
-    expect(result.name).toBe('PAY-2024-001');
-    expect(result.tenant_name).toBe('Juan Pérez López');
-    expect(result.phone).toBe('+51987654321');
-    expect(result.amount).toBe(800);
-    expect(result.due_date).toBe('2024-02-05');
-    expect(result.period_month).toBe('Febrero 2024');
+    expect(result.skip).toBe(false);
+    if (result.skip) return;
+    const p = result.payment;
+    expect(p.org_id).toBe(ORG_ID);
+    expect(p.airtable_external_id).toBe('recPAY001');
+    expect(p.tenant_name).toBe('Juan Pérez');
+    expect(p.amount).toBe(800);
+    expect(p.due_date).toBe('2024-02-05');
+    expect(p.paid_at).toBe('2024-02-04');
+    expect(p.period_month).toBe('2024-02');
+    expect(p.method).toBe('transfer');
+    expect(p.status).toBe('approved');
+    expect(p._airtable_contract_ext_id).toBe('recCON001');
   });
 
-  it('parses rollup amount field when returned as array (linked rollup)', () => {
+  it('returns skip=true when amount is missing', () => {
     const record = makeRecord('recPAY002', {
-      'Renta (from ID)':         [900, 1000],   // rollup returns array — use first
-      'Fecha de pago (from ID)': ['2024-03-05', '2024-04-05'],
+      'Fecha de vencimiento': '2024-03-05',
     });
-
     const result = normalizePayment(record, ORG_ID);
-
-    expect(result.amount).toBe(900);
-    expect(result.due_date).toBe('2024-03-05');
+    expect(result.skip).toBe(true);
   });
 
-  it('returns null for rollup fields when array is empty', () => {
+  it('falls back to Monto renta (S/) when Monto depositado absent', () => {
     const record = makeRecord('recPAY003', {
-      'Renta (from ID)':         [],
-      'Fecha de pago (from ID)': [],
+      'Monto depositado (S/)': undefined,
+      'Monto renta (S/)':      900,
+      'Fecha de vencimiento':  '2024-03-05',
     });
-
     const result = normalizePayment(record, ORG_ID);
-
-    expect(result.amount).toBeNull();
-    expect(result.due_date).toBeNull();
+    expect(result.skip).toBe(false);
+    if (!result.skip) expect(result.payment.amount).toBe(900);
   });
 
-  it('does not crash when all optional fields are missing', () => {
-    const record = makeRecord('recPAY004', {});
-
+  it('returns skip=true when both dates missing', () => {
+    const record = makeRecord('recPAY004', {
+      'Monto depositado (S/)': 500,
+    });
     const result = normalizePayment(record, ORG_ID);
+    expect(result.skip).toBe(true);
+  });
 
-    expect(result.airtable_external_id).toBe('recPAY004');
-    expect(result.amount).toBeNull();
-    expect(result.tenant_name).toBeNull();
-    expect(result.contract_id).toBeNull();
+  it('does not crash when all optional fields are missing (still skips on no amount)', () => {
+    const record = makeRecord('recPAY005', {});
+    const result = normalizePayment(record, ORG_ID);
+    expect(result.skip).toBe(true);
   });
 });

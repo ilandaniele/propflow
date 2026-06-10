@@ -9,7 +9,7 @@
  * AC8: assertAirtableEnv() throws Errors.INTERNAL with code AIRTABLE_NOT_CONFIGURED
  * when AIRTABLE_PAT or AIRTABLE_BASE_ID is missing. No HTTP request is issued.
  *
- * The four entity table env vars (AIRTABLE_TABLE_RESIDENTES etc.) are OPTIONAL.
+ * The entity table env vars (AIRTABLE_TABLE_RESIDENTES etc.) are OPTIONAL.
  * A missing var means that entity table is skipped for sync (AC7).
  * Use resolveEntityTableEnvKey() to read them — it returns null when unset.
  *
@@ -25,16 +25,13 @@ export interface AirtableEnv {
   tablePerformance: string;
   tableKpis: string;
   // Entity table env vars — null when the var is not set (table is skipped)
-  tableResidentes: string | null;
-  tablePropiedades: string | null;
-  tablePagos: string | null;
-  tableHistorial: string | null;
-  tablePortafolio: string | null;
-  tableResponsables: string | null;
-  tablePagosAgua: string | null;
-  tablePagosInternet: string | null;
-  tablePagosGas: string | null;
-  tablePagosLuz: string | null;
+  tableResidentes:    string | null;
+  tablePropiedades:   string | null;
+  tablePagos:         string | null;    // Movimientos in new base
+  tableHistorial:     string | null;
+  tablePortafolio:    string | null;
+  tableResponsables:  string | null;
+  tablePagoServicios: string | null;   // Single consolidated table (new base)
 }
 
 export class AirtableNotConfiguredError extends Error {
@@ -57,8 +54,8 @@ export class AirtableNotConfiguredError extends Error {
  * Airtable HTTP requests — BEFORE any fetch call — so that a misconfigured
  * environment fails fast with a clear error rather than an auth 401 from Airtable.
  *
- * Entity table vars (AIRTABLE_TABLE_RESIDENTES, PROPIEDADES, PAGOS, HISTORIAL) are
- * NOT required — their absence causes the corresponding table to be skipped, not an error.
+ * Entity table vars are NOT required — their absence causes the corresponding
+ * table to be skipped, not an error.
  *
  * @throws {AirtableNotConfiguredError} when AIRTABLE_PAT or AIRTABLE_BASE_ID is absent
  */
@@ -72,21 +69,18 @@ export function assertAirtableEnv(): AirtableEnv {
   if (!baseId) missing.push('AIRTABLE_BASE_ID');
 
   // Legacy table env vars — kept as empty string when unset (backward-compatible)
-  const tableRooms = process.env['AIRTABLE_TABLE_ROOMS'] ?? '';
-  const tablePerformance = process.env['AIRTABLE_TABLE_PERFORMANCE'] ?? '';
-  const tableKpis = process.env['AIRTABLE_TABLE_KPIS'] ?? '';
+  const tableRooms       = process.env['AIRTABLE_TABLE_ROOMS']       ?? '';
+  const tablePerformance = process.env['AIRTABLE_TABLE_PERFORMANCE']  ?? '';
+  const tableKpis        = process.env['AIRTABLE_TABLE_KPIS']         ?? '';
 
   // Entity table env vars — null means "skip this table" (AC7)
-  const tableResidentes  = process.env['AIRTABLE_TABLE_RESIDENTES']  ?? null;
-  const tablePropiedades = process.env['AIRTABLE_TABLE_PROPIEDADES'] ?? null;
-  const tablePagos       = process.env['AIRTABLE_TABLE_PAGOS']       ?? null;
-  const tableHistorial      = process.env['AIRTABLE_TABLE_HISTORIAL']      ?? null;
-  const tablePortafolio     = process.env['AIRTABLE_TABLE_PORTAFOLIO']     ?? null;
-  const tableResponsables   = process.env['AIRTABLE_TABLE_RESPONSABLES']   ?? null;
-  const tablePagosAgua      = process.env['AIRTABLE_TABLE_PAGOS_AGUA']      ?? null;
-  const tablePagosInternet  = process.env['AIRTABLE_TABLE_PAGOS_INTERNET']  ?? null;
-  const tablePagosGas       = process.env['AIRTABLE_TABLE_PAGOS_GAS']       ?? null;
-  const tablePagosLuz       = process.env['AIRTABLE_TABLE_PAGOS_LUZ']       ?? null;
+  const tableResidentes    = process.env['AIRTABLE_TABLE_RESIDENTES']    ?? null;
+  const tablePropiedades   = process.env['AIRTABLE_TABLE_PROPIEDADES']   ?? null;
+  const tablePagos         = process.env['AIRTABLE_TABLE_PAGOS']         ?? null;
+  const tableHistorial     = process.env['AIRTABLE_TABLE_HISTORIAL']     ?? null;
+  const tablePortafolio    = process.env['AIRTABLE_TABLE_PORTAFOLIO']    ?? null;
+  const tableResponsables  = process.env['AIRTABLE_TABLE_RESPONSABLES']  ?? null;
+  const tablePagoServicios = process.env['AIRTABLE_TABLE_PAGO_SERVICIOS'] ?? null;
 
   if (missing.length > 0) {
     throw new AirtableNotConfiguredError(missing);
@@ -104,10 +98,7 @@ export function assertAirtableEnv(): AirtableEnv {
     tableHistorial,
     tablePortafolio,
     tableResponsables,
-    tablePagosAgua,
-    tablePagosInternet,
-    tablePagosGas,
-    tablePagosLuz,
+    tablePagoServicios,
   };
 }
 
@@ -157,6 +148,7 @@ export function resolveTableEnvKey(tableEnvKey: string): string {
  *   AIRTABLE_TABLE_PROPIEDADES
  *   AIRTABLE_TABLE_PAGOS
  *   AIRTABLE_TABLE_HISTORIAL
+ *   AIRTABLE_TABLE_PAGO_SERVICIOS
  *
  * Unknown keys are also handled safely — they return null (no throw).
  */

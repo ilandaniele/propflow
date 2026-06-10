@@ -14,11 +14,11 @@ import type { AirtableRecord } from '@/lib/schemas/airtable';
 // ---------------------------------------------------------------------------
 
 export const PORTAFOLIO_FIELD = {
-  LABEL:    'N° de habitación',
+  LABEL:    'N° Habitación',   // new schema: was "N° de habitación"
   PROPERTY: 'Propiedad',
   TOILET:   'Baño',
   AREA_M2:  'm2',
-  STATUS:   'Estado',
+  STATUS:   'Estado',          // now a formula — values: Disponible / Ocupado; tolerate any string
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,8 @@ export function normalizePortafolio(record: AirtableRecord, orgId: string) {
     typeof f[PORTAFOLIO_FIELD.STATUS] === 'string'
       ? (f[PORTAFOLIO_FIELD.STATUS] as string).toLowerCase()
       : null;
+  // Estado is a formula in the new schema (e.g. "Disponible", "Ocupado").
+  // Tolerate any unexpected value by returning null (DB column is nullable).
   const status =
     rawStatus === 'disponible' || rawStatus === 'available'
       ? 'available'

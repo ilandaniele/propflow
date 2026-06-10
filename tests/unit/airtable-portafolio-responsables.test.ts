@@ -21,11 +21,11 @@ function makeRecord(id: string, fields: Record<string, unknown>) {
 describe('normalizePortafolio', () => {
   it('happy path: maps all fields correctly from a complete record', () => {
     const record = makeRecord('recUNIT001', {
-      'N° de habitación': 'Hab. 1',
-      'Propiedad':        [{ id: 'recPROP001' }],
-      'Baño':             'Privado',
-      'm2':               25.5,
-      'Estado':           'Disponible',
+      'N° Habitación': 'Hab. 1',          // new schema field name
+      'Propiedad':     [{ id: 'recPROP001' }],
+      'Baño':          'Privado',
+      'm2':            25.5,
+      'Estado':        'Disponible',
     });
 
     const result = normalizePortafolio(record, ORG_ID);
@@ -173,17 +173,17 @@ describe('normalizePortafolio', () => {
 // ===========================================================================
 
 describe('normalizeResponsable', () => {
-  it('happy path: maps all fields correctly from a complete record', () => {
+  it('happy path: maps all fields correctly from a complete record (new schema)', () => {
     const record = makeRecord('recRESP001', {
-      'Nombre(s) y apellidos': 'Juan Pérez García',
-      'N° DNI':                '12345678',
-      'Número celular':        '+51 999 888 777',
-      'Correo electrónico':    'juan@example.com',
-      'Empleo':                'Dependiente',
-      'Empresa':               'Empresa XYZ',
-      'Cargo':                 'Ingeniero',
-      'Rubro del negocio':     'Tecnología',
-      'Estado':                'Activo',
+      'Nombre completo':   'Juan Pérez García',  // new name (was "Nombre(s) y apellidos")
+      'N° DNI':            '12345678',
+      'Número celular':    '+51 999 888 777',
+      'Correo electrónico':'juan@example.com',
+      'Tipo de empleo':    'Dependiente',          // new name (was "Empleo")
+      'Empresa':           'Empresa XYZ',
+      'Cargo':             'Ingeniero',
+      'Rubro del negocio': 'Tecnología',
+      // "Estado" field REMOVED from new schema — intentionally absent
       'Foto DNI': [{ url: 'https://cdn.example.com/foto.jpg', filename: 'foto.jpg' }],
     });
 
@@ -199,34 +199,15 @@ describe('normalizeResponsable', () => {
     expect(result.company).toBe('Empresa XYZ');
     expect(result.job_title).toBe('Ingeniero');
     expect(result.industry).toBe('Tecnología');
-    expect(result.status).toBe('active');
+    // "status" key is absent from result (field gone from Airtable)
+    expect((result as Record<string, unknown>)['status']).toBeUndefined();
     expect(result.photo_url).toBe('https://cdn.example.com/foto.jpg');
     expect(result.airtable_synced_at).toBeTruthy();
   });
 
-  it('Estado "Activo" → status "active"', () => {
-    const result = normalizeResponsable(makeRecord('r1', { 'Estado': 'Activo' }), ORG_ID);
-    expect(result.status).toBe('active');
-  });
-
-  it('Estado "Active" (English) → status "active"', () => {
-    const result = normalizeResponsable(makeRecord('r1', { 'Estado': 'Active' }), ORG_ID);
-    expect(result.status).toBe('active');
-  });
-
-  it('Estado "Inactivo" → status "inactive"', () => {
-    const result = normalizeResponsable(makeRecord('r1', { 'Estado': 'Inactivo' }), ORG_ID);
-    expect(result.status).toBe('inactive');
-  });
-
-  it('Estado "Inactive" (English) → status "inactive"', () => {
-    const result = normalizeResponsable(makeRecord('r1', { 'Estado': 'Inactive' }), ORG_ID);
-    expect(result.status).toBe('inactive');
-  });
-
-  it('Estado unknown → status null', () => {
-    const result = normalizeResponsable(makeRecord('r1', { 'Estado': 'Suspendido' }), ORG_ID);
-    expect(result.status).toBeNull();
+  it('"Estado" field gone — status key absent from result', () => {
+    const result = normalizeResponsable(makeRecord('r1', { 'Nombre completo': 'Test' }), ORG_ID);
+    expect((result as Record<string, unknown>)['status']).toBeUndefined();
   });
 
   it('Foto DNI attachment array → photo_url = first url', () => {
@@ -264,7 +245,8 @@ describe('normalizeResponsable', () => {
     expect(result.company).toBeNull();
     expect(result.job_title).toBeNull();
     expect(result.industry).toBeNull();
-    expect(result.status).toBeNull();
+    // status key absent — "Estado" field removed from new Responsables schema
+    expect((result as Record<string, unknown>)['status']).toBeUndefined();
     expect(result.photo_url).toBeNull();
   });
 });
