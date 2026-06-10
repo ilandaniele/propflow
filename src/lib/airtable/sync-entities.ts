@@ -497,7 +497,8 @@ function buildDomainRow(
       }
 
       const row = toDbRow(normalized);
-      row['property_id'] = propertyId;
+      // tenants has NO property_id column — property is derived via unit_id → units.property_id.
+      // propertyId above is only used to build the unitMap lookup key.
       row['unit_id'] = unitId;
       if (responsableId !== null) {
         row['responsable_id'] = responsableId;
