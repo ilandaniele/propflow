@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { TenantCsvImportModal } from './TenantCsvImportModal';
 
 interface TenantRow {
   id: string;
@@ -67,6 +68,7 @@ export default function AdminTenantsPage() {
   const [search, setSearch]         = useState('');
   const [statusFilter, setStatus]   = useState('');
   const [syncFilter, setSyncFilter] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const LIMIT = 20;
 
@@ -106,9 +108,23 @@ export default function AdminTenantsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Inquilinos</h1>
           <p className="text-sm text-slate-500 mt-1">{total} total</p>
         </div>
-        <Link href="/dashboard/admin/tenants/new">
-          <Button variant="primary" size="sm">+ Nuevo inquilino</Button>
-        </Link>
+        <div className="flex gap-2">
+          <a
+            href="/api/admin/tenants/import/template"
+            className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+          >
+            Descargar Plantilla
+          </a>
+          <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>
+            Importar Inquilinos
+          </Button>
+          <Link href="/dashboard/admin/imports" className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+            Ver importaciones
+          </Link>
+          <Link href="/dashboard/admin/tenants/new">
+            <Button variant="primary" size="sm">+ Nuevo inquilino</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -208,6 +224,13 @@ export default function AdminTenantsPage() {
           </table>
         )}
       </div>
+
+      {/* CSV Import Modal */}
+      <TenantCsvImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => { void fetchTenants(); }}
+      />
 
       {/* Pagination */}
       {totalPages > 1 && (
