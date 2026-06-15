@@ -7,19 +7,18 @@
  * creates their first organization.
  *
  * Security contract (IC3/IC4):
- * - Does NOT call requireUser() — new users have no profile yet, so requireUser()
- *   would throw UNAUTHORIZED. Instead, we verify the session via getUser() directly.
+ * - Uses NextAuth auth() directly — new users have no profile yet, so requireUser()
+ *   would throw UNAUTHORIZED. Instead, we verify the session via auth() directly.
  * - Idempotency: if a profile already exists, short-circuit and redirect to role home.
  * - Rate limit: 5 req / 10s per IP (authRateLimit key with 'onboarding:' prefix).
  * - Zod validation: orgName min(2) max(120), trimmed.
- * - Provisioning uses admin client (service-role). assertServerEnv() fail-fast inside.
- * - NEVER accepts userId from FormData — always derived from server-side getUser().
+ * - NEVER accepts userId from FormData — always derived from server-side session.
  */
 
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { provisionOrgAndProfile, getExistingProfile } from '@/lib/auth/provision';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
@@ -43,19 +42,22 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
     return { error: { code: 'RATE_LIMITED', message: 'Too many requests. Please wait before trying again.' } };
   }
 
-  // 2. Verify session — MUST use getUser(), not requireUser() (no profile yet)
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // 2. Verify session — use NextAuth auth() directly (no profile yet for new users)
+  const session = await auth();
 
-  if (authError || !user) {
+  if (!session?.user?.id) {
     return { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } };
   }
 
+  const userId = session.user.id;
+  const userEmail = session.user.email ?? '';
+  const userName = session.user.name ?? undefined;
+
   // 3. Idempotency: if a profile already exists, skip provisioning and route to role home
-  const existingProfile = await getExistingProfile(user.id);
+  const existingProfile = await getExistingProfile(userId);
   if (existingProfile) {
     log.info('[onboarding] profile already exists — skipping provisioning', {
-      userId: user.id,
+      userId,
       role: existingProfile.role,
     });
     // redirect() throws internally — do NOT wrap in try/catch
@@ -74,37 +76,30 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
 
   // 5. Provision org + profile (atomic with rollback — see src/lib/auth/provision.ts)
   try {
-    const fullName = typeof user.user_metadata?.full_name === 'string'
-      ? user.user_metadata.full_name
-      : undefined;
-
-    // New signature: (userId, email, fullName?, dbClient?, orgNameOverride?)
     const result = await provisionOrgAndProfile(
-      user.id,
-      user.email ?? '',
-      fullName,
+      userId,
+      userEmail,
+      typeof userName === 'string' ? userName : undefined,
       undefined,
       parsed.data.orgName
     );
 
     // Store terms acceptance if user accepted during onboarding
     if (parsed.data.termsAccepted && result?.profileId) {
-      const { createAdminClient } = await import('@/lib/supabase/admin');
-      const admin = createAdminClient();
-      const now = new Date().toISOString();
-      await admin
-        .from('profiles')
-        .update({
-          terms_accepted_at:   now,
-          terms_version:       '1.0',
-          privacy_accepted_at: now,
-          privacy_version:     '1.0',
-        })
-        .eq('id', result.profileId);
+      const { db } = await import('@/lib/db');
+      const { profiles } = await import('@/lib/db/schema');
+      const { eq } = await import('drizzle-orm');
+      const now = new Date();
+      await db.update(profiles).set({
+        termsAcceptedAt:   now,
+        termsVersion:      '1.0',
+        privacyAcceptedAt: now,
+        privacyVersion:    '1.0',
+      }).where(eq(profiles.id, result.profileId));
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.name : 'unknown';
-    log.error('[onboarding] provisioning failed', { errMsg, userId: user.id });
+    log.error('[onboarding] provisioning failed', { errMsg, userId });
     return { error: { code: 'PROVISION_FAILED', message: 'Failed to set up your workspace. Please try again.' } };
   }
 

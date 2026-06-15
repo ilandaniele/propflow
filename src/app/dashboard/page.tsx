@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { units, payments, incidents, expenses, airtableSnapshots } from '@/lib/db/schema';
+import { eq, ne, gte, desc, and } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
@@ -14,6 +17,7 @@ import { AirtableOccupancyDelta } from '@/components/portfolio/AirtableOccupancy
 import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
 import { checkEntityHealth, entityLabel } from '@/lib/dashboard/health';
+import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -21,77 +25,67 @@ export default async function DashboardPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
-
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  const [unitsRes, paymentsRes, incidentsRes, statementRes, expensesRes, airtableRes] =
+  const [unitRows, approvedPaymentRows, openIncidentRows, expenseRows, airtableRows] =
     await Promise.all([
-      supabase.from('units').select('id, status').eq('org_id', ctx.orgId),
-      supabase
-        .from('payments')
-        .select('amount, paid_at, status')
-        .eq('org_id', ctx.orgId)
-        .eq('status', 'approved'),
-      supabase
-        .from('incidents')
-        .select('id, status')
-        .eq('org_id', ctx.orgId)
-        .neq('status', 'solved'),
-      supabase.from('tenant_statement').select('*').eq('org_id', ctx.orgId),
-      supabase
-        .from('expenses')
-        .select('amount, incurred_on')
-        .eq('org_id', ctx.orgId)
-        .gte('incurred_on', startOfMonth),
-      // Airtable occupancy snapshot — gracefully returns null when no rows exist
-      supabase
-        .from('airtable_snapshots')
-        .select('data, synced_at')
-        .eq('org_id', ctx.orgId)
-        .eq('table_name', 'kpis')
-        .order('synced_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      db.select({ id: units.id, status: units.status })
+        .from(units)
+        .where(eq(units.orgId, ctx.orgId)),
+      db.select({ amount: payments.amount, paidAt: payments.paidAt, status: payments.status })
+        .from(payments)
+        .where(and(eq(payments.orgId, ctx.orgId), eq(payments.status, 'approved'))),
+      db.select({ id: incidents.id, status: incidents.status })
+        .from(incidents)
+        .where(and(eq(incidents.orgId, ctx.orgId), ne(incidents.status, 'solved'))),
+      db.select({ amount: expenses.amount, incurredOn: expenses.incurredOn })
+        .from(expenses)
+        .where(and(eq(expenses.orgId, ctx.orgId), gte(expenses.incurredOn, startOfMonth.slice(0, 10)))),
+      db.select({ data: airtableSnapshots.data, syncedAt: airtableSnapshots.syncedAt })
+        .from(airtableSnapshots)
+        .where(and(eq(airtableSnapshots.orgId, ctx.orgId), eq(airtableSnapshots.tableName, 'kpis')))
+        .orderBy(desc(airtableSnapshots.syncedAt))
+        .limit(1),
     ]);
 
-  // Entity health check — runs in parallel with the main data fetches above.
-  // Only called after requireAdmin() succeeds — admin-only data path.
+  // tenant_statement is a DB VIEW — query via raw SQL
+  type StatementRow = { is_overdue: boolean; balance: string | null; total_charged: string | null; total_paid: string | null };
+  const statements: StatementRow[] = Array.from(await db.execute<StatementRow>(
+    sql`SELECT is_overdue, balance, total_charged, total_paid FROM tenant_statement WHERE org_id = ${ctx.orgId}`
+  ));
+
+  // Entity health check — uses supabase client for now (health utility not yet migrated)
+  const supabase = await createClient();
   const entityHealth = await checkEntityHealth(supabase, ctx.orgId);
   const unhealthyEntities = entityHealth.filter((e) => e.count === 0 || e.error !== null);
 
-  const units = unitsRes.data ?? [];
-  const approvedPayments = paymentsRes.data ?? [];
-  const openIncidents = incidentsRes.data ?? [];
-  const statements = statementRes.data ?? [];
-  const expenses = expensesRes.data ?? [];
-
-  // --- Operational KPIs (existing) ---
-  const totalUnits = units.length;
-  const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
+  // --- Operational KPIs ---
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const occupancyRate = computeOccupancyRate(occupiedUnits, totalUnits);
-  const rentCollected = computeRentCollectedThisMonth(approvedPayments);
+  const rentCollected = computeRentCollectedThisMonth(
+    approvedPaymentRows.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt }))
+  );
   const overdueCount = statements.filter((s) => s.is_overdue).length;
 
-  // --- Financial KPIs (new — from kpis.ts pure functions) ---
+  // --- Financial KPIs ---
   const overdueAmounts: number[] = statements
     .filter((s) => s.is_overdue)
     .map((s) => Math.max(0, Number(s.total_charged ?? 0) - Number(s.total_paid ?? 0)));
 
   const pastDueKpi = computePastDueBalance(overdueAmounts);
 
-  // MTD income and expenses for True Net Profit
-  const mtdIncome = approvedPayments
-    .filter((p) => p.paid_at && p.paid_at >= startOfMonth)
+  const mtdIncome = approvedPaymentRows
+    .filter((p) => p.paidAt && p.paidAt >= startOfMonth.slice(0, 10))
     .reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-  const mtdExpenses = expenses.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
+  const mtdExpenses = expenseRows.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
   const netProfitKpi = computeTrueNetProfit(mtdIncome, mtdExpenses);
 
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
 
   // --- Airtable occupancy delta ---
-  const airtableRow = airtableRes.data;
+  const airtableRow = airtableRows[0] ?? null;
   const airtableSnapshot =
     airtableRow && airtableRow.data
       ? {
@@ -99,12 +93,11 @@ export default async function DashboardPage() {
             typeof (airtableRow.data as Record<string, unknown>).occupancy_rate === 'number'
               ? ((airtableRow.data as Record<string, unknown>).occupancy_rate as number)
               : 0,
-          syncedAt: airtableRow.synced_at as string,
+          syncedAt: airtableRow.syncedAt as unknown as string,
         }
       : null;
 
   const liveRate = totalUnits > 0 ? occupiedUnits / totalUnits : 0;
-
   const hasData = totalUnits > 0;
 
   return (
@@ -177,9 +170,9 @@ export default async function DashboardPage() {
             />
             <KpiCard
               title="Open Incidents"
-              value={String(openIncidents.length)}
+              value={String(openIncidentRows.length)}
               sub="Not yet solved"
-              color={openIncidents.length > 0 ? 'text-amber-600' : 'text-slate-600'}
+              color={openIncidentRows.length > 0 ? 'text-amber-600' : 'text-slate-600'}
               icon={
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
@@ -199,7 +192,7 @@ export default async function DashboardPage() {
             />
           </div>
 
-          {/* Row 2 — Financial KPIs (from kpis.ts pure functions) */}
+          {/* Row 2 — Financial KPIs */}
           <div>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Financial KPIs (MTD)

@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { pricingTables } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
@@ -27,17 +29,16 @@ export async function createPricingTable(
     return Errors.VALIDATION_ERROR({ formErrors: ['Invalid tiers JSON'], fieldErrors: {} });
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('pricing_tables').insert({
-    org_id: ctx.orgId,
-    name: parsed.data.name,
-    property_type: parsed.data.property_type,
-    market_zone: parsed.data.market_zone,
-    tiers,
-  });
-
-  if (error) {
-    log.error('[createPricingTable] db error', { code: error.code });
+  try {
+    await db.insert(pricingTables).values({
+      orgId: ctx.orgId,
+      name: parsed.data.name,
+      propertyType: parsed.data.property_type,
+      marketZone: parsed.data.market_zone,
+      tiers,
+    });
+  } catch (err) {
+    log.error('[createPricingTable] db error', { err: err instanceof Error ? err.message : String(err) });
     return Errors.INTERNAL();
   }
 
@@ -64,21 +65,22 @@ export async function updatePricingTable(
     return Errors.VALIDATION_ERROR({ formErrors: ['Invalid tiers JSON'], fieldErrors: {} });
   }
 
-  const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from('pricing_tables').select('id').eq('id', parsed.data.id).eq('org_id', ctx.orgId).single();
+  const existing = await db.select({ id: pricingTables.id })
+    .from(pricingTables)
+    .where(and(eq(pricingTables.id, parsed.data.id), eq(pricingTables.orgId, ctx.orgId)))
+    .then(r => r[0] ?? null);
   if (!existing) return Errors.NOT_FOUND();
 
-  const { error } = await supabase.from('pricing_tables').update({
-    name: parsed.data.name,
-    property_type: parsed.data.property_type,
-    market_zone: parsed.data.market_zone,
-    tiers,
-    updated_at: new Date().toISOString(),
-  }).eq('id', parsed.data.id).eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[updatePricingTable] db error', { code: error.code });
+  try {
+    await db.update(pricingTables).set({
+      name: parsed.data.name,
+      propertyType: parsed.data.property_type,
+      marketZone: parsed.data.market_zone,
+      tiers,
+      updatedAt: new Date(),
+    }).where(and(eq(pricingTables.id, parsed.data.id), eq(pricingTables.orgId, ctx.orgId)));
+  } catch (err) {
+    log.error('[updatePricingTable] db error', { err: err instanceof Error ? err.message : String(err) });
     return Errors.INTERNAL();
   }
 

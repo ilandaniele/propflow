@@ -20,7 +20,7 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
 import { log } from '@/lib/log';
@@ -29,15 +29,14 @@ const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Step 1: verify session
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  const session = await auth();
+  if (!session?.user?.id) {
     return NextResponse.json(
       { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
       { status: 401 }
     );
   }
+  const user = { id: session.user.id };
 
   // Step 2: validate body
   let body: unknown;

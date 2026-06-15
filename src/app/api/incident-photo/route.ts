@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/auth';
+import { db } from '@/lib/db';
+import { profiles } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
@@ -7,12 +11,13 @@ const QuerySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
 
-  if (!user) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
   }
+
+  const userId = session.user.id;
 
   const searchParams = Object.fromEntries(request.nextUrl.searchParams);
   const parsed = QuerySchema.safeParse(searchParams);
@@ -30,18 +35,22 @@ export async function GET(request: NextRequest) {
   }
 
   // Verify the user has access to the incident this photo belongs to
-  const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single();
+  const profile = await db.select({ orgId: profiles.orgId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .then((r) => r[0] ?? null);
   if (!profile) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Profile not found' } }, { status: 401 });
   }
 
   // The path must start with the user's org_id
   const orgIdFromPath = pathParts[0];
-  if (orgIdFromPath !== profile.org_id) {
+  if (orgIdFromPath !== profile.orgId) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }
 
   // Generate signed URL (60 min TTL)
+  const supabase = await createClient();
   const { data, error } = await supabase.storage
     .from('incident-photos')
     .createSignedUrl(storagePath, 3600);

@@ -15,7 +15,7 @@
  */
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { getExistingProfile } from '@/lib/auth/provision';
 import { OnboardingForm } from './OnboardingForm';
 import { TenantOnboardingForm } from './TenantOnboardingForm';
@@ -33,12 +33,13 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
   const onboardingType = params.type === 'tenant' ? 'tenant' : 'admin';
 
   // Guard 1: must be authenticated
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const session = await auth();
 
-  if (!user) {
+  if (!session?.user?.id) {
     redirect('/login');
   }
+
+  const user = { id: session.user.id, email: session.user.email ?? '' };
 
   // Guard 2: already has a profile → route to role home (single-use)
   const existingProfile = await getExistingProfile(user.id);

@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { units, properties } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -28,29 +30,46 @@ export default async function UnitsPage() {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const t = await getTranslations('units');
-  const supabase = await createClient();
-  const [unitsRes, propertiesRes] = await Promise.all([
-    supabase.from('units').select('*, properties(name)').eq('org_id', ctx.orgId).order('created_at', { ascending: false }),
-    supabase.from('properties').select('id, name').eq('org_id', ctx.orgId),
+
+  const [unitRows, propertyRows] = await Promise.all([
+    db.select({
+      id: units.id,
+      label: units.label,
+      floor: units.floor,
+      monthlyRentDefault: units.monthlyRentDefault,
+      status: units.status,
+      toiletType: units.toiletType,
+      propertyId: units.propertyId,
+      createdAt: units.createdAt,
+    })
+      .from(units)
+      .where(eq(units.orgId, ctx.orgId))
+      .orderBy(desc(units.createdAt)),
+    db.select({ id: properties.id, name: properties.name })
+      .from(properties)
+      .where(eq(properties.orgId, ctx.orgId)),
   ]);
 
-  const units = unitsRes.data ?? [];
-  const properties = propertiesRes.data ?? [];
+  // Build property lookup map
+  const propertyMap = new Map(propertyRows.map((p) => [p.id, p.name]));
 
   // --- Occupancy stats (using computeOccupancy from kpis.ts) ---
-  const totalUnits = units.length;
-  const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const vacantUnits = totalUnits - occupiedUnits;
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
+
+  // Properties list for the create form (id + name)
+  const propertiesForForm = propertyRows.map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Units</h1>
-          <p className="text-sm text-slate-500 mt-1">{units.length} total</p>
+          <p className="text-sm text-slate-500 mt-1">{unitRows.length} total</p>
         </div>
-        <CreateUnitForm properties={properties} />
+        <CreateUnitForm properties={propertiesForForm} />
       </div>
 
       {/* Occupancy stats tile */}
@@ -105,7 +124,7 @@ export default async function UnitsPage() {
         </div>
       )}
 
-      {units.length === 0 ? (
+      {unitRows.length === 0 ? (
         <Card>
           <EmptyState
             title="No units yet"
@@ -126,24 +145,24 @@ export default async function UnitsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {units.map((unit) => {
-                const property = unit.properties as { name: string } | null;
+              {unitRows.map((unit) => {
+                const propertyName = propertyMap.get(unit.propertyId) ?? '—';
                 return (
                   <ClickableRow key={unit.id} href={`/dashboard/units/${unit.id}`}>
                     <td className="px-5 py-4">
                       <p className="font-medium text-slate-900 text-sm">{unit.label}</p>
                       {unit.floor && <p className="text-xs text-slate-400">Floor {unit.floor}</p>}
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{property?.name ?? '—'}</td>
+                    <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{propertyName}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
-                      {unit.monthly_rent_default ? `$${unit.monthly_rent_default.toLocaleString()}` : '—'}
+                      {unit.monthlyRentDefault ? `$${Number(unit.monthlyRentDefault).toLocaleString()}` : '—'}
                     </td>
                     <td className="px-5 py-4 text-sm hidden lg:table-cell">
                       <ToiletTypeBadge
-                        value={unit.toilet_type}
+                        value={unit.toiletType}
                         label={
-                          unit.toilet_type === 'private' ? t('toiletType.private')
-                          : unit.toilet_type === 'shared' ? t('toiletType.shared')
+                          unit.toiletType === 'private' ? t('toiletType.private')
+                          : unit.toiletType === 'shared' ? t('toiletType.shared')
                           : t('toiletType.none')
                         }
                       />

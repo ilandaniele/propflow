@@ -1,6 +1,10 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
+import { db } from '@/lib/db';
+import { tenants, units, properties, incidents, payments, whatsappConversations, whatsappMessages } from '@/lib/db/schema';
+import { eq, and, desc, asc } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { buildTenantActivityFeed } from '@/lib/tenants/activity-feed';
@@ -11,7 +15,6 @@ import { QuickActions } from './_components/QuickActions';
 import { LinkPortalAccount } from './LinkPortalAccount';
 import { OverviewTab } from './_tabs/OverviewTab';
 import { ActivityTab } from './_tabs/ActivityTab';
-// Async Server Components — each self-fetches inside its own Suspense boundary
 import { PaymentsTab } from './_tabs/PaymentsTab';
 import { ContractsTab } from './_tabs/ContractsTab';
 import { IncidentsTab } from './_tabs/IncidentsTab';
@@ -34,90 +37,155 @@ export default async function TenantDetailPage({ params }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
+  // Fetch tenant row with unit + property via separate queries
+  const tenantRow = await db.select({
+    id: tenants.id,
+    orgId: tenants.orgId,
+    fullName: tenants.fullName,
+    email: tenants.email,
+    phone: tenants.phone,
+    unitId: tenants.unitId,
+    profileId: tenants.profileId,
+    photoUrl: tenants.photoUrl,
+    whatsappPhone: tenants.whatsappPhone,
+    portalAccess: tenants.portalAccess,
+    notes: tenants.notes,
+    moveInDate: tenants.moveInDate,
+    preferredLanguage: tenants.preferredLanguage,
+    createdAt: tenants.createdAt,
+  })
+    .from(tenants)
+    .where(and(eq(tenants.id, id), eq(tenants.orgId, ctx.orgId)))
+    .then((r) => r[0] ?? null);
 
-  // Fetch tenant (RLS ensures org isolation — 404 if wrong org)
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('*, units(label, properties(name))')
-    .eq('id', id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  if (!tenantRow) notFound();
 
-  if (!tenant) notFound();
-
-  const unit = tenant.units as { label: string; properties: { name: string } | null } | null;
-
-  // Eager fetches for the Overview tab and the activity feed builder.
-  // These are the only queries that block the initial page shell — all other
-  // tab data is deferred to per-tab async Server Components inside <Suspense>.
-  const [
-    statementRes,
-    // Minimal parallel queries needed by OverviewTab + activityFeed
-    incidentsRes,
-    tasksRes,
-    sanctionsRes,
-    paymentsRes,
-    waConvRes,
-  ] = await Promise.all([
-    supabase.from('tenant_statement').select('*').eq('tenant_id', id).single(),
-    supabase.from('incidents').select('id, title, status, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
-    supabase.from('tenant_tasks').select('id, title, status, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
-    supabase.from('sanctions').select('id, title, kind, amount, status, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
-    supabase.from('payments').select('id, amount, status, created_at').eq('tenant_id', id).eq('org_id', ctx.orgId).order('paid_at', { ascending: false }).limit(50),
-    supabase.from('whatsapp_conversations').select('id, external_phone').eq('tenant_id', id).eq('org_id', ctx.orgId).limit(1).single(),
-  ]);
-
-  const statement = statementRes.data ?? null;
-  const incidents = incidentsRes.data ?? [];
-  const tasks = tasksRes.data ?? [];
-  const sanctions = sanctionsRes.data ?? [];
-  const payments = paymentsRes.data ?? [];
-  const conversation = waConvRes.data ?? null;
-
-  // WhatsApp messages for the last-message summary in OverviewTab
-  let waMessages: { id: string; direction: string; body: string | null; classification: string | null; status: string; created_at: string }[] = [];
-  if (conversation) {
-    const { data: msgs } = await supabase
-      .from('whatsapp_messages')
-      .select('id, direction, body, classification, status, created_at')
-      .eq('conversation_id', conversation.id)
-      .eq('org_id', ctx.orgId)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    waMessages = msgs ?? [];
+  // Fetch unit + property info
+  let unit: { label: string; properties: { name: string } | null } | null = null;
+  if (tenantRow.unitId) {
+    const unitRow = await db.select({ id: units.id, label: units.label, propertyId: units.propertyId })
+      .from(units)
+      .where(eq(units.id, tenantRow.unitId))
+      .then((r) => r[0] ?? null);
+    if (unitRow) {
+      const propertyRow = await db.select({ name: properties.name })
+        .from(properties)
+        .where(eq(properties.id, unitRow.propertyId))
+        .then((r) => r[0] ?? null);
+      unit = { label: unitRow.label, properties: propertyRow ? { name: propertyRow.name } : null };
+    }
   }
 
-  // Signed URL for avatar
+  // Eager fetches for Overview tab + activity feed
+  const [incidentRows, paymentRows, waConvRows] = await Promise.all([
+    db.select({ id: incidents.id, title: incidents.title, status: incidents.status, createdAt: incidents.createdAt })
+      .from(incidents)
+      .where(and(eq(incidents.tenantId, id), eq(incidents.orgId, ctx.orgId)))
+      .orderBy(desc(incidents.createdAt))
+      .limit(50),
+    db.select({ id: payments.id, amount: payments.amount, status: payments.status, createdAt: payments.createdAt })
+      .from(payments)
+      .where(and(eq(payments.tenantId, id), eq(payments.orgId, ctx.orgId)))
+      .orderBy(desc(payments.createdAt))
+      .limit(50),
+    db.select({ id: whatsappConversations.id, externalPhone: whatsappConversations.externalPhone })
+      .from(whatsappConversations)
+      .where(and(eq(whatsappConversations.tenantId, id), eq(whatsappConversations.orgId, ctx.orgId)))
+      .limit(1),
+  ]);
+
+  const conversation = waConvRows[0] ?? null;
+
+  // tenant_statement is a DB VIEW — raw SQL
+  type TenantStmtRow = { is_overdue: boolean; balance: string | null; total_charges: string | null; total_approved_payments: string | null };
+  const stmtRows: TenantStmtRow[] = Array.from(await db.execute<TenantStmtRow>(
+    sql`SELECT is_overdue, balance, total_charges, total_approved_payments FROM tenant_statement WHERE tenant_id = ${id} LIMIT 1`
+  ));
+  const rawStmt = stmtRows[0] ?? null;
+  // Convert string fields to numbers for component compatibility
+  const statement = rawStmt ? {
+    is_overdue: rawStmt.is_overdue,
+    balance: Number(rawStmt.balance ?? 0),
+    total_charges: Number(rawStmt.total_charges ?? 0),
+    total_approved_payments: Number(rawStmt.total_approved_payments ?? 0),
+  } : null;
+
+  // WhatsApp last message
+  let waMessages: { id: string; direction: string; body: string | null; classification: string | null; status: string; created_at: string }[] = [];
+  if (conversation) {
+    const msgRows = await db.select({
+      id: whatsappMessages.id,
+      direction: whatsappMessages.direction,
+      body: whatsappMessages.body,
+      classification: whatsappMessages.classification,
+      status: whatsappMessages.status,
+      createdAt: whatsappMessages.createdAt,
+    })
+      .from(whatsappMessages)
+      .where(and(eq(whatsappMessages.conversationId, conversation.id), eq(whatsappMessages.orgId, ctx.orgId)))
+      .orderBy(desc(whatsappMessages.createdAt))
+      .limit(1);
+    waMessages = msgRows.map((m) => ({
+      id: m.id,
+      direction: m.direction,
+      body: m.body,
+      classification: m.classification,
+      status: m.status,
+      created_at: m.createdAt.toISOString(),
+    }));
+  }
+
+  // Signed URL for avatar — still uses Supabase Storage
   let avatarSignedUrl: string | null = null;
-  if (tenant.photo_url) {
+  if (tenantRow.photoUrl) {
+    const supabase = await createClient();
     const { data: urlData } = await supabase.storage
       .from('tenant-avatars')
-      .createSignedUrl(tenant.photo_url, 3600);
+      .createSignedUrl(tenantRow.photoUrl, 3600);
     avatarSignedUrl = urlData?.signedUrl ?? null;
   }
 
-  // Activity feed — built in memory from already-fetched arrays (AC3).
-  // Only whatsapp_messages is still queried inside buildTenantActivityFeed
-  // because it needs a conversation join that differs from the page-level fetch.
+  // Activity feed — still requires supabase for WhatsApp messages internal query
+  const supabase = await createClient();
   const activityEvents = await buildTenantActivityFeed({
     supabase,
     tenantId: id,
     orgId: ctx.orgId,
-    payments,
-    incidents,
-    tasks,
-    sanctions,
+    payments: paymentRows.map((p) => ({
+      id: p.id,
+      amount: p.amount,
+      status: p.status,
+      created_at: p.createdAt.toISOString(),
+    })),
+    incidents: incidentRows.map((i) => ({
+      id: i.id,
+      title: i.title,
+      status: i.status,
+      created_at: i.createdAt.toISOString(),
+    })),
+    tasks: [],   // TasksTab self-fetches
+    sanctions: [], // SanctionsTab self-fetches
   });
 
   // Derived counts for overview tab badges
-  const activeContract = null; // Computed eagerly only if needed for overview — contracts tab self-fetches
-  const activeIncidentsCount = incidents.filter((i) => ['open', 'in_progress'].includes(i.status)).length;
-  const pendingTasksCount = tasks.filter((t) => t.status === 'pending').length;
+  const activeIncidentsCount = incidentRows.filter((i) => ['open', 'in_progress'].includes(i.status)).length;
   const lastWaMessage = waMessages.length > 0 ? waMessages[0] : null;
 
-  // Tab definitions — overview and activity render eagerly as part of the page
-  // shell; all other tabs are wrapped in <Suspense> so they stream independently.
+  // Shape tenant for existing profile components (snake_case compat)
+  const tenantForComponents = {
+    ...tenantRow,
+    full_name: tenantRow.fullName,
+    org_id: tenantRow.orgId,
+    unit_id: tenantRow.unitId,
+    profile_id: tenantRow.profileId,
+    photo_url: tenantRow.photoUrl,
+    whatsapp_phone: tenantRow.whatsappPhone,
+    portal_access: tenantRow.portalAccess,
+    move_in_date: tenantRow.moveInDate,
+    preferred_language: tenantRow.preferredLanguage,
+    created_at: tenantRow.createdAt.toISOString(),
+  };
+
   const tabs = [
     {
       id: 'overview',
@@ -125,9 +193,9 @@ export default async function TenantDetailPage({ params }: Props) {
       content: (
         <OverviewTab
           statement={statement}
-          activeContract={activeContract}
+          activeContract={null}
           activeIncidentsCount={activeIncidentsCount}
-          pendingTasksCount={pendingTasksCount}
+          pendingTasksCount={0}
           lastWhatsAppMessage={lastWaMessage}
           tenantId={id}
         />
@@ -164,7 +232,7 @@ export default async function TenantDetailPage({ params }: Props) {
     {
       id: 'tasks',
       label: 'Tasks',
-      badge: pendingTasksCount,
+      badge: 0,
       content: (
         <Suspense fallback={<TabFallback />}>
           <TasksTab tenantId={id} />
@@ -217,7 +285,7 @@ export default async function TenantDetailPage({ params }: Props) {
       label: 'Portal Preview',
       content: (
         <Suspense fallback={<TabFallback />}>
-          <PortalPreviewTab tenant={tenant} />
+          <PortalPreviewTab tenant={tenantForComponents as Parameters<typeof PortalPreviewTab>[0]['tenant']} />
         </Suspense>
       ),
     },
@@ -225,24 +293,20 @@ export default async function TenantDetailPage({ params }: Props) {
 
   return (
     <div className="space-y-4 max-w-5xl">
-      {/* Profile header */}
       <ProfileHeader
-        tenant={tenant}
+        tenant={tenantForComponents as Parameters<typeof ProfileHeader>[0]['tenant']}
         unit={unit}
         statement={statement}
         avatarSignedUrl={avatarSignedUrl}
         orgId={ctx.orgId}
       />
 
-      {/* Quick actions */}
       <QuickActions tenantId={id} />
 
-      {/* Link portal account — only shown when profile_id is not yet set */}
-      {!tenant.profile_id && (
-        <LinkPortalAccount tenantId={id} tenantEmail={tenant.email} />
+      {!tenantRow.profileId && (
+        <LinkPortalAccount tenantId={id} tenantEmail={tenantRow.email} />
       )}
 
-      {/* Tabs — non-overview tabs stream via Suspense boundaries */}
       <Tabs tabs={tabs} defaultTab="overview" className="bg-white border border-slate-200 rounded-xl overflow-hidden" />
     </div>
   );

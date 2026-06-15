@@ -9,14 +9,17 @@
  *
  * Security:
  *   - requireAdmin() guard — redirect to /login on failure
- *   - All queries use createClient() (RLS-scoped, anon key)
+ *   - All queries use Drizzle with eq(t.orgId, ctx.orgId) isolation
  *   - No PII fetched or rendered
  */
 
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { units, payments, expenses, incidents } from '@/lib/db/schema';
+import { eq, ne, gte, lt, and } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { computeOccupancyRate } from '@/lib/finance/kpis';
 import { KpiGrid, type KpiTileData } from '@/components/executive-brief/KpiGrid';
 import { AgentCard } from '@/components/executive-brief/AgentCard';
@@ -67,51 +70,56 @@ interface PeriodKPIs {
 }
 
 async function fetchPeriodKPIs(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
   bounds: { start: string; end: string }
 ): Promise<PeriodKPIs> {
   const { start, end } = bounds;
 
-  const [
-    { data: units },
-    { data: payments },
-    { data: expenses },
-    { data: incidents },
-    { data: statements },
-  ] = await Promise.all([
-    supabase.from('units').select('id, status'),
-    supabase
-      .from('payments')
-      .select('amount, paid_at')
-      .eq('status', 'approved')
-      .gte('paid_at', start)
-      .lt('paid_at', end),
-    supabase
-      .from('expenses')
-      .select('amount')
-      .gte('incurred_on', start)
-      .lt('incurred_on', end),
-    supabase
-      .from('incidents')
-      .select('id, status')
-      .neq('status', 'solved'),
-    supabase.from('tenant_statement').select('is_overdue, balance'),
+  const [unitRows, paymentRows, expenseRows, incidentRows] = await Promise.all([
+    db.select({ id: units.id, status: units.status })
+      .from(units)
+      .where(eq(units.orgId, orgId)),
+    db.select({ amount: payments.amount })
+      .from(payments)
+      .where(and(
+        eq(payments.orgId, orgId),
+        eq(payments.status, 'approved'),
+        gte(payments.paidAt, start),
+        lt(payments.paidAt, end),
+      )),
+    db.select({ amount: expenses.amount })
+      .from(expenses)
+      .where(and(
+        eq(expenses.orgId, orgId),
+        gte(expenses.incurredOn, start),
+        lt(expenses.incurredOn, end),
+      )),
+    db.select({ id: incidents.id, status: incidents.status })
+      .from(incidents)
+      .where(and(
+        eq(incidents.orgId, orgId),
+        ne(incidents.status, 'solved'),
+      )),
   ]);
 
-  const totalUnits = (units ?? []).length;
-  const occupiedUnits = (units ?? []).filter((u: { status: string }) => u.status === 'occupied').length;
+  type ExecStmtRow = { is_overdue: boolean; balance: string | null };
+  const statements: ExecStmtRow[] = Array.from(await db.execute<ExecStmtRow>(
+    sql`SELECT is_overdue, balance FROM tenant_statement WHERE org_id = ${orgId}`
+  ));
+
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const occupancyRate = computeOccupancyRate(occupiedUnits, totalUnits);
 
-  const grossIncome = (payments ?? []).reduce((s: number, p: { amount: number }) => s + (p.amount ?? 0), 0);
-  const totalExpenses = (expenses ?? []).reduce((s: number, e: { amount: number }) => s + (e.amount ?? 0), 0);
-  const trueNetProfitMTD = Math.round((grossIncome - totalExpenses) * 100) / 100;
+  const grossIncome = paymentRows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const totalExpensesAmt = expenseRows.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const trueNetProfitMTD = Math.round((grossIncome - totalExpensesAmt) * 100) / 100;
 
-  const activeIncidents = (incidents ?? []).length;
+  const activeIncidents = incidentRows.length;
 
-  // Past due balance = sum of negative balances on overdue tenant statements
-  const pastDueBalance = (statements ?? [])
-    .filter((s: { is_overdue: boolean }) => s.is_overdue)
-    .reduce((sum: number, s: { balance: number | null }) => sum + Math.abs(s.balance ?? 0), 0);
+  const pastDueBalance = statements
+    .filter((s) => s.is_overdue)
+    .reduce((sum, s) => sum + Math.abs(Number(s.balance ?? 0)), 0);
 
   return {
     occupancyRate,
@@ -135,18 +143,14 @@ function computeDelta(current: number, prior: number): number | null {
 // ---------------------------------------------------------------------------
 
 export default async function ExecutiveBriefPage() {
-  try {
-    await requireAdmin();
-  } catch {
-    redirect('/login');
-  }
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
   const t = await getTranslations('executiveBrief');
 
   const [currentKPIs, priorKPIs] = await Promise.all([
-    fetchPeriodKPIs(supabase, currentPeriodBounds()),
-    fetchPeriodKPIs(supabase, priorPeriodBounds()),
+    fetchPeriodKPIs(ctx.orgId, currentPeriodBounds()),
+    fetchPeriodKPIs(ctx.orgId, priorPeriodBounds()),
   ]);
 
   const deltaSuffix = t('tiles.deltaSuffix');
@@ -181,7 +185,7 @@ export default async function ExecutiveBriefPage() {
       value: `$${currentKPIs.pastDueBalance.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       rawValue: currentKPIs.pastDueBalance,
       delta: computeDelta(currentKPIs.pastDueBalance, priorKPIs.pastDueBalance),
-      positiveIsGood: false, // higher past-due = worse
+      positiveIsGood: false,
       sub: t('tiles.pastDueSub'),
       deltaSuffix,
       noPriorData,
@@ -192,7 +196,7 @@ export default async function ExecutiveBriefPage() {
       value: String(currentKPIs.activeIncidents),
       rawValue: currentKPIs.activeIncidents,
       delta: computeDelta(currentKPIs.activeIncidents, priorKPIs.activeIncidents),
-      positiveIsGood: false, // higher incidents = worse
+      positiveIsGood: false,
       sub: t('tiles.incidentsSub'),
       deltaSuffix,
       noPriorData,
@@ -229,27 +233,14 @@ export default async function ExecutiveBriefPage() {
           {t('agentsSection')}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="agent-cards-grid">
-          {/* Agent 1: Hidden Leak Detector — AVAILABLE (AC14) */}
           <LeakDetectorRunner runAction={runHiddenLeakDetector} />
 
-          {/* Agent 2: Market Rate Auditor — coming soon */}
           <AgentCard
             id="market-rate-auditor"
             title={t('agents.marketRate.title')}
             description={t('agents.marketRate.description')}
             icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <line x1="12" y1="1" x2="12" y2="23" />
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
@@ -257,24 +248,12 @@ export default async function ExecutiveBriefPage() {
             status="coming_soon"
           />
 
-          {/* Agent 3: P&L Delta Analyzer — coming soon */}
           <AgentCard
             id="pnl-delta-analyzer"
             title={t('agents.pnlDelta.title')}
             description={t('agents.pnlDelta.description')}
             icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
                 <polyline points="16 7 22 7 22 13" />
               </svg>
@@ -282,24 +261,12 @@ export default async function ExecutiveBriefPage() {
             status="coming_soon"
           />
 
-          {/* Agent 4: Create Custom Agent — coming soon */}
           <AgentCard
             id="create-custom-agent"
             title={t('agents.customAgent.title')}
             description={t('agents.customAgent.description')}
             icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
                 <line x1="12" y1="8" x2="12" y2="16" />
                 <line x1="8" y1="12" x2="16" y2="12" />

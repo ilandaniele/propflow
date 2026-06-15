@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { contracts, tenants, units } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { CreateContractSchema, UpdateContractStatusSchema } from '@/lib/schemas/contract';
@@ -18,25 +20,31 @@ export async function createContract(
   const parsed = CreateContractSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify tenant and unit belong to this org
-  const [tenantRes, unitRes] = await Promise.all([
-    supabase.from('tenants').select('id').eq('id', parsed.data.tenant_id).eq('org_id', ctx.orgId).single(),
-    supabase.from('units').select('id').eq('id', parsed.data.unit_id).eq('org_id', ctx.orgId).single(),
+  const [tenantRow, unitRow] = await Promise.all([
+    db.select({ id: tenants.id }).from(tenants)
+      .where(and(eq(tenants.id, parsed.data.tenant_id), eq(tenants.orgId, ctx.orgId)))
+      .then(r => r[0] ?? null),
+    db.select({ id: units.id }).from(units)
+      .where(and(eq(units.id, parsed.data.unit_id), eq(units.orgId, ctx.orgId)))
+      .then(r => r[0] ?? null),
   ]);
 
-  if (!tenantRes.data || !unitRes.data) return Errors.NOT_FOUND();
+  if (!tenantRow || !unitRow) return Errors.NOT_FOUND();
 
-  const { error } = await supabase.from('contracts').insert({
-    ...parsed.data,
-    org_id: ctx.orgId,
-    deposit: parsed.data.deposit ?? null,
-    status: 'active',
-  });
-
-  if (error) {
-    log.error('[createContract] db error', { code: error.code });
+  try {
+    await db.insert(contracts).values({
+      tenantId: parsed.data.tenant_id as string,
+      unitId: parsed.data.unit_id as string,
+      orgId: ctx.orgId as string,
+      startDate: parsed.data.start_date as string,
+      endDate: (parsed.data.end_date ?? null) as string | null,
+      monthlyRent: String(parsed.data.monthly_rent),
+      deposit: parsed.data.deposit ? String(parsed.data.deposit) : null,
+      status: 'active' as string,
+    });
+  } catch (err) {
+    log.error('[createContract] db error', { err: err instanceof Error ? err.message : String(err) });
     return Errors.INTERNAL();
   }
 
@@ -55,26 +63,21 @@ export async function updateContractStatus(
   const parsed = UpdateContractStatusSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
-  // Verify contract belongs to this org (RLS + explicit check)
-  const { data: existing } = await supabase
-    .from('contracts')
-    .select('id, status')
-    .eq('id', parsed.data.id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  // Verify contract belongs to this org
+  const existing = await db.select({ id: contracts.id, status: contracts.status })
+    .from(contracts)
+    .where(and(eq(contracts.id, parsed.data.id), eq(contracts.orgId, ctx.orgId)))
+    .then(r => r[0] ?? null);
 
   if (!existing) return Errors.NOT_FOUND();
 
-  const { error } = await supabase
-    .from('contracts')
-    .update({ status: parsed.data.status, updated_at: new Date().toISOString() })
-    .eq('id', parsed.data.id)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[updateContractStatus] db error', { code: error.code });
+  try {
+    await db
+      .update(contracts)
+      .set({ status: parsed.data.status, updatedAt: new Date() })
+      .where(and(eq(contracts.id, parsed.data.id), eq(contracts.orgId, ctx.orgId)));
+  } catch (err) {
+    log.error('[updateContractStatus] db error', { err: err instanceof Error ? err.message : String(err) });
     return Errors.INTERNAL();
   }
 
