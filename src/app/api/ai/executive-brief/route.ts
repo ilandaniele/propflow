@@ -15,10 +15,8 @@
  * Fallback: when ANTHROPIC_API_KEY is absent, returns a deterministic template
  * built from the raw KPIs — no LLM call is made.
  *
- * NOTE (W5): fetchKPIs uses Drizzle for units/payments/expenses/incidents queries.
- * The `tenant_statement` Supabase VIEW (overdue/active tenant counts) still uses
- * the Supabase anon client because the view is not yet materialised as a Drizzle
- * table. Migration of that view is tracked in W6.
+ * W6: tenant_statement VIEW replaced with an inline Drizzle aggregation join
+ * (tenants + contracts + payments). No Supabase client needed.
  */
 
 export const dynamic = 'force-dynamic';
@@ -27,11 +25,10 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { and, eq, gte, lt, ne } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { and, eq, gte, lt, ne, sql } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { units, payments, expenses, incidents } from '@/lib/db/schema';
+import { units, payments, expenses, incidents, tenants, contracts } from '@/lib/db/schema';
 import { Errors } from '@/lib/errors';
 import { aiExecutiveBriefRateLimit } from '@/lib/ratelimit';
 import { serverEnv } from '@/lib/env';
@@ -71,13 +68,11 @@ interface ExecutiveBriefKPIs {
 }
 
 // ---------------------------------------------------------------------------
-// Aggregate KPI query
-// W5: units/payments/expenses/incidents use Drizzle (org-scoped).
-// W6: tenant_statement Supabase VIEW still uses anon Supabase client.
+// Aggregate KPI query — all queries use Drizzle (org-scoped, no PII)
+// W6: tenant_statement VIEW replaced with inline aggregation join.
 // ---------------------------------------------------------------------------
 
 async function fetchKPIs(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   orgId: string,
   period: string
 ): Promise<ExecutiveBriefKPIs> {
@@ -90,6 +85,7 @@ async function fetchKPIs(
     paymentRows,
     expenseRows,
     incidentRows,
+    tenantStatements,
   ] = await Promise.all([
     // Units: org-scoped
     db.select({ id: units.id, status: units.status })
@@ -122,13 +118,23 @@ async function fetchKPIs(
         eq(incidents.orgId, orgId),
         ne(incidents.status, 'solved'),
       )),
+
+    // Tenant statement — replaces the Supabase tenant_statement VIEW.
+    // Aggregates totalCharged (active contracts) and totalPaid (approved payments).
+    // Only aggregate booleans are used — no PII fields selected (LLM06/AC31).
+    db.select({
+      tenantId:     tenants.id,
+      totalCharged: sql<number>`SUM(CASE WHEN ${contracts.status} = 'active' THEN ${contracts.monthlyRent} ELSE 0 END)`,
+      totalPaid:    sql<number>`COALESCE(SUM(${payments.amount}), 0)`,
+    })
+      .from(tenants)
+      .leftJoin(contracts, eq(contracts.tenantId, tenants.id))
+      .leftJoin(payments, and(eq(payments.tenantId, tenants.id), eq(payments.status, 'approved')))
+      .where(eq(tenants.orgId, orgId))
+      .groupBy(tenants.id),
   ]);
 
-  // W6: tenant_statement is a Supabase VIEW — not yet in Drizzle schema.
-  // RLS on the anon client scopes this to the authenticated user's org automatically.
-  const { data: statements } = await supabase.from('tenant_statement').select('is_overdue, tenant_id');
-
-  const totalUnits   = unitRows.length;
+  const totalUnits    = unitRows.length;
   const occupiedUnits = unitRows.filter(u => u.status === 'occupied').length;
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
@@ -136,9 +142,11 @@ async function fetchKPIs(
   const totalExpenses = expenseRows.reduce((s, e) => s + (Number(e.amount) ?? 0), 0);
   const trueNetProfit = Math.round((grossIncome - totalExpenses) * 100) / 100;
 
-  const openIncidentsCount  = incidentRows.length;
-  const overduePaymentsCount = (statements ?? []).filter((s: { is_overdue: boolean }) => s.is_overdue).length;
-  const activeTenantsCount   = (statements ?? []).length;
+  const openIncidentsCount   = incidentRows.length;
+  const overduePaymentsCount = tenantStatements.filter(
+    s => Number(s.totalPaid) < Number(s.totalCharged)
+  ).length;
+  const activeTenantsCount   = tenantStatements.length;
 
   return {
     period,
@@ -240,12 +248,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { period } = parsed.data;
 
-  // Supabase anon client kept only for tenant_statement VIEW (W6 will materialise it)
-  const supabase = await createClient();
-
   try {
     // Fetch aggregate KPIs (org-scoped — no PII columns selected)
-    const kpis = await fetchKPIs(supabase, ctx.orgId, period);
+    const kpis = await fetchKPIs(ctx.orgId, period);
 
     // LLM03 / LLM06 / AC31: sanitize before prompt assembly — strips PII keys
     const sanitizedKpiJson = sanitizeForLLM(kpis);

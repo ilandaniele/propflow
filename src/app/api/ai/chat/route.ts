@@ -3,7 +3,6 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { aiChatMessages } from '@/lib/db/schema';
@@ -60,11 +59,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.VALIDATION_ERROR(parsed.error.flatten()), { status: 400 });
   }
 
-  const supabase = await createClient();
-
   try {
     // Build org-scoped context (aggregates only — LLM06)
-    const orgCtx = await buildOrgContext(supabase, ctx.orgId);
+    const orgCtx = await buildOrgContext(ctx.orgId);
     const systemPrompt = buildSystemPrompt(orgCtx);
 
     // LLM01: user input as structured user turn, never concatenated into system prompt

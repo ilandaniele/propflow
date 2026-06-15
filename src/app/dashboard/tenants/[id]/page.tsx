@@ -145,10 +145,9 @@ export default async function TenantDetailPage({ params }: Props) {
     avatarSignedUrl = urlData?.signedUrl ?? null;
   }
 
-  // Activity feed — still requires supabase for WhatsApp messages internal query
-  const supabase = await createClient();
+  // Activity feed — WhatsApp messages queried via Drizzle join
   const activityEvents = await buildTenantActivityFeed({
-    supabase,
+    db,
     tenantId: id,
     orgId: ctx.orgId,
     payments: paymentRows.map((p) => ({

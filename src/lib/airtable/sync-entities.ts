@@ -22,7 +22,8 @@
  */
 
 import type { AirtableRecord } from '@/lib/schemas/airtable';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type * as schema from '@/lib/db/schema';
 import type { NormalizedProperty } from '@/lib/airtable/schemas';
 import type { NormalizedTenant } from '@/lib/airtable/schemas';
 import type { NormalizedContract } from '@/lib/airtable/schemas';
@@ -36,10 +37,25 @@ import { normalizeResponsable } from '@/lib/airtable/normalizers/normalizeRespon
 import { normalizeMantenimiento } from '@/lib/airtable/normalizers/normalizeMantenimiento';
 import { aggregateServicePaymentRecords } from '@/lib/airtable/normalizers/normalizeServicePayments';
 import { getAirtableClient } from '@/lib/airtable/client';
+import { eq, inArray } from 'drizzle-orm';
+import {
+  properties,
+  units,
+  responsables,
+  tenants,
+  contracts,
+  payments,
+  incidents,
+  servicePayments,
+  airtableSnapshots,
+  airtableSyncLogs,
+} from '@/lib/db/schema';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export type DbClient = PostgresJsDatabase<typeof schema>;
 
 export type EntityName =
   | 'properties'
@@ -61,7 +77,7 @@ export interface EntitySyncResult {
   errorMessage?: string;
 }
 
-// A Map<airtableExternalId, supabaseUuid> for each main table, built after upsert
+// A Map<airtableExternalId, uuid> for each main table, built after upsert
 // and handed to the next dependent entity's link resolver.
 export type IdMap = Map<string, string>;
 
@@ -70,14 +86,20 @@ export type IdMap = Map<string, string>;
 export type UnitMap = Map<string, string>;
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Table lookup helper
 // ---------------------------------------------------------------------------
 
-/**
- * Map entity name to the Supabase DB table name.
- */
-function entityToDbTable(entity: EntityName): string {
-  return entity;
+function entityToTable(entity: EntityName) {
+  switch (entity) {
+    case 'properties':      return properties;
+    case 'units':           return units;
+    case 'responsables':    return responsables;
+    case 'tenants':         return tenants;
+    case 'contracts':       return contracts;
+    case 'payments':        return payments;
+    case 'incidents':       return incidents;
+    case 'service_payments':return servicePayments;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -90,18 +112,16 @@ function entityToDbTable(entity: EntityName): string {
  * @param orgId           Organization UUID
  * @param entity          Which main table to target
  * @param tableEnvKey     Env-var key whose value is the Airtable table id/name
- * @param adminClient     Service-role Supabase client (shared across entity calls)
+ * @param db              Drizzle PostgresJsDatabase instance
  * @param airtableClient  Injected for testability; defaults to singleton
- * @param idMaps          Map of entity → (airtableExtId → supabaseUuid) built by prior entity syncs
- *                        Used for FK resolution.  Properties populates idMaps.properties after upsert;
- *                        tenants populates idMaps.tenants, etc.
+ * @param idMaps          Map of entity → (airtableExtId → uuid) built by prior entity syncs
  * @returns               EntitySyncResult + (side effect) idMaps entry for this entity is populated
  */
 export async function syncEntityTable(
   orgId: string,
   entity: EntityName,
   tableEnvKey: string,
-  adminClient: SupabaseClient,
+  db: DbClient,
   airtableClient = getAirtableClient(),
   idMaps: Partial<Record<EntityName, IdMap>> = {}
 ): Promise<EntitySyncResult> {
@@ -114,13 +134,12 @@ export async function syncEntityTable(
       records = await airtableClient.listRecords(tableEnvKey);
     } catch (fetchErr) {
       const msg = fetchErr instanceof Error ? fetchErr.message : 'Unknown Airtable fetch error';
-      await writeEntityLog(adminClient, { orgId, entity, status: 'error', recordsUpserted: 0, errorMessage: msg, startedAt, completedAt: new Date() });
+      await writeEntityLog(db, { orgId, entity, status: 'error', recordsUpserted: 0, errorMessage: msg, startedAt, completedAt: new Date() });
       return { entity, count: 0, skippedLinks: 0, status: 'error', errorMessage: msg };
     }
 
     if (records.length === 0) {
-      await writeEntityLog(adminClient, { orgId, entity, status: 'success', recordsUpserted: 0, startedAt, completedAt: new Date() });
-      // Populate empty idMap so downstream entities don't fail on missing key
+      await writeEntityLog(db, { orgId, entity, status: 'success', recordsUpserted: 0, startedAt, completedAt: new Date() });
       idMaps[entity] = new Map();
       return { entity, count: 0, skippedLinks: 0, status: 'success' };
     }
@@ -128,43 +147,35 @@ export async function syncEntityTable(
     // ── 2. Normalize + resolve links ─────────────────────────────────────────
     let skippedLinks = 0;
 
-    // IC8: for tenants, pre-build a unitMap from the units table so unit_id can be
-    // resolved by (property_id, label) before the upsert — avoids a separate UPDATE pass.
-    // This query is cheap (org-scoped, small table) and runs only for the tenants entity.
+    // For tenants: pre-build unitMap from the units table so unit_id can be
+    // resolved by (property_id, label) before the upsert.
     const unitMap: UnitMap = new Map();
     if (entity === 'tenants') {
-      const { data: unitRows } = await adminClient
-        .from('units')
-        .select('id, property_id, label')
-        .eq('org_id', orgId);
+      const unitRows = await db
+        .select({ id: units.id, propertyId: units.propertyId, label: units.label })
+        .from(units)
+        .where(eq(units.orgId, orgId));
 
-      if (unitRows) {
-        for (const u of unitRows as Array<{ id: string; property_id: string; label: string }>) {
-          if (u.property_id && u.label) {
-            unitMap.set(`${u.property_id}::${u.label}`, u.id);
-          }
+      for (const u of unitRows) {
+        if (u.propertyId && u.label) {
+          unitMap.set(`${u.propertyId}::${u.label}`, u.id);
         }
       }
     }
 
-    // For payments: build a contractId→tenantId map so we can satisfy tenant_id NOT NULL.
-    // The contracts sync ran before payments (IC4), so contracts rows exist in the DB.
-    // We store this map under idMaps['payments'] so buildDomainRow can access it.
+    // For payments: build contractId→tenantId map so we can satisfy tenant_id NOT NULL.
     if (entity === 'payments') {
-      const { data: contractRows } = await adminClient
-        .from('contracts')
-        .select('id, tenant_id')
-        .eq('org_id', orgId);
+      const contractRows = await db
+        .select({ id: contracts.id, tenantId: contracts.tenantId })
+        .from(contracts)
+        .where(eq(contracts.orgId, orgId));
 
       const contractToTenantMap: Map<string, string> = new Map();
-      if (contractRows) {
-        for (const c of contractRows as Array<{ id: string; tenant_id: string | null }>) {
-          if (c.id && c.tenant_id) {
-            contractToTenantMap.set(c.id, c.tenant_id);
-          }
+      for (const c of contractRows) {
+        if (c.id && c.tenantId) {
+          contractToTenantMap.set(c.id, c.tenantId);
         }
       }
-      // Stash it; buildDomainRow reads idMaps['payments'] for this lookup
       idMaps['payments'] = contractToTenantMap;
     }
 
@@ -175,65 +186,58 @@ export async function syncEntityTable(
       idMaps,
       unitMap,
       (warningMsg: string) => {
-        // AC5: log warning to stdout; increment counter (we log once to airtable_sync_logs at end)
         console.warn(`[sync-entities][${entity}][${orgId}] unresolved link: ${warningMsg}`);
         skippedLinks++;
       }
     );
 
     // ── 3. Upsert into main domain table ─────────────────────────────────────
-    const dbTable = entityToDbTable(entity);
+    const table = entityToTable(entity);
     const BATCH = 200;
     let upsertedCount = 0;
     let upsertError: string | undefined;
 
-    // W5c: Conflict detection for tenants.
-    // Any tenant that has been locally edited in PropFlow after the last Airtable sync
-    // is flagged as 'needs_review' so the admin can reconcile manually.
-    // We still upsert Airtable data for all records — the flag is additive, not a skip.
+    // Conflict detection for tenants: flag locally-edited rows as 'needs_review'.
     if (entity === 'tenants' && domainRows.length > 0) {
       const airtableExtIds = domainRows
         .map(r => r['airtable_external_id'])
         .filter((id): id is string => typeof id === 'string');
 
       if (airtableExtIds.length > 0) {
-        const { data: existingTenants } = await adminClient
-          .from('tenants')
-          .select('airtable_external_id, updated_at, airtable_synced_at, sync_status')
-          .eq('org_id', orgId)
-          .in('airtable_external_id', airtableExtIds);
+        const existingTenants = await db
+          .select({
+            airtableExternalId: tenants.airtableExternalId,
+            updatedAt: tenants.updatedAt,
+            airtableSyncedAt: tenants.airtableSyncedAt,
+            syncStatus: tenants.syncStatus,
+          })
+          .from(tenants)
+          .where(eq(tenants.orgId, orgId));
 
-        if (existingTenants) {
-          const needsReviewIds = new Set<string>();
-          for (const t of existingTenants as Array<{
-            airtable_external_id: string;
-            updated_at: string | null;
-            airtable_synced_at: string | null;
-            sync_status: string | null;
-          }>) {
-            // Grace window: the upsert itself bumps updated_at (DB trigger) a few ms
-            // AFTER airtable_synced_at is stamped in the normalizer, so a strict
-            // comparison would flag every row on every re-sync. Only flag edits
-            // that happened meaningfully later (> 60s) than the last sync.
-            const GRACE_MS = 60_000;
-            if (
-              t.updated_at &&
-              t.airtable_synced_at &&
-              new Date(t.updated_at).getTime() > new Date(t.airtable_synced_at).getTime() + GRACE_MS
-            ) {
-              needsReviewIds.add(t.airtable_external_id);
-            }
+        const existingInScope = existingTenants.filter(
+          t => t.airtableExternalId && airtableExtIds.includes(t.airtableExternalId)
+        );
+
+        const GRACE_MS = 60_000;
+        const needsReviewIds = new Set<string>();
+        for (const t of existingInScope) {
+          if (
+            t.updatedAt &&
+            t.airtableSyncedAt &&
+            new Date(t.updatedAt).getTime() > new Date(t.airtableSyncedAt).getTime() + GRACE_MS
+          ) {
+            if (t.airtableExternalId) needsReviewIds.add(t.airtableExternalId);
           }
+        }
 
-          if (needsReviewIds.size > 0) {
-            console.info(
-              `[sync-entities][tenants][${orgId}] conflict detected for ${needsReviewIds.size} tenant(s) — marking needs_review`
-            );
-            for (const row of domainRows) {
-              const extId = row['airtable_external_id'] as string | undefined;
-              if (extId && needsReviewIds.has(extId)) {
-                row['sync_status'] = 'needs_review';
-              }
+        if (needsReviewIds.size > 0) {
+          console.info(
+            `[sync-entities][tenants][${orgId}] conflict detected for ${needsReviewIds.size} tenant(s) — marking needs_review`
+          );
+          for (const row of domainRows) {
+            const extId = row['airtable_external_id'] as string | undefined;
+            if (extId && needsReviewIds.has(extId)) {
+              row['sync_status'] = 'needs_review';
             }
           }
         }
@@ -242,59 +246,74 @@ export async function syncEntityTable(
 
     for (let i = 0; i < domainRows.length; i += BATCH) {
       const batch = domainRows.slice(i, i + BATCH);
-      const { error } = await adminClient
-        .from(dbTable)
-        .upsert(batch, {
-          onConflict: 'org_id,airtable_external_id',
-          ignoreDuplicates: false,
-        });
-
-      if (error) {
-        upsertError = `[${entity}] upsert batch ${Math.floor(i / BATCH) + 1} failed: ${error.message}`;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tableAny = table as any;
+        await db
+          .insert(tableAny)
+          .values(batch as Parameters<typeof tableAny._.config.columns>[0][])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .onConflictDoUpdate({
+            target: [tableAny.orgId, tableAny.airtableExternalId],
+            set: buildUpdateSet(batch[0] as Record<string, unknown>, tableAny),
+          });
+        upsertedCount += batch.length;
+      } catch (err) {
+        upsertError = `[${entity}] upsert batch ${Math.floor(i / BATCH) + 1} failed: ${err instanceof Error ? err.message : String(err)}`;
         break;
       }
-      upsertedCount += batch.length;
     }
 
     // ── 4. Upsert into airtable_snapshots (AC10 — raw JSON) ──────────────────
-    // Continue even if domain upsert partially failed; snapshots are best-effort.
     for (let i = 0; i < snapshotRows.length; i += BATCH) {
       const batch = snapshotRows.slice(i, i + BATCH);
-      const { error } = await adminClient
-        .from('airtable_snapshots')
-        .upsert(batch, {
-          onConflict: 'org_id,table_name,external_id',
-          ignoreDuplicates: false,
-        });
-      if (error) {
-        console.warn(`[sync-entities][${entity}] snapshot upsert batch failed: ${error.message}`);
+      try {
+        await db
+          .insert(airtableSnapshots)
+          .values(batch.map(r => ({
+            orgId:      r.org_id,
+            tableName:  r.table_name,
+            externalId: r.external_id,
+            data:       r.data,
+            syncedAt:   new Date(r.synced_at),
+          })))
+          .onConflictDoUpdate({
+            target: [airtableSnapshots.orgId, airtableSnapshots.tableName, airtableSnapshots.externalId],
+            set: {
+              data:     airtableSnapshots.data,
+              syncedAt: airtableSnapshots.syncedAt,
+            },
+          });
+      } catch (err) {
+        console.warn(`[sync-entities][${entity}] snapshot upsert batch failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
     // ── 5. Build idMap for downstream link resolution ────────────────────────
-    // Query the just-upserted rows to get (airtable_external_id → id) mapping.
-    // Only bother if later entities will use this map.
     if (!upsertError) {
-      // For service_payments, the external_id is synthetic ("recXXX::serviceType")
-      // Collect them from domainRows which have the correct synthetic ids
       const extIds = entity === 'service_payments'
         ? domainRows.map(r => r['airtable_external_id'] as string).filter(Boolean)
         : records.map(r => r.id);
-      const { data: freshRows } = await adminClient
-        .from(dbTable)
-        .select('id, airtable_external_id')
-        .eq('org_id', orgId)
-        .in('airtable_external_id', extIds);
 
-      if (freshRows) {
-        const map: IdMap = new Map();
-        for (const row of freshRows as Array<{ id: string; airtable_external_id: string }>) {
-          if (row.airtable_external_id) {
-            map.set(row.airtable_external_id, row.id);
-          }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tableAny = table as any;
+      const freshRows = extIds.length > 0
+        ? await db
+            .select({ id: tableAny.id, airtableExternalId: tableAny.airtableExternalId })
+            .from(tableAny)
+            .where(eq(tableAny.orgId, orgId))
+            // inArray requires at least 1 element; guarded by extIds.length > 0 above
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .then((rows: any[]) => rows.filter(r => extIds.includes(r.airtableExternalId)))
+        : [];
+
+      const map: IdMap = new Map();
+      for (const row of freshRows) {
+        if (row.airtableExternalId) {
+          map.set(row.airtableExternalId, row.id);
         }
-        idMaps[entity] = map;
       }
+      idMaps[entity] = map;
     } else {
       idMaps[entity] = new Map();
     }
@@ -305,7 +324,7 @@ export async function syncEntityTable(
       : 'success';
 
     const completedAt = new Date();
-    await writeEntityLog(adminClient, {
+    await writeEntityLog(db, {
       orgId,
       entity,
       status,
@@ -323,17 +342,54 @@ export async function syncEntityTable(
       errorMessage: upsertError,
     };
   } catch (unexpected) {
-    // AC6: catch-all so a single entity never aborts the run
     const msg = unexpected instanceof Error ? unexpected.message : 'Unexpected error';
     console.error(`[sync-entities][${entity}] unexpected error:`, msg);
     try {
-      await writeEntityLog(adminClient, { orgId, entity, status: 'error', recordsUpserted: 0, errorMessage: msg, startedAt, completedAt: new Date() });
+      await writeEntityLog(db, { orgId, entity, status: 'error', recordsUpserted: 0, errorMessage: msg, startedAt, completedAt: new Date() });
     } catch {
       // If logging itself fails, swallow so the outer loop continues
     }
     idMaps[entity] = new Map();
     return { entity, count: 0, skippedLinks: 0, status: 'error', errorMessage: msg };
   }
+}
+
+// ---------------------------------------------------------------------------
+// buildUpdateSet — derive SET clause from the first row of a batch
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the SET clause for onConflictDoUpdate by mapping snake_case DB column
+ * keys from the domain row back to their Drizzle column references.
+ * Private _airtable_* fields are excluded by toDbRow already.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildUpdateSet(firstRow: Record<string, unknown>, table: any): Record<string, unknown> {
+  const set: Record<string, unknown> = {};
+  // Exclude the conflict-target columns; update everything else.
+  const skip = new Set(['id', 'org_id', 'airtable_external_id', 'created_at']);
+  for (const key of Object.keys(firstRow)) {
+    if (skip.has(key)) continue;
+    // Look up the Drizzle column by iterating table columns
+    const col = findColumn(table, key);
+    if (col) set[key] = col;
+  }
+  return set;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function findColumn(table: any, snakeKey: string): unknown {
+  // Drizzle column objects are accessible as direct properties of the table.
+  // The property name is camelCase; snakeKey is the DB column name.
+  // We look for the column whose _.config.name matches snakeKey.
+  for (const [, col] of Object.entries(table)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = col as any;
+    if (c && typeof c === 'object' && c._?.config?.name === snakeKey) {
+      return c;
+    }
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -359,8 +415,6 @@ function buildRows(
   const snapshotTableName = entityToSnapshotName(entity);
 
   // ── service_payments: bulk aggregation path ───────────────────────────────
-  // All records are processed together so that monthly_data can be grouped by
-  // (property, serviceType). This is a special-case that bypasses buildDomainRow.
   if (entity === 'service_payments') {
     const aggregated = aggregateServicePaymentRecords(records, orgId);
 
@@ -381,7 +435,6 @@ function buildRows(
       domainRows.push(row);
     }
 
-    // Snapshots — one per raw record (not per aggregated row)
     const snapshotRows: BuiltRows['snapshotRows'] = records.map(record => ({
       org_id:      orgId,
       table_name:  snapshotTableName,
@@ -400,7 +453,6 @@ function buildRows(
   for (const record of records) {
     const domainRow = buildDomainRow(entity, orgId, record, idMaps, unitMap, onUnresolved);
 
-    // Filter sentinel rows that were marked as skip by normalizers
     if (domainRow['__skip'] === true) {
       snapshotRows.push({
         org_id: orgId,
@@ -427,7 +479,6 @@ function buildRows(
 }
 
 function entityToSnapshotName(entity: EntityName): string {
-  // Maps to the snapshot bucket name used by the legacy sync (table_name column).
   const map: Record<EntityName, string> = {
     properties:       'propiedades',
     tenants:          'residentes',
@@ -452,7 +503,6 @@ function buildDomainRow(
   switch (entity) {
     case 'properties': {
       const normalized: NormalizedProperty = normalizeProperty(record, orgId);
-      // Properties have no FK links to resolve — strip private fields (none in this type)
       return toDbRow(normalized);
     }
 
@@ -468,11 +518,6 @@ function buildDomainRow(
         propertyId = resolved;
       }
 
-      // IC8: resolve unit_id by (property_id, label) using the pre-built unitMap.
-      // unitMap keys are "property_id::label"; both components must be non-null to resolve.
-      // If not found, unit_id stays null and a warning is logged (AC5 null-FK-continue pattern).
-      // WARNING: never interpolate PII field values (dni, birth_date, first_name, last_name)
-      // here — log only Airtable record IDs.
       let unitId: string | null = null;
       if (propertyId && normalized._airtable_unit_label) {
         const mapKey = `${propertyId}::${normalized._airtable_unit_label}`;
@@ -485,13 +530,9 @@ function buildDomainRow(
         unitId = resolvedUnitId;
       }
 
-      // Resolve responsable_id from responsablesMap if available.
-      // The Residentes table has a linked Responsables field — extract the first linked id
-      // from the raw record directly, as NormalizedTenant doesn't carry this field yet.
       let responsableId: string | null = null;
       const responsablesMap = idMaps.responsables;
       if (responsablesMap) {
-        // Extract first linked id from the 'Responsable' field (may be array of rec ids)
         const responsableLinks = record.fields['Responsable'];
         const responsableExtId = Array.isArray(responsableLinks) && responsableLinks.length > 0
           ? (typeof responsableLinks[0] === 'string' ? responsableLinks[0] : null)
@@ -505,8 +546,6 @@ function buildDomainRow(
       }
 
       const row = toDbRow(normalized);
-      // tenants has NO property_id column — property is derived via unit_id → units.property_id.
-      // propertyId above is only used to build the unitMap lookup key.
       row['unit_id'] = unitId;
       if (responsableId !== null) {
         row['responsable_id'] = responsableId;
@@ -517,12 +556,6 @@ function buildDomainRow(
     case 'contracts': {
       const normalized: NormalizedContract = normalizeContract(record, orgId);
 
-      // Skip rows that can't satisfy NOT NULL constraints:
-      //   tenant_id NOT NULL — must resolve from idMaps.tenants
-      //   unit_id   NOT NULL — must resolve from idMaps.units (via _airtable_unit_ext_id)
-      //   start_date NOT NULL
-      //   monthly_rent NOT NULL + CHECK > 0
-      // This mirrors the skip pattern used for payments.
       if (!normalized.start_date) {
         onUnresolved(`contract ${record.id} skipped: start_date missing (NOT NULL)`);
         return { __skip: true };
@@ -532,7 +565,6 @@ function buildDomainRow(
         return { __skip: true };
       }
 
-      // Resolve tenant_id — required (NOT NULL)
       let tenantId: string | null = null;
       if (normalized._airtable_tenant_ext_id) {
         tenantId = idMaps.tenants?.get(normalized._airtable_tenant_ext_id) ?? null;
@@ -545,7 +577,6 @@ function buildDomainRow(
         return { __skip: true };
       }
 
-      // Resolve unit_id — required (NOT NULL)
       let unitId: string | null = null;
       if (normalized._airtable_unit_ext_id) {
         unitId = idMaps.units?.get(normalized._airtable_unit_ext_id) ?? null;
@@ -567,11 +598,8 @@ function buildDomainRow(
     case 'payments': {
       const result = normalizePayment(record, orgId);
 
-      // normalizePayment now returns a discriminated union — skip rows that
-      // cannot satisfy DB NOT NULL constraints (amount=0, dates missing, etc.)
       if (result.skip) {
         onUnresolved(`payment ${record.id} skipped: ${result.reason}`);
-        // Return a sentinel that buildRows will filter out
         return { __skip: true };
       }
 
@@ -587,14 +615,11 @@ function buildDomainRow(
         contractId = resolved;
       }
 
-      // If contract was unresolved, we cannot satisfy contract_id NOT NULL — skip
       if (!contractId) {
         onUnresolved(`payment ${record.id} skipped: contract_id could not be resolved (NOT NULL)`);
         return { __skip: true };
       }
 
-      // Resolve tenant_id via contractsMap → tenantsMap (two-hop resolution)
-      // The contractIdToTenantId map is passed via idMaps under key 'payments'
       const contractToTenantMap = idMaps['payments'] as Map<string, string> | undefined;
       if (contractToTenantMap) {
         tenantId = contractToTenantMap.get(contractId) ?? null;
@@ -623,8 +648,6 @@ function buildDomainRow(
       }
 
       const row = toDbRow(normalized);
-      // Only set property_id when we have a resolved value; never overwrite with null
-      // to avoid clobbering a value set by a previous sync or manual edit.
       if (propertyId !== null) {
         row['property_id'] = propertyId;
       }
@@ -640,15 +663,11 @@ function buildDomainRow(
     }
 
     case 'incidents': {
-      // Mantenimiento has no property/unit record links (Habitación is free text),
-      // so no idMap resolution — unit_id/property_id stay at their DB defaults.
       const normalized = normalizeMantenimiento(record, orgId);
       return toDbRow(normalized as unknown as Record<string, unknown>);
     }
 
     case 'service_payments': {
-      // service_payments uses bulk aggregation in buildRows — this per-record
-      // path should never be reached; return empty sentinel.
       return { __skip: true };
     }
   }
@@ -656,8 +675,7 @@ function buildDomainRow(
 
 /**
  * Strip private _airtable_* helper fields from a normalized row before upsert.
- * These fields exist only for link resolution and must not reach the DB.
- * Also strips undefined values (Supabase client treats them differently from null).
+ * Also strips undefined values.
  */
 function toDbRow(normalized: Record<string, unknown>): Record<string, unknown> {
   const row: Record<string, unknown> = {};
@@ -684,23 +702,21 @@ interface EntityLogParams {
 }
 
 async function writeEntityLog(
-  supabase: SupabaseClient,
+  db: DbClient,
   params: EntityLogParams
 ): Promise<void> {
-  const { error } = await supabase
-    .from('airtable_sync_logs')
-    .insert({
-      org_id:           params.orgId,
-      table_name:       params.entity,
-      status:           params.status,
-      records_upserted: params.recordsUpserted,
-      error_message:    params.errorMessage ?? null,
-      started_at:       params.startedAt.toISOString(),
-      completed_at:     params.completedAt.toISOString(),
+  try {
+    await db.insert(airtableSyncLogs).values({
+      orgId:           params.orgId,
+      tableName:       params.entity,
+      status:          params.status,
+      recordsUpserted: params.recordsUpserted,
+      errorMessage:    params.errorMessage ?? null,
+      startedAt:       params.startedAt,
+      completedAt:     params.completedAt,
     });
-
-  if (error) {
+  } catch (err) {
     // Non-fatal: the sync may have succeeded; log to stdout only
-    console.error(`[sync-entities] Failed to write sync log for ${params.entity}:`, error.message);
+    console.error(`[sync-entities] Failed to write sync log for ${params.entity}:`, err instanceof Error ? err.message : String(err));
   }
 }
