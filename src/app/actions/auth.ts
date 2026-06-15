@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from '@/auth';
 import { err, Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
 import { checkRateLimit } from '@/lib/ratelimit';
@@ -41,35 +41,24 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     return Errors.VALIDATION_ERROR(parsed.error.flatten());
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: parsed.data.email,
-    password: parsed.data.password,
-  });
-
-  if (error || !data.user) {
-    log.authFailure(parsed.data.email, error?.message ?? 'unknown');
+  try {
+    await nextAuthSignIn('credentials', {
+      email: parsed.data.email,
+      password: parsed.data.password,
+      redirect: false,
+    });
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : 'unknown';
+    log.authFailure(parsed.data.email, errMsg);
     return err('AUTH_FAILED', 'Invalid email or password');
   }
 
-  log.authSuccess(data.user.id, parsed.data.email);
-
-  // Determine redirect based on role
-  const profileRes = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', data.user.id)
-    .single();
-
-  const role: string = (profileRes.data as { role?: string } | null)?.role ?? 'tenant';
-
-  redirect(role === 'admin' ? '/dashboard' : '/portal');
+  log.authSuccess('', parsed.data.email);
+  redirect('/dashboard');
 }
 
 export async function signOut(): Promise<void> {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect('/login');
+  await nextAuthSignOut({ redirectTo: '/login' });
 }
 
 export async function requestPasswordReset(
@@ -90,15 +79,13 @@ export async function requestPasswordReset(
     return Errors.VALIDATION_ERROR(parsed.error.flatten());
   }
 
-  const supabase = await createClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${siteUrl}/auth/confirm`,
-  });
-
-  // Always return success to prevent email enumeration
-  return { success: true };
+  // Password reset not yet available — credentials provider users must use Google sign-in
+  return {
+    error: {
+      code: 'NOT_IMPLEMENTED',
+      message: 'Password reset not yet available. Please use Google sign-in.',
+    },
+  };
 }
 
 // Helper: rate limit by IP

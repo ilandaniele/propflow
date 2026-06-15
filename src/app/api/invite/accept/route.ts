@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { log } from '@/lib/log';
 import { sha256 } from '@/lib/crypto/hash';
@@ -46,9 +46,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // 2. Require authenticated session
-  const supabase = await createClient();
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (!user || authErr) {
+  const session = await auth();
+  const user = session?.user;
+  if (!user?.id || !user.email) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'You must be signed in to accept an invitation.' } }, { status: 401 });
   }
 

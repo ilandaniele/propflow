@@ -7,8 +7,10 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { eq, and, or, ilike, count as sqlCount, desc } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
 import { upsertAirtableResidente } from '@/lib/airtable/write';
 
@@ -16,7 +18,6 @@ import { upsertAirtableResidente } from '@/lib/airtable/write';
 
 const GetQuerySchema = z.object({
   search:      z.string().max(200).optional(),
-  status:      z.string().optional(),
   sync_status: z.string().optional(),
   page:        z.coerce.number().int().min(1).default(1),
   limit:       z.coerce.number().int().min(1).max(100).default(20),
@@ -37,39 +38,49 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { search, status, sync_status, page, limit } = parsed.data;
+  const { search, sync_status, page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
-  const admin = createAdminClient();
+  // Build where conditions
+  const baseConditions = [eq(tenants.orgId, ctx.orgId)];
+  if (sync_status) baseConditions.push(eq(tenants.syncStatus, sync_status));
 
-  let query = admin
-    .from('tenants')
-    .select(
-      'id, full_name, first_name, last_name, email, phone, dni, tenant_status, sync_status, last_synced_at, airtable_external_id, portal_access, unit_id, created_at, units(label, properties(name))',
-      { count: 'exact' }
-    )
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  const whereClause = search
+    ? and(
+        ...baseConditions,
+        or(
+          ilike(tenants.fullName, `%${search}%`),
+          ilike(tenants.email!, `%${search}%`),
+        ),
+      )
+    : and(...baseConditions);
 
-  if (search) {
-    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
-  }
-  if (status) {
-    query = query.eq('tenant_status', status);
-  }
-  if (sync_status) {
-    query = query.eq('sync_status', sync_status);
-  }
+  const [rows, countRows] = await Promise.all([
+    db
+      .select({
+        id:                 tenants.id,
+        fullName:           tenants.fullName,
+        email:              tenants.email,
+        phone:              tenants.phone,
+        documentNumber:     tenants.documentNumber,
+        syncStatus:         tenants.syncStatus,
+        lastSyncedAt:       tenants.lastSyncedAt,
+        airtableExternalId: tenants.airtableExternalId,
+        portalAccess:       tenants.portalAccess,
+        unitId:             tenants.unitId,
+        createdAt:          tenants.createdAt,
+      })
+      .from(tenants)
+      .where(whereClause)
+      .orderBy(desc(tenants.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ value: sqlCount() }).from(tenants).where(whereClause),
+  ]);
 
-  const { data: tenants, count, error } = await query;
+  const total = Number(countRows[0]?.value ?? 0);
 
-  if (error) {
-    console.error('[api/admin/tenants GET]', error.code);
-    return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch tenants.' } }, { status: 500 });
-  }
-
-  return NextResponse.json({ tenants: tenants ?? [], total: count ?? 0, page });
+  return NextResponse.json({ tenants: rows, total, page });
 }
 
 // ── POST ──────────────────────────────────────────────────────────────────────
@@ -77,9 +88,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 const CreateTenantSchema = tenantRegistrationSchema
   .omit({ terms_accepted: true, privacy_accepted: true })
   .extend({
-    tenant_status:   z.enum(['active', 'inactive', 'pending']).optional().default('pending'),
-    notes:           z.string().max(5000).optional(),
-    responsable_id:  z.string().uuid().optional(),
+    notes:          z.string().max(5000).optional(),
+    responsable_id: z.string().uuid().optional(),
   });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -102,17 +112,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const data = parsed.data;
-  const admin = createAdminClient();
 
   // Check for duplicate email in org
-  const { data: existing } = await admin
-    .from('tenants')
-    .select('id')
-    .eq('org_id', ctx.orgId)
-    .eq('email', data.email)
-    .maybeSingle();
+  const existing = await db
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(and(eq(tenants.orgId, ctx.orgId), eq(tenants.email!, data.email)))
+    .limit(1);
 
-  if (existing) {
+  if (existing.length > 0) {
     return NextResponse.json(
       { error: { code: 'DUPLICATE_TENANT', message: 'A tenant with this email already exists.' } },
       { status: 409 }
@@ -120,33 +128,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const fullName = `${data.first_name} ${data.last_name}`.trim();
-  const now = new Date().toISOString();
 
-  const insertPayload: Record<string, unknown> = {
-    org_id:                   ctx.orgId,
-    first_name:               data.first_name,
-    last_name:                data.last_name,
-    full_name:                fullName,
-    email:                    data.email,
-    phone:                    data.phone,
-    dni:                      data.dni,
-    birth_date:               data.birth_date,
-    emergency_contact_name:   data.emergency_contact_name ?? null,
-    emergency_contact_phone:  data.emergency_contact_phone ?? null,
-    tenant_status:            data.tenant_status,
-    notes:                    data.notes ?? null,
-    responsable_id:           data.responsable_id ?? null,
-    sync_status:              'pending',
-  };
+  const [tenant] = await db
+    .insert(tenants)
+    .values({
+      orgId:                ctx.orgId,
+      fullName,
+      email:                data.email,
+      phone:                data.phone,
+      documentNumber:       data.dni ?? null,
+      dateOfBirth:          data.birth_date ?? null,
+      emergencyContactName:  data.emergency_contact_name ?? null,
+      emergencyContactPhone: data.emergency_contact_phone ?? null,
+      notes:                data.notes ?? null,
+      responsableId:        data.responsable_id ?? null,
+      syncStatus:           'pending',
+    })
+    .returning({
+      id:                 tenants.id,
+      email:              tenants.email,
+      fullName:           tenants.fullName,
+      syncStatus:         tenants.syncStatus,
+      airtableExternalId: tenants.airtableExternalId,
+    });
 
-  const { data: tenant, error: insertError } = await admin
-    .from('tenants')
-    .insert(insertPayload)
-    .select('id, email, full_name, sync_status, airtable_external_id')
-    .single();
-
-  if (insertError || !tenant) {
-    console.error('[api/admin/tenants POST] insert failed', insertError?.code);
+  if (!tenant) {
     return NextResponse.json({ error: { code: 'INSERT_FAILED', message: 'Failed to create tenant.' } }, { status: 500 });
   }
 
@@ -167,20 +173,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         emergency_contact_phone: data.emergency_contact_phone ?? null,
       });
 
-      await admin
-        .from('tenants')
-        .update({
-          airtable_external_id: result.airtableRecordId,
-          sync_status:          'synced',
-          last_synced_at:       now,
+      await db
+        .update(tenants)
+        .set({
+          airtableExternalId: result.airtableRecordId,
+          syncStatus:         'synced',
+          lastSyncedAt:       new Date(),
         })
-        .eq('id', tenant.id);
+        .where(eq(tenants.id, tenant.id));
 
       syncStatus = 'synced';
     } catch (err) {
       const errName = err instanceof Error ? err.name : 'unknown';
       console.warn('[api/admin/tenants POST] Airtable sync failed', { errName, tenantId: tenant.id });
-      await admin.from('tenants').update({ sync_status: 'failed' }).eq('id', tenant.id);
+      await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, tenant.id));
       syncStatus = 'failed';
     }
   }

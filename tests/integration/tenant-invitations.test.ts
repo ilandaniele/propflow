@@ -81,7 +81,16 @@ vi.mock('@/lib/auth/guards', () => ({
   }),
 }));
 
-// ── vi.mock: supabase server (for accept route) ───────────────────────────────
+// ── vi.mock: @/auth — used by invite/accept/route.ts (NextAuth session) ──────
+
+vi.mock('@/auth', () => ({
+  auth: vi.fn().mockImplementation(async () => {
+    if (state.sessionError || !state.sessionUser) return null;
+    return { user: { id: state.sessionUser.id, email: state.sessionUser.email } };
+  }),
+}));
+
+// ── vi.mock: supabase server (legacy — kept for compat) ──────────────────────
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockImplementation(async () => ({

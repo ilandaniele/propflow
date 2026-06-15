@@ -6,14 +6,14 @@
  * Reads the token from the URL, previews the invitation context (masked email),
  * and lets the user sign in with Google or email/password to accept.
  *
- * After a successful sign-in the user is redirected back here (via auth_redirect_to cookie)
- * and the page calls POST /api/invite/accept to complete the link.
+ * After a successful sign-in the user is redirected back here (via the redirect
+ * query param) and the page calls POST /api/invite/accept to complete the link.
  */
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { createClient } from '@/lib/supabase/client';
+import { useSession, signIn as nextAuthSignIn } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
 
 function maskEmail(email: string): string {
@@ -37,6 +37,7 @@ export default function InviteAcceptPage() {
   const router = useRouter();
   const token = searchParams.get('token') ?? '';
 
+  const { data: session } = useSession();
   const [state, setState] = useState<InviteState>({ phase: 'loading' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,15 +64,11 @@ export default function InviteAcceptPage() {
 
   // Check if user is already signed in — if so, try to accept immediately
   useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.getUser().then((r: Awaited<ReturnType<typeof supabase.auth.getUser>>) => {
-      const user = r.data.user;
-      if (user && token && state.phase === 'ready') {
-        void acceptInvite();
-      }
-    });
+    if (session?.user && token && state.phase === 'ready') {
+      void acceptInvite();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase]);
+  }, [session?.user, state.phase]);
 
   async function acceptInvite() {
     setState(prev =>
@@ -100,17 +97,12 @@ export default function InviteAcceptPage() {
         : { phase: 'signing_in', maskedEmail: '', orgName: '' }
     );
     setSignInErr(null);
-    const supabase = createClient();
-    const siteUrl = process.env['NEXT_PUBLIC_SITE_URL'] ?? window.location.origin;
-    // After OAuth, redirect back to this page to complete acceptance
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${siteUrl}/auth/callback`,
-        queryParams: { prompt: 'select_account' },
-      },
-    });
-    if (error) {
+    try {
+      await nextAuthSignIn('google', {
+        callbackUrl: `/invite/accept?token=${encodeURIComponent(token)}`,
+      });
+      // nextAuthSignIn redirects — execution doesn't continue here on success
+    } catch {
       setSignInErr(t('googleError'));
       setState(prev =>
         (prev.phase === 'signing_in')
@@ -128,10 +120,13 @@ export default function InviteAcceptPage() {
         ? { phase: 'signing_in', maskedEmail: prev.maskedEmail, orgName: prev.orgName }
         : { phase: 'signing_in', maskedEmail: '', orgName: '' }
     );
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setSignInErr(error.message ?? t('errorSignIn'));
+    const result = await nextAuthSignIn('credentials', {
+      email,
+      password,
+      redirect: false,
+    });
+    if (result?.error) {
+      setSignInErr(result.error ?? t('errorSignIn'));
       setState(prev =>
         prev.phase === 'signing_in'
           ? { phase: 'ready', maskedEmail: prev.maskedEmail, orgName: prev.orgName }

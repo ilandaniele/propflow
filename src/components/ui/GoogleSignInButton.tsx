@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { signIn } from 'next-auth/react';
 
 interface GoogleSignInButtonProps {
-  /** The URL Supabase should redirect to after OAuth (the /auth/callback route). */
+  /** The URL NextAuth should redirect to after OAuth. */
   redirectTo: string;
   /**
    * Optional: the page path the user was trying to visit before being sent to login.
@@ -16,14 +16,9 @@ interface GoogleSignInButtonProps {
 }
 
 /**
- * GoogleSignInButton — client component that initiates Supabase PKCE OAuth.
+ * GoogleSignInButton — client component that initiates NextAuth Google OAuth.
  *
- * Uses createBrowserClient directly (browser-side SDK call) so the PKCE
- * code_verifier is generated and stored in the browser cookie before the
- * redirect. This is the recommended pattern per @supabase/ssr docs — a
- * Server Action cannot initiate an OAuth redirect because it runs on the
- * server and cannot access the browser cookie store for PKCE storage.
- *
+ * Uses next-auth/react signIn('google') on the client side.
  * When `intendedDestination` is set, stores it in a cookie before redirecting
  * so the callback route can return the user to the right page post-auth.
  */
@@ -46,28 +41,13 @@ export function GoogleSignInButton({ redirectTo, intendedDestination }: GoogleSi
       ].join('; ');
     }
 
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
-        },
-      },
-    });
-
-    if (oauthError) {
-      // signInWithOAuth failure (network issue, provider misconfigured, etc.)
+    try {
+      await signIn('google', { callbackUrl: redirectTo });
+      // On success the browser redirects — loading stays true
+    } catch {
       setError('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
       setLoading(false);
     }
-    // On success, the browser is redirected to Google — loading stays true
   }
 
   return (

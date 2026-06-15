@@ -32,43 +32,67 @@ vi.mock('@/lib/auth/guards', () => ({
   }),
 }));
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn().mockReturnValue({
-    from: vi.fn((table: string) => {
-      if (table === 'tenants') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(async () => ({
-                  data: { id: state.tenantId },
-                  error: null,
-                })),
+// ── Mock @/lib/db — route uses Drizzle db directly ────────────────────────────
+//
+// The route chains:
+//   db.select({id}).from(tenants).where(and(eq(...), eq(...))).limit(1) → tenantRows
+//   db.select({...}).from(payments).leftJoin(...).where(...).orderBy(...).limit(n).offset(n) → rows
+//   db.select({value: sqlCount()}).from(payments).where(...) → countRows
+//
+// We use call-order tracking: first select call returns tenantRows, subsequent
+// calls return payment rows or count rows.
+
+let dbSelectCallCount = 0;
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => {
+      dbSelectCallCount++;
+      const callNum = dbSelectCallCount;
+      return {
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              // First call: tenant lookup
+              if (callNum === 1) {
+                return [{ id: state.tenantId }];
+              }
+              return [];
+            }),
+            orderBy: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                offset: vi.fn(async () => state.payments),
               })),
             })),
           })),
-        };
-      }
-      if (table === 'payments') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                order: vi.fn(() => ({
-                  range: vi.fn(async () => ({
-                    data: state.payments,
-                    count: state.payments.length,
-                    error: null,
+          leftJoin: vi.fn(function chainLeftJoin() {
+            // eslint-disable-next-line @typescript-eslint/no-this-alias
+            const self = {
+              leftJoin: vi.fn(() => self),
+              where: vi.fn(() => ({
+                orderBy: vi.fn(() => ({
+                  limit: vi.fn(() => ({
+                    offset: vi.fn(async () => state.payments),
                   })),
                 })),
               })),
-            })),
-          })),
-        };
-      }
-      return { select: vi.fn() };
+            };
+            return self;
+          }),
+        })),
+      };
     }),
-  }),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        onConflictDoUpdate: vi.fn().mockResolvedValue([]),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue([]),
+      })),
+    })),
+  },
 }));
 
 import { GET } from '@/app/api/tenant/payments/route';
@@ -82,6 +106,7 @@ function makeGetRequest(params: Record<string, string> = {}): NextRequest {
 describe('GET /api/tenant/payments — security', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dbSelectCallCount = 0;
     state.requireTenantError = false;
     state.tenantId = TENANT_A_ID;
     state.payments = [

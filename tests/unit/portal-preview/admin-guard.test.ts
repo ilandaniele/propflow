@@ -11,7 +11,7 @@
  *          and directly invokes the guard (belt-and-suspenders).
  *
  * Strategy:
- *   - requireAdmin() guard tests: mock Supabase + next/headers, exercise guards.ts directly.
+ *   - requireAdmin() guard tests: mock @/auth and @/lib/db, exercise guards.ts directly.
  *   - proxy.ts redirect test: construct minimal NextRequest objects, call proxy(), assert redirect.
  *   - AC3 source test: read page.tsx source to assert the org_id eq-filter + notFound() pattern.
  */
@@ -38,78 +38,73 @@ const PAGE_FILE = join(
 
 const PROXY_FILE = join(REPO_ROOT, 'src', 'proxy.ts');
 
-// ─── Shared mock state (mirrors auth-cache.test.ts pattern) ──────────────────
+// ─── Shared mock state ────────────────────────────────────────────────────────
 
 interface MockState {
-  getUserResult: { data: { user: { id: string } | null }; error: null };
-  profileResult: {
-    data: {
-      id: string;
-      org_id: string;
-      role: 'admin' | 'tenant';
-      full_name: string | null;
-      phone: string | null;
-      email: string | null;
-    } | null;
-    error: null;
-  };
+  authUser: { id: string; email?: string; orgId?: string; role?: string } | null;
+  profileRow: {
+    id: string;
+    orgId: string;
+    role: 'admin' | 'tenant';
+    fullName: string | null;
+    phone: string | null;
+    email: string | null;
+  } | null;
 }
 
 const s: MockState = {
-  getUserResult: { data: { user: null }, error: null },
-  profileResult: { data: null, error: null },
+  authUser: null,
+  profileRow: null,
 };
 
 function setupTenantRole(userId = 'tenant-user-uuid') {
-  s.getUserResult = { data: { user: { id: userId } }, error: null };
-  s.profileResult = {
-    data: {
-      id: userId,
-      org_id: 'org-uuid-a',
-      role: 'tenant',
-      full_name: 'Tenant User',
-      phone: null,
-      email: 'tenant@test.com',
-    },
-    error: null,
+  s.authUser = { id: userId, email: 'tenant@test.com' };
+  s.profileRow = {
+    id: userId,
+    orgId: 'org-uuid-a',
+    role: 'tenant',
+    fullName: 'Tenant User',
+    phone: null,
+    email: 'tenant@test.com',
   };
 }
 
 function setupAdminRole(userId = 'admin-user-uuid') {
-  s.getUserResult = { data: { user: { id: userId } }, error: null };
-  s.profileResult = {
-    data: {
-      id: userId,
-      org_id: 'org-uuid-a',
-      role: 'admin',
-      full_name: 'Admin User',
-      phone: null,
-      email: 'admin@test.com',
-    },
-    error: null,
+  s.authUser = { id: userId, email: 'admin@test.com' };
+  s.profileRow = {
+    id: userId,
+    orgId: 'org-uuid-a',
+    role: 'admin',
+    fullName: 'Admin User',
+    phone: null,
+    email: 'admin@test.com',
   };
 }
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: vi.fn(async () => s.getUserResult),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(async () => s.profileResult),
+// ─── Mock @/auth — used by getCachedUser ─────────────────────────────────────
+
+vi.mock('@/auth', () => ({
+  auth: vi.fn(async () => {
+    if (!s.authUser) return null;
+    return { user: s.authUser };
+  }),
+}));
+
+// ─── Mock @/lib/db — used by getProfile via Drizzle select chain ─────────────
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => {
+            if (!s.profileRow) return [];
+            return [s.profileRow];
+          }),
         })),
       })),
     })),
-  })),
-}));
-
-vi.mock('next/headers', () => ({
-  cookies: vi.fn(async () => ({
-    getAll: vi.fn(() => []),
-    set: vi.fn(),
-  })),
+  },
 }));
 
 // ─── AC4(b): requireAdmin() throws FORBIDDEN for tenant role ─────────────────
@@ -134,8 +129,8 @@ describe('AC4 — requireAdmin() guard: tenant role is rejected (FORBIDDEN)', ()
   });
 
   it('throws UNAUTHORIZED when no user is authenticated (unauthenticated bypass attempt)', async () => {
-    s.getUserResult = { data: { user: null }, error: null };
-    s.profileResult = { data: null, error: null };
+    s.authUser = null;
+    s.profileRow = null;
     const { requireAdmin } = await import('@/lib/auth/guards');
     await expect(requireAdmin()).rejects.toThrow('UNAUTHORIZED');
   });

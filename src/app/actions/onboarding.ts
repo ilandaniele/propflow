@@ -19,7 +19,7 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { auth } from '@/auth';
 import { provisionOrgAndProfile, getExistingProfile } from '@/lib/auth/provision';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
@@ -43,11 +43,11 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
     return { error: { code: 'RATE_LIMITED', message: 'Too many requests. Please wait before trying again.' } };
   }
 
-  // 2. Verify session — MUST use getUser(), not requireUser() (no profile yet)
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // 2. Verify session — MUST use auth(), not requireUser() (no profile yet)
+  const session = await auth();
+  const user = session?.user;
 
-  if (authError || !user) {
+  if (!user?.id) {
     return { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } };
   }
 
@@ -74,9 +74,7 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
 
   // 5. Provision org + profile (atomic with rollback — see src/lib/auth/provision.ts)
   try {
-    const fullName = typeof user.user_metadata?.full_name === 'string'
-      ? user.user_metadata.full_name
-      : undefined;
+    const fullName = typeof user.name === 'string' ? user.name : undefined;
 
     const result = await provisionOrgAndProfile(
       user.id,

@@ -7,8 +7,10 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { eq, and, count as sqlCount, desc } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { importLogs, profiles } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
 
 const QuerySchema = z.object({
   import_type: z.string().optional(),
@@ -35,46 +37,56 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { import_type, status, page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
-  const admin = createAdminClient();
+  const baseConditions = [eq(importLogs.orgId, ctx.orgId)];
+  if (import_type) baseConditions.push(eq(importLogs.importType, import_type));
+  if (status)      baseConditions.push(eq(importLogs.status, status));
 
-  let query = admin
-    .from('import_logs')
-    .select(
-      'id, import_type, file_name, role, status, rows_received, rows_created, rows_updated, rows_skipped, rows_failed, created_at, completed_at, imported_by, profiles!imported_by(full_name)',
-      { count: 'exact' }
-    )
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+  const whereClause = and(...baseConditions);
 
-  if (import_type) query = query.eq('import_type', import_type);
-  if (status)      query = query.eq('status', status);
+  const [rows, countRows] = await Promise.all([
+    db
+      .select({
+        id:           importLogs.id,
+        importType:   importLogs.importType,
+        fileName:     importLogs.fileName,
+        role:         importLogs.role,
+        status:       importLogs.status,
+        rowsReceived: importLogs.rowsReceived,
+        rowsCreated:  importLogs.rowsCreated,
+        rowsUpdated:  importLogs.rowsUpdated,
+        rowsSkipped:  importLogs.rowsSkipped,
+        rowsFailed:   importLogs.rowsFailed,
+        createdAt:    importLogs.createdAt,
+        completedAt:  importLogs.completedAt,
+        importedBy:   importLogs.importedBy,
+        importedByName: profiles.fullName,
+      })
+      .from(importLogs)
+      .leftJoin(profiles, eq(importLogs.importedBy, profiles.id))
+      .where(whereClause)
+      .orderBy(desc(importLogs.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ value: sqlCount() }).from(importLogs).where(whereClause),
+  ]);
 
-  const { data: logs, count, error } = await query;
+  const total = Number(countRows[0]?.value ?? 0);
 
-  if (error) {
-    console.error('[api/admin/imports GET]', error.code);
-    return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch import logs.' } }, { status: 500 });
-  }
+  const logs = rows.map(row => ({
+    id:               row.id,
+    import_type:      row.importType,
+    file_name:        row.fileName,
+    role:             row.role,
+    status:           row.status,
+    rows_received:    row.rowsReceived,
+    rows_created:     row.rowsCreated,
+    rows_updated:     row.rowsUpdated,
+    rows_skipped:     row.rowsSkipped,
+    rows_failed:      row.rowsFailed,
+    created_at:       row.createdAt,
+    completed_at:     row.completedAt,
+    imported_by_name: row.importedByName ?? null,
+  }));
 
-  const rows = (logs ?? []).map((log: Record<string, unknown>) => {
-    const profile = log.profiles as Record<string, unknown> | null;
-    return {
-      id: log.id,
-      import_type: log.import_type,
-      file_name: log.file_name,
-      role: log.role,
-      status: log.status,
-      rows_received: log.rows_received,
-      rows_created: log.rows_created,
-      rows_updated: log.rows_updated,
-      rows_skipped: log.rows_skipped,
-      rows_failed: log.rows_failed,
-      created_at: log.created_at,
-      completed_at: log.completed_at,
-      imported_by_name: profile?.full_name ?? null,
-    };
-  });
-
-  return NextResponse.json({ logs: rows, total: count ?? 0, page });
+  return NextResponse.json({ logs, total, page });
 }
