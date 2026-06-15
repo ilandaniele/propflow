@@ -78,11 +78,13 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
       ? user.user_metadata.full_name
       : undefined;
 
+    // New signature: (userId, email, fullName?, dbClient?, orgNameOverride?)
     const result = await provisionOrgAndProfile(
       user.id,
       user.email ?? '',
-      parsed.data.orgName,
-      fullName
+      fullName,
+      undefined,
+      parsed.data.orgName
     );
 
     // Store terms acceptance if user accepted during onboarding

@@ -2,11 +2,12 @@
 
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from '@/auth';
 import { err, Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { headers } from 'next/headers';
+import { AuthError } from 'next-auth';
 
 const SignInSchema = z.object({
   email: z.string().email(),
@@ -41,35 +42,38 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     return Errors.VALIDATION_ERROR(parsed.error.flatten());
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: parsed.data.email,
-    password: parsed.data.password,
-  });
-
-  if (error || !data.user) {
-    log.authFailure(parsed.data.email, error?.message ?? 'unknown');
-    return err('AUTH_FAILED', 'Invalid email or password');
+  try {
+    // NextAuth Credentials sign-in — redirect:false prevents automatic redirect
+    // so we can determine the target based on role after sign-in completes.
+    // NOTE: We call redirect() after to do role-based routing.
+    await nextAuthSignIn('credentials', {
+      email: parsed.data.email,
+      password: parsed.data.password,
+      redirect: false,
+    });
+  } catch (e) {
+    if (e instanceof AuthError) {
+      log.authFailure(parsed.data.email, e.type ?? 'AuthError');
+      return err('AUTH_FAILED', 'Invalid email or password');
+    }
+    // Re-throw redirect() calls — Next.js uses throw to initiate redirects
+    throw e;
   }
 
-  log.authSuccess(data.user.id, parsed.data.email);
+  log.authSuccess('', parsed.data.email);
 
-  // Determine redirect based on role
-  const profileRes = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', data.user.id)
-    .single();
-
-  const role: string = (profileRes.data as { role?: string } | null)?.role ?? 'tenant';
+  // Role-based redirect: read auth() to get role from session
+  // (auth() is available here because the session was just set by signIn above)
+  const { auth } = await import('@/auth');
+  const session = await auth();
+  const role = session?.user?.role ?? 'tenant';
 
   redirect(role === 'admin' ? '/dashboard' : '/portal');
 }
 
 export async function signOut(): Promise<void> {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect('/login');
+  // NextAuth signOut — clears session cookie and redirects
+  await nextAuthSignOut({ redirectTo: '/login' });
 }
 
 export async function requestPasswordReset(
@@ -90,12 +94,10 @@ export async function requestPasswordReset(
     return Errors.VALIDATION_ERROR(parsed.error.flatten());
   }
 
-  const supabase = await createClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${siteUrl}/auth/confirm`,
-  });
+  // Password reset is out of scope for this migration PR.
+  // Existing users should use Google OAuth. A follow-up PR will implement
+  // NextAuth email verification + password reset flow.
+  log.info('[auth] requestPasswordReset stub called', { event: 'password_reset_stub' });
 
   // Always return success to prevent email enumeration
   return { success: true };

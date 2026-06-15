@@ -1,33 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { signIn } from 'next-auth/react';
 
 interface GoogleSignInButtonProps {
-  /** The URL Supabase should redirect to after OAuth (the /auth/callback route). */
-  redirectTo: string;
   /**
-   * Optional: the page path the user was trying to visit before being sent to login.
-   * When provided, it is stored in a short-lived cookie (auth_redirect_to, max-age 600)
-   * so the callback route can redirect there after successful auth.
-   * Must be a relative path starting with / (e.g. '/portal', '/dashboard/settings').
+   * The URL path to redirect to after OAuth completes.
+   * Must be a relative path (e.g. '/dashboard').
+   * NextAuth handles the OAuth callback internally via /api/auth/callback/google.
    */
-  intendedDestination?: string;
+  callbackUrl?: string;
 }
 
 /**
- * GoogleSignInButton — client component that initiates Supabase PKCE OAuth.
+ * GoogleSignInButton — client component that initiates NextAuth Google OAuth.
  *
- * Uses createBrowserClient directly (browser-side SDK call) so the PKCE
- * code_verifier is generated and stored in the browser cookie before the
- * redirect. This is the recommended pattern per @supabase/ssr docs — a
- * Server Action cannot initiate an OAuth redirect because it runs on the
- * server and cannot access the browser cookie store for PKCE storage.
- *
- * When `intendedDestination` is set, stores it in a cookie before redirecting
- * so the callback route can return the user to the right page post-auth.
+ * Uses next-auth/react signIn('google') which handles the PKCE flow and
+ * sets the auth cookies on callback. No Supabase client is used.
  */
-export function GoogleSignInButton({ redirectTo, intendedDestination }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ callbackUrl = '/dashboard' }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,39 +26,13 @@ export function GoogleSignInButton({ redirectTo, intendedDestination }: GoogleSi
     setLoading(true);
     setError(null);
 
-    // Store intended destination before the redirect so the callback can restore it.
-    if (intendedDestination && intendedDestination.startsWith('/')) {
-      document.cookie = [
-        `auth_redirect_to=${encodeURIComponent(intendedDestination)}`,
-        'max-age=600',
-        'path=/',
-        'SameSite=Lax',
-        ...(window.location.protocol === 'https:' ? ['Secure'] : []),
-      ].join('; ');
-    }
-
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',
-        },
-      },
-    });
-
-    if (oauthError) {
-      // signInWithOAuth failure (network issue, provider misconfigured, etc.)
+    try {
+      await signIn('google', { callbackUrl });
+      // Browser is redirected to Google — loading stays true
+    } catch {
       setError('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
       setLoading(false);
     }
-    // On success, the browser is redirected to Google — loading stays true
   }
 
   return (
