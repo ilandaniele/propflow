@@ -5,7 +5,7 @@
  * a new user authenticates via Google OAuth.
  *
  * Steps:
- * 1. Verify authenticated user from Supabase session (never trust client-supplied userId).
+ * 1. Verify authenticated user from NextAuth session (never trust client-supplied userId).
  * 2. Validate request body against tenantRegistrationSchema (Zod).
  * 3. Check for duplicate tenant (same org + normalized email).
  * 4. Insert tenant row with sync_status='pending'.
@@ -14,21 +14,23 @@
  * 7. Return { tenant, syncStatus }.
  *
  * Security:
- * - User identity derived from server-side getUser() — NEVER from request body.
+ * - User identity derived from server-side NextAuth auth() — NEVER from request body.
  * - AIRTABLE_PAT is server-only; never included in any response.
  * - No stack traces in error responses.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { eq, and } from 'drizzle-orm';
 import { auth } from '@/auth';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { profiles, tenants } from '@/lib/db/schema';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
 import { log } from '@/lib/log';
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Step 1: verify session
+  // Step 1: verify session via NextAuth
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json(
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { status: 401 }
     );
   }
-  const user = { id: session.user.id };
+  const userId = session.user.id;
 
   // Step 2: validate body
   let body: unknown;
@@ -59,35 +61,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const data = parsed.data;
 
-  // Resolve org_id from profile (admin client — profile may not exist yet if this is first run)
-  const admin = createAdminClient();
+  // Look up profile to get org_id (user_id FK for NextAuth-based profiles)
+  const profileRow = await db.select({ id: profiles.id, orgId: profiles.orgId })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .then(r => r[0] ?? null);
 
-  // Look up the profile to get org_id (may not exist yet — new user)
-  const { data: profileRow } = await admin
-    .from('profiles')
-    .select('id, org_id')
-    .eq('id', user.id)
-    .single();
-
-  // If no profile row yet, we cannot determine org_id. The auto-link flow should have
-  // created a profile before reaching this endpoint. Return a clear error.
-  if (!profileRow?.org_id) {
-    log.warn('[tenant/register] no profile/org_id for user', { userId: user.id });
+  if (!profileRow?.orgId) {
+    log.warn('[tenant/register] no profile/org_id for user', { userId });
     return NextResponse.json(
       { error: { code: 'NO_ORG', message: 'No organization found. Complete onboarding first.' } },
       { status: 422 }
     );
   }
 
-  const orgId = profileRow.org_id as string;
+  const orgId = profileRow.orgId;
+  const profileId = profileRow.id;
 
   // Step 3: check for duplicate tenant in this org
-  const { data: existingTenant } = await admin
-    .from('tenants')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('email', data.email)
-    .maybeSingle();
+  const existingTenant = await db.select({ id: tenants.id })
+    .from(tenants)
+    .where(and(eq(tenants.orgId, orgId), eq(tenants.email, data.email)))
+    .then(r => r[0] ?? null);
 
   if (existingTenant) {
     return NextResponse.json(
@@ -99,27 +94,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Step 4: insert tenant row
   const fullName = `${data.first_name} ${data.last_name}`.trim();
 
-  const { data: tenant, error: insertError } = await admin
-    .from('tenants')
-    .insert({
-      org_id:                   orgId,
-      profile_id:               user.id,
-      first_name:               data.first_name,
-      last_name:                data.last_name,
-      full_name:                fullName,
-      email:                    data.email,
-      phone:                    data.phone,
-      dni:                      data.dni,
-      birth_date:               data.birth_date,
-      emergency_contact_name:   data.emergency_contact_name ?? null,
-      emergency_contact_phone:  data.emergency_contact_phone ?? null,
-      sync_status:              'pending',
-    })
-    .select('id, email, full_name, sync_status')
-    .single();
+  let tenant: { id: string; email: string | null; fullName: string; syncStatus: string } | null = null;
+  try {
+    const rows = await db.insert(tenants).values({
+      orgId,
+      profileId,
+      fullName,
+      email:                data.email,
+      phone:                data.phone,
+      documentNumber:       data.dni,
+      dateOfBirth:          data.birth_date,
+      emergencyContactName:  data.emergency_contact_name ?? null,
+      emergencyContactPhone: data.emergency_contact_phone ?? null,
+      syncStatus:           'pending',
+    }).returning({
+      id:         tenants.id,
+      email:      tenants.email,
+      fullName:   tenants.fullName,
+      syncStatus: tenants.syncStatus,
+    });
+    tenant = rows[0] ?? null;
+  } catch (err) {
+    log.error('[tenant/register] insert failed', { code: err instanceof Error ? err.message : 'unknown' });
+    return NextResponse.json(
+      { error: { code: 'INSERT_FAILED', message: 'Failed to create tenant record.' } },
+      { status: 500 }
+    );
+  }
 
-  if (insertError || !tenant) {
-    log.error('[tenant/register] insert failed', { code: insertError?.code });
+  if (!tenant) {
     return NextResponse.json(
       { error: { code: 'INSERT_FAILED', message: 'Failed to create tenant record.' } },
       { status: 500 }
@@ -127,20 +130,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Step 5: update profile terms acceptance
-  const now = new Date().toISOString();
-  await admin
-    .from('profiles')
-    .update({
-      terms_accepted_at:   now,
-      terms_version:       '1.0',
-      privacy_accepted_at: now,
-      privacy_version:     '1.0',
-    })
-    .eq('id', user.id);
+  const now = new Date();
+  await db.update(profiles).set({
+    termsAcceptedAt:   now,
+    termsVersion:      '1.0',
+    privacyAcceptedAt: now,
+    privacyVersion:    '1.0',
+  }).where(eq(profiles.id, profileId));
 
   // Step 6: attempt Airtable sync (soft failure)
-  const pat      = process.env['AIRTABLE_PAT'];
-  const baseId   = process.env['AIRTABLE_BASE_ID'];
+  const pat       = process.env['AIRTABLE_PAT'];
+  const baseId    = process.env['AIRTABLE_BASE_ID'];
   const tableName = process.env['AIRTABLE_TABLE_RESIDENTES'] ?? null;
 
   let syncStatus: 'synced' | 'failed' | 'skipped' = 'skipped';
@@ -174,44 +174,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const airtableData = await airtableRes.json() as { id?: string };
         const recordId = airtableData?.id;
         if (recordId) {
-          await admin
-            .from('tenants')
-            .update({
-              airtable_external_id: recordId,
-              sync_status:          'synced',
-              last_synced_at:       now,
-            })
-            .eq('id', tenant.id);
+          await db.update(tenants).set({
+            airtableExternalId: recordId,
+            syncStatus:         'synced',
+            lastSyncedAt:       now,
+          }).where(eq(tenants.id, tenant.id));
         }
         syncStatus = 'synced';
       } else {
-        const status = airtableRes.status;
-        log.warn('[tenant/register] Airtable sync failed', { status, tenantId: tenant.id });
-        await admin
-          .from('tenants')
-          .update({ sync_status: 'failed' })
-          .eq('id', tenant.id);
+        const httpStatus = airtableRes.status;
+        log.warn('[tenant/register] Airtable sync failed', { status: httpStatus, tenantId: tenant.id });
+        await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, tenant.id));
         syncStatus = 'failed';
-        syncError = `Airtable returned HTTP ${status}`;
+        syncError = `Airtable returned HTTP ${httpStatus}`;
       }
     } catch (err) {
       const errName = err instanceof Error ? err.name : 'unknown';
       log.error('[tenant/register] Airtable error', { errName, tenantId: tenant.id });
-      await admin
-        .from('tenants')
-        .update({ sync_status: 'failed' })
-        .eq('id', tenant.id);
+      await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, tenant.id));
       syncStatus = 'failed';
       syncError = errName;
     }
   }
 
-  // Step 7: respond — always 200 even if Airtable failed (local record is valid)
+  // Step 7: respond
   return NextResponse.json({
     tenant: {
       id:        tenant.id,
       email:     tenant.email,
-      full_name: tenant.full_name,
+      full_name: tenant.fullName,
     },
     syncStatus,
     ...(syncError ? { syncError } : {}),

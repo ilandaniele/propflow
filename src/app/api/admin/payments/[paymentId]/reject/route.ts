@@ -1,15 +1,16 @@
 /**
  * PATCH /api/admin/payments/[paymentId]/reject
  * Sets payment status to 'rejected' with an optional rejection note.
- * Migration 000050 added 'rejected' to the payments_status_check constraint.
  */
 
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { payments } from '@/lib/db/schema';
 
 const BodySchema = z.object({
   reason: z.string().max(500).optional(),
@@ -31,30 +32,26 @@ export async function PATCH(
   const parsed = BodySchema.safeParse(body);
   const reason = parsed.success ? (parsed.data.reason ?? null) : null;
 
-  const admin = createAdminClient();
+  // Verify ownership — org-scoped lookup
+  const payment = await db.select({ id: payments.id, orgId: payments.orgId })
+    .from(payments)
+    .where(and(eq(payments.id, paymentId), eq(payments.orgId, ctx.orgId)))
+    .then(r => r[0] ?? null);
 
-  const { data: payment, error: fetchErr } = await admin
-    .from('payments')
-    .select('id, org_id')
-    .eq('id', paymentId)
-    .eq('org_id', ctx.orgId)
-    .single();
-
-  if (fetchErr || !payment) {
+  if (!payment) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Payment not found.' } }, { status: 404 });
   }
 
-  const updatePayload: Record<string, unknown> = { status: 'rejected' };
-  if (reason) updatePayload['notes'] = reason;
-
-  const { error } = await admin
-    .from('payments')
-    .update(updatePayload)
-    .eq('id', paymentId)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    console.error('[api/admin/payments/reject PATCH]', error.code);
+  try {
+    await db.update(payments)
+      .set({
+        status:    'rejected',
+        reference: reason ?? undefined,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(payments.id, paymentId), eq(payments.orgId, ctx.orgId)));
+  } catch (err) {
+    console.error('[api/admin/payments/reject PATCH]', err instanceof Error ? err.message : 'unknown');
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to reject payment.' } }, { status: 500 });
   }
 

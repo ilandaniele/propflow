@@ -6,8 +6,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { eq, and, inArray } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenants, payments } from '@/lib/db/schema';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -34,29 +36,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const csvText = await file.text();
   const { rows, errors, warnings } = parsePaymentsCsv(csvText);
 
-  // Check for duplicate external_payment_id
-  const admin = createAdminClient();
+  // Check for duplicate external_payment_id — org-scoped
   const externalIds = rows.map(r => r.external_payment_id).filter(Boolean) as string[];
   let duplicates: string[] = [];
   if (externalIds.length > 0) {
-    const { data: existing } = await admin
-      .from('payments')
-      .select('external_payment_id')
-      .eq('org_id', ctx.orgId)
-      .in('external_payment_id', externalIds);
-    duplicates = (existing ?? []).map((r: { external_payment_id: string }) => r.external_payment_id).filter(Boolean);
+    const existing = await db.select({ externalPaymentId: payments.externalPaymentId })
+      .from(payments)
+      .where(and(eq(payments.orgId, ctx.orgId), inArray(payments.externalPaymentId, externalIds)));
+    duplicates = existing.map(r => r.externalPaymentId).filter((v): v is string => !!v);
   }
 
   // Validate tenant emails exist in org
   const tenantEmails = [...new Set(rows.map(r => r.tenant_email).filter(Boolean))] as string[];
   const tenantEmailMap: Record<string, string> = {};
   if (tenantEmails.length > 0) {
-    const { data: tenants } = await admin
-      .from('tenants')
-      .select('id, email')
-      .eq('org_id', ctx.orgId)
-      .in('email', tenantEmails);
-    (tenants ?? []).forEach((t: { id: string; email: string }) => { tenantEmailMap[t.email] = t.id; });
+    const tenantRows = await db.select({ id: tenants.id, email: tenants.email })
+      .from(tenants)
+      .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.email, tenantEmails)));
+    tenantRows.forEach(t => { if (t.email) tenantEmailMap[t.email] = t.id; });
   }
 
   const rowsWithStatus = rows.map(row => {
@@ -65,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ...row,
       is_duplicate: row.external_payment_id ? duplicates.includes(row.external_payment_id) : false,
       unknown_tenant: !!unknownTenant,
-      resolved_tenant_id: row.tenant_email ? tenantEmailMap[row.tenant_email] ?? null : null,
+      resolved_tenant_id: row.tenant_email ? (tenantEmailMap[row.tenant_email] ?? null) : null,
     };
   });
 

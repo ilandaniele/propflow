@@ -1,3 +1,58 @@
+# Implementation Notes — Supabase → Fly.io + Drizzle Migration
+
+## Migration summary
+
+| Layer | Before | After |
+|---|---|---|
+| Database | Supabase Postgres (managed) | Fly.io Postgres (`propflow-db`, `mia` region, `shared-cpu-1x`, 256 MB) |
+| ORM / query layer | `@supabase/supabase-js` `.from()` API | Drizzle ORM (`drizzle-orm` + `postgres` driver) |
+| Authentication | Supabase Auth (JWTs, RLS) | NextAuth.js v5 — Google OAuth + Credentials (bcryptjs), DrizzleAdapter, session strategy = database |
+| File storage | Supabase Storage | **Kept** — Supabase Storage is explicitly out of scope for this migration |
+| Row-level security | Supabase RLS policies | Dropped — multi-tenancy enforced at app layer (`WHERE org_id = session.orgId` in every Drizzle query) |
+
+## Architecture decisions
+
+- **DrizzleAdapter session strategy = database**: session rows live in the `sessions` table in Fly Postgres; no JWT secret rotation needed.
+- **`db` module uses `NEXT_PHASE` guard**: During `next build` (phase-production-build) `DATABASE_URL` may be absent. The db module falls back to a placeholder URL so Drizzle can construct a real `PgDatabase` instance for `DrizzleAdapter`. No actual DB connection is made at build time.
+- **Supabase Storage kept**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are still required for file upload/download via `@supabase/storage-js`.
+- **`forgotPassword` stubbed (returns HTTP 501)**: Password reset flow for email/password users is a follow-up PR.
+- **`tests/rls/` deleted**: RLS tests are non-portable to plain Postgres; replaced by `tests/integration/cross-tenant.test.ts` which audits 12 entity types for org isolation.
+
+## Tenant isolation contract
+
+Every Drizzle query against org-scoped tables **must** include `eq(table.orgId, session.orgId)`. RLS is no longer active. Violation = data leak.
+
+The cross-tenant integration audit (`tests/integration/cross-tenant.test.ts`) covers: properties, units, tenants, contracts, payments, incidents, expenses, reminders, tenant_tasks, sanctions, whatsapp_conversations, csv_imports.
+
+## Post-merge human steps
+
+1. **Provision Fly Postgres**: `flyctl postgres create --name propflow-db --region mia --vm-size shared-cpu-1x --initial-cluster-size 1`; capture the `DATABASE_URL`.
+2. **Run baseline migration**: `npx drizzle-kit migrate` against the Fly Postgres instance.
+3. **Set Vercel environment variables**: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `NEXTAUTH_URL` (plus keep existing Supabase Storage vars).
+4. **Update Google OAuth redirect URI**: add `${SITE_URL}/api/auth/callback/google` in Google Cloud Console.
+5. **(Separate PR) Password migration**: extract bcrypt hashes from Supabase Postgres and copy to `public.users.password_hash` in Fly Postgres.
+
+## What is kept from Supabase
+
+Storage only: `src/lib/supabase/storage/` — all file upload/download/signed URL generation uses the Supabase Storage JS client. The Supabase Postgres database is no longer used after migration.
+
+## Known follow-up items
+
+- Password reset / forgot-password flow (stubbed → 501). Needs email provider + token table + reset route.
+- Data migration from Supabase Postgres → Fly Postgres (pg_dump / pg_restore for 46 domain tables).
+- The `analyst/`, `finance/leak-detector`, `portal-preview/queries`, `dashboard/health`, and `whatsapp/db` lib modules still use a `SupabaseClient` parameter for DB queries. These should be migrated to Drizzle in a follow-up PR (AC12 backlog item).
+
+## New dependencies (this PR)
+
+- `drizzle-orm` — Drizzle ORM core
+- `postgres` — postgres.js driver
+- `drizzle-kit` (devDep) — migration CLI
+- `next-auth@beta` — NextAuth.js v5
+- `@auth/drizzle-adapter` — NextAuth DrizzleAdapter
+- `bcryptjs` + `@types/bcryptjs` — password hashing for Credentials provider
+
+---
+
 # Implementation Notes — W1: Foundation (image/photo support)
 
 ## Architecture decisions

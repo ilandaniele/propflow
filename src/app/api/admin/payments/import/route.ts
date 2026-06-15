@@ -1,13 +1,19 @@
 /**
  * POST /api/admin/payments/import
  * Upserts validated payment rows (admin — can set any tenant/status).
+ *
+ * Note: payments.contract_id is NOT NULL. The CSV does not carry a contract_id,
+ * so we resolve the tenant's most-recent active contract. Rows where no active
+ * contract is found are skipped with a warning.
  */
 
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { eq, and, inArray, desc } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenants, contracts, payments, importLogs } from '@/lib/db/schema';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -34,41 +40,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const csvText = await file.text();
   const { rows, errors } = parsePaymentsCsv(csvText);
 
-  const admin = createAdminClient();
-
   // Build tenant email → id map for this org
   const tenantEmails = [...new Set(rows.map(r => r.tenant_email).filter(Boolean))] as string[];
   const tenantEmailMap: Record<string, string> = {};
   if (tenantEmails.length > 0) {
-    const { data: tenants } = await admin
-      .from('tenants')
-      .select('id, email')
-      .eq('org_id', ctx.orgId)
-      .in('email', tenantEmails);
-    (tenants ?? []).forEach((t: { id: string; email: string }) => { tenantEmailMap[t.email] = t.id; });
+    const tenantRows = await db.select({ id: tenants.id, email: tenants.email })
+      .from(tenants)
+      .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.email, tenantEmails)));
+    tenantRows.forEach(t => { if (t.email) tenantEmailMap[t.email] = t.id; });
   }
 
-  const { data: importLog, error: logError } = await admin
-    .from('import_logs')
-    .insert({
-      org_id: ctx.orgId,
-      import_type: 'payment',
-      file_name: file.name,
-      imported_by: ctx.userId,
-      role: 'admin',
-      status: 'pending',
-      rows_received: rows.length,
-      error_details: errors,
-    })
-    .select('id')
-    .single();
-
-  if (logError || !importLog) {
-    console.error('[api/admin/payments/import POST] log error', logError?.code);
+  // Create import log
+  let importLogId: string | null = null;
+  try {
+    const logRows = await db.insert(importLogs).values({
+      orgId:        ctx.orgId,
+      importType:   'payment',
+      fileName:     file.name,
+      importedBy:   ctx.userId,
+      role:         'admin',
+      status:       'pending',
+      rowsReceived: rows.length,
+      errorDetails: errors,
+    }).returning({ id: importLogs.id });
+    importLogId = logRows[0]?.id ?? null;
+  } catch (err) {
+    console.error('[api/admin/payments/import POST] log error', err instanceof Error ? err.message : 'unknown');
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'No se pudo iniciar la importación.' } }, { status: 500 });
   }
 
-  const import_id = importLog.id;
+  if (!importLogId) {
+    return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'No se pudo iniciar la importación.' } }, { status: 500 });
+  }
+
   let created = 0, updated = 0, skipped = 0, failed = 0;
 
   for (const row of rows) {
@@ -76,33 +80,48 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!tenant_id) { skipped++; continue; }
 
     try {
+      // Resolve tenant's most-recent active contract (required for payments.contract_id NOT NULL)
+      const contractRow = await db.select({ id: contracts.id })
+        .from(contracts)
+        .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.tenantId, tenant_id), eq(contracts.status, 'active')))
+        .orderBy(desc(contracts.startDate))
+        .limit(1)
+        .then(r => r[0] ?? null);
+
+      if (!contractRow) { skipped++; continue; }
+
       const payload = {
-        org_id: ctx.orgId,
-        tenant_id,
-        amount: row.amount,
-        currency: row.currency,
-        paid_at: row.payment_date,
-        due_date: row.due_date ?? null,
-        status: row.status,
-        method: row.payment_method,
-        reference: row.reference ?? null,
-        period_month: row.billing_period ?? null,
-        movement_type: 'payment' as const,
-        notes: row.description ?? null,
-        external_payment_id: row.external_payment_id ?? null,
-        import_source: 'csv_import' as const,
-        import_id,
+        orgId:              ctx.orgId,
+        contractId:         contractRow.id,
+        tenantId:           tenant_id,
+        amount:             String(row.amount),
+        currency:           row.currency,
+        paidAt:             row.payment_date,
+        status:             row.status,
+        method:             row.payment_method,
+        reference:          row.reference ?? null,
+        movementType:       'payment' as const,
+        externalPaymentId:  row.external_payment_id ?? null,
+        importSource:       'csv_import' as const,
+        importId:           importLogId,
       };
 
       if (row.external_payment_id) {
-        const { error: upsertErr } = await admin
-          .from('payments')
-          .upsert(payload, { onConflict: 'org_id,external_payment_id', ignoreDuplicates: false });
-        if (upsertErr) { failed++; continue; }
+        // Upsert by org_id + external_payment_id — use insert + conflict update pattern
+        await db.insert(payments).values(payload)
+          .onConflictDoUpdate({
+            target: [payments.orgId, payments.externalPaymentId],
+            set: {
+              amount:      payload.amount,
+              status:      payload.status,
+              method:      payload.method,
+              reference:   payload.reference,
+              updatedAt:   new Date(),
+            },
+          });
         updated++;
       } else {
-        const { error: insertErr } = await admin.from('payments').insert(payload);
-        if (insertErr) { failed++; continue; }
+        await db.insert(payments).values(payload);
         created++;
       }
     } catch {
@@ -114,14 +133,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     : failed > 0 ? 'partial'
     : 'completed';
 
-  await admin.from('import_logs').update({
-    status: finalStatus,
-    rows_created: created,
-    rows_updated: updated,
-    rows_skipped: skipped,
-    rows_failed: failed,
-    completed_at: new Date().toISOString(),
-  }).eq('id', import_id);
+  await db.update(importLogs).set({
+    status:      finalStatus,
+    rowsCreated: created,
+    rowsUpdated: updated,
+    rowsSkipped: skipped,
+    rowsFailed:  failed,
+    completedAt: new Date(),
+  }).where(eq(importLogs.id, importLogId));
 
-  return NextResponse.json({ created, updated, skipped, failed, import_id });
+  return NextResponse.json({ created, updated, skipped, failed, import_id: importLogId });
 }

@@ -3,11 +3,8 @@
  * Daily 8am UTC cron — send interactive WhatsApp reminder buttons to tenants
  * with pending tasks due within the next 24 hours.
  *
- * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — IC11).
- * Uses service-role Supabase client (bypasses RLS for cron context).
- *
+ * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare).
  * Idempotency: tasks with reminder_sent_at IS NOT NULL are skipped.
- * A second invocation the same day sends zero new messages.
  */
 
 export const dynamic = 'force-dynamic';
@@ -15,13 +12,14 @@ export const runtime = 'nodejs';
 
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { and, eq, isNull, lte } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { tenantTasks, tenants } from '@/lib/db/schema';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
 import { buildWhatsAppPhase6Template } from '@/lib/whatsapp/templates';
 import { log } from '@/lib/log';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Constant-time secret comparison (IC11 — same pattern as reminders cron)
   const authHeader = request.headers.get('authorization') ?? '';
   const cronSecret = process.env.CRON_SECRET;
 
@@ -45,58 +43,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const adminClient = createAdminClient();
-    const provider    = getWhatsAppProvider();
+    const provider = getWhatsAppProvider();
+    const cutoff   = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // Query tasks due within the next 24 hours, not yet reminded
-    const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    // Query tasks due within the next 24 hours, not yet reminded — all orgs
+    const tasks = await db.select({
+      id:      tenantTasks.id,
+      orgId:   tenantTasks.orgId,
+      title:   tenantTasks.title,
+      dueAt:   tenantTasks.dueAt,
+      phone:   tenants.phone,
+    })
+      .from(tenantTasks)
+      .innerJoin(tenants, eq(tenants.id, tenantTasks.tenantId))
+      .where(and(
+        eq(tenantTasks.status, 'pending'),
+        lte(tenantTasks.dueAt, cutoff),
+        isNull(tenantTasks.reminderSentAt)
+      ));
 
-    const { data: tasks, error: queryError } = await adminClient
-      .from('tenant_tasks')
-      .select(`
-        id,
-        org_id,
-        title,
-        due_at,
-        tenant_id,
-        tenants!inner (
-          id,
-          phone
-        )
-      `)
-      .eq('status', 'pending')
-      .lte('due_at', cutoff)
-      .is('reminder_sent_at', null);
+    let sent = 0, skipped = 0, failed = 0;
 
-    if (queryError) {
-      log.error('[cron/task-reminders] query failed', { error: queryError.message });
-      return NextResponse.json(
-        { error: { code: 'INTERNAL_ERROR', message: 'Query failed' } },
-        { status: 500 }
-      );
-    }
-
-    let sent    = 0;
-    let skipped = 0;
-    let failed  = 0;
-
-    for (const task of tasks ?? []) {
-      // Type assertion: Supabase join may return array or object depending on relation type
-      type TenantRow = { id: string; phone: string | null };
-      const tenantRaw = task.tenants as unknown;
-      const tenant    = Array.isArray(tenantRaw)
-        ? (tenantRaw[0] as TenantRow | undefined) ?? null
-        : (tenantRaw as TenantRow | null);
-      const phone = tenant?.phone ?? null;
+    for (const task of tasks) {
+      const phone = task.phone ?? null;
 
       if (!phone) {
         skipped++;
         continue;
       }
 
-      // Format due_at for display (no PII: not a phone number or name)
-      const dueDate = task.due_at
-        ? new Date(task.due_at).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      const dueDate = task.dueAt
+        ? new Date(task.dueAt).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
         : '';
 
       const bodyText = buildWhatsAppPhase6Template('taskDailyReminder', 'es', {
@@ -106,8 +83,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       try {
         if (provider.sendInteractiveButtons) {
-          await provider.sendInteractiveButtons(task.org_id, {
-            to:       phone,
+          await provider.sendInteractiveButtons(task.orgId, {
+            to:      phone,
             bodyText,
             buttons: [
               { id: `task:${task.id}:listo`,    title: 'Listo' },
@@ -115,14 +92,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             ],
           });
         } else {
-          await provider.sendMessage(task.org_id, { to: phone, body: bodyText });
+          await provider.sendMessage(task.orgId, { to: phone, body: bodyText });
         }
 
         // Mark reminder_sent_at
-        await adminClient
-          .from('tenant_tasks')
-          .update({ reminder_sent_at: new Date().toISOString() })
-          .eq('id', task.id);
+        await db.update(tenantTasks)
+          .set({ reminderSentAt: new Date() })
+          .where(eq(tenantTasks.id, task.id));
 
         sent++;
       } catch (e) {

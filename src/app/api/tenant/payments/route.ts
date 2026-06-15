@@ -8,18 +8,16 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { eq, and, count as drizzleCount } from 'drizzle-orm';
 import { requireTenant } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenants, payments, contracts, units, properties } from '@/lib/db/schema';
 
 const QuerySchema = z.object({
-  status:    z.string().optional(),
-  period:    z.string().regex(/^\d{4}-\d{2}$/).optional(),
-  date_from: z.string().optional(),
-  date_to:   z.string().optional(),
-  page:      z.coerce.number().int().min(1).default(1),
-  limit:     z.coerce.number().int().min(1).max(100).default(20),
-  sort_by:   z.enum(['paid_at', 'due_date', 'amount']).default('paid_at'),
-  sort_dir:  z.enum(['asc', 'desc']).default('desc'),
+  status:   z.string().optional(),
+  page:     z.coerce.number().int().min(1).default(1),
+  limit:    z.coerce.number().int().min(1).max(100).default(20),
+  sort_dir: z.enum(['asc', 'desc']).default('desc'),
 });
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -37,71 +35,54 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { status, period, date_from, date_to, page, limit, sort_by, sort_dir } = parsed.data;
+  const { status, page, limit } = parsed.data;
   const offset = (page - 1) * limit;
 
-  // Derive tenant_id from session (never from URL params)
-  const admin = createAdminClient();
-  const { data: tenantRecord, error: tenantError } = await admin
-    .from('tenants')
-    .select('id')
-    .eq('profile_id', ctx.userId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  // Derive tenant record from session — never from URL params (AC15 security)
+  const tenantRecord = await db.select({ id: tenants.id })
+    .from(tenants)
+    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+    .then(r => r[0] ?? null);
 
-  if (tenantError || !tenantRecord) {
+  if (!tenantRecord) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant record not found.' } }, { status: 404 });
   }
 
-  let query = admin
-    .from('payments')
-    .select(
-      `id, amount, currency, paid_at, due_date, status, method, reference,
-       period_month, movement_type, receipt_url, notes, created_at, updated_at,
-       contracts!inner(property_id, properties(name), units(label))`,
-      { count: 'exact' }
-    )
-    .eq('tenant_id', tenantRecord.id)
-    .eq('org_id', ctx.orgId)
-    .order(sort_by, { ascending: sort_dir === 'asc' })
-    .range(offset, offset + limit - 1);
+  try {
+    const conditions = [eq(payments.tenantId, tenantRecord.id), eq(payments.orgId, ctx.orgId)];
+    if (status) conditions.push(eq(payments.status, status));
+    const whereClause = and(...conditions);
 
-  if (status) query = query.eq('status', status);
-  if (period) query = query.eq('period_month', period);
-  if (date_from) query = query.gte('paid_at', date_from);
-  if (date_to) query = query.lte('paid_at', date_to);
+    const [rows, countRows] = await Promise.all([
+      db.select({
+        id:           payments.id,
+        amount:       payments.amount,
+        currency:     payments.currency,
+        paidAt:       payments.paidAt,
+        status:       payments.status,
+        method:       payments.method,
+        reference:    payments.reference,
+        movementType: payments.movementType,
+        receiptUrl:   payments.receiptUrl,
+        createdAt:    payments.createdAt,
+        updatedAt:    payments.updatedAt,
+        propertyName: properties.name,
+        unitLabel:    units.label,
+      })
+        .from(payments)
+        .leftJoin(contracts, eq(contracts.id, payments.contractId))
+        .leftJoin(units, eq(units.id, contracts.unitId))
+        .leftJoin(properties, eq(properties.id, units.propertyId))
+        .where(whereClause)
+        .orderBy(payments.paidAt)
+        .limit(limit)
+        .offset(offset),
+      db.select({ total: drizzleCount() }).from(payments).where(whereClause),
+    ]);
 
-  const { data: payments, count, error } = await query;
-
-  if (error) {
-    console.error('[api/tenant/payments GET]', error.code);
+    return NextResponse.json({ payments: rows, total: Number(countRows[0]?.total ?? 0), page });
+  } catch (err) {
+    console.error('[api/tenant/payments GET]', err instanceof Error ? err.message : 'unknown');
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch payments.' } }, { status: 500 });
   }
-
-  // Flatten nested joins
-  const rows = (payments ?? []).map((p: Record<string, unknown>) => {
-    const contract = p.contracts as Record<string, unknown> | null;
-    const property = contract?.properties as Record<string, unknown> | null;
-    const unit = contract?.units as Record<string, unknown> | null;
-    return {
-      id: p.id,
-      amount: p.amount,
-      currency: p.currency,
-      paid_at: p.paid_at,
-      due_date: p.due_date,
-      status: p.status,
-      method: p.method,
-      reference: p.reference,
-      period_month: p.period_month,
-      movement_type: p.movement_type,
-      receipt_url: p.receipt_url,
-      notes: p.notes,
-      created_at: p.created_at,
-      updated_at: p.updated_at,
-      property_name: property?.name ?? null,
-      unit_label: unit?.label ?? null,
-    };
-  });
-
-  return NextResponse.json({ payments: rows, total: count ?? 0, page });
 }

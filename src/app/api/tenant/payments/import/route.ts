@@ -2,13 +2,18 @@
  * POST /api/tenant/payments/import
  * Upserts validated payment rows for the authenticated tenant.
  * Tenant-imported payments are set to status='under_review'.
+ *
+ * Note: payments.contract_id is NOT NULL. We resolve the tenant's most-recent
+ * active contract. Rows where no active contract exists are skipped.
  */
 
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { eq, and, inArray, desc } from 'drizzle-orm';
 import { requireTenant } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenants, contracts, payments, importLogs, profiles } from '@/lib/db/schema';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -35,41 +40,54 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const csvText = await file.text();
   const { rows, errors } = parsePaymentsCsv(csvText);
 
-  const admin = createAdminClient();
+  // Get profile email for security check + tenant record — org-scoped
+  const profileRow = await db.select({ email: profiles.email })
+    .from(profiles)
+    .where(eq(profiles.userId, ctx.userId))
+    .then(r => r[0] ?? null);
 
-  // Get profile for email security check + tenant record
-  const { data: profile } = await admin.from('profiles').select('email').eq('id', ctx.userId).single();
-  const tenantEmail = (profile?.email ?? '').trim().toLowerCase();
+  const tenantEmail = (profileRow?.email ?? '').trim().toLowerCase();
 
-  const { data: tenantRecord } = await admin
-    .from('tenants').select('id').eq('profile_id', ctx.userId).eq('org_id', ctx.orgId).single();
+  const tenantRecord = await db.select({ id: tenants.id })
+    .from(tenants)
+    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+    .then(r => r[0] ?? null);
 
   if (!tenantRecord) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant record not found.' } }, { status: 404 });
   }
 
-  // Create import log
-  const { data: importLog, error: logError } = await admin
-    .from('import_logs')
-    .insert({
-      org_id: ctx.orgId,
-      import_type: 'payment',
-      file_name: file.name,
-      imported_by: ctx.userId,
-      role: 'tenant',
-      status: 'pending',
-      rows_received: rows.length,
-      error_details: errors,
-    })
-    .select('id')
-    .single();
+  // Resolve tenant's most-recent active contract
+  const contractRow = await db.select({ id: contracts.id })
+    .from(contracts)
+    .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.tenantId, tenantRecord.id), eq(contracts.status, 'active')))
+    .orderBy(desc(contracts.startDate))
+    .limit(1)
+    .then(r => r[0] ?? null);
 
-  if (logError || !importLog) {
-    console.error('[api/tenant/payments/import POST] log error', logError?.code);
+  // Create import log
+  let importLogId: string | null = null;
+  try {
+    const logRows = await db.insert(importLogs).values({
+      orgId:        ctx.orgId,
+      importType:   'payment',
+      fileName:     file.name,
+      importedBy:   ctx.userId,
+      role:         'tenant',
+      status:       'pending',
+      rowsReceived: rows.length,
+      errorDetails: errors,
+    }).returning({ id: importLogs.id });
+    importLogId = logRows[0]?.id ?? null;
+  } catch (err) {
+    console.error('[api/tenant/payments/import POST] log error', err instanceof Error ? err.message : 'unknown');
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'No se pudo iniciar la importación.' } }, { status: 500 });
   }
 
-  const import_id = importLog.id;
+  if (!importLogId) {
+    return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'No se pudo iniciar la importación.' } }, { status: 500 });
+  }
+
   let created = 0, updated = 0, skipped = 0, failed = 0;
 
   for (const row of rows) {
@@ -79,36 +97,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       continue;
     }
 
+    // Skip if no active contract
+    if (!contractRow) {
+      skipped++;
+      continue;
+    }
+
     try {
       const payload = {
-        org_id: ctx.orgId,
-        tenant_id: tenantRecord.id,
-        amount: row.amount,
-        currency: row.currency,
-        paid_at: row.payment_date,
-        due_date: row.due_date ?? null,
-        status: 'under_review' as const, // tenant imports always go to review
-        method: row.payment_method,
-        reference: row.reference ?? null,
-        period_month: row.billing_period ?? null,
-        movement_type: 'payment' as const,
-        notes: row.description ?? null,
-        external_payment_id: row.external_payment_id ?? null,
-        import_source: 'csv_import' as const,
-        import_id,
+        orgId:             ctx.orgId,
+        contractId:        contractRow.id,
+        tenantId:          tenantRecord.id,
+        amount:            String(row.amount),
+        currency:          row.currency,
+        paidAt:            row.payment_date,
+        status:            'under_review' as const,  // tenant imports always go to review
+        method:            row.payment_method,
+        reference:         row.reference ?? null,
+        movementType:      'payment' as const,
+        externalPaymentId: row.external_payment_id ?? null,
+        importSource:      'csv_import' as const,
+        importId:          importLogId,
       };
 
       if (row.external_payment_id) {
-        // Upsert by org_id + external_payment_id
-        const { error: upsertErr } = await admin
-          .from('payments')
-          .upsert(payload, { onConflict: 'org_id,external_payment_id', ignoreDuplicates: false });
-
-        if (upsertErr) { failed++; continue; }
+        await db.insert(payments).values(payload)
+          .onConflictDoUpdate({
+            target: [payments.orgId, payments.externalPaymentId],
+            set: {
+              amount:    payload.amount,
+              method:    payload.method,
+              reference: payload.reference,
+              updatedAt: new Date(),
+            },
+          });
         updated++;
       } else {
-        const { error: insertErr } = await admin.from('payments').insert(payload);
-        if (insertErr) { failed++; continue; }
+        await db.insert(payments).values(payload);
         created++;
       }
     } catch {
@@ -116,19 +141,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Update import log
   const finalStatus = failed > 0 && created + updated === 0 ? 'failed'
     : failed > 0 ? 'partial'
     : 'completed';
 
-  await admin.from('import_logs').update({
-    status: finalStatus,
-    rows_created: created,
-    rows_updated: updated,
-    rows_skipped: skipped,
-    rows_failed: failed,
-    completed_at: new Date().toISOString(),
-  }).eq('id', import_id);
+  await db.update(importLogs).set({
+    status:      finalStatus,
+    rowsCreated: created,
+    rowsUpdated: updated,
+    rowsSkipped: skipped,
+    rowsFailed:  failed,
+    completedAt: new Date(),
+  }).where(eq(importLogs.id, importLogId));
 
-  return NextResponse.json({ created, updated, skipped, failed, import_id });
+  return NextResponse.json({ created, updated, skipped, failed, import_id: importLogId });
 }
