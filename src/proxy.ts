@@ -1,10 +1,27 @@
-import { NextResponse, type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
+import { auth } from '@/auth';
+import { NextResponse } from 'next/server';
 
-export async function proxy(request: NextRequest) {
-  const path = request.nextUrl.pathname;
+/**
+ * PropFlow middleware — NextAuth v5 pattern.
+ *
+ * Replaces the old Supabase updateSession() approach.
+ * auth() validates the database session on every matched request.
+ *
+ * Route protection:
+ *   - No session + /dashboard/* or /portal/* → redirect /login
+ *   - tenant session + /dashboard/* → redirect /portal
+ *   - admin session + /portal/* → redirect /dashboard
+ *   - Authenticated user on /login or /register → redirect by role
+ *
+ * CSP nonce is generated per-request and forwarded via x-nonce header.
+ * The layout reads this header to inject the nonce into <Script> tags.
+ */
+export default auth(function middleware(req) {
+  const { nextUrl } = req;
+  const session = req.auth;
+  const path = nextUrl.pathname;
 
-  // Generate nonce for strict CSP
+  // Generate per-request nonce for strict CSP
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   const csp = [
@@ -15,7 +32,7 @@ export async function proxy(request: NextRequest) {
     "img-src 'self' data: https:",
     "font-src 'self' data:",
     "frame-ancestors 'none'",
-    "frame-src https://accounts.google.com",           // Google OAuth redirect/popup
+    "frame-src https://accounts.google.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -24,119 +41,69 @@ export async function proxy(request: NextRequest) {
       : []),
   ].join('; ');
 
-  // Public routes — skip Supabase session check entirely (no auth needed, no env-var
-  // dependency). This prevents a 500 when NEXT_PUBLIC_SUPABASE_URL resolves to a
-  // placeholder in CI (Lighthouse job) or when env vars are absent on cold-start.
-  //
-  // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding.
-  // These routes either have no auth requirement or handle their own auth guard in-page.
-  const isFullyPublicRoute =
-    path === '/' ||
-    path === '/login' ||
-    path === '/forgot-password' ||
-    path.startsWith('/sign/') ||
-    path.startsWith('/auth/') ||
-    path === '/onboarding';
+  const securityHeaders: Record<string, string> = {
+    'x-nonce': nonce,
+    'Content-Security-Policy': csp,
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    // Tenant portal allows camera so incident creation form works on mobile
+    'Permissions-Policy': path.startsWith('/portal')
+      ? 'camera=(self), microphone=(), geolocation=()'
+      : 'camera=(), microphone=(), geolocation=()',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+  };
 
-  if (isFullyPublicRoute) {
-    const publicResponse = NextResponse.next({ request });
-    publicResponse.headers.set('x-nonce', nonce);
-    publicResponse.headers.set('Content-Security-Policy', csp);
-    publicResponse.headers.set('X-Content-Type-Options', 'nosniff');
-    publicResponse.headers.set('X-Frame-Options', 'DENY');
-    publicResponse.headers.set(
-      'Strict-Transport-Security',
-      'max-age=63072000; includeSubDomains; preload'
-    );
-    publicResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-    publicResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    publicResponse.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-    return publicResponse;
+  const isLoggedIn = !!session;
+  const role = session?.user?.role;
+
+  const isOnDashboard = path.startsWith('/dashboard');
+  const isOnPortal = path.startsWith('/portal');
+  const isAuthPage = path === '/login' || path === '/register' || path === '/forgot-password';
+
+  // 1. Unauthenticated -> redirect protected routes to /login (AC5)
+  if (!isLoggedIn && (isOnDashboard || isOnPortal)) {
+    const loginUrl = new URL('/login', nextUrl);
+    loginUrl.searchParams.set('redirect', path);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Get session/user
-  const { response, user } = await updateSession(request);
-
-  // Pass nonce to layout via request header
-  response.headers.set('x-nonce', nonce);
-  response.headers.set('Content-Security-Policy', csp);
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'DENY');
-  response.headers.set(
-    'Strict-Transport-Security',
-    'max-age=63072000; includeSubDomains; preload'
-  );
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Default: deny camera on all routes (least-privilege).
-  // Tenant portal (/portal/*) relaxed to camera=(self) so that the
-  // incident creation form's <input capture="environment"> can open
-  // the device camera on mobile browsers that honour Permissions-Policy.
-  // Admin dashboard, auth pages, and public routes keep camera=().
-  // Ref: src/app/portal/incidents/new/page.tsx
-  const cameraPolicy = path.startsWith('/portal')
-    ? 'camera=(self), microphone=(), geolocation=()'
-    : 'camera=(), microphone=(), geolocation=()';
-  response.headers.set('Permissions-Policy', cameraPolicy);
-  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-
-  // Route protection
-  const isAdminRoute = path.startsWith('/dashboard');
-  const isTenantRoute = path.startsWith('/portal');
-  const isAuthRoute = path === '/login' || path === '/forgot-password';
-  // Public routes — no auth required (security: token/secret gated by the Route Handler)
-  // /auth/callback: PKCE code exchange must run before any session check (IC5)
-  // /onboarding: unauthenticated guard is handled by the page Server Component itself
-  const isPublicRoute =
-    path.startsWith('/sign/') ||
-    path.startsWith('/api/sign/') ||
-    path.startsWith('/auth/') ||    // /auth/callback — must not be blocked before code exchange
-    path === '/onboarding';          // guard is in the page itself (may have session but no profile)
-
-  if (!user) {
-    if (isPublicRoute) return response; // sign page — public, CSP still applied above
-    if (isAdminRoute || isTenantRoute) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', path);
-      return NextResponse.redirect(loginUrl);
-    }
-    return response;
+  // 2. Tenant accessing admin area -> redirect to /portal (AC6)
+  if (isLoggedIn && role === 'tenant' && isOnDashboard) {
+    return NextResponse.redirect(new URL('/portal', nextUrl));
   }
 
-  // User is authenticated — check role
-  // We rely on RLS to enforce role at data layer; here we do fast route-level guard
-  // Profile role is in the JWT app_metadata for quick checks
-  const appMeta = (user as { app_metadata?: { role?: string } }).app_metadata;
-  const role = appMeta?.role as string | undefined;
-
-  if (isAdminRoute && role === 'tenant') {
-    // Tenant trying to access admin area — redirect to portal
-    return NextResponse.redirect(new URL('/portal', request.url));
+  // 3. Admin accessing tenant portal -> redirect to /dashboard (AC9 inverse)
+  if (isLoggedIn && role === 'admin' && isOnPortal) {
+    return NextResponse.redirect(new URL('/dashboard', nextUrl));
   }
 
-  if (isTenantRoute && role === 'admin') {
-    // Admin trying to access tenant portal — redirect to dashboard
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // 4. Authenticated user on auth pages -> redirect by role
+  if (isLoggedIn && isAuthPage) {
+    if (role === 'admin') return NextResponse.redirect(new URL('/dashboard', nextUrl));
+    if (role === 'tenant') return NextResponse.redirect(new URL('/portal', nextUrl));
   }
 
-  // Redirect authenticated users away from auth pages
-  if (isAuthRoute) {
-    if (role === 'admin') return NextResponse.redirect(new URL('/dashboard', request.url));
-    if (role === 'tenant') return NextResponse.redirect(new URL('/portal', request.url));
+  // Pass through — apply security headers
+  const response = NextResponse.next({ request: req });
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    response.headers.set(key, value);
   }
-
   return response;
-}
+});
 
 // Phase 4 CSP note:
 // MockWhatsAppProvider requires NO new connect-src domain (all calls are in-process / DB only).
 // When a real provider is configured (future PR), add its domain here:
 //   Meta Cloud API: https://graph.facebook.com
 //   Twilio: https://api.twilio.com
-// Environment-gate the addition: `...(process.env.WHATSAPP_PROVIDER === 'meta' ? ['https://graph.facebook.com'] : [])`
-// This comment intentionally leaves the existing CSP unchanged.
+// Environment-gate the addition:
+//   `...(process.env.WHATSAPP_PROVIDER === 'meta' ? ['https://graph.facebook.com'] : [])`
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    // Skip NextAuth API routes, Next.js internals, and static assets (AC7)
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|api/health|.*\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

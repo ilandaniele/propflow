@@ -1,160 +1,131 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import type { Profile } from '@/types';
+import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
+import { auth } from '@/auth';
+import { db } from '@/lib/db';
+import { profiles } from '@/lib/db/schema';
+import type { InferSelectModel } from 'drizzle-orm';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type DrizzleProfile = InferSelectModel<typeof profiles>;
 
 export interface AuthContext {
   userId: string;
   orgId: string;
   role: 'admin' | 'tenant';
-  profile: Profile;
+  profile: DrizzleProfile;
+}
+
+// ---------------------------------------------------------------------------
+// Core guards — used in Server Actions and Route Handlers
+// No supabase.auth calls — identity comes from NextAuth session (AC8, AC11)
+// ---------------------------------------------------------------------------
+
+/**
+ * Verify the caller is an authenticated admin.
+ * Returns AuthContext or throws 'unauthorized' / 'profile_not_found'.
+ *
+ * AC8: returns {userId, orgId, role:'admin', profile}; no supabase.auth calls;
+ *      profile fetched via Drizzle.
+ */
+export async function requireAdmin(): Promise<AuthContext> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== 'admin') {
+    throw new Error('unauthorized');
+  }
+  const profile = await db.query.profiles.findFirst({
+    where: eq(profiles.userId, session.user.id),
+  });
+  if (!profile) throw new Error('profile_not_found');
+  return {
+    userId: session.user.id,
+    orgId: session.user.orgId,
+    role: 'admin' as const,
+    profile,
+  };
 }
 
 /**
- * Returns the authenticated Supabase user for the current request.
+ * Verify the caller is an authenticated tenant.
+ * Redirects to /dashboard if the session belongs to an admin.
+ * Returns AuthContext or throws 'unauthorized' / 'profile_not_found'.
  *
- * Wrapped in React.cache() so the JWT validation round-trip to Supabase Auth
- * happens at most once per React render pass regardless of how many Server
- * Components call it.
- *
- * NEVER use getSession() here — getUser() validates the JWT against the
- * Supabase Auth server, while getSession() only reads from the cookie without
- * server-side revalidation.
+ * AC9: rejects admin session (redirect /dashboard).
  */
-export const getCachedUser = cache(async () => {
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return null;
-  return user;
-});
+export async function requireTenant(): Promise<AuthContext> {
+  const session = await auth();
+  if (!session?.user) throw new Error('unauthorized');
+  // Admin trying to use a tenant-only action → redirect to admin area (AC9)
+  if (session.user.role === 'admin') {
+    redirect('/dashboard');
+  }
+  const profile = await db.query.profiles.findFirst({
+    where: eq(profiles.userId, session.user.id),
+  });
+  if (!profile) throw new Error('profile_not_found');
+  return {
+    userId: session.user.id,
+    orgId: session.user.orgId,
+    role: 'tenant' as const,
+    profile,
+  };
+}
 
 /**
- * Returns the authenticated user's profile row for the current request.
+ * Verify the caller is authenticated (any role).
+ * Returns AuthContext or throws 'unauthorized' / 'profile_not_found'.
  *
- * Wrapped in React.cache() so the profiles SELECT is issued at most once per
- * render pass regardless of how many callers (layout, page, requireAdmin, etc.)
- * invoke it. SELECT is narrowed to only the columns used by the application.
- *
- * Returns null if the user is not authenticated or has no profile row.
- */
-export const getProfile = cache(async () => {
-  const user = await getCachedUser();
-  if (!user) return null;
-
-  const supabase = await createClient();
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, org_id, role, full_name, phone, email')
-    .eq('id', user.id)
-    .single();
-
-  if (error || !profile) return null;
-  // Cast: the narrowed select shape is assignment-compatible with Profile
-  // (all returned columns are present in the Profile Row type).
-  return profile as Profile;
-});
-
-/**
- * Verify the caller is authenticated. Returns AuthContext or throws.
- * Use in every Server Action and Route Handler.
- *
- * Wrapped in React.cache() so the combined getUser + getProfile round-trips
- * are deduplicated across layout + page + guards within one render pass.
+ * Used in Server Actions that are available to both admins and tenants.
  */
 export const requireUser = cache(async (): Promise<AuthContext> => {
-  const user = await getCachedUser();
-  if (!user) throw new Error('UNAUTHORIZED');
+  const session = await auth();
+  if (!session?.user) throw new Error('UNAUTHORIZED');
 
-  const profile = await getProfile();
+  const profile = await db.query.profiles.findFirst({
+    where: eq(profiles.userId, session.user.id),
+  });
   if (!profile) throw new Error('UNAUTHORIZED');
 
+  const role = session.user.role;
+  if (role !== 'admin' && role !== 'tenant') throw new Error('UNAUTHORIZED');
+
   return {
-    userId: user.id,
-    orgId: profile.org_id,
-    role: profile.role,
+    userId: session.user.id,
+    orgId: session.user.orgId,
+    role,
     profile,
   };
 });
 
-/**
- * Verify the caller is an admin. Returns AuthContext or throws.
- *
- * Calls the cached requireUser() — no additional round-trips beyond what
- * requireUser() already performs (which are themselves deduplicated per request).
- */
-export async function requireAdmin(): Promise<AuthContext> {
-  const ctx = await requireUser();
-  if (ctx.role !== 'admin') {
-    throw new Error('FORBIDDEN');
-  }
-  return ctx;
-}
-
-/**
- * Verify the caller is a tenant. Returns AuthContext or throws.
- *
- * Calls the cached requireUser() — no additional round-trips beyond what
- * requireUser() already performs (which are themselves deduplicated per request).
- */
-export async function requireTenant(): Promise<AuthContext> {
-  const ctx = await requireUser();
-  if (ctx.role !== 'tenant') {
-    throw new Error('FORBIDDEN');
-  }
-  return ctx;
-}
-
-/**
- * Returns org-scoped Supabase client for the authenticated user.
- * The client uses the anon key so RLS applies automatically.
- */
-export async function getOrgScopedClient() {
-  const user = await getCachedUser();
-  if (!user) throw new Error('UNAUTHORIZED');
-  return createClient();
-}
-
 // ---------------------------------------------------------------------------
 // Fast-path helpers — for use in layouts only
 //
-// These helpers are backed by unstable_cache (cross-request server-side cache)
-// so they survive across navigations, not only within one render pass like
-// React.cache(). The 60-second TTL on profiles and 300-second TTL on org names
-// is acceptable for layout cosmetics (display name, org name) but NOT for
-// authorization decisions — pages must still call requireAdmin()/requireTenant()
-// which trigger a fresh getUser() round-trip via getCachedUser() (defense in depth).
+// Backed by unstable_cache (cross-request server-side cache) so they survive
+// across navigations, not only within one render pass like React.cache().
 //
-// Both helpers use the service-role Supabase client because unstable_cache
-// functions cannot access request-scoped APIs (cookies, headers) — the userId /
-// orgId comes from the middleware-validated session via getSessionFast() and is
-// passed as an explicit parameter so it becomes part of the stable cache key.
+// The TTL is acceptable for layout cosmetics (display name, org name) but NOT
+// for authorization decisions — pages must still call requireAdmin()/requireTenant()
+// which trigger a fresh auth() round-trip (defense in depth).
 // ---------------------------------------------------------------------------
 
 /**
  * Returns the profile row for a given userId, cached for 60 seconds.
+ * Cache is tagged 'profile-{userId}' for targeted invalidation.
  *
- * The cache key is ['profile', userId]. Cache is tagged 'profile-{userId}' so
- * it can be invalidated immediately when the profile is updated (call
- * revalidateTag('profile-' + userId) inside the relevant Server Action).
- *
- * The column list matches getProfile() (id, org_id, role, full_name, phone, email).
  * Returns null when no row is found.
- *
- * SAFE TO USE IN LAYOUTS: the userId originates from getSessionFast() which
- * reads the middleware-validated cookie — it is not user-supplied.
+ * SAFE TO USE IN LAYOUTS: userId originates from the NextAuth session.
  */
-export function getProfileFast(userId: string): Promise<Profile | null> {
+export function getProfileFast(userId: string): Promise<DrizzleProfile | null> {
   return unstable_cache(
     async (uid: string) => {
-      const supabase = createAdminClient();
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('id, org_id, role, full_name, phone, email')
-        .eq('id', uid)
-        .single();
-      if (error || !profile) return null;
-      return profile as Profile;
+      const profile = await db.query.profiles.findFirst({
+        where: eq(profiles.userId, uid),
+      });
+      return profile ?? null;
     },
     ['profile', userId],
     {
@@ -166,26 +137,20 @@ export function getProfileFast(userId: string): Promise<Profile | null> {
 
 /**
  * Returns the organization name for a given orgId, cached for 300 seconds.
- *
- * The cache key is ['org', orgId]. Cache is tagged 'org-{orgId}' so it can be
- * invalidated when the organization name changes.
+ * Cache is tagged 'org-{orgId}' for targeted invalidation.
  *
  * Returns null when no row is found.
- *
- * SAFE TO USE IN LAYOUTS: the orgId originates from the profile returned by
- * getProfileFast() — it is not user-supplied.
+ * SAFE TO USE IN LAYOUTS: orgId comes from the session-validated profile.
  */
 export function getOrgNameFast(orgId: string): Promise<string | null> {
   return unstable_cache(
     async (oid: string) => {
-      const supabase = createAdminClient();
-      const { data: org, error } = await supabase
-        .from('organizations')
-        .select('name')
-        .eq('id', oid)
-        .single();
-      if (error || !org) return null;
-      return org.name as string;
+      const { organizations } = await import('@/lib/db/schema');
+      const org = await db.query.organizations.findFirst({
+        where: eq(organizations.id, oid),
+        columns: { name: true },
+      });
+      return org?.name ?? null;
     },
     ['org', orgId],
     {

@@ -51,7 +51,7 @@ export default async function PortalProfilePage() {
     }
   }
 
-  const displayName = tenantRow.full_name ?? ctx.profile.full_name ?? 'Tenant';
+  const displayName = tenantRow.full_name ?? ctx.profile.fullName ?? 'Tenant';
 
   const avatarLabels = {
     changePhoto: t('avatar.changePhoto'),

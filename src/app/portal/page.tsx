@@ -61,7 +61,7 @@ export default async function PortalOverviewPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-slate-900">Welcome back, {ctx.profile.full_name?.split(' ')[0] ?? 'Tenant'}</h1>
+        <h1 className="text-xl font-bold text-slate-900">Welcome back, {ctx.profile.fullName?.split(' ')[0] ?? 'Tenant'}</h1>
         {unit && (
           <p className="text-sm text-slate-500 mt-0.5">
             {unit.properties?.name} — {unit.label}

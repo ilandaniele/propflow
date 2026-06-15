@@ -26,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // getOrgNameFast is backed by unstable_cache (300 s TTL) — the org name rarely
   // changes; tagging with 'org-{orgId}' allows targeted invalidation when needed.
-  const orgName = await getOrgNameFast(profile.org_id);
+  const orgName = await getOrgNameFast(profile.orgId);
 
   // getLocale() reads the locale from the next-intl cookie/config — no DB round-trip.
   // This is the single source of truth for the active locale in server components.
@@ -36,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex h-screen overflow-hidden bg-slate-50">
       <AdminSidebar orgName={orgName ?? undefined} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <AdminTopbar userName={profile.full_name} currentLocale={currentLocale} />
+        <AdminTopbar userName={profile.fullName} currentLocale={currentLocale} />
         <main className="flex-1 overflow-y-auto p-6" id="main-content">
           {children}
         </main>
