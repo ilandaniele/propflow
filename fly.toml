@@ -1,0 +1,35 @@
+# fly.toml — Fly.io Postgres cluster for PropFlow
+# This file configures ONLY the managed Postgres database.
+# The Next.js frontend stays on Vercel — no app service defined here.
+#
+# Provision with:
+#   fly postgres create --name propflow-db --region mia --vm-size shared-cpu-1x --volume-size 10 --initial-cluster-size 1
+
+app = "propflow-db"
+primary_region = "mia"
+
+# This is a Fly Postgres app — managed by `fly postgres` commands.
+# Do NOT add [http_service] or [[services]] blocks here;
+# Postgres is accessed over the private Fly network (6PN), not HTTP.
+
+[build]
+# Fly Postgres uses the official fly-postgres Docker image.
+# No custom Dockerfile needed.
+image = "flyio/postgres-flex:16"
+
+[env]
+# Non-secret config. Secrets (OPERATOR_PASSWORD, etc.) are set via:
+#   fly secrets set -a propflow-db KEY=value
+PRIMARY_REGION = "mia"
+FLY_CONSUL_URL = ""   # populated automatically by Fly after create
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "256mb"
+
+[mounts]
+source = "pg_data"
+destination = "/data"
+initial_size = "10gb"
+snapshot_retention = 5
+scheduled_snapshots = true
