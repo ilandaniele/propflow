@@ -82,6 +82,33 @@ const mockDb: MockDbState = {
 };
 
 // ---------------------------------------------------------------------------
+// Mock: @/lib/auth/guards — guards.ts migrated to Drizzle + NextAuth; expose
+// mockDb state so auth-failure tests (authError, tenant role) still work.
+// ---------------------------------------------------------------------------
+
+vi.mock('@/lib/auth/guards', () => ({
+  requireAdmin: vi.fn(async () => {
+    if (mockDb.authError || !mockDb.user) throw new Error('UNAUTHORIZED');
+    if (mockDb.profile?.role !== 'admin') throw new Error('UNAUTHORIZED');
+    return {
+      userId:  mockDb.user.id,
+      orgId:   mockDb.profile?.org_id ?? 'org-uuid-001',
+      role:    'admin' as const,
+      profile: mockDb.profile ?? {},
+    };
+  }),
+  requireUser: vi.fn(async () => {
+    if (mockDb.authError || !mockDb.user) throw new Error('UNAUTHORIZED');
+    return {
+      userId:  mockDb.user.id,
+      orgId:   mockDb.profile?.org_id ?? 'org-uuid-001',
+      role:    (mockDb.profile?.role ?? 'admin') as 'admin' | 'tenant',
+      profile: mockDb.profile ?? {},
+    };
+  }),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock: Supabase server client
 // ---------------------------------------------------------------------------
 

@@ -6,8 +6,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { eq, and } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { payments } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function PATCH(
   _request: NextRequest,
@@ -19,28 +21,25 @@ export async function PATCH(
   }
 
   const { paymentId } = await params;
-  const admin = createAdminClient();
 
   // Verify ownership
-  const { data: payment, error: fetchErr } = await admin
-    .from('payments')
-    .select('id, org_id')
-    .eq('id', paymentId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const existing = await db
+    .select({ id: payments.id, orgId: payments.orgId })
+    .from(payments)
+    .where(and(eq(payments.id, paymentId), eq(payments.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (fetchErr || !payment) {
+  if (existing.length === 0) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Payment not found.' } }, { status: 404 });
   }
 
-  const { error } = await admin
-    .from('payments')
-    .update({ status: 'approved' })
-    .eq('id', paymentId)
-    .eq('org_id', ctx.orgId);
+  const result = await db
+    .update(payments)
+    .set({ status: 'approved', approvedAt: new Date() })
+    .where(and(eq(payments.id, paymentId), eq(payments.orgId, ctx.orgId)));
 
-  if (error) {
-    console.error('[api/admin/payments/approve PATCH]', error.code);
+  if (!result) {
+    console.error('[api/admin/payments/approve PATCH] update returned no result');
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to approve payment.' } }, { status: 500 });
   }
 

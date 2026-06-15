@@ -1,0 +1,75 @@
+
+> propflow@0.1.0 build C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo
+> next build
+
+▲ Next.js 16.2.6 (Turbopack)
+- Experiments (use with caution):
+  · serverActions
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 3.9s
+  Running TypeScript ...
+  Finished TypeScript in 6.6s ...
+  Collecting page data using 23 workers ...
+Error: DATABASE_URL env var is required
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0osg47~._.js:28:19294)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0~-z12a._.js:422:40378)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0z82691._.js:8:47576)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+Error: DATABASE_URL env var is required
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0osg47~._.js:28:19294)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0v4hx28._.js:422:40378)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[root-of-the-server]__0yg5tfh._.js:1:2780)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+Error: DATABASE_URL env var is required
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0osg47~._.js:28:19294)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0~-z12a._.js:422:40378)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0z82691._.js:8:47576)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+Error: DATABASE_URL env var is required
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0osg47~._.js:28:19294)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0~-z12a._.js:422:40378)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0z82691._.js:8:47576)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+Error: DATABASE_URL env var is required
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0osg47~._.js:28:19294)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0~-z12a._.js:422:40378)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+    at getOrInstantiateModuleFromParent (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:877:12)
+    at Context.esmImport [as i] (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:281:20)
+    at module evaluation (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\_0z82691._.js:8:47576)
+    at instantiateModule (C:\Users\Ilan\.claude\crew-workspaces\propflow-airtable-entity-sync-20260605-200000\propflow-repo\.next\server\chunks\[turbopack]_runtime.js:853:9)
+
+> Build error occurred
+Error: Failed to collect page data for /api/admin/payments/import/template
+    at ignore-listed frames {
+  type: 'Error'
+}
+ ELIFECYCLE  Command failed with exit code 1.
