@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { aiChatMessages } from '@/lib/db/schema';
 import { Errors } from '@/lib/errors';
 import { aiChatRateLimit } from '@/lib/ratelimit';
 import { assertServerEnv } from '@/lib/env';
@@ -85,12 +87,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Persist user message
-    await supabase.from('ai_chat_messages').insert({
-      org_id: ctx.orgId,
-      profile_id: ctx.userId,
-      session_id: parsed.data.session_id,
-      role: 'user',
-      content: parsed.data.message, // store original (not redacted) for UX
+    await db.insert(aiChatMessages).values({
+      orgId:     ctx.orgId,
+      profileId: ctx.userId,
+      sessionId: parsed.data.session_id,
+      role:      'user',
+      content:   parsed.data.message, // store original (not redacted) for UX
     });
 
     const apiKey = assertServerEnv('ANTHROPIC_API_KEY', 'AI assistant');
@@ -122,12 +124,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           }
 
           // Persist assistant message after stream completes
-          await supabase.from('ai_chat_messages').insert({
-            org_id: ctx.orgId,
-            profile_id: ctx.userId,
-            session_id: parsed.data.session_id,
-            role: 'assistant',
-            content: fullResponse,
+          await db.insert(aiChatMessages).values({
+            orgId:     ctx.orgId,
+            profileId: ctx.userId,
+            sessionId: parsed.data.session_id,
+            role:      'assistant',
+            content:   fullResponse,
           });
 
           log.info('[ai/chat] response streamed', { sessionId: parsed.data.session_id, length: fullResponse.length });

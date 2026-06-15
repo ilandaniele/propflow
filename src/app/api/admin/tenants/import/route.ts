@@ -7,8 +7,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { eq, and, inArray } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenants, importLogs } from '@/lib/db/schema';
 import { parseTenantsCsv } from '@/lib/csv/parseTenantsCsv';
 import { upsertAirtableResidente } from '@/lib/airtable/write';
 
@@ -37,47 +39,48 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { rows, errors } = parseTenantsCsv(csvText);
   const validRows = rows.filter(r => r.action !== 'invalid');
 
-  const admin = createAdminClient();
-
-  // Resolve update vs create
-  const emails      = validRows.map(r => r.email).filter(Boolean);
+  // Resolve update vs create — org-scoped lookups
+  const emails      = validRows.map(r => r.email).filter(Boolean) as string[];
   const externalIds = validRows.map(r => r.external_tenant_id).filter(Boolean) as string[];
 
   const [emailRes, extRes] = await Promise.all([
     emails.length > 0
-      ? admin.from('tenants').select('id, email, airtable_external_id').eq('org_id', ctx.orgId).in('email', emails)
-      : Promise.resolve({ data: [] }),
+      ? db.select({ id: tenants.id, email: tenants.email, airtableExternalId: tenants.airtableExternalId })
+          .from(tenants)
+          .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.email, emails)))
+      : Promise.resolve([]),
     externalIds.length > 0
-      ? admin.from('tenants').select('id, external_tenant_id, airtable_external_id').eq('org_id', ctx.orgId).in('external_tenant_id', externalIds)
-      : Promise.resolve({ data: [] }),
+      ? db.select({ id: tenants.id, externalTenantId: tenants.externalTenantId, airtableExternalId: tenants.airtableExternalId })
+          .from(tenants)
+          .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.externalTenantId, externalIds)))
+      : Promise.resolve([]),
   ]);
 
   const emailMap: Record<string, { id: string; airtable_external_id: string | null }> = {};
-  (emailRes.data ?? []).forEach((t: { id: string; email: string; airtable_external_id: string | null }) => {
-    emailMap[t.email] = { id: t.id, airtable_external_id: t.airtable_external_id };
+  emailRes.forEach(t => {
+    if (t.email) emailMap[t.email] = { id: t.id, airtable_external_id: t.airtableExternalId };
   });
   const extIdMap: Record<string, { id: string; airtable_external_id: string | null }> = {};
-  (extRes.data ?? []).forEach((t: { id: string; external_tenant_id: string; airtable_external_id: string | null }) => {
-    if (t.external_tenant_id) extIdMap[t.external_tenant_id] = { id: t.id, airtable_external_id: t.airtable_external_id };
+  extRes.forEach(t => {
+    if (t.externalTenantId) extIdMap[t.externalTenantId] = { id: t.id, airtable_external_id: t.airtableExternalId };
   });
 
   // Import log
-  const { data: importLog } = await admin
-    .from('import_logs')
-    .insert({
-      org_id: ctx.orgId,
-      import_type: 'tenant',
-      file_name: file.name,
-      imported_by: ctx.userId,
-      role: 'admin',
-      status: 'pending',
-      rows_received: validRows.length,
-      error_details: errors,
-    })
-    .select('id')
-    .single();
+  let importLogId: string | null = null;
+  try {
+    const logRows = await db.insert(importLogs).values({
+      orgId:        ctx.orgId,
+      importType:   'tenant',
+      fileName:     file.name,
+      importedBy:   ctx.userId,
+      role:         'admin',
+      status:       'pending',
+      rowsReceived: validRows.length,
+      errorDetails: errors,
+    }).returning({ id: importLogs.id });
+    importLogId = logRows[0]?.id ?? null;
+  } catch { /* log creation failure is non-blocking */ }
 
-  const import_id = importLog?.id;
   let created = 0, updated = 0, skipped = 0, failed = 0;
   const airtableResults: unknown[] = [];
 
@@ -86,12 +89,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const byExtId = row.external_tenant_id ? extIdMap[row.external_tenant_id] : undefined;
       const byEmail = row.email ? emailMap[row.email] : undefined;
 
-      // Detect collision: both identifiers present but resolve to different tenants
       if (byExtId && byEmail && byExtId.id !== byEmail.id) {
-        console.warn(
-          '[api/admin/tenants/import] external_tenant_id and email resolve to different tenants — skipping row',
-          { external_tenant_id: row.external_tenant_id, email: row.email, extIdTenant: byExtId.id, emailTenant: byEmail.id }
-        );
         skipped++;
         continue;
       }
@@ -99,80 +97,79 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const existing = byExtId ?? byEmail;
 
       const tenantPayload = {
-        org_id: ctx.orgId,
-        first_name: row.first_name,
-        last_name: row.last_name,
-        full_name: `${row.first_name} ${row.last_name}`,
-        email: row.email,
-        phone: row.phone ?? null,
-        document_number: row.document_number ?? null,
-        date_of_birth: row.date_of_birth ?? null,
-        emergency_contact_name: row.emergency_contact_name ?? null,
-        emergency_contact_phone: row.emergency_contact_phone ?? null,
-        tenant_status: row.status,
-        move_in_date: row.move_in_date ?? null,
-        preferred_language: row.preferred_language,
-        external_tenant_id: row.external_tenant_id ?? null,
-        sync_status: 'pending' as const,
-        import_source: 'csv_import',
+        orgId:                ctx.orgId,
+        fullName:             `${row.first_name} ${row.last_name}`,
+        email:                row.email,
+        phone:                row.phone ?? null,
+        documentNumber:       row.document_number ?? null,
+        dateOfBirth:          row.date_of_birth ?? null,
+        emergencyContactName:  row.emergency_contact_name ?? null,
+        emergencyContactPhone: row.emergency_contact_phone ?? null,
+        moveInDate:            row.move_in_date ?? null,
+        preferredLanguage:    row.preferred_language ?? 'es',
+        externalTenantId:     row.external_tenant_id ?? null,
+        syncStatus:           'pending' as const,
+        importSource:         'csv_import',
       };
 
       if (existing) {
-        const { error } = await admin.from('tenants').update(tenantPayload).eq('id', existing.id);
-        if (error) { failed++; continue; }
+        await db.update(tenants)
+          .set({ ...tenantPayload, updatedAt: new Date() })
+          .where(and(eq(tenants.id, existing.id), eq(tenants.orgId, ctx.orgId)));
         updated++;
 
         // Airtable write-back
         try {
           const result = await upsertAirtableResidente({
             first_name: row.first_name,
-            last_name: row.last_name,
-            email: row.email,
-            phone: row.phone ?? '',
-            emergency_contact_name: row.emergency_contact_name,
+            last_name:  row.last_name,
+            email:      row.email,
+            phone:      row.phone ?? '',
+            emergency_contact_name:  row.emergency_contact_name,
             emergency_contact_phone: row.emergency_contact_phone,
           }, existing.airtable_external_id);
-          await admin.from('tenants').update({
-            airtable_external_id: result.airtableRecordId,
-            sync_status: 'synced',
-            last_synced_at: new Date().toISOString(),
-          }).eq('id', existing.id);
+          await db.update(tenants).set({
+            airtableExternalId: result.airtableRecordId,
+            syncStatus:         'synced',
+            lastSyncedAt:       new Date(),
+          }).where(and(eq(tenants.id, existing.id), eq(tenants.orgId, ctx.orgId)));
           airtableResults.push({ id: existing.id, status: 'ok' });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           airtableResults.push({ id: existing.id, status: 'error', message: msg });
-          await admin.from('tenants').update({ sync_status: 'failed' }).eq('id', existing.id);
+          await db.update(tenants).set({ syncStatus: 'failed' })
+            .where(and(eq(tenants.id, existing.id), eq(tenants.orgId, ctx.orgId)));
         }
       } else {
-        const { data: newTenant, error } = await admin
-          .from('tenants')
-          .insert({ ...tenantPayload, portal_access: 'not_invited' })
-          .select('id')
-          .single();
+        const newRows = await db.insert(tenants).values({
+          ...tenantPayload,
+          portalAccess: 'not_invited',
+        }).returning({ id: tenants.id });
 
-        if (error || !newTenant) { failed++; continue; }
+        const newTenant = newRows[0] ?? null;
+        if (!newTenant) { failed++; continue; }
         created++;
 
-        // Airtable write-back
         try {
           const result = await upsertAirtableResidente({
             first_name: row.first_name,
-            last_name: row.last_name,
-            email: row.email,
-            phone: row.phone ?? '',
-            emergency_contact_name: row.emergency_contact_name,
+            last_name:  row.last_name,
+            email:      row.email,
+            phone:      row.phone ?? '',
+            emergency_contact_name:  row.emergency_contact_name,
             emergency_contact_phone: row.emergency_contact_phone,
           });
-          await admin.from('tenants').update({
-            airtable_external_id: result.airtableRecordId,
-            sync_status: 'synced',
-            last_synced_at: new Date().toISOString(),
-          }).eq('id', newTenant.id);
+          await db.update(tenants).set({
+            airtableExternalId: result.airtableRecordId,
+            syncStatus:         'synced',
+            lastSyncedAt:       new Date(),
+          }).where(and(eq(tenants.id, newTenant.id), eq(tenants.orgId, ctx.orgId)));
           airtableResults.push({ id: newTenant.id, status: 'ok' });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           airtableResults.push({ id: newTenant.id, status: 'error', message: msg });
-          await admin.from('tenants').update({ sync_status: 'failed' }).eq('id', newTenant.id);
+          await db.update(tenants).set({ syncStatus: 'failed' })
+            .where(and(eq(tenants.id, newTenant.id), eq(tenants.orgId, ctx.orgId)));
         }
       }
     } catch {
@@ -184,17 +181,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     : failed > 0 ? 'partial'
     : 'completed';
 
-  if (import_id) {
-    await admin.from('import_logs').update({
-      status: finalStatus,
-      rows_created: created,
-      rows_updated: updated,
-      rows_skipped: skipped,
-      rows_failed: failed,
-      airtable_sync_result: airtableResults,
-      completed_at: new Date().toISOString(),
-    }).eq('id', import_id);
+  if (importLogId) {
+    await db.update(importLogs).set({
+      status:             finalStatus,
+      rowsCreated:        created,
+      rowsUpdated:        updated,
+      rowsSkipped:        skipped,
+      rowsFailed:         failed,
+      airtableSyncResult: airtableResults,
+      completedAt:        new Date(),
+    }).where(eq(importLogs.id, importLogId));
   }
 
-  return NextResponse.json({ created, updated, skipped, failed, import_id });
+  return NextResponse.json({ created, updated, skipped, failed, import_id: importLogId });
 }
