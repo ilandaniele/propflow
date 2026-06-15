@@ -89,8 +89,8 @@ describe('db/schema.ts exports', () => {
 
   it('profiles.userId column references users table', async () => {
     const schema = await import('../../src/lib/db/schema');
-    // Drizzle column definition includes a reference config
-    const userIdCol = schema.profiles.user_id;
+    // Drizzle column definition uses camelCase accessor matching the schema definition
+    const userIdCol = schema.profiles.userId;
     // The column object from Drizzle ORM has a name property
     expect(userIdCol).toBeDefined();
   });

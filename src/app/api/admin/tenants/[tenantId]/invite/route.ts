@@ -16,10 +16,8 @@ export const dynamic = 'force-dynamic';
 
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { tenants, tenantInvitations, organizations } from '@/lib/db/schema';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail } from '@/lib/notifications/email';
 import { log } from '@/lib/log';
 import { sha256 } from '@/lib/crypto/hash';
@@ -32,6 +30,7 @@ function buildInviteEmail(opts: {
   orgName: string;
 }): { subject: string; html: string } {
   const expiryStr = opts.expiresAt.toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
+  // HTML is server-templated; no user-controlled content injected.
   const safeUrl = opts.inviteUrl.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const safeOrg = opts.orgName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   return {
@@ -72,19 +71,17 @@ export async function POST(
   }
 
   const { tenantId } = await params;
+  const admin = createAdminClient();
 
   // Verify tenant belongs to admin's org and has an email
-  const tenant = await db.select({
-    id:      tenants.id,
-    orgId:   tenants.orgId,
-    email:   tenants.email,
-    fullName: tenants.fullName,
-  })
-    .from(tenants)
-    .where(and(eq(tenants.id, tenantId), eq(tenants.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const { data: tenant, error: tenantErr } = await admin
+    .from('tenants')
+    .select('id, org_id, email, first_name, last_name')
+    .eq('id', tenantId)
+    .eq('org_id', ctx.orgId)
+    .single();
 
-  if (!tenant) {
+  if (tenantErr || !tenant) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant not found.' } }, { status: 404 });
   }
 
@@ -93,34 +90,41 @@ export async function POST(
   }
 
   // Revoke any prior pending invitations for this tenant
-  await db.update(tenantInvitations)
-    .set({ status: 'revoked' })
-    .where(and(eq(tenantInvitations.tenantId, tenantId), eq(tenantInvitations.status, 'pending')));
+  await admin
+    .from('tenant_invitations')
+    .update({ status: 'revoked' })
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending');
 
   // Generate token — 32 random bytes (256 bits); only hash stored
-  const rawToken  = crypto.randomBytes(32).toString('base64url');
+  const rawToken = crypto.randomBytes(32).toString('base64url');
   const tokenHash = sha256(rawToken);
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-  try {
-    await db.insert(tenantInvitations).values({
-      orgId:     ctx.orgId,
-      tenantId,
-      email:     tenant.email.trim().toLowerCase(),
-      tokenHash,
-      invitedBy: ctx.userId,
-      status:    'pending',
-      expiresAt,
+  const { error: insertErr } = await admin
+    .from('tenant_invitations')
+    .insert({
+      org_id:     ctx.orgId,
+      tenant_id:  tenantId,
+      email:      tenant.email.trim().toLowerCase(),
+      token_hash: tokenHash,
+      invited_by: ctx.userId,
+      status:     'pending',
+      expires_at: expiresAt.toISOString(),
     });
-  } catch (err) {
-    log.error('[invite] failed to insert invitation', { code: err instanceof Error ? err.message : 'unknown' });
+
+  if (insertErr) {
+    log.error('[invite] failed to insert invitation', { code: insertErr.code });
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create invitation.' } }, { status: 500 });
   }
 
   // Set portal_access='invited'
-  await db.update(tenants).set({ portalAccess: 'invited' }).where(eq(tenants.id, tenantId));
+  await admin
+    .from('tenants')
+    .update({ portal_access: 'invited' })
+    .eq('id', tenantId);
 
-  const siteUrl  = process.env['NEXT_PUBLIC_SITE_URL'] ?? 'http://localhost:3000';
+  const siteUrl = process.env['NEXT_PUBLIC_SITE_URL'] ?? 'http://localhost:3000';
   const inviteUrl = `${siteUrl}/invite/accept?token=${rawToken}`;
 
   // Attempt email — soft-skip if Resend not configured
@@ -128,10 +132,11 @@ export async function POST(
   const resendKey = process.env['RESEND_API_KEY'];
   if (resendKey) {
     // Get org name for email
-    const org = await db.select({ name: organizations.name })
-      .from(organizations)
-      .where(eq(organizations.id, ctx.orgId))
-      .then(r => r[0] ?? null);
+    const { data: org } = await admin
+      .from('organizations')
+      .select('name')
+      .eq('id', ctx.orgId)
+      .single();
 
     const { subject, html } = buildInviteEmail({ inviteUrl, expiresAt, orgName: org?.name ?? 'PropFlow' });
     const result = await sendEmail({

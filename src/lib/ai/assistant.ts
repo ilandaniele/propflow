@@ -6,14 +6,9 @@
  * - Aggregates only: occupancy %, overdue count, open incidents, income trend
  * - No tools, no mutations (LLM08)
  * - User input is passed as a structured user message turn, never into the system prompt (LLM01)
- *
- * W6: all queries use Drizzle (org-scoped). The tenant_statement Supabase VIEW is
- *     replaced with an inline Drizzle aggregation join (tenants + contracts + payments).
  */
 
-import { and, eq, gte, ne, sql } from 'drizzle-orm';
-import { db } from '@/lib/db';
-import { organizations, units, payments, expenses, incidents, tenants, contracts } from '@/lib/db/schema';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export interface OrgContext {
   orgName: string;
@@ -29,96 +24,48 @@ export interface OrgContext {
 
 /**
  * Build org-scoped context from aggregates.
- * All queries use Drizzle (org-scoped via WHERE org_id = orgId).
- * The tenant_statement Supabase VIEW has been replaced with an inline aggregation.
+ * All queries are RLS-scoped — uses the anon client with the authenticated session.
  * Returns aggregates only; no individual tenant names, emails, or row-level PII.
  */
-export async function buildOrgContext(orgId: string): Promise<OrgContext> {
+export async function buildOrgContext(supabase: SupabaseClient, orgId: string): Promise<OrgContext> {
   const thisMonthStart = new Date();
   thisMonthStart.setDate(1);
   thisMonthStart.setHours(0, 0, 0, 0);
   const thisMonthStr = thisMonthStart.toISOString().slice(0, 10);
 
   const [
-    orgRows,
-    unitRows,
-    paymentRows,
-    expenseRows,
-    incidentRows,
-    tenantStatements,
+    { data: org },
+    { data: units },
+    { data: payments },
+    { data: expenses },
+    { data: incidents },
   ] = await Promise.all([
-    // organizations: fetch org name by id
-    db.select({ name: organizations.name })
-      .from(organizations)
-      .where(eq(organizations.id, orgId))
-      .limit(1),
-
-    // units: all units for org
-    db.select({ id: units.id, status: units.status })
-      .from(units)
-      .where(eq(units.orgId, orgId)),
-
-    // payments: approved, this month, org-scoped
-    db.select({ amount: payments.amount })
-      .from(payments)
-      .where(and(
-        eq(payments.orgId, orgId),
-        eq(payments.status, 'approved'),
-        gte(payments.paidAt, thisMonthStr),
-      )),
-
-    // expenses: this month, org-scoped
-    db.select({ amount: expenses.amount })
-      .from(expenses)
-      .where(and(
-        eq(expenses.orgId, orgId),
-        gte(expenses.incurredOn, thisMonthStr),
-      )),
-
-    // incidents: open (not solved), org-scoped
-    db.select({ id: incidents.id })
-      .from(incidents)
-      .where(and(
-        eq(incidents.orgId, orgId),
-        ne(incidents.status, 'solved'),
-      )),
-
-    // Tenant statement — replaces the Supabase tenant_statement VIEW.
-    // Aggregates total charged (from active contracts) and total paid (from payments)
-    // per tenant, then derives is_overdue = totalPaid < totalCharged.
-    // No raw PII returned — only the aggregate booleans are used downstream.
-    db.select({
-      tenantId:      tenants.id,
-      totalCharged:  sql<number>`SUM(CASE WHEN ${contracts.status} = 'active' THEN ${contracts.monthlyRent} ELSE 0 END)`,
-      totalPaid:     sql<number>`COALESCE(SUM(${payments.amount}), 0)`,
-    })
-      .from(tenants)
-      .leftJoin(contracts, eq(contracts.tenantId, tenants.id))
-      .leftJoin(payments, and(eq(payments.tenantId, tenants.id), eq(payments.status, 'approved')))
-      .where(eq(tenants.orgId, orgId))
-      .groupBy(tenants.id),
+    supabase.from('organizations').select('name').eq('id', orgId).single(),
+    supabase.from('units').select('id, status').eq('org_id', orgId),
+    supabase.from('payments').select('amount, paid_at').eq('org_id', orgId).eq('status', 'approved').gte('paid_at', thisMonthStr),
+    supabase.from('expenses').select('amount').eq('org_id', orgId).gte('incurred_on', thisMonthStr),
+    supabase.from('incidents').select('id, status').eq('org_id', orgId).neq('status', 'solved'),
   ]);
 
-  const totalUnits    = unitRows.length;
-  const occupiedUnits = unitRows.filter(u => u.status === 'occupied').length;
+  const totalUnits = (units ?? []).length;
+  const occupiedUnits = (units ?? []).filter((u: { status: string }) => u.status === 'occupied').length;
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
-  // Overdue: totalPaid < totalCharged (aggregates only — no PII)
-  const overdueTenantsCount = tenantStatements.filter(
-    s => Number(s.totalPaid) < Number(s.totalCharged)
-  ).length;
+  // Overdue: use tenant_statement view (aggregates, no raw PII)
+  const { data: statements } = await supabase.from('tenant_statement').select('is_overdue');
+  const overdueTenantsCount = (statements ?? []).filter((s: { is_overdue: boolean }) => s.is_overdue).length;
 
-  const totalApprovedIncomeThisMonth = paymentRows.reduce((s, p) => s + (Number(p.amount) ?? 0), 0);
-  const totalExpensesThisMonth       = expenseRows.reduce((s, e) => s + (Number(e.amount) ?? 0), 0);
+  const totalApprovedIncomeThisMonth = (payments ?? []).reduce((s: number, p: { amount: number }) => s + (p.amount ?? 0), 0);
+  const totalExpensesThisMonth = (expenses ?? []).reduce((s: number, e: { amount: number }) => s + (e.amount ?? 0), 0);
   const netThisMonth = totalApprovedIncomeThisMonth - totalExpensesThisMonth;
 
   return {
-    orgName: orgRows[0]?.name ?? 'your organization',
+    orgName: org?.name ?? 'your organization',
     totalUnits,
     occupiedUnits,
     occupancyRate,
     overdueTenantsCount,
-    openIncidentsCount: incidentRows.length,
+    openIncidentsCount: (incidents ?? []).length,
     totalApprovedIncomeThisMonth,
     totalExpensesThisMonth,
     netThisMonth,

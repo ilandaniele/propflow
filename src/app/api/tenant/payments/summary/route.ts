@@ -6,10 +6,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { eq, and } from 'drizzle-orm';
 import { requireTenant } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { tenants, payments } from '@/lib/db/schema';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(): Promise<NextResponse> {
   let ctx;
@@ -17,46 +15,47 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Tenant access required.' } }, { status: 401 });
   }
 
-  // Derive tenant record from session — org-scoped
-  const tenantRecord = await db.select({ id: tenants.id })
-    .from(tenants)
-    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const admin = createAdminClient();
+  const { data: tenantRecord, error: tenantError } = await admin
+    .from('tenants')
+    .select('id')
+    .eq('profile_id', ctx.userId)
+    .eq('org_id', ctx.orgId)
+    .single();
 
-  if (!tenantRecord) {
+  if (tenantError || !tenantRecord) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant record not found.' } }, { status: 404 });
   }
 
-  try {
-    const rows = await db.select({
-      amount:   payments.amount,
-      currency: payments.currency,
-      status:   payments.status,
-      paidAt:   payments.paidAt,
-    })
-      .from(payments)
-      .where(and(eq(payments.tenantId, tenantRecord.id), eq(payments.orgId, ctx.orgId)));
+  const today = new Date().toISOString().split('T')[0];
 
-    const today = new Date().toISOString().split('T')[0];
-    const currency = rows.find(r => r.currency)?.currency ?? 'PEN';
+  const { data: payments, error } = await admin
+    .from('payments')
+    .select('amount, currency, status, due_date')
+    .eq('tenant_id', tenantRecord.id)
+    .eq('org_id', ctx.orgId);
 
-    const total_paid = rows
-      .filter(r => r.status === 'approved')
-      .reduce((s, r) => s + Number(r.amount), 0);
-
-    const total_pending = rows
-      .filter(r => r.status === 'pending' && r.paidAt && r.paidAt >= today)
-      .reduce((s, r) => s + Number(r.amount), 0);
-
-    const total_overdue = rows
-      .filter(r => r.status === 'pending' && r.paidAt && r.paidAt < today)
-      .reduce((s, r) => s + Number(r.amount), 0);
-
-    const current_balance = total_pending + total_overdue;
-
-    return NextResponse.json({ total_paid, total_pending, total_overdue, current_balance, currency });
-  } catch (err) {
-    console.error('[api/tenant/payments/summary GET]', err instanceof Error ? err.message : 'unknown');
+  if (error) {
+    console.error('[api/tenant/payments/summary GET]', error.code);
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch summary.' } }, { status: 500 });
   }
+
+  const rows = payments ?? [];
+  const currency = rows.find(r => r.currency)?.currency ?? 'PEN';
+
+  const total_paid = rows
+    .filter(r => r.status === 'approved')
+    .reduce((s, r) => s + Number(r.amount), 0);
+
+  const total_pending = rows
+    .filter(r => r.status === 'pending' && r.due_date && r.due_date >= today)
+    .reduce((s, r) => s + Number(r.amount), 0);
+
+  const total_overdue = rows
+    .filter(r => r.status === 'pending' && r.due_date && r.due_date < today)
+    .reduce((s, r) => s + Number(r.amount), 0);
+
+  const current_balance = total_pending + total_overdue;
+
+  return NextResponse.json({ total_paid, total_pending, total_overdue, current_balance, currency });
 }

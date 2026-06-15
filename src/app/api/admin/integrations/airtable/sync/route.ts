@@ -3,9 +3,6 @@
  *
  * Triggers an on-demand Airtable sync for the admin's org only.
  * Auth: require admin session.
- *
- * NOTE (W5): passes db as `any` to syncEntityTable — W6 will update the
- * syncEntityTable signature to accept Drizzle db natively.
  */
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +10,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
@@ -22,8 +19,8 @@ const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = 
   { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',    entity: 'properties' },
   { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',   entity: 'responsables' },
   { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',     entity: 'units' },
-  { tableEnvKey: 'AIRTABLE_TABLE_PAGO_SERVICIOS', entity: 'service_payments' },
-  { tableEnvKey: 'AIRTABLE_TABLE_MANTENIMIENTO',  entity: 'incidents' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGO_SERVICIOS',  entity: 'service_payments' },
+  { tableEnvKey: 'AIRTABLE_TABLE_MANTENIMIENTO',   entity: 'incidents' },
   { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',     entity: 'tenants' },
   { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',      entity: 'contracts' },
   { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',          entity: 'payments' },
@@ -48,7 +45,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // W6: db is now typed as PostgresJsDatabase — no cast needed
+  const adminClient = createAdminClient();
   const orgId = ctx.orgId;
 
   const idMaps: Partial<Record<EntityName, IdMap>> = {};
@@ -71,7 +68,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       orgId,
       entity,
       tableEnvKey,
-      db,
+      adminClient,
       airtableClient,
       idMaps
     );

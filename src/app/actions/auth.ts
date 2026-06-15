@@ -7,7 +7,6 @@ import { err, Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { headers } from 'next/headers';
-import { AuthError } from 'next-auth';
 
 const SignInSchema = z.object({
   email: z.string().email(),
@@ -43,36 +42,22 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   }
 
   try {
-    // NextAuth Credentials sign-in — redirect:false prevents automatic redirect
-    // so we can determine the target based on role after sign-in completes.
-    // NOTE: We call redirect() after to do role-based routing.
     await nextAuthSignIn('credentials', {
       email: parsed.data.email,
       password: parsed.data.password,
       redirect: false,
     });
   } catch (e) {
-    if (e instanceof AuthError) {
-      log.authFailure(parsed.data.email, e.type ?? 'AuthError');
-      return err('AUTH_FAILED', 'Invalid email or password');
-    }
-    // Re-throw redirect() calls — Next.js uses throw to initiate redirects
-    throw e;
+    const errMsg = e instanceof Error ? e.message : 'unknown';
+    log.authFailure(parsed.data.email, errMsg);
+    return err('AUTH_FAILED', 'Invalid email or password');
   }
 
   log.authSuccess('', parsed.data.email);
-
-  // Role-based redirect: read auth() to get role from session
-  // (auth() is available here because the session was just set by signIn above)
-  const { auth } = await import('@/auth');
-  const session = await auth();
-  const role = session?.user?.role ?? 'tenant';
-
-  redirect(role === 'admin' ? '/dashboard' : '/portal');
+  redirect('/dashboard');
 }
 
 export async function signOut(): Promise<void> {
-  // NextAuth signOut — clears session cookie and redirects
   await nextAuthSignOut({ redirectTo: '/login' });
 }
 
@@ -94,13 +79,13 @@ export async function requestPasswordReset(
     return Errors.VALIDATION_ERROR(parsed.error.flatten());
   }
 
-  // Password reset is out of scope for this migration PR.
-  // Existing users should use Google OAuth. A follow-up PR will implement
-  // NextAuth email verification + password reset flow.
-  log.info('[auth] requestPasswordReset stub called', { event: 'password_reset_stub' });
-
-  // Always return success to prevent email enumeration
-  return { success: true };
+  // Password reset not yet available — credentials provider users must use Google sign-in
+  return {
+    error: {
+      code: 'NOT_IMPLEMENTED',
+      message: 'Password reset not yet available. Please use Google sign-in.',
+    },
+  };
 }
 
 // Helper: rate limit by IP

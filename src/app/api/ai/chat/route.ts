@@ -3,9 +3,8 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { aiChatMessages } from '@/lib/db/schema';
 import { Errors } from '@/lib/errors';
 import { aiChatRateLimit } from '@/lib/ratelimit';
 import { assertServerEnv } from '@/lib/env';
@@ -59,9 +58,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.VALIDATION_ERROR(parsed.error.flatten()), { status: 400 });
   }
 
+  const supabase = await createClient();
+
   try {
     // Build org-scoped context (aggregates only — LLM06)
-    const orgCtx = await buildOrgContext(ctx.orgId);
+    const orgCtx = await buildOrgContext(supabase, ctx.orgId);
     const systemPrompt = buildSystemPrompt(orgCtx);
 
     // LLM01: user input as structured user turn, never concatenated into system prompt
@@ -84,12 +85,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Persist user message
-    await db.insert(aiChatMessages).values({
-      orgId:     ctx.orgId,
-      profileId: ctx.userId,
-      sessionId: parsed.data.session_id,
-      role:      'user',
-      content:   parsed.data.message, // store original (not redacted) for UX
+    await supabase.from('ai_chat_messages').insert({
+      org_id: ctx.orgId,
+      profile_id: ctx.userId,
+      session_id: parsed.data.session_id,
+      role: 'user',
+      content: parsed.data.message, // store original (not redacted) for UX
     });
 
     const apiKey = assertServerEnv('ANTHROPIC_API_KEY', 'AI assistant');
@@ -121,12 +122,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           }
 
           // Persist assistant message after stream completes
-          await db.insert(aiChatMessages).values({
-            orgId:     ctx.orgId,
-            profileId: ctx.userId,
-            sessionId: parsed.data.session_id,
-            role:      'assistant',
-            content:   fullResponse,
+          await supabase.from('ai_chat_messages').insert({
+            org_id: ctx.orgId,
+            profile_id: ctx.userId,
+            session_id: parsed.data.session_id,
+            role: 'assistant',
+            content: fullResponse,
           });
 
           log.info('[ai/chat] response streamed', { sessionId: parsed.data.session_id, length: fullResponse.length });

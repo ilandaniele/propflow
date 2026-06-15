@@ -6,10 +6,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { importLogs, profiles } from '@/lib/db/schema';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(
   _request: NextRequest,
@@ -21,34 +19,25 @@ export async function GET(
   }
 
   const { importId } = await params;
+  const admin = createAdminClient();
 
-  const rows = await db.select({
-    id:                 importLogs.id,
-    importType:         importLogs.importType,
-    fileName:           importLogs.fileName,
-    role:               importLogs.role,
-    status:             importLogs.status,
-    rowsReceived:       importLogs.rowsReceived,
-    rowsCreated:        importLogs.rowsCreated,
-    rowsUpdated:        importLogs.rowsUpdated,
-    rowsSkipped:        importLogs.rowsSkipped,
-    rowsFailed:         importLogs.rowsFailed,
-    validationWarnings: importLogs.validationWarnings,
-    errorDetails:       importLogs.errorDetails,
-    airtableSyncResult: importLogs.airtableSyncResult,
-    createdAt:          importLogs.createdAt,
-    completedAt:        importLogs.completedAt,
-    importedBy:         importLogs.importedBy,
-    importedByName:     profiles.fullName,
-  })
-    .from(importLogs)
-    .leftJoin(profiles, eq(profiles.id, importLogs.importedBy))
-    .where(and(eq(importLogs.id, importId), eq(importLogs.orgId, ctx.orgId)));
+  const { data: log, error } = await admin
+    .from('import_logs')
+    .select(
+      'id, import_type, file_name, role, status, rows_received, rows_created, rows_updated, rows_skipped, rows_failed, validation_warnings, error_details, airtable_sync_result, created_at, completed_at, imported_by, profiles!imported_by(full_name)'
+    )
+    .eq('id', importId)
+    .eq('org_id', ctx.orgId)
+    .single();
 
-  const log = rows[0] ?? null;
-  if (!log) {
+  if (error || !log) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Import log not found.' } }, { status: 404 });
   }
 
-  return NextResponse.json(log);
+  const profile = (log as Record<string, unknown>).profiles as Record<string, unknown> | null;
+  return NextResponse.json({
+    ...(log as Record<string, unknown>),
+    profiles: undefined,
+    imported_by_name: profile?.full_name ?? null,
+  });
 }

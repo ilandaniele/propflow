@@ -1,163 +1,148 @@
 import { cache } from 'react';
-import { unstable_cache } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { eq } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { profiles } from '@/lib/db/schema';
-import type { InferSelectModel } from 'drizzle-orm';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type DrizzleProfile = InferSelectModel<typeof profiles>;
+import { eq } from 'drizzle-orm';
+import type { Profile } from '@/types';
 
 export interface AuthContext {
   userId: string;
   orgId: string;
   role: 'admin' | 'tenant';
-  profile: DrizzleProfile;
+  profile: Profile;
 }
 
-// ---------------------------------------------------------------------------
-// Core guards — used in Server Actions and Route Handlers
-// No supabase.auth calls — identity comes from NextAuth session (AC8, AC11)
-// ---------------------------------------------------------------------------
-
 /**
- * Verify the caller is an authenticated admin.
- * Returns AuthContext or throws 'unauthorized' / 'profile_not_found'.
+ * Returns the authenticated NextAuth session user for the current request.
  *
- * AC8: returns {userId, orgId, role:'admin', profile}; no supabase.auth calls;
- *      profile fetched via Drizzle.
+ * Wrapped in React.cache() so the session round-trip happens at most once
+ * per React render pass regardless of how many Server Components call it.
  */
-export async function requireAdmin(): Promise<AuthContext> {
+export const getCachedUser = cache(async () => {
   const session = await auth();
-  if (!session?.user || session.user.role !== 'admin') {
-    throw new Error('unauthorized');
-  }
-  if (!session.user.orgId) throw new Error('unauthorized');
-  const profile = await db.query.profiles.findFirst({
-    where: eq(profiles.userId, session.user.id),
-  });
-  if (!profile) throw new Error('profile_not_found');
-  return {
-    userId: session.user.id,
-    orgId: session.user.orgId,
-    role: 'admin' as const,
-    profile,
-  };
-}
+  if (!session?.user?.id) return null;
+  return session.user as { id: string; email?: string | null; name?: string | null };
+});
 
 /**
- * Verify the caller is an authenticated tenant.
- * Redirects to /dashboard if the session belongs to an admin.
- * Returns AuthContext or throws 'unauthorized' / 'profile_not_found'.
+ * Returns the authenticated user's profile row for the current request.
  *
- * AC9: rejects admin session (redirect /dashboard).
+ * Wrapped in React.cache() so the profiles SELECT is issued at most once per
+ * render pass. Returns null if the user is not authenticated or has no profile row.
  */
-export async function requireTenant(): Promise<AuthContext> {
-  const session = await auth();
-  if (!session?.user) throw new Error('unauthorized');
-  if (!session.user.orgId) throw new Error('unauthorized');
-  // Admin trying to use a tenant-only action → redirect to admin area (AC9)
-  if (session.user.role === 'admin') {
-    redirect('/dashboard');
-  }
-  const profile = await db.query.profiles.findFirst({
-    where: eq(profiles.userId, session.user.id),
-  });
-  if (!profile) throw new Error('profile_not_found');
+export const getProfile = cache(async (): Promise<Profile | null> => {
+  const user = await getCachedUser();
+  if (!user) return null;
+
+  const rows = await db
+    .select({
+      id:       profiles.id,
+      orgId:    profiles.orgId,
+      role:     profiles.role,
+      fullName: profiles.fullName,
+      phone:    profiles.phone,
+      email:    profiles.email,
+    })
+    .from(profiles)
+    .where(eq(profiles.userId, user.id))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  // Map Drizzle camelCase to the Profile type shape (org_id, full_name)
   return {
-    userId: session.user.id,
-    orgId: session.user.orgId,
-    role: 'tenant' as const,
-    profile,
-  };
-}
+    id:        row.id,
+    org_id:    row.orgId,
+    role:      row.role as 'admin' | 'tenant',
+    full_name: row.fullName ?? undefined,
+    phone:     row.phone ?? undefined,
+    email:     row.email ?? undefined,
+  } as unknown as Profile;
+});
 
 /**
- * Verify the caller is authenticated (any role).
- * Returns AuthContext or throws 'unauthorized' / 'profile_not_found'.
- *
- * Used in Server Actions that are available to both admins and tenants.
+ * Verify the caller is authenticated. Returns AuthContext or throws.
+ * Use in every Server Action and Route Handler.
  */
 export const requireUser = cache(async (): Promise<AuthContext> => {
-  const session = await auth();
-  if (!session?.user) throw new Error('UNAUTHORIZED');
+  const user = await getCachedUser();
+  if (!user) throw new Error('UNAUTHORIZED');
 
-  const profile = await db.query.profiles.findFirst({
-    where: eq(profiles.userId, session.user.id),
-  });
+  const profile = await getProfile();
   if (!profile) throw new Error('UNAUTHORIZED');
 
-  const role = session.user.role;
-  if (role !== 'admin' && role !== 'tenant') throw new Error('UNAUTHORIZED');
-
   return {
-    userId: session.user.id,
-    orgId: session.user.orgId,
-    role,
+    userId: user.id,
+    orgId:  profile.org_id,
+    role:   profile.role,
     profile,
   };
 });
 
-// ---------------------------------------------------------------------------
-// Fast-path helpers — for use in layouts only
-//
-// Backed by unstable_cache (cross-request server-side cache) so they survive
-// across navigations, not only within one render pass like React.cache().
-//
-// The TTL is acceptable for layout cosmetics (display name, org name) but NOT
-// for authorization decisions — pages must still call requireAdmin()/requireTenant()
-// which trigger a fresh auth() round-trip (defense in depth).
-// ---------------------------------------------------------------------------
-
 /**
- * Returns the profile row for a given userId, cached for 60 seconds.
- * Cache is tagged 'profile-{userId}' for targeted invalidation.
- *
- * Returns null when no row is found.
- * SAFE TO USE IN LAYOUTS: userId originates from the NextAuth session.
+ * Verify the caller is an admin. Returns AuthContext or throws.
  */
-export function getProfileFast(userId: string): Promise<DrizzleProfile | null> {
-  return unstable_cache(
-    async (uid: string) => {
-      const profile = await db.query.profiles.findFirst({
-        where: eq(profiles.userId, uid),
-      });
-      return profile ?? null;
-    },
-    ['profile', userId],
-    {
-      revalidate: 60,
-      tags: [`profile-${userId}`],
-    }
-  )(userId);
+export async function requireAdmin(): Promise<AuthContext> {
+  const ctx = await requireUser();
+  if (ctx.role !== 'admin') {
+    throw new Error('FORBIDDEN');
+  }
+  return ctx;
 }
 
 /**
- * Returns the organization name for a given orgId, cached for 300 seconds.
- * Cache is tagged 'org-{orgId}' for targeted invalidation.
- *
- * Returns null when no row is found.
- * SAFE TO USE IN LAYOUTS: orgId comes from the session-validated profile.
+ * Verify the caller is a tenant. Returns AuthContext or throws.
  */
-export function getOrgNameFast(orgId: string): Promise<string | null> {
-  return unstable_cache(
-    async (oid: string) => {
-      const { organizations } = await import('@/lib/db/schema');
-      const org = await db.query.organizations.findFirst({
-        where: eq(organizations.id, oid),
-        columns: { name: true },
-      });
-      return org?.name ?? null;
-    },
-    ['org', orgId],
-    {
-      revalidate: 300,
-      tags: [`org-${orgId}`],
-    }
-  )(orgId);
+export async function requireTenant(): Promise<AuthContext> {
+  const ctx = await requireUser();
+  if (ctx.role !== 'tenant') {
+    throw new Error('FORBIDDEN');
+  }
+  return ctx;
+}
+
+/**
+ * Fast-path profile lookup for layouts — queries Drizzle directly.
+ * Returns null when no row is found.
+ */
+export async function getProfileFast(userId: string): Promise<Profile | null> {
+  const rows = await db
+    .select({
+      id:       profiles.id,
+      orgId:    profiles.orgId,
+      role:     profiles.role,
+      fullName: profiles.fullName,
+      phone:    profiles.phone,
+      email:    profiles.email,
+    })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    id:        row.id,
+    org_id:    row.orgId,
+    role:      row.role as 'admin' | 'tenant',
+    full_name: row.fullName ?? undefined,
+    phone:     row.phone ?? undefined,
+    email:     row.email ?? undefined,
+  } as unknown as Profile;
+}
+
+/**
+ * Fast-path org name lookup for layouts — queries Drizzle directly.
+ * Returns null when no row is found.
+ */
+export async function getOrgNameFast(orgId: string): Promise<string | null> {
+  const { organizations } = await import('@/lib/db/schema');
+  const rows = await db
+    .select({ name: organizations.name })
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+  return rows[0]?.name ?? null;
 }

@@ -10,9 +10,8 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
 
-// NextAuth handles the Google callback at /api/auth/callback/google automatically.
-// We redirect admin users to /dashboard after sign-in via the signIn callback.
-const GOOGLE_CALLBACK_URL = '/dashboard';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const GOOGLE_CALLBACK_URL = `${SITE_URL}/auth/callback`;
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -106,7 +105,7 @@ export default function LoginPage() {
 
           {/* Google OAuth button */}
           <div className="mt-4">
-            <GoogleSignInButton callbackUrl={GOOGLE_CALLBACK_URL} />
+            <GoogleSignInButton redirectTo={GOOGLE_CALLBACK_URL} />
           </div>
         </div>
 

@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { db } from '@/lib/db';
-import { incidents, incidentComments, profiles } from '@/lib/db/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { requireTenant } from '@/lib/auth/guards';
 import { Card } from '@/components/ui/Card';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
@@ -19,44 +17,17 @@ export default async function PortalIncidentDetailPage({ params }: Props) {
   let ctx;
   try { ctx = await requireTenant(); } catch { redirect('/login'); }
 
-  const [incidentRows, commentRows] = await Promise.all([
-    db.select({
-      id: incidents.id,
-      orgId: incidents.orgId,
-      title: incidents.title,
-      description: incidents.description,
-      status: incidents.status,
-      priority: incidents.priority,
-      category: incidents.category,
-      resolvedAt: incidents.resolvedAt,
-      createdAt: incidents.createdAt,
-      photoPath: incidents.photoPath,
-    })
-      .from(incidents)
-      .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId))),
-    db.select({
-      id: incidentComments.id,
-      authorId: incidentComments.authorId,
-      body: incidentComments.body,
-      createdAt: incidentComments.createdAt,
-    })
-      .from(incidentComments)
-      .where(and(eq(incidentComments.incidentId, id), eq(incidentComments.orgId, ctx.orgId)))
-      .orderBy(asc(incidentComments.createdAt)),
+  const supabase = await createClient();
+
+  const [incidentRes, commentsRes] = await Promise.all([
+    supabase.from('incidents').select('*').eq('id', id).eq('org_id', ctx.orgId).single(),
+    supabase.from('incident_comments').select('*, profiles!incident_comments_author_id_fkey(full_name)').eq('incident_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: true }),
   ]);
 
-  const incident = incidentRows[0];
-  if (!incident) notFound();
+  if (!incidentRes.data) notFound();
 
-  // Load comment author names
-  const authorIds = [...new Set(commentRows.map((c) => c.authorId))];
-  const authorMap = new Map<string, string | null>();
-  if (authorIds.length > 0) {
-    const authorRows = await db.select({ id: profiles.id, fullName: profiles.fullName })
-      .from(profiles)
-      .where(eq(profiles.orgId, ctx.orgId));
-    for (const a of authorRows) authorMap.set(a.id, a.fullName);
-  }
+  const incident = incidentRes.data;
+  const comments = commentsRes.data ?? [];
 
   return (
     <div className="space-y-5">
@@ -71,9 +42,9 @@ export default async function PortalIncidentDetailPage({ params }: Props) {
       <div>
         <h1 className="text-xl font-bold text-slate-900">{incident.title}</h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Reported {new Date(incident.createdAt).toLocaleDateString()} ·
+          Reported {new Date(incident.created_at).toLocaleDateString()} ·
           <span className="capitalize ml-1">{incident.category}</span>
-          {incident.resolvedAt && ` · Resolved ${new Date(incident.resolvedAt).toLocaleDateString()}`}
+          {incident.resolved_at && ` · Resolved ${new Date(incident.resolved_at).toLocaleDateString()}`}
         </p>
       </div>
 
@@ -84,19 +55,19 @@ export default async function PortalIncidentDetailPage({ params }: Props) {
       {/* Comments */}
       <Card>
         <h2 className="text-sm font-semibold text-slate-900 mb-4">Updates & Comments</h2>
-        {commentRows.length === 0 ? (
+        {comments.length === 0 ? (
           <p className="text-sm text-slate-400 mb-4">No updates yet. Your property manager will respond here.</p>
         ) : (
           <div className="space-y-4 mb-4">
-            {commentRows.map((comment) => {
-              const authorName = authorMap.get(comment.authorId) ?? null;
+            {comments.map((comment) => {
+              const author = comment.profiles as { full_name: string | null } | null;
               return (
                 <div key={comment.id} className="flex gap-3">
-                  <Avatar name={authorName} size="sm" />
+                  <Avatar name={author?.full_name} size="sm" />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-xs font-medium text-slate-900">{authorName ?? 'Team'}</p>
-                      <p className="text-xs text-slate-400">{new Date(comment.createdAt).toLocaleString()}</p>
+                      <p className="text-xs font-medium text-slate-900">{author?.full_name ?? 'Team'}</p>
+                      <p className="text-xs text-slate-400">{new Date(comment.created_at).toLocaleString()}</p>
                     </div>
                     <p className="text-sm text-slate-700">{comment.body}</p>
                   </div>

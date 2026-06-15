@@ -1,52 +1,23 @@
-/**
- * Supabase SSR client — STORAGE-ONLY after W3 migration.
- *
- * This file retains `createClient` as a transitional export while W4 migrates
- * all server actions and pages to Drizzle. Once W4 is complete, this file
- * should export only `createStorageClient` and `getSessionFast`.
- *
- * `getSessionFast` now uses NextAuth `auth()` instead of Supabase session cookies.
- * It is used in layouts for fast, zero-network session reads.
- */
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
-import type { Session as NextAuthSession } from 'next-auth';
-import { auth } from '@/auth';
+import type { Session } from '@supabase/supabase-js';
 
-// ---------------------------------------------------------------------------
-// NextAuth-backed session helper (replaces old Supabase getSessionFast)
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the current NextAuth session for the current request.
- *
- * Backed by React.cache() so the session lookup happens at most once per
- * React render pass (layout + nested Server Components).
- *
- * Returns null when no session is present (unauthenticated or expired).
- * The middleware (src/proxy.ts) validates the session on every request;
- * by the time the layout calls this, the session is already validated.
- *
- * LAYOUTS ONLY: For authorization in Server Actions / Route Handlers,
- * use requireAdmin() / requireTenant() from @/lib/auth/guards instead.
- */
-export const getSessionFast = cache(async (): Promise<NextAuthSession | null> => {
-  return auth();
-});
-
-// ---------------------------------------------------------------------------
-// Supabase SSR client — transitional (for storage operations and W4 migration)
-// ---------------------------------------------------------------------------
+// We don't pass the Database generic here to avoid strict type mismatches
+// between our hand-written types and the supabase-js internal types.
+// All operations are type-safe at the application layer via the Zod schemas.
 
 /**
  * Returns (or creates) a Supabase SSR client for the current request.
  *
- * After W4 migration, this will only be used for Supabase Storage operations.
- * Direct DB operations (supabase.from()) should be replaced with Drizzle in W4.
+ * Wrapped in React.cache() so every Server Component and Server Action that
+ * calls createClient() within the same React render pass receives the SAME
+ * client instance — no extra cookies() awaits, no duplicate client construction.
  *
- * Wrapped in React.cache() so repeated calls within one render pass receive
- * the same client instance.
+ * Safety note: React.cache() is request-scoped (it is reset for each incoming
+ * request by React's server renderer). It cannot leak state between users or
+ * requests. The underlying client still writes Set-Cookie headers via the
+ * setAll hook, so session refresh propagates correctly.
  */
 export const createClient = cache(async () => {
   const store = await cookies();
@@ -71,7 +42,28 @@ export const createClient = cache(async () => {
 });
 
 /**
- * Storage-specific Supabase client.
- * Use this for all Supabase Storage bucket operations.
+ * Returns the current Supabase session by reading the cookie WITHOUT a network
+ * round-trip to the Supabase Auth server.
+ *
+ * This is safe: src/proxy.ts middleware calls updateSession() → getUser() on
+ * every matched request, validating the JWT and refreshing the cookie before
+ * this Server Component runs. By the time the layout reads this value the
+ * cookie already reflects the middleware-validated session state.
+ *
+ * Use this in layouts for fast, zero-latency session access. Pages that
+ * perform data mutations or sensitive reads must continue to use
+ * requireAdmin() / requireTenant() which call getUser() for full JWT
+ * revalidation (defense in depth per spec IC5).
+ *
+ * Wrapped in React.cache() so repeated calls within one render pass (e.g.
+ * layout + nested Server Components) are free — the getSession() call happens
+ * at most once per React render pass.
+ *
+ * Returns null when no session is present (unauthenticated or expired and
+ * middleware has already cleared the cookie).
  */
-export const createStorageClient = cache(async () => createClient());
+export const getSessionFast = cache(async (): Promise<Session | null> => {
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  return session;
+});

@@ -1,9 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
-import { visitorLogs, tenants, contracts } from '@/lib/db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
@@ -24,30 +22,23 @@ export async function createVisitorLog(
   const parsed = VisitorLogSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
+  const supabase = await createClient();
+
   // For tenant callers: validate that the unit belongs to their active contract (IC-E3)
   let unitId = parsed.data.unit_id ?? null;
   if (ctx.role === 'tenant') {
     // Derive unit from tenant's active contract
-    const tenantRows = await db.select({ id: tenants.id })
-      .from(tenants)
-      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)));
+    const { data: contracts } = await supabase
+      .from('contracts')
+      .select('unit_id')
+      .eq('org_id', ctx.orgId)
+      .eq('status', 'active')
+      .in('tenant_id', (
+        await supabase.from('tenants').select('id').eq('profile_id', ctx.userId).eq('org_id', ctx.orgId)
+      ).data?.map((t: { id: string }) => t.id) ?? [])
+      .limit(1);
 
-    const tenantIds = tenantRows.map(t => t.id);
-
-    let tenantUnitId: string | null = null;
-    if (tenantIds.length > 0) {
-      const contractRow = await db.select({ unitId: contracts.unitId })
-        .from(contracts)
-        .where(and(
-          eq(contracts.orgId, ctx.orgId),
-          eq(contracts.status, 'active'),
-          inArray(contracts.tenantId, tenantIds)
-        ))
-        .limit(1)
-        .then(r => r[0] ?? null);
-      tenantUnitId = contractRow?.unitId ?? null;
-    }
-
+    const tenantUnitId = contracts?.[0]?.unit_id;
     if (!tenantUnitId) return Errors.FORBIDDEN();
 
     // Tenant can only log visitors for their own unit
@@ -55,21 +46,21 @@ export async function createVisitorLog(
     unitId = tenantUnitId;
   }
 
-  try {
-    await db.insert(visitorLogs).values({
-      orgId: ctx.orgId,
-      propertyId: parsed.data.property_id ?? null,
-      unitId,
-      visitorName: parsed.data.visitor_name,
-      hostTenantId: parsed.data.host_tenant_id ?? null,
-      visitDate: parsed.data.visit_date,
-      entryTime: parsed.data.entry_time ? new Date(parsed.data.entry_time) : null,
-      purpose: parsed.data.purpose ?? null,
-      createdBy: ctx.userId,
-      notes: parsed.data.notes ?? null,
-    });
-  } catch (err) {
-    log.error('[createVisitorLog] db error', { err: err instanceof Error ? err.message : String(err) });
+  const { error } = await supabase.from('visitor_logs').insert({
+    org_id: ctx.orgId,
+    property_id: parsed.data.property_id ?? null,
+    unit_id: unitId,
+    visitor_name: parsed.data.visitor_name,
+    host_tenant_id: parsed.data.host_tenant_id ?? null,
+    visit_date: parsed.data.visit_date,
+    entry_time: parsed.data.entry_time ?? null,
+    purpose: parsed.data.purpose ?? null,
+    created_by: ctx.userId,
+    notes: parsed.data.notes ?? null,
+  });
+
+  if (error) {
+    log.error('[createVisitorLog] db error', { code: error.code });
     return Errors.INTERNAL();
   }
 
@@ -91,21 +82,19 @@ export async function updateVisitorLog(
   const parsed = UpdateVisitorLogSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const existing = await db.select({ id: visitorLogs.id })
-    .from(visitorLogs)
-    .where(and(eq(visitorLogs.id, parsed.data.id), eq(visitorLogs.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from('visitor_logs').select('id').eq('id', parsed.data.id).eq('org_id', ctx.orgId).single();
   if (!existing) return Errors.NOT_FOUND();
 
   const { id, ...updates } = parsed.data;
+  const { error } = await supabase.from('visitor_logs').update({
+    ...updates,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id).eq('org_id', ctx.orgId);
 
-  try {
-    await db.update(visitorLogs).set({
-      ...updates,
-      updatedAt: new Date(),
-    }).where(and(eq(visitorLogs.id, id), eq(visitorLogs.orgId, ctx.orgId)));
-  } catch (err) {
-    log.error('[updateVisitorLog] db error', { err: err instanceof Error ? err.message : String(err) });
+  if (error) {
+    log.error('[updateVisitorLog] db error', { code: error.code });
     return Errors.INTERNAL();
   }
 

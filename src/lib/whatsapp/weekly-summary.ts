@@ -4,19 +4,9 @@
  * Used by the /api/cron/weekly-summary route.
  *
  * Security: No PII in returned body string. Phone numbers, tenant names, etc. are excluded.
- *
- * W6: replaced createAdminClient() / Supabase queries with Drizzle db.
  */
 
-import { db } from '@/lib/db';
-import { eq, and, gte, lte } from 'drizzle-orm';
-import {
-  properties,
-  tenantTasks,
-  sanctions,
-  incidents,
-  payments,
-} from '@/lib/db/schema';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { buildWhatsAppPhase6Template } from './templates';
 import { log } from '@/lib/log';
 
@@ -29,97 +19,88 @@ export interface WeeklySummaryCounts {
 }
 
 export interface WeeklySummaryResult {
-  body:         string;
-  counts:       WeeklySummaryCounts;
-  isoWeek:      string;
+  body:       string;
+  counts:     WeeklySummaryCounts;
+  isoWeek:    string;
   propertyName: string;
 }
 
 /**
  * Build a weekly summary for a single property.
- * All DB queries are org-scoped via Drizzle.
+ * All DB queries are service-role (admin client, bypasses RLS).
  */
 export async function buildWeeklySummary(
   orgId: string,
   propertyId: string
 ): Promise<WeeklySummaryResult> {
-  const isoWeek = getIsoWeek(new Date());
-  const weekBounds = getIsoWeekBounds(new Date());
+  const adminClient = createAdminClient();
+
+  // Get ISO week from Postgres to ensure consistent formatting
+  const { data: isoRow } = await adminClient
+    .rpc('get_current_iso_week')
+    .single() as { data: { iso_week: string } | null; error: unknown };
+
+  // Fallback: compute ISO week in JS if RPC not available
+  const isoWeek = (isoRow as { iso_week?: string } | null)?.iso_week ?? getIsoWeek(new Date());
 
   // Get property name
-  const propertyRows = await db
-    .select({ name: properties.name })
-    .from(properties)
-    .where(and(eq(properties.id, propertyId), eq(properties.orgId, orgId)))
-    .limit(1);
+  const { data: property } = await adminClient
+    .from('properties')
+    .select('name')
+    .eq('id', propertyId)
+    .single();
 
-  const propertyName = propertyRows[0]?.name ?? propertyId;
+  const propertyName = property?.name ?? propertyId;
 
-  // Query counts in parallel
-  const [
-    tasksCompletedRows,
-    tasksPendingRows,
-    sanctionRows,
-    incidentRows,
-    paymentRows,
-  ] = await Promise.all([
-    // Tasks completed this week
-    db
-      .select({ id: tenantTasks.id })
-      .from(tenantTasks)
-      .where(and(
-        eq(tenantTasks.orgId, orgId),
-        eq(tenantTasks.status, 'completed'),
-        gte(tenantTasks.updatedAt, new Date(weekBounds.start)),
-        lte(tenantTasks.updatedAt, new Date(weekBounds.end)),
-      )),
+  // Query ISO-week start / end for filtering
+  const weekBounds = getIsoWeekBounds(new Date());
 
-    // Tasks still pending
-    db
-      .select({ id: tenantTasks.id })
-      .from(tenantTasks)
-      .where(and(
-        eq(tenantTasks.orgId, orgId),
-        eq(tenantTasks.status, 'pending'),
-      )),
+  // Tasks completed this week
+  const { count: tasksCompleted } = await adminClient
+    .from('tenant_tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('status', 'completed')
+    .gte('updated_at', weekBounds.start)
+    .lte('updated_at', weekBounds.end);
 
-    // Sanctions applied this week
-    db
-      .select({ id: sanctions.id })
-      .from(sanctions)
-      .where(and(
-        eq(sanctions.orgId, orgId),
-        gte(sanctions.createdAt, new Date(weekBounds.start)),
-        lte(sanctions.createdAt, new Date(weekBounds.end)),
-      )),
+  // Tasks still pending
+  const { count: tasksPending } = await adminClient
+    .from('tenant_tasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('status', 'pending');
 
-    // Incidents opened this week
-    db
-      .select({ id: incidents.id })
-      .from(incidents)
-      .where(and(
-        eq(incidents.orgId, orgId),
-        gte(incidents.createdAt, new Date(weekBounds.start)),
-        lte(incidents.createdAt, new Date(weekBounds.end)),
-      )),
+  // Sanctions applied this week
+  const { count: sanctions } = await adminClient
+    .from('sanctions')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .gte('created_at', weekBounds.start)
+    .lte('created_at', weekBounds.end);
 
-    // Payments received this week
-    db
-      .select({ id: payments.id })
-      .from(payments)
-      .where(and(
-        eq(payments.orgId, orgId),
-        gte(payments.createdAt, new Date(weekBounds.start)),
-        lte(payments.createdAt, new Date(weekBounds.end)),
-      )),
-  ]);
+  // Incidents opened this week
+  const { count: incidents } = await adminClient
+    .from('incidents')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .gte('created_at', weekBounds.start)
+    .lte('created_at', weekBounds.end);
+
+  // Payments received this week
+  const { count: payments } = await adminClient
+    .from('payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .gte('created_at', weekBounds.start)
+    .lte('created_at', weekBounds.end);
 
   const counts: WeeklySummaryCounts = {
-    tasksCompleted: tasksCompletedRows.length,
-    tasksPending:   tasksPendingRows.length,
-    sanctions:      sanctionRows.length,
-    incidents:      incidentRows.length,
-    payments:       paymentRows.length,
+    tasksCompleted: tasksCompleted ?? 0,
+    tasksPending:   tasksPending   ?? 0,
+    sanctions:      sanctions      ?? 0,
+    incidents:      incidents      ?? 0,
+    payments:       payments       ?? 0,
   };
 
   const body = buildWhatsAppPhase6Template('weeklySummaryBody', 'es', {

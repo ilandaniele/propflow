@@ -12,12 +12,11 @@ const QuerySchema = z.object({
 
 export async function GET(request: NextRequest) {
   const session = await auth();
+  const user = session?.user;
 
-  if (!session?.user?.id) {
+  if (!user?.id) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, { status: 401 });
   }
-
-  const userId = session.user.id;
 
   const searchParams = Object.fromEntries(request.nextUrl.searchParams);
   const parsed = QuerySchema.safeParse(searchParams);
@@ -35,10 +34,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Verify the user has access to the incident this photo belongs to
-  const profile = await db.select({ orgId: profiles.orgId })
+  const profileRows = await db
+    .select({ orgId: profiles.orgId })
     .from(profiles)
-    .where(eq(profiles.id, userId))
-    .then((r) => r[0] ?? null);
+    .where(eq(profiles.userId, user.id))
+    .limit(1);
+
+  const profile = profileRows[0];
   if (!profile) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Profile not found' } }, { status: 401 });
   }
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }
 
-  // Generate signed URL (60 min TTL)
+  // Generate signed URL (60 min TTL) — storage still uses Supabase
   const supabase = await createClient();
   const { data, error } = await supabase.storage
     .from('incident-photos')

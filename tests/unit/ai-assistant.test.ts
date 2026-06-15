@@ -1,7 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
-
-// Mock db so the module-level import doesn't throw DATABASE_URL error
-vi.mock('@/lib/db', () => ({ db: {} }));
+import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, redactPiiFromUserMessage } from '@/lib/ai/assistant';
 import type { OrgContext } from '@/lib/ai/assistant';
 

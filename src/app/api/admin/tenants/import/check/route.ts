@@ -6,10 +6,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, and, inArray } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { tenants } from '@/lib/db/schema';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { parseTenantsCsv } from '@/lib/csv/parseTenantsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -36,28 +34,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const csvText = await file.text();
   const { rows, errors, warnings } = parseTenantsCsv(csvText);
 
-  // Resolve actions: check existing by external_tenant_id or email — org-scoped
-  const emails      = rows.map(r => r.email).filter(Boolean) as string[];
-  const externalIds = rows.map(r => r.external_tenant_id).filter(Boolean) as string[];
+  const admin = createAdminClient();
+
+  // Resolve actions: check existing by external_tenant_id or email
+  const emails          = rows.map(r => r.email).filter(Boolean);
+  const externalIds     = rows.map(r => r.external_tenant_id).filter(Boolean) as string[];
 
   const [emailRes, extRes] = await Promise.all([
     emails.length > 0
-      ? db.select({ id: tenants.id, email: tenants.email })
-          .from(tenants)
-          .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.email, emails)))
-      : Promise.resolve([]),
+      ? admin.from('tenants').select('id, email').eq('org_id', ctx.orgId).in('email', emails)
+      : Promise.resolve({ data: [] }),
     externalIds.length > 0
-      ? db.select({ id: tenants.id, externalTenantId: tenants.externalTenantId })
-          .from(tenants)
-          .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.externalTenantId, externalIds)))
-      : Promise.resolve([]),
+      ? admin.from('tenants').select('id, external_tenant_id').eq('org_id', ctx.orgId).in('external_tenant_id', externalIds as string[])
+      : Promise.resolve({ data: [] }),
   ]);
 
   const emailMap: Record<string, string> = {};
-  emailRes.forEach(t => { if (t.email) emailMap[t.email] = t.id; });
+  (emailRes.data ?? []).forEach((t: { id: string; email: string }) => { emailMap[t.email] = t.id; });
 
   const extIdMap: Record<string, string> = {};
-  extRes.forEach(t => { if (t.externalTenantId) extIdMap[t.externalTenantId] = t.id; });
+  (extRes.data ?? []).forEach((t: { id: string; external_tenant_id: string }) => {
+    if (t.external_tenant_id) extIdMap[t.external_tenant_id] = t.id;
+  });
 
   const resolvedRows = rows
     .filter(r => r.action !== 'invalid')
@@ -82,9 +80,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
 
   return NextResponse.json({
-    rows_total:   rows.length,
-    rows_create:  counts['create'] ?? 0,
-    rows_update:  counts['update'] ?? 0,
+    rows_total: rows.length,
+    rows_create: counts['create'] ?? 0,
+    rows_update: counts['update'] ?? 0,
     rows_invalid: errors.filter(e => e.rowNumber > 0).length,
     rows_warning: warnings.length,
     preview_rows: resolvedRows.slice(0, 10),

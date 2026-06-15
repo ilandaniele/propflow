@@ -5,17 +5,16 @@
  * These tests verify:
  *  (a) Given mixed pre-fetched arrays, the builder produces a correctly-sorted timeline.
  *  (b) Payments are correctly typed as 'payment' events.
- *  (c) whatsapp_messages DB query is still issued (spy on Drizzle db).
+ *  (c) whatsapp_messages query is still issued (spy on Supabase client).
  *  (d) Accepts empty arrays gracefully.
- *  (e) Timeline shape (snapshot) is identical to pre-refactor output for the same inputs.
- *
- * W6: Updated to use Drizzle db mock instead of SupabaseClient.
+ *  (e) Timeline shape (snapshot) is identical to the pre-refactor output for the same inputs.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   buildTenantActivityFeed,
+  type ActivityEvent,
   type PaymentRow,
   type IncidentRow,
   type TaskRow,
@@ -47,42 +46,43 @@ const FIXTURE_SANCTIONS: SanctionRow[] = [
   { id: 'sanc-b', title: 'Noise violation',  kind: 'warning',  amount: null, status: 'proposed', created_at: '2026-01-05T16:00:00Z' },
 ];
 
-// WhatsApp messages: Drizzle returns createdAt as Date (camelCase, typed)
 const FIXTURE_WA_MESSAGES = [
   {
     id: 'msg-a',
     direction: 'inbound',
     classification: 'payment_proof',
     status: 'received',
-    createdAt: new Date('2026-05-22T15:00:00Z'),
+    created_at: '2026-05-22T15:00:00Z',
+    conversation: { tenant_id: TENANT_ID },
   },
   {
     id: 'msg-b',
     direction: 'outbound',
     classification: null,
     status: 'sent',
-    createdAt: new Date('2026-04-30T09:30:00Z'),
+    created_at: '2026-04-30T09:30:00Z',
+    conversation: { tenant_id: TENANT_ID },
   },
 ];
 
-// ── Drizzle db stub factory ───────────────────────────────────────────────────
+// ── Client stub factory ───────────────────────────────────────────────────────
 
 /**
- * Returns a stubbed Drizzle db where the whatsapp_messages join query
+ * Returns a stubbed SupabaseClient where the whatsapp_messages query
  * resolves with the given messages array.
- * A `selectSpy` is exposed so tests can assert the query was (or was not) called.
+ * A `fromSpy` is exposed so tests can assert the query was (or was not) called.
  */
-function makeDb(waMessages: unknown[] = []) {
-  const chainable: Record<string, unknown> = {};
-  chainable.limit     = vi.fn().mockResolvedValue(waMessages);
-  chainable.orderBy   = vi.fn().mockReturnValue(chainable);
-  chainable.where     = vi.fn().mockReturnValue(chainable);
-  chainable.innerJoin = vi.fn().mockReturnValue(chainable);
-  chainable.from      = vi.fn().mockReturnValue(chainable);
-  const selectSpy     = vi.fn().mockReturnValue(chainable);
+function makeClient(waMessages: unknown[] = []) {
+  const builder: Record<string, unknown> = {};
+  const chainMethods = ['select', 'eq', 'order'] as const;
+  for (const m of chainMethods) {
+    builder[m] = vi.fn().mockReturnValue(builder);
+  }
+  builder.limit = vi.fn().mockResolvedValue({ data: waMessages, error: null });
 
-  const db = { select: selectSpy } as unknown as PostgresJsDatabase;
-  return { db, selectSpy, chainable };
+  const fromSpy = vi.fn().mockReturnValue(builder);
+  const client = { from: fromSpy } as unknown as SupabaseClient;
+  return { client, fromSpy, builder };
 }
 
 beforeEach(() => {
@@ -94,9 +94,9 @@ beforeEach(() => {
 describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
   // (d) Empty arrays
   it('(d) accepts all-empty arrays and returns an empty timeline', async () => {
-    const { db } = makeDb([]);
+    const { client } = makeClient([]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: [],
@@ -109,9 +109,9 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
 
   // (b) Payments typed as 'payment'
   it('(b) maps payments to ActivityEvent with type="payment"', async () => {
-    const { db } = makeDb([]);
+    const { client } = makeClient([]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: FIXTURE_PAYMENTS,
@@ -128,9 +128,9 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
   });
 
   it('maps incidents to ActivityEvent with type="incident"', async () => {
-    const { db } = makeDb([]);
+    const { client } = makeClient([]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: [],
@@ -144,9 +144,9 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
   });
 
   it('maps tasks to ActivityEvent with type="task"', async () => {
-    const { db } = makeDb([]);
+    const { client } = makeClient([]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: [],
@@ -160,9 +160,9 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
   });
 
   it('maps monetary sanctions with formatted amount as detail', async () => {
-    const { db } = makeDb([]);
+    const { client } = makeClient([]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: [],
@@ -182,9 +182,9 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
 
   // (c) whatsapp_messages DB query is still issued
   it('(c) still issues a whatsapp_messages DB query (only remaining DB call)', async () => {
-    const { db, selectSpy } = makeDb(FIXTURE_WA_MESSAGES);
+    const { client, fromSpy } = makeClient(FIXTURE_WA_MESSAGES);
     await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: [],
@@ -192,14 +192,15 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
       tasks: [],
       sanctions: [],
     });
-    // select() is called once — for whatsapp_messages join
-    expect(selectSpy).toHaveBeenCalledTimes(1);
+    expect(fromSpy).toHaveBeenCalledWith('whatsapp_messages');
+    // Only one table should be queried — no payments/incidents/tasks/sanctions
+    expect(fromSpy).toHaveBeenCalledTimes(1);
   });
 
   it('does NOT query payments, incidents, tenant_tasks, or sanctions from DB', async () => {
-    const { db, selectSpy } = makeDb([]);
+    const { client, fromSpy } = makeClient([]);
     await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: FIXTURE_PAYMENTS,
@@ -207,15 +208,20 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
       tasks: FIXTURE_TASKS,
       sanctions: FIXTURE_SANCTIONS,
     });
-    // select called only once (for whatsapp_messages)
-    expect(selectSpy).toHaveBeenCalledTimes(1);
+    // fromSpy called only once (for whatsapp_messages)
+    expect(fromSpy).toHaveBeenCalledTimes(1);
+    const calledTables = fromSpy.mock.calls.map((c: unknown[]) => c[0]);
+    expect(calledTables).not.toContain('payments');
+    expect(calledTables).not.toContain('incidents');
+    expect(calledTables).not.toContain('tenant_tasks');
+    expect(calledTables).not.toContain('sanctions');
   });
 
   // (a) Mixed data produces a correctly-sorted timeline
   it('(a) sorts all event types by createdAt descending (newest first)', async () => {
-    const { db } = makeDb(FIXTURE_WA_MESSAGES);
+    const { client } = makeClient(FIXTURE_WA_MESSAGES);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: FIXTURE_PAYMENTS,
@@ -237,9 +243,9 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
   });
 
   it('(a) timeline snapshot — shape is identical to pre-refactor output for same inputs', async () => {
-    const { db } = makeDb(FIXTURE_WA_MESSAGES);
+    const { client } = makeClient(FIXTURE_WA_MESSAGES);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: FIXTURE_PAYMENTS,
@@ -265,7 +271,7 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
           "type": "task",
         },
         {
-          "createdAt": "2026-05-22T15:00:00.000Z",
+          "createdAt": "2026-05-22T15:00:00Z",
           "id": "msg-a",
           "label": "WhatsApp — Inbound",
           "type": "whatsapp",
@@ -289,7 +295,7 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
           "type": "sanction",
         },
         {
-          "createdAt": "2026-04-30T09:30:00.000Z",
+          "createdAt": "2026-04-30T09:30:00Z",
           "id": "msg-b",
           "label": "WhatsApp — Outbound",
           "type": "whatsapp",
@@ -336,9 +342,9 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
       created_at: `2026-04-${String((i % 28) + 1).padStart(2, '0')}T${String(i % 24).padStart(2, '0')}:00:00Z`,
     }));
 
-    const { db } = makeDb([]);
+    const { client } = makeClient([]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: lotsOfPayments,
@@ -351,15 +357,16 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
   });
 
   it('whatsapp inbound direction maps to "Inbound" label', async () => {
-    const { db } = makeDb([{
+    const { client } = makeClient([{
       id: 'msg-x',
       direction: 'inbound',
       classification: null,
       status: 'received',
-      createdAt: new Date('2026-06-01T10:00:00Z'),
+      created_at: '2026-06-01T10:00:00Z',
+      conversation: { tenant_id: TENANT_ID },
     }]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: [],
@@ -373,15 +380,16 @@ describe('buildTenantActivityFeed — in-memory builder (AC3)', () => {
   });
 
   it('whatsapp outbound direction maps to "Outbound" label', async () => {
-    const { db } = makeDb([{
+    const { client } = makeClient([{
       id: 'msg-y',
       direction: 'outbound',
       classification: 'reminder',
       status: 'sent',
-      createdAt: new Date('2026-06-01T11:00:00Z'),
+      created_at: '2026-06-01T11:00:00Z',
+      conversation: { tenant_id: TENANT_ID },
     }]);
     const feed = await buildTenantActivityFeed({
-      db,
+      supabase: client,
       tenantId: TENANT_ID,
       orgId: ORG_ID,
       payments: [],

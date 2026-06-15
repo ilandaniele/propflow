@@ -1,9 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
-import { contracts, payments, tenants, charges } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { RecordPaymentSchema, ApprovePaymentSchema, CreateChargeSchema } from '@/lib/schemas/payment';
@@ -20,39 +18,45 @@ export async function recordPayment(
   const parsed = RecordPaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
+  const supabase = await createClient();
+
   // Verify the contract belongs to this user's org
-  const contract = await db.select({ id: contracts.id, tenantId: contracts.tenantId, orgId: contracts.orgId })
-    .from(contracts)
-    .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const { data: contract } = await supabase
+    .from('contracts')
+    .select('id, tenant_id, org_id')
+    .eq('id', parsed.data.contract_id)
+    .eq('org_id', ctx.orgId)
+    .single();
 
   if (!contract) return Errors.NOT_FOUND();
 
   // If the caller is a tenant, verify it's their own contract
   if (ctx.role === 'tenant') {
-    const tenantRow = await db.select({ id: tenants.id })
-      .from(tenants)
-      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
-      .then(r => r[0] ?? null);
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('profile_id', ctx.userId)
+      .eq('org_id', ctx.orgId)
+      .single();
 
-    if (!tenantRow || contract.tenantId !== tenantRow.id) {
+    if (!tenantRow || contract.tenant_id !== tenantRow.id) {
       return Errors.FORBIDDEN();
     }
   }
 
-  try {
-    await db.insert(payments).values({
-      orgId: ctx.orgId,
-      contractId: parsed.data.contract_id,
-      tenantId: contract.tenantId,
-      amount: String(parsed.data.amount),
-      paidAt: parsed.data.paid_at,
-      method: parsed.data.method,
-      reference: parsed.data.reference || null,
-      status: 'pending',
-    });
-  } catch (err) {
-    log.error('[recordPayment] db error', { err: err instanceof Error ? err.message : String(err) });
+  const { error } = await supabase.from('payments').insert({
+    org_id: ctx.orgId,
+    contract_id: parsed.data.contract_id,
+    tenant_id: contract.tenant_id,
+    amount: parsed.data.amount,
+    paid_at: parsed.data.paid_at,
+    method: parsed.data.method,
+    reference: parsed.data.reference || null,
+    status: 'pending',
+  });
+
+  if (error) {
+    log.error('[recordPayment] db error', { code: error.code });
     return Errors.INTERNAL();
   }
 
@@ -67,33 +71,39 @@ export async function approvePayment(
 ): Promise<ActionResult> {
   let ctx;
   try { ctx = await requireAdmin(); } catch {
+    // Could be FORBIDDEN (tenant trying to approve) or UNAUTHORIZED
     return Errors.FORBIDDEN();
   }
 
   const parsed = ApprovePaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
+  const supabase = await createClient();
+
   // Verify payment belongs to this org
-  const payment = await db.select({ id: payments.id, status: payments.status, orgId: payments.orgId })
-    .from(payments)
-    .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const { data: payment } = await supabase
+    .from('payments')
+    .select('id, status, org_id')
+    .eq('id', parsed.data.payment_id)
+    .eq('org_id', ctx.orgId)
+    .single();
 
   if (!payment) return Errors.NOT_FOUND();
   if (payment.status === 'approved') return Errors.CONFLICT('Payment is already approved');
 
-  try {
-    await db
-      .update(payments)
-      .set({
-        status: 'approved',
-        approvedBy: ctx.userId,
-        approvedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)));
-  } catch (err) {
-    log.error('[approvePayment] db error', { err: err instanceof Error ? err.message : String(err) });
+  const { error } = await supabase
+    .from('payments')
+    .update({
+      status: 'approved',
+      approved_by: ctx.userId,
+      approved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', parsed.data.payment_id)
+    .eq('org_id', ctx.orgId);
+
+  if (error) {
+    log.error('[approvePayment] db error', { code: error.code });
     return Errors.INTERNAL();
   }
 
@@ -112,26 +122,33 @@ export async function createCharge(
   const parsed = CreateChargeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  // Verify contract belongs to this org; derive tenant_id server-side (IDOR guard)
-  const contract = await db.select({ id: contracts.id, tenantId: contracts.tenantId })
-    .from(contracts)
-    .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const supabase = await createClient();
+
+  // Verify contract belongs to this org
+  const { data: contract } = await supabase
+    .from('contracts')
+    .select('id, tenant_id')
+    .eq('id', parsed.data.contract_id)
+    .eq('org_id', ctx.orgId)
+    .single();
 
   if (!contract) return Errors.NOT_FOUND();
 
-  try {
-    await db.insert(charges).values({
-      orgId: ctx.orgId,
-      contractId: parsed.data.contract_id,
-      tenantId: contract.tenantId,
-      amount: String(parsed.data.amount),
-      description: parsed.data.description,
-      period: parsed.data.period || null,
-      dueDate: parsed.data.due_date || null,
-    });
-  } catch (err) {
-    log.error('[createCharge] db error', { err: err instanceof Error ? err.message : String(err) });
+  // B5: Always derive tenant_id from the fetched contract server-side.
+  // The client-supplied tenant_id is ignored to prevent admin assigning a charge
+  // to an arbitrary tenant within the org (data integrity / attribution correctness).
+  const { error } = await supabase.from('charges').insert({
+    org_id: ctx.orgId,
+    contract_id: parsed.data.contract_id,
+    tenant_id: contract.tenant_id,
+    amount: parsed.data.amount,
+    description: parsed.data.description,
+    period: parsed.data.period || null,
+    due_date: parsed.data.due_date || null,
+  });
+
+  if (error) {
+    log.error('[createCharge] db error', { code: error.code });
     return Errors.INTERNAL();
   }
 

@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { db } from '@/lib/db';
-import { units, payments, expenses, contracts } from '@/lib/db/schema';
-import { eq, and, gte, lte } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { computeOccupancy, computeTrueNetProfit } from '@/lib/finance/kpis';
@@ -14,6 +12,8 @@ export default async function ForecastingPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
+  const supabase = await createClient();
+
   const now = new Date();
   // Use last full calendar month as the base period for actuals
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0); // last day of prev month
@@ -21,53 +21,52 @@ export default async function ForecastingPage() {
     lastMonthEnd.getFullYear(),
     lastMonthEnd.getMonth(),
     1
-  );
-  const lastMonthStartStr = `${lastMonthStart.getFullYear()}-${String(lastMonthStart.getMonth() + 1).padStart(2, '0')}-01`;
-  const lastMonthEndStr = `${lastMonthEnd.getFullYear()}-${String(lastMonthEnd.getMonth() + 1).padStart(2, '0')}-${String(lastMonthEnd.getDate()).padStart(2, '0')}`;
+  ).toISOString();
+  const lastMonthEndStr = lastMonthEnd.toISOString();
 
-  const [unitRows, paymentRows, expenseRows, contractRows] = await Promise.all([
-    db.select({ id: units.id, status: units.status, monthlyRentDefault: units.monthlyRentDefault })
-      .from(units)
-      .where(eq(units.orgId, ctx.orgId)),
-    db.select({ amount: payments.amount, paidAt: payments.paidAt })
-      .from(payments)
-      .where(and(
-        eq(payments.orgId, ctx.orgId),
-        eq(payments.status, 'approved'),
-        gte(payments.paidAt, lastMonthStartStr),
-        lte(payments.paidAt, lastMonthEndStr),
-      )),
-    db.select({ amount: expenses.amount })
-      .from(expenses)
-      .where(and(
-        eq(expenses.orgId, ctx.orgId),
-        gte(expenses.incurredOn, lastMonthStartStr),
-        lte(expenses.incurredOn, lastMonthEndStr),
-      )),
-    db.select({ unitId: contracts.unitId, monthlyRent: contracts.monthlyRent, status: contracts.status })
-      .from(contracts)
-      .where(and(
-        eq(contracts.orgId, ctx.orgId),
-        eq(contracts.status, 'active'),
-      )),
+  const [unitsRes, paymentsRes, expensesRes, contractsRes] = await Promise.all([
+    supabase.from('units').select('id, status, monthly_rent_default').eq('org_id', ctx.orgId),
+    supabase
+      .from('payments')
+      .select('amount, paid_at')
+      .eq('org_id', ctx.orgId)
+      .eq('status', 'approved')
+      .gte('paid_at', lastMonthStart)
+      .lte('paid_at', lastMonthEndStr),
+    supabase
+      .from('expenses')
+      .select('amount')
+      .eq('org_id', ctx.orgId)
+      .gte('incurred_on', lastMonthStart)
+      .lte('incurred_on', lastMonthEndStr),
+    supabase
+      .from('contracts')
+      .select('unit_id, monthly_rent, status')
+      .eq('org_id', ctx.orgId)
+      .eq('status', 'active'),
   ]);
 
-  const totalUnits = unitRows.length;
-  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
+  const units = unitsRes.data ?? [];
+  const payments = paymentsRes.data ?? [];
+  const expenses = expensesRes.data ?? [];
+  const activeContracts = contractsRes.data ?? [];
+
+  const totalUnits = units.length;
+  const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
 
   const baseOccupancyRate = totalUnits > 0 ? occupiedUnits / totalUnits : 0;
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
 
-  const totalIncome = paymentRows.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-  const totalExpenses = expenseRows.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
+  const totalIncome = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
   const netProfitKpi = computeTrueNetProfit(totalIncome, totalExpenses);
 
   // Monthly revenue potential at 100% occupancy — sum of active contract rents
   // or fall back to monthly_rent_default on each unit
   const monthlyRevenueAtFull =
-    contractRows.length > 0
-      ? contractRows.reduce((sum, c) => sum + Number(c.monthlyRent ?? 0), 0)
-      : unitRows.reduce((sum, u) => sum + Number(u.monthlyRentDefault ?? 0), 0);
+    activeContracts.length > 0
+      ? activeContracts.reduce((sum, c) => sum + Number(c.monthly_rent ?? 0), 0)
+      : units.reduce((sum, u) => sum + Number(u.monthly_rent_default ?? 0), 0);
 
   const formatCurrency = (n: number) =>
     '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -122,8 +121,8 @@ export default async function ForecastingPage() {
             {formatCurrency(monthlyRevenueAtFull)}
           </p>
           <p className="text-xs text-slate-400">
-            {contractRows.length > 0
-              ? `From ${contractRows.length} active contracts`
+            {activeContracts.length > 0
+              ? `From ${activeContracts.length} active contracts`
               : 'From unit default rents'}
           </p>
         </article>

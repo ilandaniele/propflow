@@ -14,9 +14,6 @@
  *
  * Fallback: when ANTHROPIC_API_KEY is absent, returns a deterministic template
  * built from the raw KPIs — no LLM call is made.
- *
- * W6: tenant_statement VIEW replaced with an inline Drizzle aggregation join
- * (tenants + contracts + payments). No Supabase client needed.
  */
 
 export const dynamic = 'force-dynamic';
@@ -25,10 +22,8 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { and, eq, gte, lt, ne, sql } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { units, payments, expenses, incidents, tenants, contracts } from '@/lib/db/schema';
 import { Errors } from '@/lib/errors';
 import { aiExecutiveBriefRateLimit } from '@/lib/ratelimit';
 import { serverEnv } from '@/lib/env';
@@ -68,91 +63,61 @@ interface ExecutiveBriefKPIs {
 }
 
 // ---------------------------------------------------------------------------
-// Aggregate KPI query — all queries use Drizzle (org-scoped, no PII)
-// W6: tenant_statement VIEW replaced with inline aggregation join.
+// Aggregate KPI query (RLS-scoped, anon client — no service role)
 // ---------------------------------------------------------------------------
 
 async function fetchKPIs(
-  orgId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
   period: string
 ): Promise<ExecutiveBriefKPIs> {
   const periodStart = `${period}-01`;
+  // Last day of month: first day of next month minus 1 ms
   const [year, month] = period.split('-').map(Number);
   const nextMonth = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`;
 
   const [
-    unitRows,
-    paymentRows,
-    expenseRows,
-    incidentRows,
-    tenantStatements,
+    { data: units },
+    { data: payments },
+    { data: expenses },
+    { data: incidents },
+    { data: statements },
   ] = await Promise.all([
-    // Units: org-scoped
-    db.select({ id: units.id, status: units.status })
-      .from(units)
-      .where(eq(units.orgId, orgId)),
-
-    // Payments: approved, within period, org-scoped
-    db.select({ amount: payments.amount, paidAt: payments.paidAt })
-      .from(payments)
-      .where(and(
-        eq(payments.orgId, orgId),
-        eq(payments.status, 'approved'),
-        gte(payments.paidAt, periodStart),
-        lt(payments.paidAt, nextMonth),
-      )),
-
-    // Expenses: within period, org-scoped
-    db.select({ amount: expenses.amount })
-      .from(expenses)
-      .where(and(
-        eq(expenses.orgId, orgId),
-        gte(expenses.incurredOn, periodStart),
-        lt(expenses.incurredOn, nextMonth),
-      )),
-
-    // Open incidents: org-scoped, not solved
-    db.select({ id: incidents.id })
-      .from(incidents)
-      .where(and(
-        eq(incidents.orgId, orgId),
-        ne(incidents.status, 'solved'),
-      )),
-
-    // Tenant statement — replaces the Supabase tenant_statement VIEW.
-    // Aggregates totalCharged (active contracts) and totalPaid (approved payments).
-    // Only aggregate booleans are used — no PII fields selected (LLM06/AC31).
-    db.select({
-      tenantId:     tenants.id,
-      totalCharged: sql<number>`SUM(CASE WHEN ${contracts.status} = 'active' THEN ${contracts.monthlyRent} ELSE 0 END)`,
-      totalPaid:    sql<number>`COALESCE(SUM(${payments.amount}), 0)`,
-    })
-      .from(tenants)
-      .leftJoin(contracts, eq(contracts.tenantId, tenants.id))
-      .leftJoin(payments, and(eq(payments.tenantId, tenants.id), eq(payments.status, 'approved')))
-      .where(eq(tenants.orgId, orgId))
-      .groupBy(tenants.id),
+    supabase.from('units').select('id, status'),
+    supabase
+      .from('payments')
+      .select('amount, paid_at')
+      .eq('status', 'approved')
+      .gte('paid_at', periodStart)
+      .lt('paid_at', nextMonth),
+    supabase
+      .from('expenses')
+      .select('amount')
+      .gte('incurred_on', periodStart)
+      .lt('incurred_on', nextMonth),
+    supabase
+      .from('incidents')
+      .select('id, status')
+      .neq('status', 'solved'),
+    supabase.from('tenant_statement').select('is_overdue, tenant_id'),
   ]);
 
-  const totalUnits    = unitRows.length;
-  const occupiedUnits = unitRows.filter(u => u.status === 'occupied').length;
+  const totalUnits = (units ?? []).length;
+  const occupiedUnits = (units ?? []).filter((u: { status: string }) => u.status === 'occupied').length;
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
-  const grossIncome   = paymentRows.reduce((s, p) => s + (Number(p.amount) ?? 0), 0);
-  const totalExpenses = expenseRows.reduce((s, e) => s + (Number(e.amount) ?? 0), 0);
+  const grossIncome = (payments ?? []).reduce((s: number, p: { amount: number }) => s + (p.amount ?? 0), 0);
+  const totalExpenses = (expenses ?? []).reduce((s: number, e: { amount: number }) => s + (e.amount ?? 0), 0);
   const trueNetProfit = Math.round((grossIncome - totalExpenses) * 100) / 100;
 
-  const openIncidentsCount   = incidentRows.length;
-  const overduePaymentsCount = tenantStatements.filter(
-    s => Number(s.totalPaid) < Number(s.totalCharged)
-  ).length;
-  const activeTenantsCount   = tenantStatements.length;
+  const openIncidentsCount = (incidents ?? []).length;
+  const overduePaymentsCount = (statements ?? []).filter((s: { is_overdue: boolean }) => s.is_overdue).length;
+  const activeTenantsCount = (statements ?? []).length;
 
   return {
     period,
     occupancyRate,
     activeTenantsCount,
-    grossIncome:   Math.round(grossIncome   * 100) / 100,
+    grossIncome: Math.round(grossIncome * 100) / 100,
     totalExpenses: Math.round(totalExpenses * 100) / 100,
     trueNetProfit,
     openIncidentsCount,
@@ -248,9 +213,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { period } = parsed.data;
 
+  const supabase = await createClient();
+
   try {
-    // Fetch aggregate KPIs (org-scoped — no PII columns selected)
-    const kpis = await fetchKPIs(ctx.orgId, period);
+    // Fetch aggregate KPIs (RLS-scoped — no PII columns selected)
+    const kpis = await fetchKPIs(supabase, period);
 
     // LLM03 / LLM06 / AC31: sanitize before prompt assembly — strips PII keys
     const sanitizedKpiJson = sanitizeForLLM(kpis);
@@ -299,12 +266,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       markdown: narrativeMarkdown,
       period,
       kpis: {
-        occupancyRate:        kpis.occupancyRate,
-        activeTenantsCount:   kpis.activeTenantsCount,
-        grossIncome:          kpis.grossIncome,
-        totalExpenses:        kpis.totalExpenses,
-        trueNetProfit:        kpis.trueNetProfit,
-        openIncidentsCount:   kpis.openIncidentsCount,
+        occupancyRate: kpis.occupancyRate,
+        activeTenantsCount: kpis.activeTenantsCount,
+        grossIncome: kpis.grossIncome,
+        totalExpenses: kpis.totalExpenses,
+        trueNetProfit: kpis.trueNetProfit,
+        openIncidentsCount: kpis.openIncidentsCount,
         overduePaymentsCount: kpis.overduePaymentsCount,
       },
     });

@@ -1,9 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
-import { incidents, incidentComments, tenants } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import {
@@ -30,7 +28,11 @@ export async function createIncident(
   ));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
+  const supabase = await createClient();
+
   // Validate photo BEFORE DB insert to fail fast on bad input.
+  // The actual upload happens AFTER insert so the incident UUID exists in the DB
+  // and the storage RLS ownership check (segment 2 = real incident id) passes.
   const photoFile = formData.get('photo') as File | null;
   const hasPhoto = photoFile != null && photoFile.size > 0;
   if (hasPhoto) {
@@ -50,50 +52,56 @@ export async function createIncident(
     }
   }
 
-  // B4: For tenant callers always derive tenant_id server-side from DB
+  // B4: For tenant callers always derive tenant_id server-side from DB,
+  // IGNORING any client-supplied tenant_id to prevent tenant impersonation.
+  // For admin callers, use the validated client-supplied value.
   let tenantId: string | null;
   if (ctx.role === 'tenant') {
-    const tenantRow = await db.select({ id: tenants.id })
-      .from(tenants)
-      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
-      .then(r => r[0] ?? null);
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('profile_id', ctx.userId)
+      .eq('org_id', ctx.orgId)
+      .single();
     tenantId = tenantRow?.id ?? null;
   } else {
     tenantId = parsed.data.tenant_id || null;
   }
 
   // Insert incident row first — DB generates the real UUID.
-  let newIncidentId: string;
-  try {
-    const [newIncident] = await db.insert(incidents).values({
-      orgId: ctx.orgId,
-      createdBy: ctx.userId,
-      tenantId: tenantId || null,
-      unitId: parsed.data.unit_id || null,
-      propertyId: parsed.data.property_id || null,
+  // photo_path is set to null initially; updated below if a photo was provided.
+  const { data: newIncident, error: insertError } = await supabase
+    .from('incidents')
+    .insert({
+      org_id: ctx.orgId,
+      created_by: ctx.userId,
+      tenant_id: tenantId || null,
+      unit_id: parsed.data.unit_id || null,
+      property_id: parsed.data.property_id || null,
       category: parsed.data.category,
       title: parsed.data.title,
       description: parsed.data.description,
       priority: parsed.data.priority,
       status: 'pending',
-      photoPath: null,
-    }).returning({ id: incidents.id });
-    newIncidentId = newIncident.id;
-  } catch (err) {
-    log.error('[createIncident] db insert error', { err: err instanceof Error ? err.message : String(err) });
+      photo_path: null,
+    })
+    .select('id')
+    .single();
+
+  if (insertError || !newIncident) {
+    log.error('[createIncident] db insert error', { code: insertError?.code });
     return Errors.INTERNAL();
   }
 
   // Upload photo now that the incident row exists in the DB.
+  // The storage RLS policy (migration 005) verifies path segment 2 against incidents.id,
+  // so the upload MUST happen after the row is committed.
   if (hasPhoto && photoFile) {
     const ext = photoFile.name.split('.').pop() ?? 'jpg';
-    const storagePath = `${ctx.orgId}/${newIncidentId}/${randomUUID()}.${ext}`;
+    const storagePath = `${ctx.orgId}/${newIncident.id}/${randomUUID()}.${ext}`;
 
     const photoBuffer = await photoFile.arrayBuffer();
-    // Storage-only Supabase client for file upload
-    const { createStorageClient } = await import('@/lib/supabase/server');
-    const storageClient = await createStorageClient();
-    const { error: uploadError } = await storageClient.storage
+    const { error: uploadError } = await supabase.storage
       .from('incident-photos')
       .upload(storagePath, photoBuffer, {
         contentType: photoFile.type,
@@ -102,19 +110,25 @@ export async function createIncident(
 
     if (uploadError) {
       log.error('[createIncident] photo upload error', { code: uploadError.message });
+      // Incident row already created — clean up or leave without photo.
+      // We leave the row intact (it is valid without a photo) but do not fail silently.
+      // Returning INTERNAL here would leave an orphaned row; instead, return partial success
+      // and let the admin re-attach if needed. For MVP, log and continue without photo.
       revalidatePath('/dashboard/incidents');
       revalidatePath('/portal/incidents');
       return ok(undefined);
     }
 
     // Update the incident row with the actual storage path
-    try {
-      await db
-        .update(incidents)
-        .set({ photoPath: storagePath })
-        .where(and(eq(incidents.id, newIncidentId), eq(incidents.orgId, ctx.orgId)));
-    } catch (err) {
-      log.error('[createIncident] photo_path update error', { err: err instanceof Error ? err.message : String(err) });
+    const { error: updateError } = await supabase
+      .from('incidents')
+      .update({ photo_path: storagePath })
+      .eq('id', newIncident.id)
+      .eq('org_id', ctx.orgId);
+
+    if (updateError) {
+      log.error('[createIncident] photo_path update error', { code: updateError.code });
+      // Non-fatal: incident exists without photo, which is acceptable.
     }
   }
 
@@ -134,32 +148,36 @@ export async function updateIncident(
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
   const { id, ...updates } = parsed.data;
+  const supabase = await createClient();
 
   // Verify incident belongs to this org
-  const existing = await db.select({ id: incidents.id, status: incidents.status })
-    .from(incidents)
-    .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const { data: existing } = await supabase
+    .from('incidents')
+    .select('id, status')
+    .eq('id', id)
+    .eq('org_id', ctx.orgId)
+    .single();
 
   if (!existing) return Errors.NOT_FOUND();
 
   const updateData: Record<string, unknown> = {
     ...updates,
-    assignedTo: updates.assigned_to || null,
-    updatedAt: new Date(),
+    assigned_to: updates.assigned_to || null,
+    updated_at: new Date().toISOString(),
   };
 
   if (updates.status === 'solved' && existing.status !== 'solved') {
-    updateData.resolvedAt = new Date();
+    updateData.resolved_at = new Date().toISOString();
   }
 
-  try {
-    await db
-      .update(incidents)
-      .set(updateData)
-      .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)));
-  } catch (err) {
-    log.error('[updateIncident] db error', { err: err instanceof Error ? err.message : String(err) });
+  const { error } = await supabase
+    .from('incidents')
+    .update(updateData)
+    .eq('id', id)
+    .eq('org_id', ctx.orgId);
+
+  if (error) {
+    log.error('[updateIncident] db error', { code: error.code });
     return Errors.INTERNAL();
   }
 
@@ -179,23 +197,26 @@ export async function addIncidentComment(
   const parsed = AddCommentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  // Verify incident is accessible (org-scoped)
-  const incident = await db.select({ id: incidents.id, orgId: incidents.orgId })
-    .from(incidents)
-    .where(and(eq(incidents.id, parsed.data.incident_id), eq(incidents.orgId, ctx.orgId)))
-    .then(r => r[0] ?? null);
+  const supabase = await createClient();
+
+  // Verify incident is accessible (RLS will also enforce)
+  const { data: incident } = await supabase
+    .from('incidents')
+    .select('id, org_id')
+    .eq('id', parsed.data.incident_id)
+    .single();
 
   if (!incident) return Errors.NOT_FOUND();
 
-  try {
-    await db.insert(incidentComments).values({
-      orgId: ctx.orgId,
-      incidentId: parsed.data.incident_id,
-      authorId: ctx.userId,
-      body: parsed.data.body,
-    });
-  } catch (err) {
-    log.error('[addIncidentComment] db error', { err: err instanceof Error ? err.message : String(err) });
+  const { error } = await supabase.from('incident_comments').insert({
+    org_id: ctx.orgId,
+    incident_id: parsed.data.incident_id,
+    author_id: ctx.userId,
+    body: parsed.data.body,
+  });
+
+  if (error) {
+    log.error('[addIncidentComment] db error', { code: error.code });
     return Errors.INTERNAL();
   }
 

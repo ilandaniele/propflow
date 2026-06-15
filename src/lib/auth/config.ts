@@ -112,12 +112,11 @@ export const authConfig: NextAuthConfig = {
             await provisionOrgAndProfile(
               user.id!,
               email,
-              user.name ?? null,
-              db
+              user.name ?? email
             );
 
             // Attempt auto-link to existing tenant row (best-effort)
-            await attemptAutoLink(user.id!, email, undefined, db);
+            await attemptAutoLink(user.id!, email);
           }
 
           return true;

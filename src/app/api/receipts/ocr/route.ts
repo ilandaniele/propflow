@@ -3,11 +3,8 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { eq, and } from 'drizzle-orm';
 import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { receiptUploads } from '@/lib/db/schema';
 import { Errors } from '@/lib/errors';
 import { ocrRateLimit } from '@/lib/ratelimit';
 import { assertServerEnv } from '@/lib/env';
@@ -39,44 +36,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.VALIDATION_ERROR(parsed.error.flatten()), { status: 400 });
   }
 
-  // Load the receipt row — must belong to this org (multi-tenant isolation)
-  const [receipt] = await db
-    .select({
-      id:        receiptUploads.id,
-      filePath:  receiptUploads.filePath,
-      ocrStatus: receiptUploads.ocrStatus,
-      orgId:     receiptUploads.orgId,
-    })
-    .from(receiptUploads)
-    .where(and(
-      eq(receiptUploads.id, parsed.data.receipt_id),
-      eq(receiptUploads.orgId, ctx.orgId),
-    ))
-    .limit(1);
+  const supabase = await createClient();
+
+  // Load the receipt row — must belong to this org
+  const { data: receipt } = await supabase
+    .from('receipt_uploads')
+    .select('id, file_path, ocr_status, org_id')
+    .eq('id', parsed.data.receipt_id)
+    .eq('org_id', ctx.orgId)
+    .single();
 
   if (!receipt) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
   // Only re-run OCR on pending/failed; skip already extracted/matched
-  if (receipt.ocrStatus === 'extracted' || receipt.ocrStatus === 'matched') {
+  if (receipt.ocr_status === 'extracted' || receipt.ocr_status === 'matched') {
     return NextResponse.json({ status: 'already_extracted' });
   }
 
   // Mark as processing
-  await db
-    .update(receiptUploads)
-    .set({ ocrStatus: 'processing', updatedAt: new Date() })
-    .where(eq(receiptUploads.id, receipt.id));
-
-  // Supabase Storage is KEPT — storage is not migrated to Fly.io
-  const supabase = await createClient();
+  await supabase
+    .from('receipt_uploads')
+    .update({ ocr_status: 'processing', updated_at: new Date().toISOString() })
+    .eq('id', receipt.id);
 
   try {
     // Get a short-TTL signed URL to the stored image
     const { data: urlData } = await supabase.storage
       .from('receipts')
-      .createSignedUrl(receipt.filePath, 60); // 60-second TTL for the OCR call
+      .createSignedUrl(receipt.file_path, 60); // 60-second TTL for the OCR call
 
     if (!urlData?.signedUrl) {
       throw new Error('Could not get signed URL for receipt');
@@ -96,14 +85,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Only image types supported by Claude vision; skip PDF (return partial)
     if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(mimeType)) {
-      await db
-        .update(receiptUploads)
-        .set({
-          ocrStatus: 'failed',
-          ocrError:  'PDF OCR not supported at this time',
-          updatedAt: new Date(),
-        })
-        .where(eq(receiptUploads.id, receipt.id));
+      await supabase.from('receipt_uploads').update({
+        ocr_status: 'failed',
+        ocr_error: 'PDF OCR not supported at this time',
+        updated_at: new Date().toISOString(),
+      }).eq('id', receipt.id);
       return NextResponse.json({ status: 'failed', reason: 'unsupported_type' });
     }
 
@@ -152,18 +138,15 @@ Do not include any other text. If a field cannot be determined, use null.`,
 
     const extracted = OcrExtractedSchema.safeParse(extractedRaw);
 
-    await db
-      .update(receiptUploads)
-      .set({
-        ocrStatus:       'extracted',
-        extractedAmount: extracted.success ? (extracted.data.amount != null ? String(extracted.data.amount) : null) : null,
-        extractedDate:   extracted.success ? (extracted.data.date ?? null) : null,
-        extractedVendor: extracted.success ? (extracted.data.vendor ?? null) : null,
-        confidence:      extracted.success ? (extracted.data.confidence != null ? String(extracted.data.confidence) : null) : null,
-        ocrError:        null,
-        updatedAt:       new Date(),
-      })
-      .where(eq(receiptUploads.id, receipt.id));
+    await supabase.from('receipt_uploads').update({
+      ocr_status: 'extracted',
+      extracted_amount: extracted.success ? (extracted.data.amount ?? null) : null,
+      extracted_date: extracted.success ? (extracted.data.date ?? null) : null,
+      extracted_vendor: extracted.success ? (extracted.data.vendor ?? null) : null,
+      confidence: extracted.success ? (extracted.data.confidence ?? null) : null,
+      ocr_error: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', receipt.id);
 
     log.info('[ocr] extraction complete', { receiptId: receipt.id });
     return NextResponse.json({ status: 'extracted' });
@@ -173,14 +156,11 @@ Do not include any other text. If a field cannot be determined, use null.`,
     const msg = e instanceof Error ? e.message : 'unknown';
     log.error('[ocr] extraction failed', { receiptId: receipt.id, error: msg });
 
-    await db
-      .update(receiptUploads)
-      .set({
-        ocrStatus: 'failed',
-        ocrError:  'Extraction failed. Please try again.',
-        updatedAt: new Date(),
-      })
-      .where(eq(receiptUploads.id, receipt.id));
+    await supabase.from('receipt_uploads').update({
+      ocr_status: 'failed',
+      ocr_error: 'Extraction failed. Please try again.',
+      updated_at: new Date().toISOString(),
+    }).eq('id', receipt.id);
 
     return NextResponse.json({ status: 'failed' });
   }

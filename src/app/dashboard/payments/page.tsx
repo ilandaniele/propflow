@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { db } from '@/lib/db';
-import { payments, contracts, tenants } from '@/lib/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -17,43 +15,16 @@ export default async function PaymentsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [paymentRows, contractRows, tenantRows] = await Promise.all([
-    db.select({
-      id: payments.id,
-      tenantId: payments.tenantId,
-      amount: payments.amount,
-      paidAt: payments.paidAt,
-      method: payments.method,
-      status: payments.status,
-      createdAt: payments.createdAt,
-    })
-      .from(payments)
-      .where(eq(payments.orgId, ctx.orgId))
-      .orderBy(desc(payments.createdAt))
-      .limit(50),
-    db.select({
-      id: contracts.id,
-      monthlyRent: contracts.monthlyRent,
-      tenantId: contracts.tenantId,
-    })
-      .from(contracts)
-      .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
-    db.select({ id: tenants.id, fullName: tenants.fullName })
-      .from(tenants)
-      .where(eq(tenants.orgId, ctx.orgId)),
+  const supabase = await createClient();
+  const [paymentsRes, contractsRes] = await Promise.all([
+    supabase.from('payments').select('*, tenants(full_name)').eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
+    supabase.from('contracts').select('id, monthly_rent, tenant_id, tenants(full_name)').eq('org_id', ctx.orgId).eq('status', 'active'),
   ]);
 
-  const tenantMap = new Map(tenantRows.map((t) => [t.id, t.fullName]));
+  const payments = paymentsRes.data ?? [];
+  const contracts = contractsRes.data ?? [];
 
-  const pendingCount = paymentRows.filter((p) => p.status === 'pending').length;
-
-  // Shape contracts for CreateChargeForm prop compatibility
-  const contractsForForm = contractRows.map((c) => ({
-    id: c.id,
-    monthly_rent: Number(c.monthlyRent),
-    tenant_id: c.tenantId,
-    tenants: { full_name: tenantMap.get(c.tenantId) ?? null },
-  }));
+  const pendingCount = payments.filter((p) => p.status === 'pending').length;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -66,11 +37,11 @@ export default async function PaymentsPage() {
         </div>
         <div className="flex items-center gap-2">
           <AdminPaymentsCsvButtons />
-          <CreateChargeForm contracts={contractsForForm as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
+          <CreateChargeForm contracts={contracts as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
         </div>
       </div>
 
-      {paymentRows.length === 0 ? (
+      {payments.length === 0 ? (
         <Card>
           <EmptyState
             title="No payments yet"
@@ -91,13 +62,13 @@ export default async function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paymentRows.map((payment) => {
-                const tenantName = tenantMap.get(payment.tenantId) ?? '—';
+              {payments.map((payment) => {
+                const tenant = payment.tenants as { full_name: string } | null;
                 return (
                   <tr key={payment.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{tenantName}</td>
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">${Number(payment.amount).toLocaleString()}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{payment.paidAt}</td>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{tenant?.full_name ?? '—'}</td>
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">${payment.amount.toLocaleString()}</td>
+                    <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{payment.paid_at}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 capitalize hidden md:table-cell">{payment.method}</td>
                     <td className="px-5 py-4"><StatusPill status={payment.status} /></td>
                     <td className="px-5 py-4 text-right">

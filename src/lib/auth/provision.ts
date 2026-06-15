@@ -1,20 +1,17 @@
 /**
  * Profile + Org provisioning — SERVER ONLY.
- * Uses Drizzle ORM against Fly.io Postgres (no Supabase admin client).
- *
- * Called from NextAuth signIn callback when a user has no profile row yet.
+ * Uses the service-role admin client which bypasses RLS.
+ * Called ONLY when a Supabase auth user has no profile row yet.
  *
  * Security notes:
- * - All DB calls use the Drizzle singleton; no service-role key needed.
+ * - assertServerEnv() fails fast if SUPABASE_SERVICE_ROLE_KEY is missing (IC4/LOW#12).
+ * - The admin client is never exposed to the client bundle.
  * - Rollback: if the profile insert fails after the org is created, the org is deleted.
- * - No PII is logged (only userId and org-level ids).
  */
 
-import { db } from '@/lib/db';
-import { organizations, profiles, tenants } from '@/lib/db/schema';
-import { eq, ilike, isNull } from 'drizzle-orm';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { assertServerEnv } from '@/lib/env';
 import { log } from '@/lib/log';
-import type { DB } from '@/lib/db';
 
 export interface ProvisionResult {
   orgId: string;
@@ -24,6 +21,8 @@ export interface ProvisionResult {
 
 /**
  * Generate a URL-safe slug from an org name.
+ * Lowercase, replace non-alphanumeric with hyphens, collapse repeated hyphens,
+ * trim leading/trailing hyphens. Max 80 chars.
  */
 export function generateSlug(orgName: string): string {
   return orgName
@@ -35,6 +34,7 @@ export function generateSlug(orgName: string): string {
 
 /**
  * Generate a unique slug by appending a short random suffix when needed.
+ * Tries the base slug first; appends a 6-char hex suffix on conflict.
  */
 export function generateUniqueSlug(orgName: string, existingSlugs: Set<string> = new Set()): string {
   const base = generateSlug(orgName);
@@ -44,99 +44,106 @@ export function generateUniqueSlug(orgName: string, existingSlugs: Set<string> =
 }
 
 /**
- * Provision a new org + admin profile for a freshly-authenticated user.
+ * Provision a new org + admin profile for a freshly-authenticated Google (or other OAuth) user.
  * Atomic: if the profile insert fails after the org insert, the org is deleted (rollback).
  *
- * @param userId    NextAuth users.id for the new user
- * @param email     User's email — stored in profile
- * @param fullName  User's display name from OAuth identity (optional)
- * @param dbClient  Optional Drizzle DB (defaults to singleton)
- * @param orgNameOverride  Explicit org name (for onboarding where user picks a name)
+ * @param userId  Supabase auth.users.id for the new user (from getUser().data.user.id)
+ * @param email   User's email — used to derive slug and stored in profile
+ * @param orgName Human-readable org name chosen by the user in onboarding
+ * @param fullName User's display name from OAuth identity (optional)
  */
 export async function provisionOrgAndProfile(
   userId: string,
   email: string,
-  fullName?: string | null,
-  dbClient: DB = db,
-  orgNameOverride?: string
+  orgName: string,
+  fullName?: string
 ): Promise<ProvisionResult> {
-  const orgName = orgNameOverride ?? `${email.split('@')[0]} Org`;
+  // Fail fast on missing service-role key — never silently no-op (IC4/LOW#12)
+  assertServerEnv('SUPABASE_SERVICE_ROLE_KEY', 'provisionOrgAndProfile');
+
+  const adminClient = createAdminClient();
   const slug = generateSlug(orgName);
 
   // 1. Create the organization
-  let orgId: string;
-  try {
-    const [org] = await dbClient
-      .insert(organizations)
-      .values({ name: orgName, slug })
-      .returning({ id: organizations.id });
+  const { data: org, error: orgError } = await adminClient
+    .from('organizations')
+    .insert({ name: orgName, slug })
+    .select('id, slug')
+    .single();
 
-    if (!org) throw new Error('no row returned');
-    orgId = org.id;
-  } catch (err) {
-    const code = err instanceof Error ? err.message : 'unknown';
-    log.error('[provision] org insert failed', { code, userId });
-    throw new Error(`PROVISION_FAILED:org:${code}`);
+  if (orgError || !org) {
+    log.error('[provision] org insert failed', { code: orgError?.code, userId });
+    throw new Error(`PROVISION_FAILED:org:${orgError?.code ?? 'unknown'}`);
   }
 
   // 2. Create the profile — rollback org on failure
-  try {
-    await dbClient
-      .insert(profiles)
-      .values({
-        userId,
-        orgId,
-        role: 'admin',
-        fullName: fullName ?? null,
-        email,
-      });
-  } catch (err) {
-    const code = err instanceof Error ? err.message : 'unknown';
-    log.error('[provision] profile insert failed — rolling back org', { code, orgId, userId });
+  const { error: profileError } = await adminClient
+    .from('profiles')
+    .insert({
+      id: userId,
+      org_id: org.id,
+      role: 'admin' as const,
+      full_name: fullName ?? null,
+      email,
+    });
+
+  if (profileError) {
+    log.error('[provision] profile insert failed — rolling back org', {
+      code: profileError.code,
+      orgId: org.id,
+      userId,
+    });
 
     // Rollback: delete the org we just created
-    try {
-      await dbClient.delete(organizations).where(eq(organizations.id, orgId));
-    } catch (rollbackErr) {
-      const rbCode = rollbackErr instanceof Error ? rollbackErr.message : 'unknown';
-      log.error('[provision] rollback failed — orphaned org', { rbCode, orgId });
+    const { error: rollbackError } = await adminClient
+      .from('organizations')
+      .delete()
+      .eq('id', org.id);
+
+    if (rollbackError) {
+      log.error('[provision] rollback failed — orphaned org', {
+        code: rollbackError.code,
+        orgId: org.id,
+      });
     }
 
-    throw new Error(`PROVISION_FAILED:profile:${code}`);
+    throw new Error(`PROVISION_FAILED:profile:${profileError.code ?? 'unknown'}`);
   }
 
   log.info('[provision] org+profile created', {
     event: 'provision_success',
     userId,
-    orgId,
-    slug,
+    orgId: org.id,
+    slug: org.slug,
   });
 
-  return { orgId, profileId: userId, role: 'admin' };
+  return { orgId: org.id, profileId: userId, role: 'admin' };
 }
 
 /**
- * Check whether a profile row already exists for the given userId.
+ * Check whether a profile row already exists for the given user id.
+ * Uses the admin client to bypass RLS (needed during callback before session is fully set up).
  */
-export async function getExistingProfile(
-  userId: string,
-  dbClient: DB = db
-): Promise<{ orgId: string; role: string } | null> {
-  try {
-    const row = await dbClient.query.profiles.findFirst({
-      where: eq(profiles.userId, userId),
-      columns: { orgId: true, role: true },
-    });
-    return row ? { orgId: row.orgId, role: row.role } : null;
-  } catch (err) {
-    const code = err instanceof Error ? err.message : 'unknown';
-    log.error('[provision] getExistingProfile failed', { code, userId });
+export async function getExistingProfile(userId: string): Promise<{ orgId: string; role: string } | null> {
+  assertServerEnv('SUPABASE_SERVICE_ROLE_KEY', 'getExistingProfile');
+
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient
+    .from('profiles')
+    .select('org_id, role')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    log.error('[provision] getExistingProfile failed', { code: error.code, userId });
     return null;
   }
+
+  return data ? { orgId: data.org_id, role: data.role } : null;
 }
 
 /**
- * Auto-link result for the signIn callback.
+ * Auto-link result for the auth callback.
  */
 export type AutoLinkResult =
   | { linked: true; orgId: string }
@@ -146,35 +153,41 @@ export type AutoLinkResult =
  * Attempt to auto-link a newly authenticated user to an existing tenant row.
  *
  * Algorithm:
- * 1. Find all tenant rows where email (case-insensitive) matches and profile_id IS NULL.
- * 2. Exactly 1 match → create a profiles row (role='tenant', orgId=tenant.orgId) and
- *    set tenants.profileId. Returns { linked: true, orgId }.
+ * 1. Find all tenants rows where email (case-insensitive) matches and profile_id IS NULL.
+ * 2. Exactly 1 match → create a profiles row (role='tenant', org_id=tenant.org_id) and
+ *    set tenants.profile_id. Returns { linked: true, orgId }.
  * 3. 0 matches → returns { linked: false, reason: 'no_match' }.
  * 4. 2+ matches → ambiguous; returns { linked: false, reason: 'ambiguous_match' }.
+ *    No writes are performed — existing onboarding flow runs.
+ *
+ * Security:
+ * - Uses service-role admin client (bypasses RLS — necessary during callback).
+ * - email lookup is case-insensitive via ILIKE.
+ * - No PII is logged (only domain + first 2 chars of local part).
  */
 export async function attemptAutoLink(
   userId: string,
-  email: string,
-  _orgId?: string,
-  dbClient: DB = db
+  email: string
 ): Promise<AutoLinkResult> {
+  assertServerEnv('SUPABASE_SERVICE_ROLE_KEY', 'attemptAutoLink');
+
+  const adminClient = createAdminClient();
+
   // Query unlinked tenant rows matching this email (case-insensitive)
-  let matches: Array<{ id: string; orgId: string }>;
-  try {
-    matches = await dbClient.query.tenants.findMany({
-      where: (t, { and: _and }) => _and(ilike(t.email!, email), isNull(t.profileId)),
-      columns: { id: true, orgId: true },
-    });
-  } catch (err) {
-    const code = err instanceof Error ? err.message : 'unknown';
-    log.error('[provision] attemptAutoLink tenants query failed', { code });
+  const { data: tenants, error: tenantsError } = await adminClient
+    .from('tenants')
+    .select('id, org_id, email')
+    .ilike('email', email)
+    .is('profile_id', null);
+
+  if (tenantsError) {
+    log.error('[provision] attemptAutoLink tenants query failed', { code: tenantsError.code });
     return { linked: false, reason: 'no_match' };
   }
 
-  // All returned rows already have profileId IS NULL (enforced in the DB query above)
-  const unlinked = matches;
+  const matches = tenants ?? [];
 
-  if (unlinked.length === 0) {
+  if (matches.length === 0) {
     log.info('[provision] attemptAutoLink: no unlinked tenant row found', {
       event: 'auto_link_no_match',
       userId,
@@ -182,65 +195,57 @@ export async function attemptAutoLink(
     return { linked: false, reason: 'no_match' };
   }
 
-  if (unlinked.length > 1) {
-    log.warn('[provision] attemptAutoLink: ambiguous email — multiple tenants', {
+  if (matches.length > 1) {
+    log.warn('[provision] attemptAutoLink: ambiguous email — multiple unlinked tenants', {
       event: 'auto_link_ambiguous',
       userId,
-      matchCount: unlinked.length,
+      matchCount: matches.length,
     });
     return { linked: false, reason: 'ambiguous_match' };
   }
 
   // Exactly one match — safe to auto-link
-  const tenant = unlinked[0];
+  const tenant = matches[0];
 
-  // Find the profile row for this userId (may have been created by provisionOrgAndProfile)
-  const existingProfile = await dbClient.query.profiles.findFirst({
-    where: eq(profiles.userId, userId),
-    columns: { id: true },
-  });
+  // Create the profiles row (role=tenant)
+  const { error: profileInsertError } = await adminClient
+    .from('profiles')
+    .insert({
+      id: userId,
+      org_id: tenant.org_id,
+      role: 'tenant' as const,
+      email,
+      full_name: null,
+    });
 
-  if (!existingProfile) {
-    // Create profile as tenant role
-    try {
-      await dbClient.insert(profiles).values({
-        userId,
-        orgId: tenant.orgId,
-        role: 'tenant',
-        email,
-        fullName: null,
-      });
-    } catch (err) {
-      const code = err instanceof Error ? err.message : 'unknown';
-      // 23505 = unique violation — profile already exists (race condition)
-      if (!String(code).includes('23505')) {
-        log.error('[provision] attemptAutoLink: profiles insert failed', { code, userId });
-        return { linked: false, reason: 'no_match' };
-      }
+  if (profileInsertError) {
+    // If 23505 = unique violation, profile already exists — concurrent request race
+    if (profileInsertError.code === '23505') {
       log.warn('[provision] attemptAutoLink: profile already exists (race)', { userId });
+      // Still set the tenant link if it hasn't been set
+    } else {
+      log.error('[provision] attemptAutoLink: profiles insert failed', {
+        code: profileInsertError.code,
+        userId,
+      });
+      return { linked: false, reason: 'no_match' };
     }
   }
 
-  // Get profile id
-  const profile = await dbClient.query.profiles.findFirst({
-    where: eq(profiles.userId, userId),
-    columns: { id: true },
-  });
+  // Set tenants.profile_id
+  const { error: tenantUpdateError } = await adminClient
+    .from('tenants')
+    .update({ profile_id: userId, updated_at: new Date().toISOString() })
+    .eq('id', tenant.id)
+    .is('profile_id', null); // idempotent guard — only update if still NULL
 
-  if (!profile) {
-    log.error('[provision] attemptAutoLink: profile not found after insert', { userId });
-    return { linked: false, reason: 'no_match' };
-  }
-
-  // Set tenants.profileId
-  try {
-    await dbClient
-      .update(tenants)
-      .set({ profileId: profile.id })
-      .where(eq(tenants.id, tenant.id));
-  } catch (err) {
-    const code = err instanceof Error ? err.message : 'unknown';
-    log.error('[provision] attemptAutoLink: tenants update failed', { code, tenantId: tenant.id });
+  if (tenantUpdateError) {
+    log.error('[provision] attemptAutoLink: tenants update failed', {
+      code: tenantUpdateError.code,
+      tenantId: tenant.id,
+    });
+    // Profile was created but tenant not linked — partial failure
+    // Portal will show "account not linked" but admin can manually link
     return { linked: false, reason: 'no_match' };
   }
 
@@ -248,8 +253,8 @@ export async function attemptAutoLink(
     event: 'auto_link_success',
     userId,
     tenantId: tenant.id,
-    orgId: tenant.orgId,
+    orgId: tenant.org_id,
   });
 
-  return { linked: true, orgId: tenant.orgId };
+  return { linked: true, orgId: tenant.org_id };
 }

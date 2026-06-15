@@ -34,12 +34,11 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
 
   // Guard 1: must be authenticated
   const session = await auth();
+  const user = session?.user;
 
-  if (!session?.user?.id) {
+  if (!user?.id) {
     redirect('/login');
   }
-
-  const user = { id: session.user.id, email: session.user.email ?? '' };
 
   // Guard 2: already has a profile → route to role home (single-use)
   const existingProfile = await getExistingProfile(user.id);

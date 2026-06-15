@@ -4,21 +4,25 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 
 interface GoogleSignInButtonProps {
+  /** The URL NextAuth should redirect to after OAuth. */
+  redirectTo: string;
   /**
-   * The URL path to redirect to after OAuth completes.
-   * Must be a relative path (e.g. '/dashboard').
-   * NextAuth handles the OAuth callback internally via /api/auth/callback/google.
+   * Optional: the page path the user was trying to visit before being sent to login.
+   * When provided, it is stored in a short-lived cookie (auth_redirect_to, max-age 600)
+   * so the callback route can redirect there after successful auth.
+   * Must be a relative path starting with / (e.g. '/portal', '/dashboard/settings').
    */
-  callbackUrl?: string;
+  intendedDestination?: string;
 }
 
 /**
  * GoogleSignInButton — client component that initiates NextAuth Google OAuth.
  *
- * Uses next-auth/react signIn('google') which handles the PKCE flow and
- * sets the auth cookies on callback. No Supabase client is used.
+ * Uses next-auth/react signIn('google') on the client side.
+ * When `intendedDestination` is set, stores it in a cookie before redirecting
+ * so the callback route can return the user to the right page post-auth.
  */
-export function GoogleSignInButton({ callbackUrl = '/dashboard' }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ redirectTo, intendedDestination }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,9 +30,20 @@ export function GoogleSignInButton({ callbackUrl = '/dashboard' }: GoogleSignInB
     setLoading(true);
     setError(null);
 
+    // Store intended destination before the redirect so the callback can restore it.
+    if (intendedDestination && intendedDestination.startsWith('/')) {
+      document.cookie = [
+        `auth_redirect_to=${encodeURIComponent(intendedDestination)}`,
+        'max-age=600',
+        'path=/',
+        'SameSite=Lax',
+        ...(window.location.protocol === 'https:' ? ['Secure'] : []),
+      ].join('; ');
+    }
+
     try {
-      await signIn('google', { callbackUrl });
-      // Browser is redirected to Google — loading stays true
+      await signIn('google', { callbackUrl: redirectTo });
+      // On success the browser redirects — loading stays true
     } catch {
       setError('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
       setLoading(false);
