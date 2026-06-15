@@ -144,14 +144,17 @@ export const authConfig: NextAuthConfig = {
           columns: { orgId: true, role: true },
         });
 
-        if (profile) {
-          session.user.orgId = profile.orgId;
-          session.user.role = profile.role as 'admin' | 'tenant';
+        if (!profile?.orgId) {
+          log.error('[auth] session callback: profile missing or has no orgId — invalidating session', { userId: user.id });
+          // Returning null invalidates the session in NextAuth v5
+          return null as unknown as typeof session;
         }
+        session.user.orgId = profile.orgId;
+        session.user.role = profile.role as 'admin' | 'tenant';
       } catch (err) {
         const code = err instanceof Error ? err.name : 'unknown';
-        log.error('[auth] session callback: profile fetch failed', { code, userId: user.id });
-        // Return session without orgId/role rather than throwing — caller guards will reject
+        log.error('[auth] session callback: profile fetch failed — invalidating session', { code, userId: user.id });
+        return null as unknown as typeof session;
       }
 
       // Ensure id is always set

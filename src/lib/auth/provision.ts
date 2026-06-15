@@ -162,7 +162,7 @@ export async function attemptAutoLink(
   let matches: Array<{ id: string; orgId: string }>;
   try {
     matches = await dbClient.query.tenants.findMany({
-      where: (t) => ilike(t.email!, email),
+      where: (t, { and: _and }) => _and(ilike(t.email!, email), isNull(t.profileId)),
       columns: { id: true, orgId: true },
     });
   } catch (err) {
@@ -171,8 +171,8 @@ export async function attemptAutoLink(
     return { linked: false, reason: 'no_match' };
   }
 
-  // Filter to only unlinked rows (profileId IS NULL)
-  const unlinked = matches.filter((t) => true); // We'll do a second check below
+  // All returned rows already have profileId IS NULL (enforced in the DB query above)
+  const unlinked = matches;
 
   if (unlinked.length === 0) {
     log.info('[provision] attemptAutoLink: no unlinked tenant row found', {

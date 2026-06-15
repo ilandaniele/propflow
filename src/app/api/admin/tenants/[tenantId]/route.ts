@@ -187,14 +187,14 @@ export async function PATCH(
         airtableExternalId: result.airtableRecordId,
         syncStatus:         'synced',
         lastSyncedAt:       now,
-      }).where(eq(tenants.id, tenantId));
+      }).where(and(eq(tenants.id, tenantId), eq(tenants.orgId, ctx.orgId)));
 
       syncStatus = 'synced';
       airtableSynced = true;
     } catch (err) {
       const errName = err instanceof Error ? err.name : 'unknown';
       console.warn('[api/admin/tenants PATCH] Airtable sync failed', { errName, tenantId });
-      await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, tenantId));
+      await db.update(tenants).set({ syncStatus: 'failed' }).where(and(eq(tenants.id, tenantId), eq(tenants.orgId, ctx.orgId)));
       syncStatus = 'failed';
     }
   }

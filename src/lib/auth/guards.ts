@@ -37,6 +37,7 @@ export async function requireAdmin(): Promise<AuthContext> {
   if (!session?.user || session.user.role !== 'admin') {
     throw new Error('unauthorized');
   }
+  if (!session.user.orgId) throw new Error('unauthorized');
   const profile = await db.query.profiles.findFirst({
     where: eq(profiles.userId, session.user.id),
   });
@@ -59,6 +60,7 @@ export async function requireAdmin(): Promise<AuthContext> {
 export async function requireTenant(): Promise<AuthContext> {
   const session = await auth();
   if (!session?.user) throw new Error('unauthorized');
+  if (!session.user.orgId) throw new Error('unauthorized');
   // Admin trying to use a tenant-only action → redirect to admin area (AC9)
   if (session.user.role === 'admin') {
     redirect('/dashboard');
