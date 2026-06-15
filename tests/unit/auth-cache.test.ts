@@ -2,8 +2,8 @@
  * Unit tests: React.cache deduplication for auth helpers
  *
  * Verifies that wrapping getCachedUser, getProfile, and requireUser in
- * React.cache() causes the underlying Supabase round-trips (getUser network
- * call + profiles SELECT) to fire at most once per React render pass,
+ * React.cache() causes the underlying auth round-trips (auth() network
+ * call + profiles SELECT via Drizzle) to fire at most once per React render pass,
  * regardless of how many callers invoke the helpers concurrently.
  *
  * Test environment strategy:
@@ -75,77 +75,68 @@ vi.mock('react', async () => {
 interface MockState {
   getUserCallCount: number;
   profileSelectCallCount: number;
-  getUserResult: { data: { user: { id: string } | null }; error: null };
-  profileResult: {
-    data: { id: string; org_id: string; role: 'admin' | 'tenant'; full_name: string | null; phone: string | null; email: string | null } | null;
-    error: null;
-  };
+  authUser: { id: string; email?: string | null; name?: string | null } | null;
+  profileRow: { id: string; orgId: string; role: 'admin' | 'tenant'; fullName: string | null; phone: string | null; email: string | null } | null;
 }
 
 const s: MockState = {
   getUserCallCount: 0,
   profileSelectCallCount: 0,
-  getUserResult: { data: { user: null }, error: null },
-  profileResult: { data: null, error: null },
+  authUser: null,
+  profileRow: null,
 };
 
 function setupAuthenticatedAdmin(userId = 'user-uuid-1') {
   s.getUserCallCount = 0;
   s.profileSelectCallCount = 0;
-  s.getUserResult = { data: { user: { id: userId } }, error: null };
-  s.profileResult = {
-    data: { id: userId, org_id: 'org-uuid-1', role: 'admin', full_name: 'Admin User', phone: null, email: 'admin@test.com' },
-    error: null,
-  };
+  s.authUser = { id: userId, email: 'admin@test.com' };
+  s.profileRow = { id: userId, orgId: 'org-uuid-1', role: 'admin', fullName: 'Admin User', phone: null, email: 'admin@test.com' };
 }
 
 function setupAuthenticatedTenant(userId = 'user-uuid-2') {
   s.getUserCallCount = 0;
   s.profileSelectCallCount = 0;
-  s.getUserResult = { data: { user: { id: userId } }, error: null };
-  s.profileResult = {
-    data: { id: userId, org_id: 'org-uuid-1', role: 'tenant', full_name: 'Tenant User', phone: null, email: 'tenant@test.com' },
-    error: null,
-  };
+  s.authUser = { id: userId, email: 'tenant@test.com' };
+  s.profileRow = { id: userId, orgId: 'org-uuid-1', role: 'tenant', fullName: 'Tenant User', phone: null, email: 'tenant@test.com' };
 }
 
 function setupUnauthenticated() {
   s.getUserCallCount = 0;
   s.profileSelectCallCount = 0;
-  s.getUserResult = { data: { user: null }, error: null };
-  s.profileResult = { data: null, error: null };
+  s.authUser = null;
+  s.profileRow = null;
 }
 
 // ---------------------------------------------------------------------------
-// Supabase client mock
+// Mock @/auth — used by getCachedUser
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: vi.fn(async () => {
-        s.getUserCallCount++;
-        return s.getUserResult;
-      }),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(async () => {
+vi.mock('@/auth', () => ({
+  auth: vi.fn(async () => {
+    s.getUserCallCount++;
+    if (!s.authUser) return null;
+    return { user: s.authUser };
+  }),
+}));
+
+// ---------------------------------------------------------------------------
+// Mock @/lib/db — used by getProfile via Drizzle select chain
+// ---------------------------------------------------------------------------
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => {
             s.profileSelectCallCount++;
-            return s.profileResult;
+            if (!s.profileRow) return [];
+            return [s.profileRow];
           }),
         })),
       })),
     })),
-  })),
-}));
-
-vi.mock('next/headers', () => ({
-  cookies: vi.fn(async () => ({
-    getAll: vi.fn(() => []),
-    set: vi.fn(),
-  })),
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -169,10 +160,10 @@ describe('React.cache deduplication — auth helpers', () => {
   });
 
   // -------------------------------------------------------------------------
-  // AC1 — getCachedUser: getUser fires exactly once per render pass
+  // AC1 — getCachedUser: auth() fires exactly once per render pass
   // -------------------------------------------------------------------------
 
-  it('getCachedUser — two concurrent calls fire getUser exactly once', async () => {
+  it('getCachedUser — two concurrent calls fire auth() exactly once', async () => {
     const { getCachedUser } = await import('@/lib/auth/guards');
 
     // Simulate two concurrent callers (layout + page) within the same render pass.
@@ -207,10 +198,10 @@ describe('React.cache deduplication — auth helpers', () => {
   });
 
   // -------------------------------------------------------------------------
-  // AC1 — requireUser: combined getUser + SELECT deduped
+  // AC1 — requireUser: combined auth() + SELECT deduped
   // -------------------------------------------------------------------------
 
-  it('requireUser — two concurrent calls issue one getUser + one SELECT', async () => {
+  it('requireUser — two concurrent calls issue one auth() + one SELECT', async () => {
     const { requireUser } = await import('@/lib/auth/guards');
 
     const p1 = requireUser();
@@ -240,7 +231,7 @@ describe('React.cache deduplication — auth helpers', () => {
       requireAdmin(),
     ]);
 
-    // Only 1 getUser network hop + 1 profiles SELECT for the entire render.
+    // Only 1 auth() hop + 1 profiles SELECT for the entire render.
     expect(s.getUserCallCount).toBe(1);
     expect(s.profileSelectCallCount).toBe(1);
 
@@ -252,7 +243,7 @@ describe('React.cache deduplication — auth helpers', () => {
   // -------------------------------------------------------------------------
   // AC2 — Total auth round-trips: from 5 to ≤ 2
   // Old: layout (getUser + SELECT + org) + requireAdmin (getUser + SELECT) = 5 auth hops
-  // New: getUser once + SELECT once + org SELECT = 2 auth hops
+  // New: auth() once + SELECT once = 2 auth hops
   // -------------------------------------------------------------------------
 
   it('sequential getProfile then requireAdmin — total auth hops ≤ 2 (was 5)', async () => {
@@ -304,7 +295,7 @@ describe('React.cache deduplication — auth helpers', () => {
   // AC1 — requireTenant: same cache dedup as requireAdmin
   // -------------------------------------------------------------------------
 
-  it('requireTenant — two concurrent calls issue one getUser + one SELECT', async () => {
+  it('requireTenant — two concurrent calls issue one auth() + one SELECT', async () => {
     setupAuthenticatedTenant();
     const { requireTenant } = await import('@/lib/auth/guards');
 
@@ -313,7 +304,7 @@ describe('React.cache deduplication — auth helpers', () => {
     // both resolve to the same data using the same cached underlying round-trips.
     const [ctx1, ctx2] = await Promise.all([requireTenant(), requireTenant()]);
 
-    // The key assertion: only 1 getUser + 1 SELECT despite two requireTenant calls.
+    // The key assertion: only 1 auth() + 1 SELECT despite two requireTenant calls.
     expect(s.getUserCallCount).toBe(1);
     expect(s.profileSelectCallCount).toBe(1);
     expect(ctx1.role).toBe('tenant');

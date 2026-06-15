@@ -2,15 +2,16 @@
  * tests/unit/airtable-sync.test.ts
  *
  * Unit tests for syncEntityTable (AC17):
- * - Verifies function accepts a Drizzle db (PostgresJsDatabase)
- * - Verifies db.insert().onConflictDoUpdate() is called for entity upserts
+ * - Verifies function accepts an adminClient (Supabase service-role client)
+ * - Verifies adminClient.from().upsert() is called for entity upserts
  * - Verifies org_id scoping (queries always include orgId)
  *
- * Uses vi.fn() to mock the Drizzle builder chain. No real DB connection.
+ * Uses vi.fn() to mock the Supabase builder chain. No real DB connection.
  */
 
-import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AirtableRecord } from '@/lib/schemas/airtable';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ---------------------------------------------------------------------------
 // Mock the Airtable client so no real Airtable calls are made
@@ -23,27 +24,46 @@ vi.mock('@/lib/airtable/client', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock the Drizzle db — chain builder pattern
+// Supabase admin client mock — chainable builder for from().select/upsert/in/eq
 // ---------------------------------------------------------------------------
 
-// Drizzle's insert builder is a chainable object: insert().values().onConflictDoUpdate()
-// We capture calls to verify:
-//   1. insert() is called with the correct table
-//   2. onConflictDoUpdate() receives { target, set } with org_id + airtable_external_id
+// Track calls for assertions
+const mockUpsert = vi.fn().mockResolvedValue({ data: [], error: null });
+const mockIn = vi.fn().mockResolvedValue({ data: [], error: null });
+const mockEq = vi.fn();
+const mockSelect = vi.fn();
+const mockFrom = vi.fn();
 
-const mockOnConflictDoUpdate = vi.fn().mockResolvedValue([]);
-const mockValues = vi.fn().mockReturnValue({ onConflictDoUpdate: mockOnConflictDoUpdate });
-const mockInsert = vi.fn().mockReturnValue({ values: mockValues });
+// Wire up chains:
+// from(table).upsert(rows, opts) → { data, error }
+// from(table).select(cols).eq(col, val).in(col, vals) → { data }
+// from(table).select(cols).eq(col, val) → { data }
 
-// For select (idMap refresh + unitMap build + contractToTenantMap)
-const mockWhere = vi.fn().mockResolvedValue([]);
-const mockFrom = vi.fn().mockReturnValue({ where: mockWhere });
-const mockSelect = vi.fn().mockReturnValue({ from: mockFrom });
+function makeSelectChain(returnData: unknown[] = []) {
+  const inFn = vi.fn().mockResolvedValue({ data: returnData, error: null });
+  const eqFn = vi.fn().mockReturnValue({ in: inFn, eq: vi.fn().mockResolvedValue({ data: returnData, error: null }) });
+  const selectFn = vi.fn().mockReturnValue({ eq: eqFn });
+  return { selectFn, eqFn, inFn };
+}
 
-const mockDb = {
-  insert: mockInsert,
-  select: mockSelect,
-} as unknown as import('drizzle-orm/postgres-js').PostgresJsDatabase;
+// Mock insert (used by writeEntityLog for airtable_sync_logs)
+const mockInsertLog = vi.fn().mockResolvedValue({ data: null, error: null });
+
+// Build a fresh adminClient mock for each test
+function createAdminClient(selectData: unknown[] = []): SupabaseClient {
+  const { selectFn } = makeSelectChain(selectData);
+  mockSelect.mockImplementation(selectFn);
+
+  mockFrom.mockReturnValue({
+    upsert: mockUpsert,
+    select: mockSelect,
+    insert: mockInsertLog,
+  });
+
+  return {
+    from: mockFrom,
+  } as unknown as SupabaseClient;
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -52,11 +72,12 @@ const mockDb = {
 describe('syncEntityTable — AC17', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default: select queries return empty array (no existing tenants for conflict check)
-    mockWhere.mockResolvedValue([]);
+    // Default: upsert succeeds, insert (sync log) succeeds
+    mockUpsert.mockResolvedValue({ data: [], error: null });
+    mockInsertLog.mockResolvedValue({ data: null, error: null });
   });
 
-  it('calls db.insert().values().onConflictDoUpdate() for properties entity', async () => {
+  it('calls adminClient.from().upsert() for properties entity', async () => {
     const { syncEntityTable } = await import('@/lib/airtable/sync-entities');
 
     const mockRecord: AirtableRecord = {
@@ -71,26 +92,25 @@ describe('syncEntityTable — AC17', () => {
 
     mockListRecords.mockResolvedValueOnce([mockRecord]);
 
-    // idMap refresh query returns an empty list (no freshRows needed for this test)
-    mockWhere.mockResolvedValue([]);
+    // idMap refresh: from().select().eq().in() returns matching row
+    const mockInFn = vi.fn().mockResolvedValue({ data: [], error: null });
+    const mockEqFn2 = vi.fn().mockReturnValue({ in: mockInFn });
+    const mockSelectFn = vi.fn().mockReturnValue({ eq: mockEqFn2 });
+    mockFrom.mockReturnValue({ upsert: mockUpsert, select: mockSelectFn, insert: mockInsertLog });
+
+    const adminClient = { from: mockFrom } as unknown as SupabaseClient;
 
     const result = await syncEntityTable(
       'org-test-001',
       'properties',
       'AIRTABLE_TABLE_PROPIEDADES',
-      mockDb,
+      adminClient,
     );
 
-    // Should call insert (at minimum once for domain table, once for airtable_snapshots, once for sync log)
-    expect(mockInsert).toHaveBeenCalled();
-
-    // onConflictDoUpdate should be called for the domain upsert
-    expect(mockOnConflictDoUpdate).toHaveBeenCalled();
-
-    // The call args should include target and set
-    const [conflictArgs] = mockOnConflictDoUpdate.mock.calls[0] ?? [{}];
-    expect(conflictArgs).toHaveProperty('target');
-    expect(conflictArgs).toHaveProperty('set');
+    // Should call from() for domain upsert, snapshot upsert, and sync log
+    expect(mockFrom).toHaveBeenCalled();
+    // upsert should be called at least once
+    expect(mockUpsert).toHaveBeenCalled();
 
     // Result is typed correctly
     expect(result.entity).toBe('properties');
@@ -114,26 +134,24 @@ describe('syncEntityTable — AC17', () => {
 
     mockListRecords.mockResolvedValueOnce([mockRecord]);
 
-    // unitMap query + existing tenants conflict query + idMap refresh — all scoped
-    const selectCallResults = [
-      [],  // unitMap query
-      [],  // existing tenants for conflict detection
-      [],  // idMap refresh
-    ];
-    let callIdx = 0;
-    mockWhere.mockImplementation(() => Promise.resolve(selectCallResults[callIdx++] ?? []));
+    // Wire select chains for: unitMap query, existing tenants conflict, idMap refresh
+    const mockInFn = vi.fn().mockResolvedValue({ data: [], error: null });
+    const mockEqFn = vi.fn().mockReturnValue({ in: mockInFn, eq: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    const mockSelectFn = vi.fn().mockReturnValue({ eq: mockEqFn });
+    mockFrom.mockReturnValue({ upsert: mockUpsert, select: mockSelectFn, insert: mockInsertLog });
+
+    const adminClient = { from: mockFrom } as unknown as SupabaseClient;
 
     await syncEntityTable(
       'org-tenant-scope-001',
       'tenants',
       'AIRTABLE_TABLE_RESIDENTES',
-      mockDb,
+      adminClient,
     );
 
-    // select().from().where() was called — verifying DB queries happened
-    expect(mockSelect).toHaveBeenCalled();
+    // from() was called — DB queries happened
     expect(mockFrom).toHaveBeenCalled();
-    expect(mockWhere).toHaveBeenCalled();
+    expect(mockSelectFn).toHaveBeenCalled();
   });
 
   it('returns success status with count=0 when Airtable returns no records', async () => {
@@ -141,11 +159,18 @@ describe('syncEntityTable — AC17', () => {
 
     mockListRecords.mockResolvedValueOnce([]);
 
+    const mockInFn = vi.fn().mockResolvedValue({ data: [], error: null });
+    const mockEqFn = vi.fn().mockReturnValue({ in: mockInFn });
+    const mockSelectFn = vi.fn().mockReturnValue({ eq: mockEqFn });
+    mockFrom.mockReturnValue({ upsert: mockUpsert, select: mockSelectFn, insert: mockInsertLog });
+
+    const adminClient = { from: mockFrom } as unknown as SupabaseClient;
+
     const result = await syncEntityTable(
       'org-empty-001',
       'properties',
       'AIRTABLE_TABLE_PROPIEDADES',
-      mockDb,
+      adminClient,
     );
 
     expect(result.status).toBe('success');
@@ -158,11 +183,18 @@ describe('syncEntityTable — AC17', () => {
 
     mockListRecords.mockRejectedValueOnce(new Error('Airtable API error: 429 Too Many Requests'));
 
+    const mockInFn = vi.fn().mockResolvedValue({ data: [], error: null });
+    const mockEqFn = vi.fn().mockReturnValue({ in: mockInFn });
+    const mockSelectFn = vi.fn().mockReturnValue({ eq: mockEqFn });
+    mockFrom.mockReturnValue({ upsert: mockUpsert, select: mockSelectFn, insert: mockInsertLog });
+
+    const adminClient = { from: mockFrom } as unknown as SupabaseClient;
+
     const result = await syncEntityTable(
       'org-err-001',
       'properties',
       'AIRTABLE_TABLE_PROPIEDADES',
-      mockDb,
+      adminClient,
     );
 
     expect(result.status).toBe('error');
@@ -170,15 +202,14 @@ describe('syncEntityTable — AC17', () => {
     expect(result.count).toBe(0);
   });
 
-  it('accepts a PostgresJsDatabase typed parameter (AC17 — compile-time guarantee)', async () => {
-    // This test verifies the function signature accepts the Drizzle db type.
-    // If the signature were still SupabaseClient, this import would fail TypeScript.
+  it('accepts a SupabaseClient typed parameter (AC17 — compile-time guarantee)', async () => {
+    // This test verifies the function signature accepts the adminClient type.
     const { syncEntityTable } = await import('@/lib/airtable/sync-entities');
 
-    // Verify the function is callable with the mockDb (typed as PostgresJsDatabase)
+    // Verify the function is callable with a SupabaseClient
     expect(typeof syncEntityTable).toBe('function');
 
-    // Function has 4 required positional args (orgId, entity, tableEnvKey, db)
+    // Function has 4 required positional args (orgId, entity, tableEnvKey, adminClient)
     expect(syncEntityTable.length).toBe(4);
   });
 
@@ -194,9 +225,15 @@ describe('syncEntityTable — AC17', () => {
     mockListRecords.mockResolvedValueOnce([mockRecord]);
 
     // idMap refresh: return a row with the matching airtable_external_id
-    mockWhere.mockResolvedValueOnce([
-      { id: 'uuid-prop-002', airtableExternalId: 'recPROP002' },
-    ]);
+    const mockInFn = vi.fn().mockResolvedValue({
+      data: [{ id: 'uuid-prop-002', airtable_external_id: 'recPROP002' }],
+      error: null,
+    });
+    const mockEqFn = vi.fn().mockReturnValue({ in: mockInFn });
+    const mockSelectFn = vi.fn().mockReturnValue({ eq: mockEqFn });
+    mockFrom.mockReturnValue({ upsert: mockUpsert, select: mockSelectFn, insert: mockInsertLog });
+
+    const adminClient = { from: mockFrom } as unknown as SupabaseClient;
 
     const idMaps: Record<string, Map<string, string>> = {};
 
@@ -204,7 +241,7 @@ describe('syncEntityTable — AC17', () => {
       'org-idmap-001',
       'properties',
       'AIRTABLE_TABLE_PROPIEDADES',
-      mockDb,
+      adminClient,
       undefined, // default airtableClient (mocked by vi.mock above)
       idMaps,
     );
