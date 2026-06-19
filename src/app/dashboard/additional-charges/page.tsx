@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -12,6 +13,7 @@ export default async function AdditionalChargesPage() {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
+  const t = await getTranslations('additionalCharges');
   const { data: charges } = await supabase
     .from('additional_charges')
     .select('*, contracts(id, tenants(full_name))')
@@ -27,9 +29,9 @@ export default async function AdditionalChargesPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Additional Charges</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {rows.length} charge{rows.length !== 1 ? 's' : ''} · Total S/ {totalAmount.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+            {t('subtitle', { count: rows.length, total: totalAmount.toLocaleString('es-PE', { minimumFractionDigits: 2 }) })}
           </p>
         </div>
       </div>
@@ -37,20 +39,20 @@ export default async function AdditionalChargesPage() {
       {rows.length === 0 ? (
         <Card>
           <EmptyState
-            title="No additional charges"
-            description="Additional charges (Adicionales) synced from Airtable will appear here."
+            title={t('emptyTitle')}
+            description={t('emptyDesc')}
           />
         </Card>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full" aria-label="Additional charges list">
+          <table className="w-full" aria-label={t('title')}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tenant</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Period</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount (S/)</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Description</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">#</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colTenant')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">{t('colPeriod')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colAmount')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">{t('colDescription')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">{t('colNumber')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

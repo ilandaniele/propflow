@@ -2,17 +2,11 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 export const metadata: Metadata = { title: 'Account Statements' };
-
-const SEND_STATUS_LABEL: Record<string, string> = {
-  sent: 'Sent',
-  pending: 'Pending',
-  error: 'Error',
-  draft: 'Draft',
-};
 
 function statusClass(status: string | null): string {
   switch (status) {
@@ -28,6 +22,7 @@ export default async function AccountStatementsPage() {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
+  const t = await getTranslations('accountStatements');
   const { data: statements } = await supabase
     .from('account_statements')
     .select('*, contracts(id, tenants(full_name))')
@@ -44,9 +39,9 @@ export default async function AccountStatementsPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Account Statements</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {rows.length} statement{rows.length !== 1 ? 's' : ''} · {sentCount} sent · Total due S/ {totalDue.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+            {t('subtitle', { count: rows.length, sent: sentCount, total: totalDue.toLocaleString('es-PE', { minimumFractionDigits: 2 }) })}
           </p>
         </div>
       </div>
@@ -54,21 +49,21 @@ export default async function AccountStatementsPage() {
       {rows.length === 0 ? (
         <Card>
           <EmptyState
-            title="No account statements"
-            description="Monthly billing statements (EECC) synced from Airtable will appear here."
+            title={t('emptyTitle')}
+            description={t('emptyDesc')}
           />
         </Card>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full" aria-label="Account statements list">
+          <table className="w-full" aria-label={t('title')}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tenant</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Period</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Due (S/)</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Rent</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Due Date</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Send Status</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colTenant')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">{t('colPeriod')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colTotalDue')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">{t('colRent')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">{t('colDueDate')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colSendStatus')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -76,7 +71,7 @@ export default async function AccountStatementsPage() {
                 const contract = stmt.contracts as { tenants: { full_name: string } | null } | null;
                 const tenantName = contract?.tenants?.full_name ?? '—';
                 const period = stmt.mes && stmt.anio ? `${stmt.mes} ${stmt.anio}` : '—';
-                const statusLabel = SEND_STATUS_LABEL[stmt.send_status ?? ''] ?? (stmt.send_status ?? '—');
+                const statusLabel = stmt.send_status ? stmt.send_status.charAt(0).toUpperCase() + stmt.send_status.slice(1) : '—';
                 return (
                   <tr key={stmt.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4 text-sm font-medium text-slate-900">{tenantName}</td>

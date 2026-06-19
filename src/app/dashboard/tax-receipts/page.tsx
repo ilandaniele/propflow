@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -21,6 +22,7 @@ export default async function TaxReceiptsPage() {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
+  const t = await getTranslations('taxReceipts');
   const { data: receipts } = await supabase
     .from('tax_receipts')
     .select('*')
@@ -36,9 +38,9 @@ export default async function TaxReceiptsPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Tax Receipts</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {rows.length} receipt{rows.length !== 1 ? 's' : ''} · Total S/ {totalAmount.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+            {t('subtitle', { count: rows.length, total: totalAmount.toLocaleString('es-PE', { minimumFractionDigits: 2 }) })}
           </p>
         </div>
       </div>
@@ -46,22 +48,22 @@ export default async function TaxReceiptsPage() {
       {rows.length === 0 ? (
         <Card>
           <EmptyState
-            title="No tax receipts"
-            description="Tax receipts and vouchers (Impuestos/Comprobantes) synced from Airtable will appear here."
+            title={t('emptyTitle')}
+            description={t('emptyDesc')}
           />
         </Card>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full" aria-label="Tax receipts list">
+          <table className="w-full" aria-label={t('title')}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Code</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Type</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Period</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Total (S/)</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">IGV</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Issue Date</th>
-                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colCode')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">{t('colType')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">{t('colPeriod')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colTotal')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">{t('colIGV')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">{t('colIssueDate')}</th>
+                <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{t('colStatus')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
