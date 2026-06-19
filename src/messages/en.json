@@ -92,6 +92,25 @@
   "tenants": {
     "title": "Tenants",
     "detail": "Tenant Detail",
+    "list": {
+      "emptyTitle": "No tenants yet",
+      "emptyDesc": "Add your first tenant to start managing contracts and payments.",
+      "colTenant": "Tenant",
+      "colEmail": "Email",
+      "colUnit": "Unit",
+      "colPortal": "Portal",
+      "colActions": "Actions",
+      "unassigned": "Unassigned",
+      "portalActive": "Active",
+      "portalNone": "No login",
+      "viewButton": "View",
+      "kpiPastDue": "Past Due Balance",
+      "kpiPastDueSub": "Total outstanding overdue",
+      "kpiOverdue": "Overdue Tenants",
+      "kpiOverdueSub": "of {total} tenants",
+      "kpiPortal": "Portal Linked",
+      "kpiPortalSub": "of {total} tenants have portal access"
+    },
     "tabs": {
       "overview": "Overview",
       "payments": "Payments",
@@ -1087,6 +1106,15 @@
     "photoUrlNote": "Public image URL. Syncs with Airtable if the \"Profile photo\" field exists.",
     "photoAlt": "Profile photo",
     "viewHistory": "View history"
+  },
+  "aiAnalyst": {
+    "title": "AI Analyst",
+    "subtitle": "Deterministic analyses and free questions about your portfolio.",
+    "chipsNote": "Chip analyses are deterministic calculations — no generative AI.",
+    "chatNote": "Free chat uses AI with aggregated context (no tenant personal data).",
+    "sectionChips": "Quick Analyses",
+    "sectionChat": "Free Question",
+    "contextNote": "Context sent to the model is limited to aggregated portfolio KPIs (max 8 KB). No tenant personal data is included."
   },
   "airtableIntegration": {
     "title": "Airtable Integration",

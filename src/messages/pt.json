@@ -92,6 +92,25 @@
   "tenants": {
     "title": "Inquilinos",
     "detail": "Detalhe do Inquilino",
+    "list": {
+      "emptyTitle": "Nenhum inquilino ainda",
+      "emptyDesc": "Adicione seu primeiro inquilino para começar a gerenciar contratos e pagamentos.",
+      "colTenant": "Inquilino",
+      "colEmail": "Email",
+      "colUnit": "Unidade",
+      "colPortal": "Portal",
+      "colActions": "Ações",
+      "unassigned": "Sem atribuição",
+      "portalActive": "Ativo",
+      "portalNone": "Sem acesso",
+      "viewButton": "Ver",
+      "kpiPastDue": "Saldo em Atraso",
+      "kpiPastDueSub": "Total inadimplente",
+      "kpiOverdue": "Inquilinos em Atraso",
+      "kpiOverdueSub": "de {total} inquilinos",
+      "kpiPortal": "Portal Vinculado",
+      "kpiPortalSub": "de {total} inquilinos têm acesso ao portal"
+    },
     "tabs": {
       "overview": "Visão Geral",
       "payments": "Pagamentos",
@@ -1087,6 +1106,15 @@
     "photoUrlNote": "URL pública da imagem. Sincroniza com o Airtable se o campo \"Foto de perfil\" existir.",
     "photoAlt": "Foto de perfil",
     "viewHistory": "Ver histórico"
+  },
+  "aiAnalyst": {
+    "title": "Analista IA",
+    "subtitle": "Análises determinísticas e perguntas livres sobre seu portfólio.",
+    "chipsNote": "As análises de chips são cálculos determinísticos — sem IA generativa.",
+    "chatNote": "O chat livre usa IA com contexto agregado (sem dados pessoais dos inquilinos).",
+    "sectionChips": "Análises Rápidas",
+    "sectionChat": "Pergunta Livre",
+    "contextNote": "O contexto enviado ao modelo é limitado a KPIs agregados do portfólio (máx. 8 KB). Nenhum dado pessoal de inquilinos é incluído."
   },
   "airtableIntegration": {
     "title": "Integração Airtable",
