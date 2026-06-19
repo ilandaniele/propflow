@@ -121,7 +121,8 @@
       "documents": "Documents",
       "sanctions": "Sanctions",
       "notes": "Notes",
-      "activity": "Activity"
+      "activity": "Activity",
+      "portalPreview": "Portal Preview"
     },
     "header": {
       "noUnit": "No unit assigned",
@@ -412,7 +413,11 @@
     },
     "reminder": "Reminder: task due in 24 hours",
     "noTasks": "No tasks",
-    "dueLabel": "Due"
+    "dueLabel": "Due",
+    "backToTasks": "← Back to Tasks",
+    "newTaskSubtitle": "Create and assign a task to a tenant.",
+    "createTask": "Create Task",
+    "creating": "Creating..."
   },
   "whatsapp": {
     "title": "WhatsApp",
@@ -444,6 +449,10 @@
     "noConversations": "No conversations",
     "noConversationsDesc": "No conversations yet. Incoming WhatsApp messages will appear here.",
     "unknownTenant": "Unknown tenant",
+    "backToInbox": "Back to Inbox",
+    "messageHistoryNote": "Messages are loaded dynamically. See the WhatsApp tab on tenant detail for message history.",
+    "sending": "Sending...",
+    "send": "Send",
     "inboxBannerText": "Mock Provider Active — messages are NOT delivered to real WhatsApp. Configure WHATSAPP_PROVIDER to switch to a real provider.",
     "markRead": "Mark as read",
     "unread": "unread",
@@ -1482,5 +1491,63 @@
     "for": "For",
     "channel": "Channel",
     "scheduled": "Scheduled"
+  },
+  "incidentDetail": {
+    "cardDescription": "Description",
+    "cardTimeline": "Timeline",
+    "cardManage": "Manage",
+    "noComments": "No comments yet",
+    "reportedBy": "Reported by",
+    "on": "on",
+    "resolved": "Resolved",
+    "unknown": "Unknown"
+  },
+  "expenseCategories": {
+    "title": "Expense Categories",
+    "addCategory": "Add Category",
+    "emptyTitle": "No categories yet",
+    "emptyDesc": "Create expense categories to organize your P&L."
+  },
+  "ocrReceipts": {
+    "title": "OCR Receipt Inbox",
+    "subtitle": "Upload receipts for AI-assisted extraction. Review extracted data before matching to payments.",
+    "aiWarning": "AI-assisted — verify extracted amounts and dates before confirming a match.",
+    "emptyTitle": "No receipts yet",
+    "emptyDesc": "Receipts uploaded by tenants or admins will appear here for OCR processing."
+  },
+  "contractTemplates": {
+    "title": "Contract Templates",
+    "cardVariables": "Available Variables",
+    "variablesNote": "Use these in your template body as {{variable_name}}",
+    "cardNewTemplate": "New Template",
+    "emptyTitle": "No templates yet",
+    "emptyDesc": "Create your first contract template above."
+  },
+  "pricingTables": {
+    "title": "Pricing Tables (RTABLES)",
+    "subtitle": "Define reference rent ranges by property type and market zone. These are suggestions — they do not enforce rent amounts.",
+    "cardNew": "New Pricing Table",
+    "emptyTitle": "No pricing tables yet",
+    "emptyDesc": "Create pricing matrices to guide rent suggestions.",
+    "colLabel": "Label",
+    "colBedrooms": "Bedrooms",
+    "colMin": "Min",
+    "colMax": "Max",
+    "colSuggested": "Suggested"
+  },
+  "tenantDetail": {
+    "tabs": {
+      "overview": "Overview",
+      "payments": "Payments",
+      "contracts": "Contracts",
+      "incidents": "Incidents",
+      "tasks": "Tasks",
+      "whatsapp": "WhatsApp",
+      "documents": "Documents",
+      "sanctions": "Sanctions",
+      "notes": "Notes",
+      "activity": "Activity",
+      "portalPreview": "Portal Preview"
+    }
   }
 }

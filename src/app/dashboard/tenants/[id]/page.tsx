@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getTranslations } from 'next-intl/server';
 import { buildTenantActivityFeed } from '@/lib/tenants/activity-feed';
 import { Tabs } from '@/components/ui/Tabs';
 import { TabFallback } from '@/components/ui/TabFallback';
@@ -35,6 +36,7 @@ export default async function TenantDetailPage({ params }: Props) {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
+  const t = await getTranslations('tenants');
 
   // Fetch tenant (RLS ensures org isolation — 404 if wrong org)
   const { data: tenant } = await supabase
@@ -121,7 +123,7 @@ export default async function TenantDetailPage({ params }: Props) {
   const tabs = [
     {
       id: 'overview',
-      label: 'Overview',
+      label: t('tabs.overview'),
       content: (
         <OverviewTab
           statement={statement}
@@ -135,7 +137,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'payments',
-      label: 'Payments',
+      label: t('tabs.payments'),
       content: (
         <Suspense fallback={<TabFallback />}>
           <PaymentsTab tenantId={id} />
@@ -144,7 +146,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'contracts',
-      label: 'Contracts',
+      label: t('tabs.contracts'),
       content: (
         <Suspense fallback={<TabFallback />}>
           <ContractsTab tenantId={id} />
@@ -153,7 +155,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'incidents',
-      label: 'Incidents',
+      label: t('tabs.incidents'),
       badge: activeIncidentsCount,
       content: (
         <Suspense fallback={<TabFallback />}>
@@ -163,7 +165,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'tasks',
-      label: 'Tasks',
+      label: t('tabs.tasks'),
       badge: pendingTasksCount,
       content: (
         <Suspense fallback={<TabFallback />}>
@@ -173,7 +175,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'whatsapp',
-      label: 'WhatsApp',
+      label: t('tabs.whatsapp'),
       content: (
         <Suspense fallback={<TabFallback />}>
           <WhatsAppTab tenantId={id} />
@@ -182,7 +184,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'documents',
-      label: 'Documents',
+      label: t('tabs.documents'),
       content: (
         <Suspense fallback={<TabFallback />}>
           <DocumentsTab tenantId={id} />
@@ -191,7 +193,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'sanctions',
-      label: 'Sanctions',
+      label: t('tabs.sanctions'),
       content: (
         <Suspense fallback={<TabFallback />}>
           <SanctionsTab tenantId={id} />
@@ -200,7 +202,7 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'notes',
-      label: 'Notes',
+      label: t('tabs.notes'),
       content: (
         <Suspense fallback={<TabFallback />}>
           <NotesTab tenantId={id} />
@@ -209,12 +211,12 @@ export default async function TenantDetailPage({ params }: Props) {
     },
     {
       id: 'activity',
-      label: 'Activity',
+      label: t('tabs.activity'),
       content: <ActivityTab events={activityEvents} />,
     },
     {
       id: 'portal-preview',
-      label: 'Portal Preview',
+      label: t('tabs.portalPreview'),
       content: (
         <Suspense fallback={<TabFallback />}>
           <PortalPreviewTab tenant={tenant} />

@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
 import { CreateExpenseCategoryForm } from './CreateExpenseCategoryForm';
@@ -8,6 +9,7 @@ import type { ExpenseCategory } from '@/types';
 export default async function ExpenseCategoriesPage() {
   const ctx = await requireAdmin();
   const supabase = await createClient();
+  const t = await getTranslations('expenseCategories');
 
   const { data: categories } = await supabase
     .from('expense_categories')
@@ -17,17 +19,17 @@ export default async function ExpenseCategoriesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Expense Categories</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
 
       <Card padding="md">
-        <h2 className="text-base font-medium text-slate-800 mb-4">Add Category</h2>
+        <h2 className="text-base font-medium text-slate-800 mb-4">{t('addCategory')}</h2>
         <CreateExpenseCategoryForm />
       </Card>
 
       {(categories ?? []).length === 0 ? (
         <EmptyState
-          title="No categories yet"
-          description="Create expense categories to organize your P&L."
+          title={t('emptyTitle')}
+          description={t('emptyDesc')}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

@@ -2,11 +2,13 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { createTenantTask } from '@/app/actions/tasks';
 import { TASK_TYPES } from '@/lib/schemas/tenantTask';
 import type { ActionResult } from '@/lib/errors';
 
 function SubmitButton() {
+  const t = useTranslations('tasks');
   const { pending } = useFormStatus();
   return (
     <button
@@ -14,23 +16,24 @@ function SubmitButton() {
       disabled={pending}
       className="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg disabled:opacity-50 transition-colors"
     >
-      {pending ? 'Creating...' : 'Create Task'}
+      {pending ? t('creating') : t('createTask')}
     </button>
   );
 }
 
 export default function NewTaskPage() {
+  const t = useTranslations('tasks');
   const [state, action] = useActionState<ActionResult, FormData>(createTenantTask, {});
 
   return (
     <div className="max-w-lg space-y-6">
       <div className="flex items-center gap-2">
-        <a href="/dashboard/tasks" className="text-sm text-brand-600 hover:text-brand-800">← Back to Tasks</a>
+        <a href="/dashboard/tasks" className="text-sm text-brand-600 hover:text-brand-800">{t('backToTasks')}</a>
       </div>
 
       <div>
-        <h1 className="text-xl font-bold text-slate-900">New Task</h1>
-        <p className="text-sm text-slate-500 mt-1">Create and assign a task to a tenant.</p>
+        <h1 className="text-xl font-bold text-slate-900">{t('newTask')}</h1>
+        <p className="text-sm text-slate-500 mt-1">{t('newTaskSubtitle')}</p>
       </div>
 
       <form action={action} className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">

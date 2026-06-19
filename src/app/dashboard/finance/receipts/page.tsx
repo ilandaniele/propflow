@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OcrReceiptsClient } from './OcrReceiptsClient';
 import type { ReceiptUpload } from '@/types';
@@ -7,6 +8,7 @@ import type { ReceiptUpload } from '@/types';
 export default async function OcrReceiptsPage() {
   const ctx = await requireAdmin();
   const supabase = await createClient();
+  const t = await getTranslations('ocrReceipts');
 
   const { data: receipts } = await supabase
     .from('receipt_uploads')
@@ -27,19 +29,15 @@ export default async function OcrReceiptsPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">OCR Receipt Inbox</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Upload receipts for AI-assisted extraction. Review extracted data before matching to payments.
-        </p>
-        <p className="mt-0.5 text-xs text-amber-600">
-          AI-assisted — verify extracted amounts and dates before confirming a match.
-        </p>
+        <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
+        <p className="mt-1 text-sm text-slate-500">{t('subtitle')}</p>
+        <p className="mt-0.5 text-xs text-amber-600">{t('aiWarning')}</p>
       </div>
 
       {(receipts ?? []).length === 0 ? (
         <EmptyState
-          title="No receipts yet"
-          description="Receipts uploaded by tenants or admins will appear here for OCR processing."
+          title={t('emptyTitle')}
+          description={t('emptyDesc')}
         />
       ) : (
         <OcrReceiptsClient

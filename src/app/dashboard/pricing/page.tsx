@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { PricingTableForm } from './PricingTableForm';
@@ -8,6 +9,7 @@ import type { PricingTable, PricingTier } from '@/types';
 export default async function PricingPage() {
   const ctx = await requireAdmin();
   const supabase = await createClient();
+  const t = await getTranslations('pricingTables');
 
   const { data: tables } = await supabase
     .from('pricing_tables')
@@ -18,19 +20,17 @@ export default async function PricingPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Pricing Tables (RTABLES)</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Define reference rent ranges by property type and market zone. These are suggestions — they do not enforce rent amounts.
-        </p>
+        <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
+        <p className="text-sm text-slate-500 mt-1">{t('subtitle')}</p>
       </div>
 
       <Card padding="md">
-        <CardHeader><CardTitle>New Pricing Table</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('cardNew')}</CardTitle></CardHeader>
         <PricingTableForm />
       </Card>
 
       {(tables ?? []).length === 0 ? (
-        <EmptyState title="No pricing tables yet" description="Create pricing matrices to guide rent suggestions." />
+        <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
       ) : (
         <div className="space-y-4">
           {(tables as PricingTable[]).map((table) => {
@@ -47,11 +47,11 @@ export default async function PricingPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-slate-100">
-                        <th className="text-left py-1 text-slate-500 font-medium">Label</th>
-                        <th className="text-right py-1 text-slate-500 font-medium">Bedrooms</th>
-                        <th className="text-right py-1 text-slate-500 font-medium">Min</th>
-                        <th className="text-right py-1 text-slate-500 font-medium">Max</th>
-                        <th className="text-right py-1 text-slate-500 font-medium">Suggested</th>
+                        <th className="text-left py-1 text-slate-500 font-medium">{t('colLabel')}</th>
+                        <th className="text-right py-1 text-slate-500 font-medium">{t('colBedrooms')}</th>
+                        <th className="text-right py-1 text-slate-500 font-medium">{t('colMin')}</th>
+                        <th className="text-right py-1 text-slate-500 font-medium">{t('colMax')}</th>
+                        <th className="text-right py-1 text-slate-500 font-medium">{t('colSuggested')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -59,9 +59,9 @@ export default async function PricingPage() {
                         <tr key={i} className="border-b border-slate-50">
                           <td className="py-1 text-slate-700">{tier.label}</td>
                           <td className="py-1 text-right text-slate-700">{tier.bedrooms}</td>
-                          <td className="py-1 text-right text-slate-500">${tier.min_rent}</td>
-                          <td className="py-1 text-right text-slate-500">${tier.max_rent}</td>
-                          <td className="py-1 text-right font-medium text-slate-900">${tier.suggested_rent}</td>
+                          <td className="py-1 text-right text-slate-500">S/ {Number(tier.min_rent).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</td>
+                          <td className="py-1 text-right text-slate-500">S/ {Number(tier.max_rent).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</td>
+                          <td className="py-1 text-right font-medium text-slate-900">S/ {Number(tier.suggested_rent).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</td>
                         </tr>
                       ))}
                     </tbody>

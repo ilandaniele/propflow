@@ -121,7 +121,8 @@
       "documents": "Documentos",
       "sanctions": "Sanciones",
       "notes": "Notas",
-      "activity": "Actividad"
+      "activity": "Actividad",
+      "portalPreview": "Vista Portal"
     },
     "header": {
       "noUnit": "Sin unidad asignada",
@@ -412,7 +413,11 @@
     },
     "reminder": "Recordatorio: tarea vence en 24 horas",
     "noTasks": "Sin tareas",
-    "dueLabel": "Vence"
+    "dueLabel": "Vence",
+    "backToTasks": "← Volver a Tareas",
+    "newTaskSubtitle": "Crea y asigna una tarea a un inquilino.",
+    "createTask": "Crear Tarea",
+    "creating": "Creando..."
   },
   "whatsapp": {
     "title": "WhatsApp",
@@ -444,6 +449,10 @@
     "noConversations": "Sin conversaciones",
     "noConversationsDesc": "Sin conversaciones aún. Los mensajes de WhatsApp entrantes aparecerán aquí.",
     "unknownTenant": "Inquilino desconocido",
+    "backToInbox": "Volver a Bandeja",
+    "messageHistoryNote": "Los mensajes se cargan dinámicamente. Ve la pestaña WhatsApp en el detalle del inquilino para ver el historial.",
+    "sending": "Enviando...",
+    "send": "Enviar",
     "inboxBannerText": "Proveedor simulado activo — los mensajes NO se envían a WhatsApp real. Configura WHATSAPP_PROVIDER para usar un proveedor real.",
     "markRead": "Marcar como leído",
     "unread": "no leídos",
@@ -1482,5 +1491,63 @@
     "for": "Para",
     "channel": "Canal",
     "scheduled": "Programado"
+  },
+  "incidentDetail": {
+    "cardDescription": "Descripción",
+    "cardTimeline": "Línea de Tiempo",
+    "cardManage": "Gestionar",
+    "noComments": "Sin comentarios aún",
+    "reportedBy": "Reportado por",
+    "on": "el",
+    "resolved": "Resuelto",
+    "unknown": "Desconocido"
+  },
+  "expenseCategories": {
+    "title": "Categorías de Gastos",
+    "addCategory": "Agregar Categoría",
+    "emptyTitle": "Sin categorías aún",
+    "emptyDesc": "Crea categorías de gastos para organizar tu estado de resultados."
+  },
+  "ocrReceipts": {
+    "title": "Bandeja de Comprobantes OCR",
+    "subtitle": "Sube comprobantes para extracción con IA. Revisa los datos extraídos antes de vincular a pagos.",
+    "aiWarning": "Asistido por IA — verifica los montos y fechas antes de confirmar.",
+    "emptyTitle": "Sin comprobantes aún",
+    "emptyDesc": "Los comprobantes subidos por inquilinos o administradores aparecerán aquí para procesamiento OCR."
+  },
+  "contractTemplates": {
+    "title": "Plantillas de Contratos",
+    "cardVariables": "Variables Disponibles",
+    "variablesNote": "Úsalas en el cuerpo de tu plantilla como {{variable_name}}",
+    "cardNewTemplate": "Nueva Plantilla",
+    "emptyTitle": "Sin plantillas aún",
+    "emptyDesc": "Crea tu primera plantilla de contrato arriba."
+  },
+  "pricingTables": {
+    "title": "Tablas de Precios (RTABLES)",
+    "subtitle": "Define rangos de referencia de alquiler por tipo de propiedad y zona de mercado. Son sugerencias y no fuerzan montos.",
+    "cardNew": "Nueva Tabla de Precios",
+    "emptyTitle": "Sin tablas de precios aún",
+    "emptyDesc": "Crea matrices de precios para orientar sugerencias de alquiler.",
+    "colLabel": "Tipo",
+    "colBedrooms": "Habitaciones",
+    "colMin": "Mín",
+    "colMax": "Máx",
+    "colSuggested": "Sugerido"
+  },
+  "tenantDetail": {
+    "tabs": {
+      "overview": "Resumen",
+      "payments": "Pagos",
+      "contracts": "Contratos",
+      "incidents": "Incidentes",
+      "tasks": "Tareas",
+      "whatsapp": "WhatsApp",
+      "documents": "Documentos",
+      "sanctions": "Sanciones",
+      "notes": "Notas",
+      "activity": "Actividad",
+      "portalPreview": "Vista del Portal"
+    }
   }
 }
