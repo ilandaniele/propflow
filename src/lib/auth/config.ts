@@ -29,12 +29,8 @@ import { provisionOrgAndProfile, getExistingProfile, attemptAutoLink } from './p
 import { log } from '@/lib/log';
 
 export const authConfig: NextAuthConfig = {
-  adapter: DrizzleAdapter(db, {
-    usersTable: users,
-    accountsTable: accounts,
-    sessionsTable: sessions,
-    verificationTokensTable: verificationTokens,
-  }) as NextAuthConfig['adapter'],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adapter: DrizzleAdapter(db, { usersTable: users, accountsTable: accounts as any, sessionsTable: sessions, verificationTokensTable: verificationTokens }) as NextAuthConfig['adapter'],
 
   session: {
     strategy: 'database',
