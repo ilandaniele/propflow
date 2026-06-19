@@ -3,7 +3,7 @@
  *
  * New base ("Untitled Base" apphwPe2oIkGRSTkb) schema changes:
  * - normalizeTenant: contract fields removed from Residentes; property/unit link gone
- * - normalizeContract: tenant link is "👤 Residentes" (with emoji); field names updated
+ * - normalizeContract: tenant link is "Residentes" (no emoji — actual Airtable field name)
  * - normalizePayment: now reads Movimientos; returns discriminated union {skip, payment}
  * - normalizeProperty: renamed supply fields; removed description/current_residents
  */
@@ -203,7 +203,7 @@ describe('normalizeContract', () => {
   it('maps all fields correctly from a complete record (new schema)', () => {
     const record = makeRecord('recCON001', {
       'Contrato ID':           'CTR-2024-001',
-      '👤 Residentes':         ['recTEN001'],        // emoji field — EXACT
+      'Residentes':            ['recTEN001'],        // actual Airtable field name (no emoji)
       'Habitacion':            ['recUNIT001'],        // no tilde
       'Tipo de contrato':      'Fijo',
       'Fecha de inicio':       '2024-01-01',          // new field name
@@ -230,15 +230,15 @@ describe('normalizeContract', () => {
     expect(result._airtable_unit_ext_id).toBe('recUNIT001');
   });
 
-  it('extracts first element from "👤 Residentes" emoji linked array', () => {
+  it('extracts first element from "Residentes" linked array', () => {
     const record = makeRecord('recCON002', {
-      '👤 Residentes': ['recTEN001', 'recTEN002'],
+      'Residentes': ['recTEN001', 'recTEN002'],
     });
     const result = normalizeContract(record, ORG_ID);
     expect(result._airtable_tenant_ext_id).toBe('recTEN001');
   });
 
-  it('sets _airtable_tenant_ext_id to null when "👤 Residentes" is absent', () => {
+  it('sets _airtable_tenant_ext_id to null when "Residentes" is absent', () => {
     const record = makeRecord('recCON003', {});
     const result = normalizeContract(record, ORG_ID);
     expect(result._airtable_tenant_ext_id).toBeNull();
@@ -261,7 +261,7 @@ describe('normalizeContract', () => {
 describe('normalizePayment', () => {
   it('returns skip=false and maps fields correctly from a complete record', () => {
     const record = makeRecord('recPAY001', {
-      '📋 Historial (Contratos)': ['recCON001'],   // emoji field — EXACT
+      'Historial (Contratos)':     ['recCON001'],   // actual Airtable field name (no emoji)
       'Nombres y Apellidos':       'Juan Pérez',
       'Monto depositado (S/)':     800,
       'Fecha de vencimiento':      '2024-02-05',

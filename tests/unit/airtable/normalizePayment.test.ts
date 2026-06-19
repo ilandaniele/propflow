@@ -33,8 +33,8 @@ function makePaymentRecord(overrides: Partial<AirtableRecord['fields']> = {}): A
       [PAYMENT_FIELD.METHOD]:           'Yape',
       [PAYMENT_FIELD.STATUS]:           'Pagado',
       [PAYMENT_FIELD.TENANT_NAME]:      'Juan García',
-      // Contract link — EXACT emoji field name
-      '📋 Historial (Contratos)':       ['recCONTRACT01'],
+      // Contract link — actual Airtable field name (no emoji)
+      'Historial (Contratos)':          ['recCONTRACT01'],
       ...overrides,
     },
   };
@@ -68,10 +68,11 @@ describe('normalizePayment — Movimientos schema', () => {
     expect(result.payment.amount).toBe(900);
   });
 
-  it('skips when both amount fields are absent', () => {
+  it('skips when all amount fields are absent', () => {
     const result = normalizePayment(
       makePaymentRecord({
         [PAYMENT_FIELD.AMOUNT_DEPOSITED]: undefined,
+        [PAYMENT_FIELD.AMOUNT_TOTAL]:     undefined,
         [PAYMENT_FIELD.AMOUNT_RENT]:      undefined,
       }),
       ORG_ID
@@ -79,12 +80,29 @@ describe('normalizePayment — Movimientos schema', () => {
     expect(result.skip).toBe(true);
   });
 
-  it('skips when amount is 0', () => {
+  it('skips when all amounts are 0', () => {
     const result = normalizePayment(
-      makePaymentRecord({ [PAYMENT_FIELD.AMOUNT_DEPOSITED]: 0, [PAYMENT_FIELD.AMOUNT_RENT]: 0 }),
+      makePaymentRecord({
+        [PAYMENT_FIELD.AMOUNT_DEPOSITED]: 0,
+        [PAYMENT_FIELD.AMOUNT_TOTAL]:     0,
+        [PAYMENT_FIELD.AMOUNT_RENT]:      0,
+      }),
       ORG_ID
     );
     expect(result.skip).toBe(true);
+  });
+
+  it('falls back to Monto total (S/) when Monto depositado missing', () => {
+    const result = normalizePayment(
+      makePaymentRecord({
+        [PAYMENT_FIELD.AMOUNT_DEPOSITED]: undefined,
+        [PAYMENT_FIELD.AMOUNT_TOTAL]:     90,
+        [PAYMENT_FIELD.AMOUNT_RENT]:      0,
+      }),
+      ORG_ID
+    );
+    if (result.skip) throw new Error('should not skip');
+    expect(result.payment.amount).toBe(90);
   });
 
   it('uses Fecha de pago as paid_at', () => {
@@ -137,7 +155,7 @@ describe('normalizePayment — Movimientos schema', () => {
     expect(result.payment.period_month).toBe('2026-03');
   });
 
-  it('extracts contract ext id from "📋 Historial (Contratos)" emoji field', () => {
+  it('extracts contract ext id from "Historial (Contratos)" field', () => {
     const result = normalizePayment(makePaymentRecord(), ORG_ID);
     if (result.skip) throw new Error('should not skip');
     expect(result.payment._airtable_contract_ext_id).toBe('recCONTRACT01');

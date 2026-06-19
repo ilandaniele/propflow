@@ -6,7 +6,7 @@
  *
  * Key differences from old Pagos schema:
  * - Table is now "Movimientos" (env key AIRTABLE_TABLE_PAGOS still points to it)
- * - Contract link field is "📋 Historial (Contratos)" (WITH the emoji prefix — exact match)
+ * - Contract link field is "Historial (Contratos)" (no emoji — actual Airtable field name)
  * - Amount: Monto depositado (S/) with fallback to Monto renta (S/)
  * - Due date: Fecha de vencimiento; paid date: Fecha de pago
  * - paid_at is NOT NULL in DB — fall back to due_date if Fecha de pago empty
@@ -26,16 +26,17 @@ import type { NormalizedPayment } from '@/lib/airtable/schemas';
 // ---------------------------------------------------------------------------
 
 export const PAYMENT_FIELD = {
-  // Contract link — EXACT name with emoji
-  CONTRACT_LINK:    '📋 Historial (Contratos)',
+  // Contract link — actual Airtable field name (no emoji)
+  CONTRACT_LINK:    'Historial (Contratos)',
   // Tenant name lookup (display value, not record id)
   TENANT_NAME:      'Nombres y Apellidos',
   // Dates
   DUE_DATE:         'Fecha de vencimiento',
   PAID_DATE:        'Fecha de pago',
-  // Amounts — primary then fallback
-  AMOUNT_DEPOSITED: 'Monto depositado (S/)',
-  AMOUNT_RENT:      'Monto renta (S/)',
+  // Amounts — primary then fallbacks
+  AMOUNT_DEPOSITED: 'Monto depositado (S/)',  // actual payment received (364/1295 records)
+  AMOUNT_TOTAL:     'Monto total (S/)',        // total charged — always present (1295/1295)
+  AMOUNT_RENT:      'Monto renta (S/)',        // base rent (0 for additional-charge rows)
   // Period
   MES:              'Mes',
   AÑO:              'Año',
@@ -209,15 +210,20 @@ export function normalizePayment(
   const f = record.fields;
 
   // ── Amount ────────────────────────────────────────────────────────────────
-  // Primary: Monto depositado (S/); fallback: Monto renta (S/)
+  // Primary: Monto depositado (S/) — actual payment received
+  // Fallback 1: Monto total (S/) — always present, covers rent + adicionales
+  // Fallback 2: Monto renta (S/) — base rent (0 for additional-charge rows)
   let amount = toNumeric(f[PAYMENT_FIELD.AMOUNT_DEPOSITED]);
+  if (amount === null || amount <= 0) {
+    amount = toNumeric(f[PAYMENT_FIELD.AMOUNT_TOTAL]);
+  }
   if (amount === null || amount <= 0) {
     amount = toNumeric(f[PAYMENT_FIELD.AMOUNT_RENT]);
   }
   if (amount === null || amount <= 0) {
     return {
       skip: true,
-      reason: `amount missing or <= 0 (Monto depositado=${f[PAYMENT_FIELD.AMOUNT_DEPOSITED]}, Monto renta=${f[PAYMENT_FIELD.AMOUNT_RENT]})`,
+      reason: `amount missing or <= 0 (Monto depositado=${f[PAYMENT_FIELD.AMOUNT_DEPOSITED]}, Monto total=${f[PAYMENT_FIELD.AMOUNT_TOTAL]}, Monto renta=${f[PAYMENT_FIELD.AMOUNT_RENT]})`,
       record,
     };
   }
@@ -237,7 +243,6 @@ export function normalizePayment(
   }
 
   // ── Contract link ─────────────────────────────────────────────────────────
-  // "📋 Historial (Contratos)" — exact field name including emoji
   const contractExtId = extractFirstLinkedId(f[PAYMENT_FIELD.CONTRACT_LINK]);
 
   // ── Period month ──────────────────────────────────────────────────────────

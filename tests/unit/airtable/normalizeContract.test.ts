@@ -2,7 +2,7 @@
  * tests/unit/airtable/normalizeContract.test.ts
  *
  * Unit tests for normalizeContract — new base schema (Historial / Contratos).
- * Field "👤 Residentes" (with emoji) is the tenant link.
+ * Field "Residentes" (no emoji — actual Airtable field name) is the tenant link.
  * Field "Habitacion" (no tilde) is the unit link.
  */
 
@@ -29,8 +29,8 @@ function makeContractRecord(overrides: Partial<AirtableRecord['fields']> = {}): 
       [CONTRACT_FIELD.DEPOSIT]:             2400,
       [CONTRACT_FIELD.CONTRACT_TYPE]:       'Individual',
       [CONTRACT_FIELD.STATUS]:              'Vigente',
-      // Emoji field name — EXACT match required
-      '👤 Residentes':                      ['recTENANT001'],
+      // Tenant link field name — matches actual Airtable field (no emoji)
+      'Residentes':                          ['recTENANT001'],
       'Habitacion':                          ['recUNIT001'],
       'Propiedad':                           ['recPROP001'],
       ...overrides,
@@ -76,7 +76,7 @@ describe('normalizeContract — new base schema', () => {
     expect(c.status).toBe('terminated');
   });
 
-  it('extracts tenant ext id from "👤 Residentes" emoji field', () => {
+  it('extracts tenant ext id from "Residentes" field', () => {
     const c = normalizeContract(makeContractRecord(), ORG_ID);
     expect(c._airtable_tenant_ext_id).toBe('recTENANT001');
   });
@@ -86,8 +86,8 @@ describe('normalizeContract — new base schema', () => {
     expect(c._airtable_unit_ext_id).toBe('recUNIT001');
   });
 
-  it('returns null tenant ext id when "👤 Residentes" is absent', () => {
-    const c = normalizeContract(makeContractRecord({ '👤 Residentes': undefined }), ORG_ID);
+  it('returns null tenant ext id when "Residentes" is absent', () => {
+    const c = normalizeContract(makeContractRecord({ 'Residentes': undefined }), ORG_ID);
     expect(c._airtable_tenant_ext_id).toBeNull();
   });
 

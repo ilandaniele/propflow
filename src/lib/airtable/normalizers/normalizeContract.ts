@@ -4,7 +4,7 @@
  * Maps a raw Airtable record from the Historial (Contratos) table (new base schema)
  * to a NormalizedContract ready to be upserted into public.contracts.
  *
- * New schema note: the tenant link field is "👤 Residentes" (WITH the emoji prefix).
+ * New schema note: the tenant link field is "Residentes" (no emoji — actual Airtable field name).
  * The unit link field is "Habitacion" (no tilde). The property link is "Propiedad".
  *
  * Design: pure function, no side effects, no DB calls.
@@ -24,7 +24,7 @@ export const CONTRACT_FIELD = {
   // Lookup field — returns display value(s), not record ids
   TENANT_NAME_LOOKUP:  'Nombres y Apellidos',        // lookup display
   // Linked records — must use EXACT names including emoji
-  TENANT_LINK:         '👤 Residentes',              // linked → extract ext id
+  TENANT_LINK:         'Residentes',                  // linked → extract ext id (no emoji in actual field)
   PROPERTY_LINK:       'Propiedad',                  // linked → extract ext id
   UNIT_LINK:           'Habitacion',                 // linked (no tilde) → extract ext id
   CONTRACT_TYPE:       'Tipo de contrato',
