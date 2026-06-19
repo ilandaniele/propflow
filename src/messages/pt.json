@@ -295,6 +295,15 @@
   },
   "contracts": {
     "title": "Contratos",
+    "list": {
+      "emptyTitle": "Nenhum contrato ainda",
+      "emptyDesc": "Crie um contrato para vincular um inquilino a uma unidade com os termos de aluguel.",
+      "colTenant": "Inquilino",
+      "colUnit": "Unidade",
+      "colRent": "Aluguel",
+      "colTerm": "Período",
+      "colStatus": "Status"
+    },
     "rent": "Aluguel mensal",
     "period": "Período",
     "status": {
@@ -308,6 +317,11 @@
   },
   "incidents": {
     "title": "Incidentes",
+    "list": {
+      "emptyTitle": "Nenhum incidente ainda",
+      "emptyDesc": "Incidentes reportados pelos inquilinos aparecerão aqui. Você também pode criá-los diretamente.",
+      "unknown": "Desconhecido"
+    },
     "category": "Categoria",
     "priority": "Prioridade",
     "status": {

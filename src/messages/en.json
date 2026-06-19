@@ -295,6 +295,15 @@
   },
   "contracts": {
     "title": "Contracts",
+    "list": {
+      "emptyTitle": "No contracts yet",
+      "emptyDesc": "Create a contract to link a tenant to a unit with rent terms.",
+      "colTenant": "Tenant",
+      "colUnit": "Unit",
+      "colRent": "Rent",
+      "colTerm": "Term",
+      "colStatus": "Status"
+    },
     "rent": "Monthly rent",
     "period": "Period",
     "status": {
@@ -308,6 +317,11 @@
   },
   "incidents": {
     "title": "Incidents",
+    "list": {
+      "emptyTitle": "No incidents yet",
+      "emptyDesc": "Incidents reported by tenants will appear here. You can also create incidents directly.",
+      "unknown": "Unknown"
+    },
     "category": "Category",
     "priority": "Priority",
     "status": {

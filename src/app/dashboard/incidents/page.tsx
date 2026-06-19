@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
@@ -15,6 +16,8 @@ export default async function IncidentsPage() {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
+  const t = await getTranslations('incidents');
+
   const { data: incidents } = await supabase
     .from('incidents')
     .select('*, profiles!incidents_created_by_fkey(full_name), tenants(full_name)')
@@ -28,7 +31,7 @@ export default async function IncidentsPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Incidents</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{list.length} total</p>
         </div>
       </div>
@@ -38,8 +41,8 @@ export default async function IncidentsPage() {
       {list.length === 0 ? (
         <Card>
           <EmptyState
-            title="No incidents yet"
-            description="Incidents reported by tenants will appear here. You can also create incidents directly."
+            title={t('list.emptyTitle')}
+            description={t('list.emptyDesc')}
           />
         </Card>
       ) : (
@@ -56,7 +59,7 @@ export default async function IncidentsPage() {
                     </div>
                     <p className="font-medium text-slate-900 text-sm truncate">{incident.title}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      {createdBy?.full_name ?? 'Unknown'} · {new Date(incident.created_at).toLocaleDateString()}
+                      {createdBy?.full_name ?? t('list.unknown')} · {new Date(incident.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <StatusPill status={incident.status} />
