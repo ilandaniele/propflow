@@ -35,6 +35,10 @@ import { normalizePortafolio } from '@/lib/airtable/normalizers/normalizePortafo
 import { normalizeResponsable } from '@/lib/airtable/normalizers/normalizeResponsable';
 import { normalizeMantenimiento } from '@/lib/airtable/normalizers/normalizeMantenimiento';
 import { aggregateServicePaymentRecords } from '@/lib/airtable/normalizers/normalizeServicePayments';
+import { normalizeAdditional } from '@/lib/airtable/normalizers/normalizeAdditional';
+import { normalizeEECC } from '@/lib/airtable/normalizers/normalizeEECC';
+import { normalizeTaxReceipt } from '@/lib/airtable/normalizers/normalizeTaxReceipt';
+import { normalizeFeedback } from '@/lib/airtable/normalizers/normalizeFeedback';
 import { getAirtableClient } from '@/lib/airtable/client';
 
 // ---------------------------------------------------------------------------
@@ -49,7 +53,11 @@ export type EntityName =
   | 'units'
   | 'responsables'
   | 'service_payments'
-  | 'incidents';
+  | 'incidents'
+  | 'additional_charges'
+  | 'account_statements'
+  | 'tax_receipts'
+  | 'tenant_feedback';
 
 export interface EntitySyncResult {
   entity: EntityName;
@@ -427,16 +435,19 @@ function buildRows(
 }
 
 function entityToSnapshotName(entity: EntityName): string {
-  // Maps to the snapshot bucket name used by the legacy sync (table_name column).
   const map: Record<EntityName, string> = {
-    properties:       'propiedades',
-    tenants:          'residentes',
-    contracts:        'historial',
-    payments:         'movimientos',
-    units:            'portafolio',
-    incidents:        'mantenimiento',
-    responsables:     'responsables',
-    service_payments: 'pago_servicios',
+    properties:         'propiedades',
+    tenants:            'residentes',
+    contracts:          'historial',
+    payments:           'movimientos',
+    units:              'portafolio',
+    incidents:          'mantenimiento',
+    responsables:       'responsables',
+    service_payments:   'pago_servicios',
+    additional_charges: 'adicionales',
+    account_statements: 'eecc',
+    tax_receipts:       'impuestos_comprobantes',
+    tenant_feedback:    'feedback',
   };
   return map[entity];
 }
@@ -650,6 +661,136 @@ function buildDomainRow(
       // service_payments uses bulk aggregation in buildRows — this per-record
       // path should never be reached; return empty sentinel.
       return { __skip: true };
+    }
+
+    case 'additional_charges': {
+      const normalized = normalizeAdditional(record);
+      if (!normalized) {
+        onUnresolved(`additional_charge ${record.id} skipped: amount missing or zero`);
+        return { __skip: true };
+      }
+
+      let contractId: string | null = null;
+      if (normalized.contractAirtableId) {
+        contractId = idMaps.contracts?.get(normalized.contractAirtableId) ?? null;
+        if (!contractId) {
+          onUnresolved(`additional_charge ${record.id} → contract ${normalized.contractAirtableId} not in idMap`);
+        }
+      }
+
+      let conceptId: string | null = null;
+      if (normalized.conceptAirtableId) {
+        conceptId = (idMaps as Record<string, IdMap | undefined>)['charge_concepts']?.get(normalized.conceptAirtableId) ?? null;
+      }
+
+      return {
+        org_id:                orgId,
+        airtable_external_id:  normalized.airtableExternalId,
+        airtable_synced_at:    new Date().toISOString(),
+        contract_id:           contractId,
+        concept_id:            conceptId,
+        mes:                   normalized.mes,
+        anio:                  normalized.anio,
+        amount:                normalized.amount,
+        description:           normalized.description,
+        numero:                normalized.numero,
+      };
+    }
+
+    case 'account_statements': {
+      const normalized = normalizeEECC(record);
+      if (!normalized) return { __skip: true };
+
+      let contractId: string | null = null;
+      if (normalized.contractAirtableId) {
+        contractId = idMaps.contracts?.get(normalized.contractAirtableId) ?? null;
+        if (!contractId) {
+          onUnresolved(`account_statement ${record.id} → contract ${normalized.contractAirtableId} not in idMap`);
+        }
+      }
+
+      return {
+        org_id:                  orgId,
+        airtable_external_id:    normalized.airtableExternalId,
+        airtable_synced_at:      new Date().toISOString(),
+        contract_id:             contractId,
+        eecc_code:               normalized.eeccCode,
+        mes:                     normalized.mes,
+        anio:                    normalized.anio,
+        issue_date:              normalized.issueDate,
+        due_date:                normalized.dueDate,
+        pdf_url:                 normalized.pdfUrl,
+        rent_amount:             normalized.rentAmount,
+        additional_subtotal:     normalized.additionalSubtotal,
+        previous_rent_balance:   normalized.previousRentBalance,
+        previous_addl_balance:   normalized.previousAddlBalance,
+        total_due:               normalized.totalDue,
+        send_status:             normalized.sendStatus,
+        send_date:               normalized.sendDate,
+        whatsapp_message_id:     normalized.whatsappMessageId,
+        send_error:              normalized.sendError,
+      };
+    }
+
+    case 'tax_receipts': {
+      const normalized = normalizeTaxReceipt(record);
+      if (!normalized) return { __skip: true };
+
+      let contractId: string | null = null;
+      if (normalized.contractAirtableId) {
+        contractId = idMaps.contracts?.get(normalized.contractAirtableId) ?? null;
+        if (!contractId) {
+          onUnresolved(`tax_receipt ${record.id} → contract ${normalized.contractAirtableId} not in idMap`);
+        }
+      }
+
+      return {
+        org_id:                orgId,
+        airtable_external_id:  normalized.airtableExternalId,
+        airtable_synced_at:    new Date().toISOString(),
+        contract_id:           contractId,
+        receipt_code:          normalized.receiptCode,
+        tipo:                  normalized.tipo,
+        numero:                normalized.numero,
+        mes:                   normalized.mes,
+        anio:                  normalized.anio,
+        issue_date:            normalized.issueDate,
+        base_amount:           normalized.baseAmount,
+        includes_igv:          normalized.includesIgv,
+        igv_amount:            normalized.igvAmount,
+        total_amount:          normalized.totalAmount,
+        status:                normalized.status,
+        file_url:              normalized.fileUrl,
+      };
+    }
+
+    case 'tenant_feedback': {
+      const normalized = normalizeFeedback(record);
+      if (!normalized) return { __skip: true };
+
+      let tenantId: string | null = null;
+      if (normalized.tenantAirtableId) {
+        tenantId = idMaps.tenants?.get(normalized.tenantAirtableId) ?? null;
+        if (!tenantId) {
+          onUnresolved(`tenant_feedback ${record.id} → tenant ${normalized.tenantAirtableId} not in idMap`);
+        }
+      }
+
+      return {
+        org_id:               orgId,
+        airtable_external_id: normalized.airtableExternalId,
+        airtable_synced_at:   new Date().toISOString(),
+        tenant_id:            tenantId,
+        fecha:                normalized.fecha,
+        cleaning_score:       normalized.cleaningScore,
+        coexistence_score:    normalized.coexistenceScore,
+        attention_score:      normalized.attentionScore,
+        security_score:       normalized.securityScore,
+        value_score:          normalized.valueScore,
+        would_recommend:      normalized.wouldRecommend,
+        comment:              normalized.comment,
+        worst_experience:     normalized.worstExperience,
+      };
     }
   }
 }

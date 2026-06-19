@@ -33,6 +33,10 @@ export interface AirtableEnv {
   tableResponsables:  string | null;
   tablePagoServicios: string | null;   // Single consolidated table (new base)
   tableMantenimiento: string | null;   // Mantenimiento → incidents
+  tableAdicionales:   string | null;   // Adicionales → additional_charges
+  tableEECC:          string | null;   // EECC → account_statements
+  tableImpuestos:     string | null;   // Impuestos / Comprobantes → tax_receipts
+  tableFeedback:      string | null;   // Feedback → tenant_feedback
 }
 
 export class AirtableNotConfiguredError extends Error {
@@ -83,6 +87,10 @@ export function assertAirtableEnv(): AirtableEnv {
   const tableResponsables  = process.env['AIRTABLE_TABLE_RESPONSABLES']  ?? null;
   const tablePagoServicios = process.env['AIRTABLE_TABLE_PAGO_SERVICIOS'] ?? null;
   const tableMantenimiento = process.env['AIRTABLE_TABLE_MANTENIMIENTO']  ?? null;
+  const tableAdicionales   = process.env['AIRTABLE_TABLE_ADICIONALES']    ?? null;
+  const tableEECC          = process.env['AIRTABLE_TABLE_EECC']           ?? null;
+  const tableImpuestos     = process.env['AIRTABLE_TABLE_IMPUESTOS']      ?? null;
+  const tableFeedback      = process.env['AIRTABLE_TABLE_FEEDBACK']       ?? null;
 
   if (missing.length > 0) {
     throw new AirtableNotConfiguredError(missing);
@@ -102,6 +110,10 @@ export function assertAirtableEnv(): AirtableEnv {
     tableResponsables,
     tablePagoServicios,
     tableMantenimiento,
+    tableAdicionales,
+    tableEECC,
+    tableImpuestos,
+    tableFeedback,
   };
 }
 
