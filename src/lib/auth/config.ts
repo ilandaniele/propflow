@@ -24,12 +24,17 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { users, profiles } from '@/lib/db/schema';
+import { users, accounts, sessions, verificationTokens, profiles } from '@/lib/db/schema';
 import { provisionOrgAndProfile, getExistingProfile, attemptAutoLink } from './provision';
 import { log } from '@/lib/log';
 
 export const authConfig: NextAuthConfig = {
-  adapter: DrizzleAdapter(db) as NextAuthConfig['adapter'],
+  adapter: DrizzleAdapter(db, {
+    usersTable: users,
+    accountsTable: accounts,
+    sessionsTable: sessions,
+    verificationTokensTable: verificationTokens,
+  }) as NextAuthConfig['adapter'],
 
   session: {
     strategy: 'database',
