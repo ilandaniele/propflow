@@ -1262,5 +1262,45 @@
     "invalidLink": "O link de convite não é válido.",
     "notFound": "Convite não encontrado ou expirado.",
     "loadError": "Não foi possível carregar o convite."
+  },
+  "adminDashboard": {
+    "title": "Painel",
+    "subtitle": "Visão geral da sua organização",
+    "emptyTitle": "Seu painel está vazio",
+    "emptyDesc": "Comece adicionando sua primeira propriedade para ter uma visão completa do seu portfólio.",
+    "emptyAction": "Adicionar propriedade",
+    "diagnosticTitle": "Alguns dados não estão carregando corretamente.",
+    "diagnosticCheck": "Verifique:",
+    "diagnosticCause": "Possíveis causas: credenciais do Supabase no deploy (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY), migrações pendentes, ou perfil sem organização atribuída.",
+    "kpis": {
+      "occupancy": "Ocupação",
+      "occupancySub": "{occupied} / {total} unidades",
+      "rentCollected": "Aluguel Recebido",
+      "rentCollectedSub": "Este mês (aprovado)",
+      "openIncidents": "Incidentes Abertos",
+      "openIncidentsSub": "Ainda não resolvidos",
+      "overdueTenants": "Inquilinos em Atraso",
+      "overdueTenantsSubSingle": "Saldo negativo + em atraso",
+      "financialTitle": "KPIs Financeiros (MTD)",
+      "additionalChargesTitle": "Dados do Airtable",
+      "totalAdditionalCharges": "Cobranças Adicionais",
+      "totalAdditionalChargesSub": "Este ano",
+      "pendingStatements": "Extratos Pendentes",
+      "pendingStatementsSub": "Extratos de conta não enviados",
+      "avgFeedback": "Satisfação Média",
+      "avgFeedbackSub": "Avaliação dos inquilinos"
+    },
+    "quickActions": {
+      "title": "Ações Rápidas",
+      "tenants": "Gerenciar Inquilinos",
+      "tenantsSub": "Adicionar, editar e atribuir inquilinos às unidades",
+      "payments": "Aprovar Pagamentos",
+      "paymentsSub": "Revisar e aprovar pagamentos pendentes",
+      "incidents": "Resolver Incidentes",
+      "incidentsSub": "Atribuir e atualizar incidentes abertos",
+      "statements": "Extratos de Conta",
+      "statementsSub": "Revisar extratos mensais de conta",
+      "feedback": "Avaliações dos Inquilinos",
+      "feedbackSub": "Ver avaliações de satisfação"
+    }
   }
-}

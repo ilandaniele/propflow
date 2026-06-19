@@ -1262,5 +1262,45 @@
     "invalidLink": "The invitation link is not valid.",
     "notFound": "Invitation not found or expired.",
     "loadError": "Could not load the invitation."
+  },
+  "adminDashboard": {
+    "title": "Dashboard",
+    "subtitle": "Your organization's overview",
+    "emptyTitle": "Your dashboard is empty",
+    "emptyDesc": "Start by adding your first property to get the full picture of your portfolio.",
+    "emptyAction": "Add property",
+    "diagnosticTitle": "Some data isn't loading correctly.",
+    "diagnosticCheck": "Check:",
+    "diagnosticCause": "Possible causes: Supabase credentials in your deployment (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY), pending migrations, or profile without an assigned organization.",
+    "kpis": {
+      "occupancy": "Occupancy",
+      "occupancySub": "{occupied} / {total} units",
+      "rentCollected": "Rent Collected",
+      "rentCollectedSub": "This month (approved)",
+      "openIncidents": "Open Incidents",
+      "openIncidentsSub": "Not yet solved",
+      "overdueTenants": "Overdue Tenants",
+      "overdueTenantsSubSingle": "Negative balance + past due",
+      "financialTitle": "Financial KPIs (MTD)",
+      "additionalChargesTitle": "Airtable Data",
+      "totalAdditionalCharges": "Additional Charges",
+      "totalAdditionalChargesSub": "This year",
+      "pendingStatements": "Statements Pending",
+      "pendingStatementsSub": "Account statements unsent",
+      "avgFeedback": "Avg Feedback",
+      "avgFeedbackSub": "Tenant satisfaction"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "tenants": "Manage Tenants",
+      "tenantsSub": "Add, edit, and assign tenants to units",
+      "payments": "Approve Payments",
+      "paymentsSub": "Review and approve pending payments",
+      "incidents": "Resolve Incidents",
+      "incidentsSub": "Assign and progress open incidents",
+      "statements": "Account Statements",
+      "statementsSub": "Review monthly billing statements",
+      "feedback": "Tenant Feedback",
+      "feedbackSub": "View tenant satisfaction ratings"
+    }
   }
-}
