@@ -242,8 +242,35 @@
       "phone": "Phone"
     }
   },
+  "properties": {
+    "title": "Properties",
+    "addButton": "Add Property",
+    "newFormTitle": "New Property",
+    "fieldName": "Property Name",
+    "fieldAddress": "Address",
+    "fieldCity": "City",
+    "fieldCountry": "Country",
+    "createButton": "Create",
+    "viewUnits": "View Units",
+    "noAddress": "No address",
+    "singular": "property",
+    "plural": "properties",
+    "emptyTitle": "No properties yet",
+    "emptyDesc": "Add your first property to start managing units and tenants."
+  },
   "payments": {
     "title": "Payments",
+    "list": {
+      "pendingApproval": "{count} pending approval",
+      "emptyTitle": "No payments yet",
+      "emptyDesc": "Tenants can record payments from their portal, or you can create charges here.",
+      "colTenant": "Tenant",
+      "colAmount": "Amount",
+      "colDate": "Date",
+      "colMethod": "Method",
+      "colStatus": "Status",
+      "colAction": "Action"
+    },
     "record": "Record Payment",
     "approve": "Approve",
     "reject": "Reject",

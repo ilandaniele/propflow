@@ -242,8 +242,35 @@
       "phone": "Telefone"
     }
   },
+  "properties": {
+    "title": "Propriedades",
+    "addButton": "Adicionar Propriedade",
+    "newFormTitle": "Nova Propriedade",
+    "fieldName": "Nome da propriedade",
+    "fieldAddress": "Endereço",
+    "fieldCity": "Cidade",
+    "fieldCountry": "País",
+    "createButton": "Criar",
+    "viewUnits": "Ver Unidades",
+    "noAddress": "Sem endereço",
+    "singular": "propriedade",
+    "plural": "propriedades",
+    "emptyTitle": "Nenhuma propriedade ainda",
+    "emptyDesc": "Adicione sua primeira propriedade para começar a gerenciar unidades e inquilinos."
+  },
   "payments": {
     "title": "Pagamentos",
+    "list": {
+      "pendingApproval": "{count} pendentes de aprovação",
+      "emptyTitle": "Nenhum pagamento ainda",
+      "emptyDesc": "Os inquilinos podem registrar pagamentos pelo portal, ou você pode criar cobranças aqui.",
+      "colTenant": "Inquilino",
+      "colAmount": "Valor",
+      "colDate": "Data",
+      "colMethod": "Método",
+      "colStatus": "Status",
+      "colAction": "Ação"
+    },
     "record": "Registrar Pagamento",
     "approve": "Aprovar",
     "reject": "Rejeitar",
