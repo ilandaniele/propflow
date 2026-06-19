@@ -411,7 +411,8 @@
       "uncertain": "Incierto"
     },
     "reminder": "Recordatorio: tarea vence en 24 horas",
-    "noTasks": "Sin tareas"
+    "noTasks": "Sin tareas",
+    "dueLabel": "Vence"
   },
   "whatsapp": {
     "title": "WhatsApp",
@@ -1372,4 +1373,46 @@
       "feedback": "Feedback de Inquilinos",
       "feedbackSub": "Ver calificaciones de satisfacción"
     }
+  },
+  "announcements": {
+    "title": "Anuncios",
+    "newForm": "Nuevo Anuncio",
+    "emptyTitle": "Sin anuncios aún",
+    "emptyDesc": "Crea y publica anuncios para notificar a tus inquilinos.",
+    "publishNow": "Publicar ahora",
+    "audience": "Audiencia",
+    "expires": "Vence"
+  },
+  "cleaning": {
+    "title": "Limpieza",
+    "newTask": "Nueva Tarea",
+    "emptyTitle": "Sin tareas de limpieza",
+    "emptyDesc": "Crea tareas de limpieza y lleva el seguimiento de su estado.",
+    "statusPending": "Pendiente",
+    "statusInProgress": "En progreso",
+    "statusDone": "Hecho"
+  },
+  "visitors": {
+    "title": "Registro de Visitas",
+    "logVisitor": "Registrar Visita",
+    "emptyTitle": "Sin visitas aún",
+    "emptyDesc": "Registra las entradas de visitantes para mantener un control de acceso.",
+    "colVisitor": "Visitante",
+    "colDate": "Fecha",
+    "colEntry": "Entrada",
+    "colExit": "Salida",
+    "colPurpose": "Motivo"
+  },
+  "community": {
+    "title": "Tablón Comunitario",
+    "emptyTitle": "Sin publicaciones aún",
+    "emptyDesc": "Las publicaciones de la comunidad de los inquilinos aparecerán aquí."
+  },
+  "leads": {
+    "title": "Leads CRM",
+    "newTitle": "Nuevo Lead",
+    "emptyTitle": "Sin leads aún",
+    "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
+    "source": "Fuente"
   }
+}

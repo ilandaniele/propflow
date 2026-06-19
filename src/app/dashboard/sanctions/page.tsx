@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/Badge';
 
 export const metadata: Metadata = { title: 'Sanctions' };
@@ -12,6 +13,7 @@ export default async function SanctionsPage() {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
+  const t = await getTranslations('sanctions');
 
   const { data: sanctions } = await supabase
     .from('sanctions')
@@ -35,12 +37,12 @@ export default async function SanctionsPage() {
   return (
     <div className="max-w-4xl space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900">Sanctions</h1>
+        <h1 className="text-xl font-bold text-slate-900">{t('title')}</h1>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
         {(sanctions ?? []).length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-400">No sanctions yet</div>
+          <div className="p-8 text-center text-sm text-slate-400">{t('noSanctions')}</div>
         ) : (
           (sanctions ?? []).map((s) => {
             const tenant = s.tenant as unknown as { id: string; full_name: string | null } | null;
@@ -60,7 +62,7 @@ export default async function SanctionsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {s.amount && <span className="text-sm font-medium">${Number(s.amount).toLocaleString()}</span>}
+                  {s.amount && <span className="text-sm font-medium">S/ {Number(s.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>}
                   <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
                 </div>
               </div>

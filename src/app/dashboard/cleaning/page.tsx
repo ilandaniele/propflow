@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
 import { CreateCleaningTaskForm } from './CreateCleaningTaskForm';
@@ -7,6 +8,7 @@ import { CreateCleaningTaskForm } from './CreateCleaningTaskForm';
 export default async function CleaningPage() {
   const ctx = await requireAdmin();
   const supabase = await createClient();
+  const t = await getTranslations('cleaning');
 
   const { data: tasks } = await supabase
     .from('cleaning_tasks')
@@ -23,20 +25,22 @@ export default async function CleaningPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Cleaning Schedule</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
 
       <Card padding="md">
-        <h2 className="text-base font-medium text-slate-800 mb-4">New Task</h2>
+        <h2 className="text-base font-medium text-slate-800 mb-4">{t('newTask')}</h2>
         <CreateCleaningTaskForm />
       </Card>
 
       {(tasks ?? []).length === 0 ? (
-        <EmptyState title="No cleaning tasks yet" description="Create cleaning tasks and track their status." />
+        <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {(['pending', 'in_progress', 'done'] as const).map(status => (
             <div key={status}>
-              <h3 className="text-sm font-semibold text-slate-600 mb-2 capitalize">{status.replace('_', ' ')} ({grouped[status].length})</h3>
+              <h3 className="text-sm font-semibold text-slate-600 mb-2 capitalize">
+                {status === 'pending' ? t('statusPending') : status === 'in_progress' ? t('statusInProgress') : t('statusDone')} ({grouped[status].length})
+              </h3>
               <div className="space-y-2">
                 {grouped[status].map(task => (
                   <div key={task.id} className="border border-slate-200 rounded-lg p-3 bg-white text-sm">

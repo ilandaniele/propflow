@@ -411,7 +411,8 @@
       "uncertain": "Uncertain"
     },
     "reminder": "Reminder: task due in 24 hours",
-    "noTasks": "No tasks"
+    "noTasks": "No tasks",
+    "dueLabel": "Due"
   },
   "whatsapp": {
     "title": "WhatsApp",
@@ -1372,4 +1373,46 @@
       "feedback": "Tenant Feedback",
       "feedbackSub": "View tenant satisfaction ratings"
     }
+  },
+  "announcements": {
+    "title": "Announcements",
+    "newForm": "New Announcement",
+    "emptyTitle": "No announcements yet",
+    "emptyDesc": "Create and publish announcements to notify your tenants.",
+    "publishNow": "Publish now",
+    "audience": "Audience",
+    "expires": "Expires"
+  },
+  "cleaning": {
+    "title": "Cleaning Schedule",
+    "newTask": "New Task",
+    "emptyTitle": "No cleaning tasks yet",
+    "emptyDesc": "Create cleaning tasks and track their status.",
+    "statusPending": "Pending",
+    "statusInProgress": "In progress",
+    "statusDone": "Done"
+  },
+  "visitors": {
+    "title": "Visitor Log",
+    "logVisitor": "Log Visitor",
+    "emptyTitle": "No visitors yet",
+    "emptyDesc": "Register visitor entries to maintain an access log.",
+    "colVisitor": "Visitor",
+    "colDate": "Date",
+    "colEntry": "Entry",
+    "colExit": "Exit",
+    "colPurpose": "Purpose"
+  },
+  "community": {
+    "title": "Community Board",
+    "emptyTitle": "No posts yet",
+    "emptyDesc": "Community posts from tenants will appear here."
+  },
+  "leads": {
+    "title": "CRM Leads",
+    "newTitle": "New Lead",
+    "emptyTitle": "No leads yet",
+    "emptyDesc": "Track prospective tenants through your CRM pipeline.",
+    "source": "Source"
   }
+}

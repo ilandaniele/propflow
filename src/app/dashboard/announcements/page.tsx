@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { createClient } from '@/lib/supabase/server';
+import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
@@ -8,6 +9,7 @@ import { AnnouncementForm } from './AnnouncementForm';
 export default async function AnnouncementsPage() {
   const ctx = await requireAdmin();
   const supabase = await createClient();
+  const t = await getTranslations('announcements');
 
   const { data: announcements } = await supabase
     .from('announcements')
@@ -18,15 +20,15 @@ export default async function AnnouncementsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold text-slate-900">Announcements</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
 
       <Card padding="md">
-        <h2 className="text-base font-medium text-slate-800 mb-4">New Announcement</h2>
+        <h2 className="text-base font-medium text-slate-800 mb-4">{t('newForm')}</h2>
         <AnnouncementForm />
       </Card>
 
       {(announcements ?? []).length === 0 ? (
-        <EmptyState title="No announcements yet" description="Create and publish announcements to notify your tenants." />
+        <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
       ) : (
         <div className="space-y-3">
           {(announcements ?? []).map((ann) => (
@@ -36,8 +38,8 @@ export default async function AnnouncementsPage() {
                   <h3 className="font-medium text-slate-900">{ann.title}</h3>
                   <p className="text-sm text-slate-600 mt-1 line-clamp-2">{ann.body}</p>
                   <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                    <span>Audience: {ann.audience}</span>
-                    {ann.expires_at && <span>Expires: {new Date(ann.expires_at).toLocaleDateString()}</span>}
+                    <span>{t('audience')}: {ann.audience}</span>
+                    {ann.expires_at && <span>{t('expires')}: {new Date(ann.expires_at).toLocaleDateString()}</span>}
                   </div>
                 </div>
                 <StatusPill status={ann.published_at ? 'published' : 'draft'} />
@@ -50,7 +52,7 @@ export default async function AnnouncementsPage() {
                 }}>
                   <input type="hidden" name="id" value={ann.id} />
                   <button type="submit" className="text-xs text-brand-600 hover:underline font-medium">
-                    Publish now
+                    {t('publishNow')}
                   </button>
                 </form>
               )}
