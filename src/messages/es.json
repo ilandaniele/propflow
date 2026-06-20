@@ -354,7 +354,15 @@
       "draft": "Borrador"
     },
     "downloadPdf": "Descargar PDF",
-    "noContracts": "Sin contratos"
+    "noContracts": "Sin contratos",
+    "kpi": {
+      "monthlyRent": "Renta Mensual",
+      "active": "Activos",
+      "expiring30": "Vence ≤30d",
+      "expiring60": "Vence 31-60d",
+      "expiringAlert": "{count} contrato(s) vencen en los próximos 30 días",
+      "endsOn": "vence"
+    }
   },
   "incidents": {
     "title": "Incidentes",
@@ -1428,7 +1436,11 @@
     "colRecommend": "Recomendaría",
     "colComment": "Comentario",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "colSecurity": "Seguridad",
+    "colValue": "Calidad-Precio",
+    "colCoexistence": "Convivencia",
+    "colWorst": "Peor Experiencia"
   },
   "reminders": {
     "title": "Recordatorios",

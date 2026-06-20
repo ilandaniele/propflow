@@ -354,7 +354,15 @@
       "draft": "Draft"
     },
     "downloadPdf": "Download PDF",
-    "noContracts": "No contracts"
+    "noContracts": "No contracts",
+    "kpi": {
+      "monthlyRent": "Monthly Rent",
+      "active": "Active",
+      "expiring30": "Expiring ≤30d",
+      "expiring60": "Expiring 31-60d",
+      "expiringAlert": "{count} contract(s) expiring within 30 days",
+      "endsOn": "ends"
+    }
   },
   "incidents": {
     "title": "Incidents",
@@ -1428,7 +1436,11 @@
     "colRecommend": "Recommend",
     "colComment": "Comment",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "colSecurity": "Security",
+    "colValue": "Value",
+    "colCoexistence": "Coexistence",
+    "colWorst": "Worst Experience"
   },
   "reminders": {
     "title": "Reminders",

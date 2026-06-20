@@ -354,7 +354,15 @@
       "draft": "Rascunho"
     },
     "downloadPdf": "Baixar PDF",
-    "noContracts": "Sem contratos"
+    "noContracts": "Sem contratos",
+    "kpi": {
+      "monthlyRent": "Aluguel Mensal",
+      "active": "Ativos",
+      "expiring30": "Vence ≤30d",
+      "expiring60": "Vence 31-60d",
+      "expiringAlert": "{count} contrato(s) vencendo nos próximos 30 dias",
+      "endsOn": "vence"
+    }
   },
   "incidents": {
     "title": "Incidentes",
@@ -1428,7 +1436,11 @@
     "colRecommend": "Recomendaria",
     "colComment": "Comentário",
     "yes": "Sim",
-    "no": "Não"
+    "no": "Não",
+    "colSecurity": "Segurança",
+    "colValue": "Custo-Benefício",
+    "colCoexistence": "Convivência",
+    "colWorst": "Pior Experiência"
   },
   "reminders": {
     "title": "Lembretes",
