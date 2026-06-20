@@ -16,11 +16,10 @@ export default async function PaymentsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
-  const t = await getTranslations('payments');
+  const [supabase, t] = await Promise.all([createClient(), getTranslations('payments')]);
 
   const [paymentsRes, contractsRes] = await Promise.all([
-    supabase.from('payments').select('*, tenants(full_name)').eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(50),
+    supabase.from('payments').select('*, tenants(full_name)').eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(200),
     supabase.from('contracts').select('id, monthly_rent, tenant_id, tenants(full_name)').eq('org_id', ctx.orgId).eq('status', 'active'),
   ]);
 
@@ -28,6 +27,19 @@ export default async function PaymentsPage() {
   const contracts = contractsRes.data ?? [];
 
   const pendingCount = payments.filter((p) => p.status === 'pending').length;
+
+  // Analytics
+  const approved = payments.filter((p) => p.status === 'approved');
+  const collectedTotal = approved.reduce((s, p) => s + Number(p.amount), 0);
+  const pendingTotal = payments.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount), 0);
+  const collectionRate = payments.length > 0 ? Math.round((approved.length / payments.length) * 100) : 0;
+
+  const byMethod: Record<string, number> = {};
+  for (const p of approved) {
+    const m = p.method ?? 'other';
+    byMethod[m] = (byMethod[m] ?? 0) + 1;
+  }
+  const topMethods = Object.entries(byMethod).sort(([, a], [, b]) => b - a).slice(0, 4);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -45,6 +57,35 @@ export default async function PaymentsPage() {
           <CreateChargeForm contracts={contracts as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
         </div>
       </div>
+
+      {/* Analytics KPIs */}
+      {payments.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.collected')}</p>
+            <p className="text-xl font-bold text-slate-900">S/ {collectedTotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.pending')}</p>
+            <p className="text-xl font-bold text-amber-600">S/ {pendingTotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.collectionRate')}</p>
+            <p className="text-xl font-bold text-slate-900">{collectionRate}%</p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.byMethod')}</p>
+            <div className="mt-1 space-y-0.5">
+              {topMethods.map(([method, count]) => (
+                <div key={method} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500 capitalize">{method}</span>
+                  <span className="font-semibold text-slate-700">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {payments.length === 0 ? (
         <Card>

@@ -87,7 +87,9 @@
     "sectionPhase4": "Phase 4",
     "sectionAdmin": "Admin",
     "closeNav": "Close navigation",
-    "mainNav": "Main navigation"
+    "mainNav": "Main navigation",
+    "utilities": "Utilities",
+    "responsables": "Responsables"
   },
   "tenants": {
     "title": "Tenants",
@@ -319,7 +321,18 @@
         "notMatched": "Not matched",
         "rawTextPending": "OCR text not available"
       }
-    }
+    },
+    "kpi": {
+      "collected": "Collected",
+      "pending": "Pending",
+      "collectionRate": "Collection Rate",
+      "byMethod": "By Payment Method",
+      "methodCash": "Cash",
+      "methodTransfer": "Transfer",
+      "methodCard": "Card",
+      "methodOther": "Other"
+    },
+    "analytics": "Analytics"
   },
   "contracts": {
     "title": "Contracts",
@@ -348,7 +361,9 @@
     "list": {
       "emptyTitle": "No incidents yet",
       "emptyDesc": "Incidents reported by tenants will appear here. You can also create incidents directly.",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "open": "open",
+      "solved": "solved"
     },
     "category": "Category",
     "priority": "Priority",
@@ -381,7 +396,14 @@
       "high": "High — address within 24–48 h",
       "urgent": "Urgent — immediate action required"
     },
-    "noIncidents": "No incidents"
+    "noIncidents": "No incidents",
+    "kpi": {
+      "totalCost": "Total Cost",
+      "avgCost": "Avg Cost",
+      "openRate": "Open Rate",
+      "withCost": "With Cost",
+      "costByCategory": "Cost by Category"
+    }
   },
   "tasks": {
     "title": "Tasks",
@@ -1773,5 +1795,33 @@
     "descriptionLabel": "Description",
     "dueDateLabel": "Due Date",
     "createdOk": "Task created successfully."
+  },
+  "utilities": {
+    "title": "Utility Payments",
+    "subtitle": "{count} service records",
+    "currentMonth": "This month",
+    "emptyTitle": "No utility payments",
+    "emptyDesc": "Utility payment records will appear here once synced from Airtable.",
+    "type_agua": "Water",
+    "type_luz": "Electricity",
+    "type_gas": "Gas",
+    "type_internet": "Internet",
+    "type_otro": "Other",
+    "limit": "Limit",
+    "total": "All-time total",
+    "receipt": "Receipt"
+  },
+  "responsables": {
+    "title": "Responsables",
+    "subtitle": "{count} records",
+    "emptyTitle": "No responsables",
+    "emptyDesc": "Responsable records will appear here once synced from Airtable.",
+    "colName": "Name",
+    "colContact": "Contact",
+    "colEmployment": "Employment",
+    "colCompany": "Company",
+    "colTenants": "Tenants",
+    "noTenants": "None",
+    "syncNote": "Data synced from Airtable. To edit, update in Airtable and re-sync."
   }
 }

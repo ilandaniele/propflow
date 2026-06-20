@@ -87,7 +87,9 @@
     "sectionPhase4": "Fase 4",
     "sectionAdmin": "Admin",
     "closeNav": "Fechar navegação",
-    "mainNav": "Navegação principal"
+    "mainNav": "Navegação principal",
+    "utilities": "Serviços",
+    "responsables": "Responsáveis"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -319,7 +321,18 @@
         "notMatched": "Sem associação",
         "rawTextPending": "Texto OCR não disponível"
       }
-    }
+    },
+    "kpi": {
+      "collected": "Cobrado",
+      "pending": "Pendente",
+      "collectionRate": "Taxa de Cobrança",
+      "byMethod": "Por Método de Pagamento",
+      "methodCash": "Dinheiro",
+      "methodTransfer": "Transferência",
+      "methodCard": "Cartão",
+      "methodOther": "Outro"
+    },
+    "analytics": "Análise"
   },
   "contracts": {
     "title": "Contratos",
@@ -348,7 +361,9 @@
     "list": {
       "emptyTitle": "Nenhum incidente ainda",
       "emptyDesc": "Incidentes reportados pelos inquilinos aparecerão aqui. Você também pode criá-los diretamente.",
-      "unknown": "Desconhecido"
+      "unknown": "Desconhecido",
+      "open": "abertos",
+      "solved": "resolvidos"
     },
     "category": "Categoria",
     "priority": "Prioridade",
@@ -381,7 +396,14 @@
       "high": "Alto — resolver em 24–48 h",
       "urgent": "Urgente — ação imediata necessária"
     },
-    "noIncidents": "Sem incidentes"
+    "noIncidents": "Sem incidentes",
+    "kpi": {
+      "totalCost": "Custo Total",
+      "avgCost": "Custo Médio",
+      "openRate": "Taxa Abertos",
+      "withCost": "Com Custo",
+      "costByCategory": "Custo por Categoria"
+    }
   },
   "tasks": {
     "title": "Tarefas",
@@ -1773,5 +1795,33 @@
     "descriptionLabel": "Descrição",
     "dueDateLabel": "Data limite",
     "createdOk": "Tarefa criada com sucesso."
+  },
+  "utilities": {
+    "title": "Pagamentos de Serviços",
+    "subtitle": "{count} registros de serviços",
+    "currentMonth": "Este mês",
+    "emptyTitle": "Sem pagamentos de serviços",
+    "emptyDesc": "Os registros de pagamentos de serviços aparecerão aqui após sincronização com o Airtable.",
+    "type_agua": "Água",
+    "type_luz": "Luz",
+    "type_gas": "Gás",
+    "type_internet": "Internet",
+    "type_otro": "Outro",
+    "limit": "Limite",
+    "total": "Total histórico",
+    "receipt": "Comprovante"
+  },
+  "responsables": {
+    "title": "Responsáveis",
+    "subtitle": "{count} registros",
+    "emptyTitle": "Sem responsáveis",
+    "emptyDesc": "Os registros de responsáveis aparecerão aqui após sincronização com o Airtable.",
+    "colName": "Nome",
+    "colContact": "Contato",
+    "colEmployment": "Emprego",
+    "colCompany": "Empresa",
+    "colTenants": "Inquilinos",
+    "noTenants": "Nenhum",
+    "syncNote": "Dados sincronizados do Airtable. Para editar, atualize no Airtable e sincronize novamente."
   }
 }
