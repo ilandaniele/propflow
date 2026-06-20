@@ -805,7 +805,16 @@
       "income": "Receita",
       "expense": "Despesa",
       "yes": "Sim",
-      "no": "Nao"
+      "no": "Nao",
+      "saving": "Salvando...",
+      "save": "Salvar mapeamento",
+      "externalCodeLabel": "Código de conta externo",
+      "externalCodePlaceholder": "Ex.: 4100, Rent Income, etc.",
+      "internalCategoryLabel": "Categoria interna",
+      "selectCategory": "Selecionar categoria…",
+      "isIncome": "É receita",
+      "affectsNetProfit": "Afeta lucro líquido",
+      "savedOk": "Mapeamento salvo com sucesso"
     },
     "propertyMapping": {
       "addTitle": "Adicionar mapeamento de propriedade",
@@ -815,7 +824,14 @@
       "colExternal": "Nome externo",
       "colInternal": "Propriedade interna",
       "colLastUsed": "Ultimo uso",
-      "unassigned": "Nao atribuido"
+      "unassigned": "Nao atribuido",
+      "saving": "Salvando...",
+      "save": "Salvar mapeamento",
+      "externalNameLabel": "Nome externo (no CSV)",
+      "externalNamePlaceholder": "Ex.: Casa Palermo A",
+      "internalPropertyLabel": "Propriedade interna",
+      "selectProperty": "Selecionar propriedade…",
+      "savedOk": "Mapeamento salvo com sucesso"
     },
     "phantomRooms": {
       "banner": "Etiquetas CSV que nao correspondem a nenhuma unidade no sistema. Mapeie cada etiqueta para uma unidade existente ou ignore-a se for invalida.",
@@ -831,7 +847,16 @@
       "colUnit": "Unidade",
       "colDate": "Data",
       "statusMapped": "Mapeado",
-      "statusIgnored": "Ignorado"
+      "statusIgnored": "Ignorado",
+      "saving": "Salvando...",
+      "mapped": "Mapeado",
+      "ignored": "Ignorado",
+      "savedOk": "Salvo com sucesso",
+      "mapAction": "Mapear",
+      "ignoreAction": "Ignorar",
+      "selectUnit": "Selecionar unidade…",
+      "saveMapping": "Salvar mapeamento",
+      "saveIgnore": "Ignorar"
     }
   },
   "finance": {
@@ -1709,5 +1734,26 @@
     "prompt2": "Quantos inquilinos estão inadimplentes?",
     "prompt3": "Qual é o rendimento líquido deste mês?",
     "prompt4": "Quantos incidentes abertos existem?"
+  },
+  "createProperty": {
+    "openButton": "Adicionar propriedade",
+    "modalTitle": "Nova propriedade",
+    "nameLabel": "Nome da propriedade",
+    "namePlaceholder": "ex.: Complexo Rua Carvalho",
+    "addressLabel": "Endereço",
+    "addressPlaceholder": "Rua Carvalho, 123",
+    "cityLabel": "Cidade",
+    "cityPlaceholder": "São Paulo",
+    "countryLabel": "País",
+    "countryPlaceholder": "BR",
+    "submit": "Criar",
+    "cancel": "Cancelar"
+  },
+  "tasksTab": {
+    "title": "Tarefas atribuídas",
+    "newTask": "+ Nova tarefa",
+    "empty": "Sem tarefas atribuídas",
+    "due": "Vencimento:",
+    "completed": "Concluído:"
   }
 }

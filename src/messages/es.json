@@ -805,7 +805,16 @@
       "income": "Ingreso",
       "expense": "Gasto",
       "yes": "Si",
-      "no": "No"
+      "no": "No",
+      "saving": "Guardando...",
+      "save": "Guardar mapeo",
+      "externalCodeLabel": "Código de cuenta externo",
+      "externalCodePlaceholder": "Ej: 4100, Rent Income, etc.",
+      "internalCategoryLabel": "Categoría interna",
+      "selectCategory": "Seleccionar categoría…",
+      "isIncome": "Es ingreso",
+      "affectsNetProfit": "Afecta ganancia neta",
+      "savedOk": "Mapeo guardado correctamente"
     },
     "propertyMapping": {
       "addTitle": "Agregar mapeo de propiedad",
@@ -815,7 +824,14 @@
       "colExternal": "Nombre externo",
       "colInternal": "Propiedad interna",
       "colLastUsed": "Ultimo uso",
-      "unassigned": "No asignado"
+      "unassigned": "No asignado",
+      "saving": "Guardando...",
+      "save": "Guardar mapeo",
+      "externalNameLabel": "Nombre externo (en CSV)",
+      "externalNamePlaceholder": "Ej: Casa Palermo A",
+      "internalPropertyLabel": "Propiedad interna",
+      "selectProperty": "Seleccionar propiedad…",
+      "savedOk": "Mapeo guardado correctamente"
     },
     "phantomRooms": {
       "banner": "Etiquetas en CSV que no coinciden con ninguna unidad del sistema. Mapea cada etiqueta a una unidad existente o ignorala si es invalida.",
@@ -831,7 +847,16 @@
       "colUnit": "Unidad",
       "colDate": "Fecha",
       "statusMapped": "Mapeado",
-      "statusIgnored": "Ignorado"
+      "statusIgnored": "Ignorado",
+      "saving": "Guardando...",
+      "mapped": "Mapeado",
+      "ignored": "Ignorado",
+      "savedOk": "Guardado correctamente",
+      "mapAction": "Mapear",
+      "ignoreAction": "Ignorar",
+      "selectUnit": "Seleccionar unidad…",
+      "saveMapping": "Guardar mapeo",
+      "saveIgnore": "Ignorar"
     }
   },
   "portfolio": {
@@ -1709,5 +1734,26 @@
     "prompt2": "¿Cuántos inquilinos están vencidos?",
     "prompt3": "¿Cuál es el ingreso neto este mes?",
     "prompt4": "¿Cuántas incidencias abiertas hay?"
+  },
+  "createProperty": {
+    "openButton": "Agregar propiedad",
+    "modalTitle": "Nueva propiedad",
+    "nameLabel": "Nombre de la propiedad",
+    "namePlaceholder": "p.ej. Complejo Calle Roble",
+    "addressLabel": "Dirección",
+    "addressPlaceholder": "Av. Roble 123",
+    "cityLabel": "Ciudad",
+    "cityPlaceholder": "Lima",
+    "countryLabel": "País",
+    "countryPlaceholder": "PE",
+    "submit": "Crear",
+    "cancel": "Cancelar"
+  },
+  "tasksTab": {
+    "title": "Tareas asignadas",
+    "newTask": "+ Nueva tarea",
+    "empty": "Sin tareas asignadas",
+    "due": "Vence:",
+    "completed": "Completado:"
   }
 }

@@ -805,7 +805,16 @@
       "income": "Income",
       "expense": "Expense",
       "yes": "Yes",
-      "no": "No"
+      "no": "No",
+      "saving": "Saving…",
+      "save": "Save Mapping",
+      "externalCodeLabel": "External account code",
+      "externalCodePlaceholder": "e.g. 4100, Rent Income, etc.",
+      "internalCategoryLabel": "Internal category",
+      "selectCategory": "Select category…",
+      "isIncome": "Is income",
+      "affectsNetProfit": "Affects net profit",
+      "savedOk": "Mapping saved successfully"
     },
     "propertyMapping": {
       "addTitle": "Add property mapping",
@@ -815,7 +824,14 @@
       "colExternal": "External name",
       "colInternal": "Internal property",
       "colLastUsed": "Last used",
-      "unassigned": "Unassigned"
+      "unassigned": "Unassigned",
+      "saving": "Saving…",
+      "save": "Save Mapping",
+      "externalNameLabel": "External name (in CSV)",
+      "externalNamePlaceholder": "e.g. Casa Palermo A",
+      "internalPropertyLabel": "Internal property",
+      "selectProperty": "Select property…",
+      "savedOk": "Mapping saved successfully"
     },
     "phantomRooms": {
       "banner": "CSV labels that do not match any unit in the system. Map each label to an existing unit or ignore it if invalid.",
@@ -831,7 +847,16 @@
       "colUnit": "Unit",
       "colDate": "Date",
       "statusMapped": "Mapped",
-      "statusIgnored": "Ignored"
+      "statusIgnored": "Ignored",
+      "saving": "Saving…",
+      "mapped": "Mapped",
+      "ignored": "Ignored",
+      "savedOk": "Saved successfully",
+      "mapAction": "Map",
+      "ignoreAction": "Ignore",
+      "selectUnit": "Select target unit…",
+      "saveMapping": "Save Mapping",
+      "saveIgnore": "Ignore"
     }
   },
   "finance": {
@@ -1709,5 +1734,26 @@
     "prompt2": "How many tenants are overdue?",
     "prompt3": "What is the net income this month?",
     "prompt4": "How many open incidents are there?"
+  },
+  "createProperty": {
+    "openButton": "Add Property",
+    "modalTitle": "New Property",
+    "nameLabel": "Property Name",
+    "namePlaceholder": "e.g. Oak Street Complex",
+    "addressLabel": "Address",
+    "addressPlaceholder": "123 Oak Street",
+    "cityLabel": "City",
+    "cityPlaceholder": "New York",
+    "countryLabel": "Country",
+    "countryPlaceholder": "US",
+    "submit": "Create",
+    "cancel": "Cancel"
+  },
+  "tasksTab": {
+    "title": "Assigned Tasks",
+    "newTask": "+ New Task",
+    "empty": "No tasks assigned",
+    "due": "Due:",
+    "completed": "Completed:"
   }
 }

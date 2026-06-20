@@ -8,6 +8,7 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { saveAccountMapping } from '@/app/actions/mappings';
 import type { ActionResult } from '@/lib/errors';
 import type { AccountMapping } from '@/app/actions/mappings';
@@ -31,6 +32,7 @@ const INTERNAL_CATEGORIES = [
 ] as const;
 
 function SubmitButton() {
+  const t = useTranslations('adminImport.accountMapping');
   const { pending } = useFormStatus();
   return (
     <button
@@ -38,7 +40,7 @@ function SubmitButton() {
       disabled={pending}
       className="px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
     >
-      {pending ? 'Guardando...' : 'Guardar mapeo'}
+      {pending ? t('saving') : t('save')}
     </button>
   );
 }
@@ -46,6 +48,7 @@ function SubmitButton() {
 type State = ActionResult<AccountMapping> | null;
 
 export function AccountMappingForm() {
+  const t = useTranslations('adminImport.accountMapping');
   const [state, formAction] = useActionState<State, FormData>(
     saveAccountMapping as (prev: State, formData: FormData) => Promise<State>,
     null
@@ -58,27 +61,27 @@ export function AccountMappingForm() {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label htmlFor="externalAccount" className="block text-xs font-medium text-slate-600 mb-1">
-            Código de cuenta externo
+            {t('externalCodeLabel')}
           </label>
           <input
             id="externalAccount"
             name="externalAccount"
             type="text"
             required
-            placeholder="Ej: 4100, Rent Income, etc."
+            placeholder={t('externalCodePlaceholder')}
             className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
           />
         </div>
         <div>
           <label htmlFor="internalCategory" className="block text-xs font-medium text-slate-600 mb-1">
-            Categoría interna
+            {t('internalCategoryLabel')}
           </label>
           <select
             id="internalCategory"
             name="internalCategory"
             className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
           >
-            <option value="">Seleccionar categoría…</option>
+            <option value="">{t('selectCategory')}</option>
             {INTERNAL_CATEGORIES.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -94,7 +97,7 @@ export function AccountMappingForm() {
             value="true"
             className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
           />
-          <span className="text-sm text-slate-700">Es ingreso</span>
+          <span className="text-sm text-slate-700">{t('isIncome')}</span>
         </label>
 
         <label className="flex items-center gap-2 cursor-pointer">
@@ -105,14 +108,14 @@ export function AccountMappingForm() {
             defaultChecked
             className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
           />
-          <span className="text-sm text-slate-700">Afecta ganancia neta</span>
+          <span className="text-sm text-slate-700">{t('affectsNetProfit')}</span>
         </label>
       </div>
 
       <div className="flex items-center gap-3">
         <SubmitButton />
         {isSuccess && (
-          <span className="text-sm text-green-600" role="status">Mapeo guardado correctamente</span>
+          <span className="text-sm text-green-600" role="status">{t('savedOk')}</span>
         )}
         {state?.error && (
           <span className="text-sm text-red-600" role="alert">{state.error.message}</span>
