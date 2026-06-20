@@ -275,7 +275,8 @@
     "plural": "properties",
     "emptyTitle": "No properties yet",
     "emptyDesc": "Add your first property to start managing units and tenants.",
-    "occupied": "occupied"
+    "occupied": "occupied",
+    "rooms": "rooms"
   },
   "payments": {
     "title": "Payments",
@@ -1240,7 +1241,27 @@
     "prev": "Previous",
     "next": "Next",
     "backToTenants": "← Back to Tenants",
-    "records": "{count} records"
+    "records": "{count} records",
+    "filterLabel": "Status",
+    "filterAll": "All",
+    "totalCount": "{count} records",
+    "loadError": "Failed to load import history.",
+    "empty": "No import records found.",
+    "colPeriod": "Period",
+    "colRows": "Rows",
+    "colErrors": "Errors",
+    "pagination": "Page {page} of {total}",
+    "status": {
+      "dryRun": "Dry run",
+      "committed": "Committed",
+      "failed": "Failed"
+    },
+    "types": {
+      "monthlyBilled": "Monthly billed",
+      "monthlyCollected": "Monthly collected",
+      "monthlySummary": "Monthly summary",
+      "roomPerformance": "Room performance"
+    }
   },
   "tenantPayments": {
     "title": "My Payments",

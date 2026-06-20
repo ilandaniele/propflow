@@ -96,7 +96,7 @@ export default function PropertiesPage() {
                       <span className="text-xs text-slate-400">{String((property as Record<string, unknown>).district)}</span>
                     )}
                     {(property as Record<string, unknown>).total_rooms && (
-                      <span className="text-xs text-slate-400">{String((property as Record<string, unknown>).total_rooms)} rooms</span>
+                      <span className="text-xs text-slate-400">{String((property as Record<string, unknown>).total_rooms)} {t('rooms')}</span>
                     )}
                     {(property as Record<string, unknown>).supply_number_luz && (
                       <span className="text-xs text-slate-400">⚡ #{String((property as Record<string, unknown>).supply_number_luz)}</span>

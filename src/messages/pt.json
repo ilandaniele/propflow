@@ -275,7 +275,8 @@
     "plural": "propriedades",
     "emptyTitle": "Nenhuma propriedade ainda",
     "emptyDesc": "Adicione sua primeira propriedade para começar a gerenciar unidades e inquilinos.",
-    "occupied": "ocupadas"
+    "occupied": "ocupadas",
+    "rooms": "quartos"
   },
   "payments": {
     "title": "Pagamentos",
@@ -1240,7 +1241,27 @@
     "prev": "Anterior",
     "next": "Próximo",
     "backToTenants": "← Voltar para Inquilinos",
-    "records": "{count} registros"
+    "records": "{count} registros",
+    "filterLabel": "Status",
+    "filterAll": "Todos",
+    "totalCount": "{count} registros",
+    "loadError": "Falha ao carregar histórico.",
+    "empty": "Nenhum registro de importação.",
+    "colPeriod": "Período",
+    "colRows": "Linhas",
+    "colErrors": "Erros",
+    "pagination": "Página {page} de {total}",
+    "status": {
+      "dryRun": "Simulação",
+      "committed": "Confirmado",
+      "failed": "Falhou"
+    },
+    "types": {
+      "monthlyBilled": "Faturamento mensal",
+      "monthlyCollected": "Cobranças mensais",
+      "monthlySummary": "Resumo mensal",
+      "roomPerformance": "Desempenho de quartos"
+    }
   },
   "tenantPayments": {
     "title": "Meus Pagamentos",
