@@ -243,6 +243,16 @@
       "name": "Nome",
       "email": "Email",
       "phone": "Telefone"
+    },
+    "kpi": {
+      "total": "Total de Inquilinos",
+      "active": "Ativos",
+      "withEmail": "Com Email",
+      "withPortal": "Portal Vinculado",
+      "demographics": "Cobertura de Dados (campos Airtable)",
+      "phone": "Telefone",
+      "dni": "CPF/DNI",
+      "photo": "Foto"
     }
   },
   "properties": {
@@ -259,7 +269,8 @@
     "singular": "propriedade",
     "plural": "propriedades",
     "emptyTitle": "Nenhuma propriedade ainda",
-    "emptyDesc": "Adicione sua primeira propriedade para começar a gerenciar unidades e inquilinos."
+    "emptyDesc": "Adicione sua primeira propriedade para começar a gerenciar unidades e inquilinos.",
+    "occupied": "ocupadas"
   },
   "payments": {
     "title": "Pagamentos",
@@ -612,6 +623,28 @@
       "invalidMime": "Tipo de arquivo não permitido. Apenas JPG, PNG e WebP são aceitos.",
       "fileTooLarge": "Arquivo muito grande. O tamanho máximo permitido é 5 MB.",
       "cover": "Capa"
+    },
+    "title": "Unidades",
+    "kpi": {
+      "total": "Total de Unidades",
+      "occupied": "Ocupadas",
+      "vacancy": "Disponíveis",
+      "occupancyPct": "Ocupação %",
+      "area": "Área Média (m²)",
+      "byStatus": "Por Status"
+    },
+    "list": {
+      "emptyTitle": "Sem unidades",
+      "emptyDesc": "Adicione unidades às suas propriedades para começar a atribuir inquilinos.",
+      "tableLabel": "Lista de unidades",
+      "colUnit": "Unidade",
+      "colProperty": "Propriedade",
+      "colRent": "Aluguel Padrão",
+      "colBathroom": "Banheiro",
+      "colStatus": "Status",
+      "colActions": "Ações",
+      "floor": "Andar",
+      "view": "Ver"
     }
   },
   "landing": {
@@ -1392,7 +1425,22 @@
     "colTotalDue": "Total a Pagar (S/)",
     "colRent": "Aluguel",
     "colDueDate": "Vencimento",
-    "colSendStatus": "Status de Envio"
+    "colSendStatus": "Status de Envio",
+    "kpi": {
+      "totalDue": "Total a Pagar",
+      "sent": "Enviados",
+      "errors": "erros",
+      "overdue": "Vencidos",
+      "whatsapp": "Via WhatsApp",
+      "sendErrors": "erros de envio",
+      "composition": "Composição de Faturamento",
+      "rent": "Aluguel",
+      "additionals": "Adicionais",
+      "overdueAlert": "{count} extrato(s) vencido(s)",
+      "dueTodayAlert": "{count} extrato(s) vence hoje",
+      "dueOn": "vence",
+      "more": "mais"
+    }
   },
   "additionalCharges": {
     "title": "Cobranças Adicionais",
@@ -1403,7 +1451,14 @@
     "colPeriod": "Período",
     "colAmount": "Valor (S/)",
     "colDescription": "Descrição",
-    "colNumber": "#"
+    "colNumber": "#",
+    "kpi": {
+      "byConcept": "Por Conceito",
+      "byMonth": "Por Mês",
+      "byTenant": "Por Inquilino",
+      "noDescription": "Sem descrição",
+      "unknown": "Desconhecido"
+    }
   },
   "taxReceipts": {
     "title": "Comprovantes Fiscais",
@@ -1416,7 +1471,17 @@
     "colTotal": "Total (S/)",
     "colIGV": "IGV (S/)",
     "colIssueDate": "Data de Emissão",
-    "colStatus": "Status"
+    "colStatus": "Status",
+    "kpi": {
+      "issuedTotal": "Total Emitido",
+      "igvTotal": "Total IGV",
+      "base": "Base",
+      "issued": "Emitidos",
+      "cancelled": "cancelados",
+      "draft": "Rascunho",
+      "byType": "Por Tipo de Documento",
+      "monthlyTrend": "Tendência Mensal Emitidos"
+    }
   },
   "tenantFeedback": {
     "title": "Avaliações dos Inquilinos",

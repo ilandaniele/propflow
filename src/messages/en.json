@@ -243,6 +243,16 @@
       "name": "Name",
       "email": "Email",
       "phone": "Phone"
+    },
+    "kpi": {
+      "total": "Total Tenants",
+      "active": "Active",
+      "withEmail": "With Email",
+      "withPortal": "Portal Linked",
+      "demographics": "Data Coverage (Airtable fields)",
+      "phone": "Phone",
+      "dni": "DNI",
+      "photo": "Photo"
     }
   },
   "properties": {
@@ -259,7 +269,8 @@
     "singular": "property",
     "plural": "properties",
     "emptyTitle": "No properties yet",
-    "emptyDesc": "Add your first property to start managing units and tenants."
+    "emptyDesc": "Add your first property to start managing units and tenants.",
+    "occupied": "occupied"
   },
   "payments": {
     "title": "Payments",
@@ -612,6 +623,28 @@
       "invalidMime": "File type not allowed. Only JPG, PNG and WebP are accepted.",
       "fileTooLarge": "File is too large. Maximum allowed size is 5 MB.",
       "cover": "Cover"
+    },
+    "title": "Units",
+    "kpi": {
+      "total": "Total Units",
+      "occupied": "Occupied",
+      "vacancy": "Vacancy",
+      "occupancyPct": "Occupancy %",
+      "area": "Avg Area (m²)",
+      "byStatus": "By Status"
+    },
+    "list": {
+      "emptyTitle": "No units yet",
+      "emptyDesc": "Add units to your properties to start assigning tenants.",
+      "tableLabel": "Units list",
+      "colUnit": "Unit",
+      "colProperty": "Property",
+      "colRent": "Default Rent",
+      "colBathroom": "Bathroom",
+      "colStatus": "Status",
+      "colActions": "Actions",
+      "floor": "Floor",
+      "view": "View"
     }
   },
   "landing": {
@@ -1392,7 +1425,22 @@
     "colTotalDue": "Total Due (S/)",
     "colRent": "Rent",
     "colDueDate": "Due Date",
-    "colSendStatus": "Send Status"
+    "colSendStatus": "Send Status",
+    "kpi": {
+      "totalDue": "Total Due",
+      "sent": "Sent",
+      "errors": "errors",
+      "overdue": "Overdue",
+      "whatsapp": "Via WhatsApp",
+      "sendErrors": "send errors",
+      "composition": "Billing Composition",
+      "rent": "Rent",
+      "additionals": "Additionals",
+      "overdueAlert": "{count} statement(s) overdue",
+      "dueTodayAlert": "{count} statement(s) due today",
+      "dueOn": "due",
+      "more": "more"
+    }
   },
   "additionalCharges": {
     "title": "Additional Charges",
@@ -1403,7 +1451,14 @@
     "colPeriod": "Period",
     "colAmount": "Amount (S/)",
     "colDescription": "Description",
-    "colNumber": "#"
+    "colNumber": "#",
+    "kpi": {
+      "byConcept": "By Concept",
+      "byMonth": "By Month",
+      "byTenant": "By Tenant",
+      "noDescription": "No description",
+      "unknown": "Unknown"
+    }
   },
   "taxReceipts": {
     "title": "Tax Receipts",
@@ -1416,7 +1471,17 @@
     "colTotal": "Total (S/)",
     "colIGV": "IGV (S/)",
     "colIssueDate": "Issue Date",
-    "colStatus": "Status"
+    "colStatus": "Status",
+    "kpi": {
+      "issuedTotal": "Issued Total",
+      "igvTotal": "Total IGV",
+      "base": "Base",
+      "issued": "Issued",
+      "cancelled": "cancelled",
+      "draft": "Draft",
+      "byType": "By Document Type",
+      "monthlyTrend": "Monthly Issued Trend"
+    }
   },
   "tenantFeedback": {
     "title": "Tenant Feedback",

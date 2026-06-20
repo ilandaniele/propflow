@@ -21,36 +21,129 @@ export default async function TaxReceiptsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
-  const t = await getTranslations('taxReceipts');
+  const [supabase, t] = await Promise.all([createClient(), getTranslations('taxReceipts')]);
+
   const { data: receipts } = await supabase
     .from('tax_receipts')
     .select('*')
     .eq('org_id', ctx.orgId)
     .order('anio', { ascending: false })
     .order('mes', { ascending: false })
-    .limit(100);
+    .limit(200);
 
   const rows = receipts ?? [];
-  const totalAmount = rows.reduce((sum, r) => sum + (r.total_amount ?? 0), 0);
+
+  // Analytics
+  const issuedRows    = rows.filter((r) => r.status === 'issued');
+  const cancelledRows = rows.filter((r) => r.status === 'cancelled');
+  const draftRows     = rows.filter((r) => r.status === 'draft');
+
+  const totalAmount   = issuedRows.reduce((s, r) => s + (r.total_amount ?? 0), 0);
+  const totalBase     = issuedRows.reduce((s, r) => s + (r.base_amount ?? 0), 0);
+  const totalIGV      = issuedRows.reduce((s, r) => s + (r.igv_amount ?? 0), 0);
+
+  // By type (boleta / factura / recibo)
+  const byType: Record<string, { count: number; total: number }> = {};
+  for (const r of rows) {
+    const key = r.tipo ?? 'other';
+    if (!byType[key]) byType[key] = { count: 0, total: 0 };
+    byType[key].count += 1;
+    byType[key].total += (r.total_amount ?? 0);
+  }
+
+  // Monthly trend (last 6 months with data)
+  const byMonth: Record<string, number> = {};
+  for (const r of issuedRows) {
+    if (r.mes && r.anio) {
+      const k = `${r.anio}-${String(r.mes).padStart(2, '0')}`;
+      byMonth[k] = (byMonth[k] ?? 0) + (r.total_amount ?? 0);
+    }
+  }
+  const monthKeys = Object.keys(byMonth).sort().slice(-6);
+  const maxMonth = Math.max(1, ...monthKeys.map((k) => byMonth[k]));
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {t('subtitle', { count: rows.length, total: totalAmount.toLocaleString('es-PE', { minimumFractionDigits: 2 }) })}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
+        <p className="text-sm text-slate-500 mt-1">
+          {t('subtitle', { count: rows.length, total: totalAmount.toLocaleString('es-PE', { minimumFractionDigits: 2 }) })}
+        </p>
       </div>
+
+      {rows.length > 0 && (
+        <>
+          {/* KPI tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.issuedTotal')}</p>
+              <p className="text-xl font-bold text-slate-900">S/ {totalAmount.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.igvTotal')}</p>
+              <p className="text-xl font-bold text-slate-900">S/ {totalIGV.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{t('kpi.base')}: S/ {totalBase.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.issued')}</p>
+              <p className="text-xl font-bold text-green-600">{issuedRows.length}</p>
+              {cancelledRows.length > 0 && <p className="text-xs text-red-500 mt-0.5">{cancelledRows.length} {t('kpi.cancelled')}</p>}
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.draft')}</p>
+              <p className="text-xl font-bold text-slate-500">{draftRows.length}</p>
+            </div>
+          </div>
+
+          {/* By type + monthly trend */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* By type */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h2 className="text-sm font-semibold text-slate-700 mb-3">{t('kpi.byType')}</h2>
+              <div className="space-y-2">
+                {Object.entries(byType).sort(([, a], [, b]) => b.total - a.total).map(([tipo, { count, total }]) => (
+                  <div key={tipo} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600 capitalize">{tipo}</span>
+                      <span className="text-xs text-slate-400">×{count}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-700">S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Monthly issued trend */}
+            {monthKeys.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <h2 className="text-sm font-semibold text-slate-700 mb-3">{t('kpi.monthlyTrend')}</h2>
+                <div className="flex items-end gap-1 h-24">
+                  {monthKeys.map((k) => {
+                    const amount = byMonth[k];
+                    const heightPct = Math.round((amount / maxMonth) * 100);
+                    return (
+                      <div key={k} className="flex-1 flex flex-col items-center gap-1">
+                        <div className="w-full flex items-end justify-center" style={{ height: '64px' }}>
+                          <div
+                            title={`${k}: S/ ${amount.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                            style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                            className="w-full rounded-t-sm bg-green-400"
+                          />
+                        </div>
+                        <p className="text-xs text-slate-400">{k.slice(5)}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {rows.length === 0 ? (
         <Card>
-          <EmptyState
-            title={t('emptyTitle')}
-            description={t('emptyDesc')}
-          />
+          <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
         </Card>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">

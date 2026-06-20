@@ -43,6 +43,13 @@ export default async function TenantsPage() {
   const linkedCount = list.filter((t) => t.profile_id).length;
   const overdueCount = statements.filter((s) => s.is_overdue).length;
 
+  // Airtable-synced field coverage
+  const withEmail  = list.filter((tn) => tn.email).length;
+  const withPhone  = list.filter((tn) => tn.phone).length;
+  const withDni    = list.filter((tn) => tn.dni).length;
+  const withPhoto  = list.filter((tn) => tn.photo_url).length;
+  const withUnit   = list.filter((tn) => tn.unit_id).length;
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
@@ -88,6 +95,36 @@ export default async function TenantsPage() {
             <p className="text-2xl font-bold mb-1 text-brand-700">{linkedCount}</p>
             <p className="text-xs text-slate-400">{t('list.kpiPortalSub', { total: list.length })}</p>
           </article>
+        </div>
+      )}
+
+      {/* Airtable field coverage row */}
+      {list.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('kpi.demographics')}</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            {[
+              { label: t('list.colEmail'), count: withEmail },
+              { label: t('kpi.phone'), count: withPhone },
+              { label: t('kpi.dni'), count: withDni },
+              { label: t('kpi.photo'), count: withPhoto },
+              { label: t('list.colUnit'), count: withUnit },
+            ].map(({ label, count }) => {
+              const pct = list.length > 0 ? Math.round((count / list.length) * 100) : 0;
+              return (
+                <div key={label}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-500">{label}</span>
+                    <span className="font-semibold text-slate-700">{pct}%</span>
+                  </div>
+                  <div className="bg-slate-100 rounded-full h-1.5">
+                    <div className={`h-1.5 rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">{count}/{list.length}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
