@@ -92,22 +92,22 @@ export default function PropertiesPage() {
                   </p>
                   {/* Airtable-synced fields */}
                   <div className="flex flex-wrap gap-3 mt-1">
-                    {(property as Record<string, unknown>).district && (
-                      <span className="text-xs text-slate-400">{String((property as Record<string, unknown>).district)}</span>
+                    {(property as Record<string, string | number | null | undefined | object>).district && (
+                      <span className="text-xs text-slate-400">{String((property as Record<string, string | number | null | undefined | object>).district)}</span>
                     )}
-                    {(property as Record<string, unknown>).total_rooms && (
-                      <span className="text-xs text-slate-400">{String((property as Record<string, unknown>).total_rooms)} {t('rooms')}</span>
+                    {(property as Record<string, string | number | null | undefined | object>).total_rooms && (
+                      <span className="text-xs text-slate-400">{String((property as Record<string, string | number | null | undefined | object>).total_rooms)} {t('rooms')}</span>
                     )}
-                    {(property as Record<string, unknown>).supply_number_luz && (
-                      <span className="text-xs text-slate-400">⚡ #{String((property as Record<string, unknown>).supply_number_luz)}</span>
+                    {(property as Record<string, string | number | null | undefined | object>).supply_number_luz && (
+                      <span className="text-xs text-slate-400">⚡ #{String((property as Record<string, string | number | null | undefined | object>).supply_number_luz)}</span>
                     )}
-                    {(property as Record<string, unknown>).n_suministro_agua && (
-                      <span className="text-xs text-slate-400">💧 #{String((property as Record<string, unknown>).n_suministro_agua)}</span>
+                    {(property as Record<string, string | number | null | undefined | object>).n_suministro_agua && (
+                      <span className="text-xs text-slate-400">💧 #{String((property as Record<string, string | number | null | undefined | object>).n_suministro_agua)}</span>
                     )}
                   </div>
                   {/* Unit occupancy mini-bar + monthly rent */}
                   {(() => {
-                    const units = (property as Record<string, unknown>).units as { id: string; status: string | null; monthly_rent_default?: number | null }[] | undefined;
+                    const units = (property as Record<string, string | number | null | undefined | object>).units as { id: string; status: string | null; monthly_rent_default?: number | null }[] | undefined;
                     if (!units?.length) return null;
                     const occupied = units.filter((u) => u.status === 'occupied').length;
                     const pct = Math.round((occupied / units.length) * 100);
