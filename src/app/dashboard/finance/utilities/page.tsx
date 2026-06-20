@@ -69,6 +69,17 @@ export default async function UtilitiesPage() {
     currentByType[svc.service_type] = (currentByType[svc.service_type] ?? 0) + (entry?.amount ?? 0);
   }
 
+  // Tope variance: services over limit this month
+  const overLimitServices = services.filter((svc) => {
+    if (svc.tope === null) return false;
+    const entry = svc.monthly_data?.[currentMonth];
+    return (entry?.amount ?? 0) > svc.tope;
+  });
+  const totalVariance = overLimitServices.reduce((s, svc) => {
+    const amount = svc.monthly_data?.[currentMonth]?.amount ?? 0;
+    return s + (amount - (svc.tope ?? 0));
+  }, 0);
+
   const serviceTypes = ['agua', 'luz', 'gas', 'internet', 'otro'];
 
   return (
@@ -92,6 +103,26 @@ export default async function UtilitiesPage() {
               <p className="text-xs text-slate-400 mt-1">{t('currentMonth')}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Tope variance alert */}
+      {overLimitServices.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4">
+          <p className="text-sm font-semibold text-red-800 mb-1">
+            {t('overLimitAlert', { count: overLimitServices.length, variance: totalVariance.toLocaleString('es-PE', { minimumFractionDigits: 2 }) })}
+          </p>
+          <ul className="space-y-0.5">
+            {overLimitServices.map((svc) => {
+              const amount = svc.monthly_data?.[currentMonth]?.amount ?? 0;
+              const excess = amount - (svc.tope ?? 0);
+              return (
+                <li key={svc.id} className="text-xs text-red-700">
+                  {svc.properties?.name ?? '—'} · {t(`type_${svc.service_type}` as Parameters<typeof t>[0])} — S/ {amount.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({t('overBy')} S/ {excess.toLocaleString('es-PE', { minimumFractionDigits: 2 })})
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

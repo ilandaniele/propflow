@@ -41,6 +41,22 @@ export default async function PaymentsPage() {
   }
   const topMethods = Object.entries(byMethod).sort(([, a], [, b]) => b - a).slice(0, 4);
 
+  // Monthly collected trend (last 6 months)
+  const now = new Date();
+  const last6months: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    last6months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const byMonth: Record<string, number> = {};
+  for (const p of approved) {
+    const dateStr = p.paid_at ?? p.created_at;
+    if (!dateStr) continue;
+    const key = String(dateStr).slice(0, 7);
+    byMonth[key] = (byMonth[key] ?? 0) + Number(p.amount);
+  }
+  const maxMonthAmount = Math.max(1, ...last6months.map((k) => byMonth[k] ?? 0));
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
@@ -83,6 +99,31 @@ export default async function PaymentsPage() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Monthly collected trend */}
+      {last6months.some((k) => byMonth[k] > 0) && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">{t('kpi.monthlyTrend')}</h2>
+          <div className="flex items-end gap-1 h-24">
+            {last6months.map((k) => {
+              const amount = byMonth[k] ?? 0;
+              const heightPct = Math.round((amount / maxMonthAmount) * 100);
+              return (
+                <div key={k} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full flex items-end justify-center" style={{ height: '64px' }}>
+                    <div
+                      title={`${k}: S/ ${amount.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                      style={{ height: `${heightPct}%`, minHeight: amount > 0 ? '4px' : '0' }}
+                      className="w-full rounded-t-sm bg-green-400"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400">{k.slice(5)}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

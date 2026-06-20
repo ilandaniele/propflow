@@ -43,6 +43,19 @@ export default async function TenantsPage() {
   const linkedCount = list.filter((t) => t.profile_id).length;
   const overdueCount = statements.filter((s) => s.is_overdue).length;
 
+  // Tenure analysis: bucket tenants by created_at age
+  const tenantNow = new Date();
+  const tenureBuckets = { lt3m: 0, bt3_12m: 0, bt1_2y: 0, gt2y: 0 };
+  for (const tn of list) {
+    const created = tn.created_at ? new Date(tn.created_at) : null;
+    if (!created) continue;
+    const months = (tenantNow.getFullYear() - created.getFullYear()) * 12 + (tenantNow.getMonth() - created.getMonth());
+    if (months < 3) tenureBuckets.lt3m++;
+    else if (months < 12) tenureBuckets.bt3_12m++;
+    else if (months < 24) tenureBuckets.bt1_2y++;
+    else tenureBuckets.gt2y++;
+  }
+
   // Airtable-synced field coverage
   const withEmail  = list.filter((tn) => tn.email).length;
   const withPhone  = list.filter((tn) => tn.phone).length;
@@ -95,6 +108,26 @@ export default async function TenantsPage() {
             <p className="text-2xl font-bold mb-1 text-brand-700">{linkedCount}</p>
             <p className="text-xs text-slate-400">{t('list.kpiPortalSub', { total: list.length })}</p>
           </article>
+        </div>
+      )}
+
+      {/* Tenure distribution */}
+      {list.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('kpi.tenure')}</h2>
+          <div className="grid grid-cols-4 gap-3 text-center">
+            {([
+              { key: 'lt3m', label: t('kpi.lt3m'), value: tenureBuckets.lt3m, color: 'text-slate-600' },
+              { key: 'bt3_12m', label: t('kpi.bt3_12m'), value: tenureBuckets.bt3_12m, color: 'text-brand-600' },
+              { key: 'bt1_2y', label: t('kpi.bt1_2y'), value: tenureBuckets.bt1_2y, color: 'text-green-600' },
+              { key: 'gt2y', label: t('kpi.gt2y'), value: tenureBuckets.gt2y, color: 'text-green-700' },
+            ]).map(({ key, label, value, color }) => (
+              <div key={key}>
+                <p className={`text-xl font-bold ${color}`}>{value}</p>
+                <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

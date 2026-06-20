@@ -252,7 +252,12 @@
       "demographics": "Data Coverage (Airtable fields)",
       "phone": "Phone",
       "dni": "DNI",
-      "photo": "Photo"
+      "photo": "Photo",
+      "tenure": "Tenant Tenure",
+      "lt3m": "< 3 months",
+      "bt3_12m": "3–12 months",
+      "bt1_2y": "1–2 years",
+      "gt2y": "2+ years"
     }
   },
   "properties": {
@@ -341,7 +346,8 @@
       "methodCash": "Cash",
       "methodTransfer": "Transfer",
       "methodCard": "Card",
-      "methodOther": "Other"
+      "methodOther": "Other",
+      "monthlyTrend": "Monthly Collected"
     },
     "analytics": "Analytics"
   },
@@ -372,7 +378,9 @@
       "expiring30": "Expiring ≤30d",
       "expiring60": "Expiring 31-60d",
       "expiringAlert": "{count} contract(s) expiring within 30 days",
-      "endsOn": "ends"
+      "endsOn": "ends",
+      "rentDistribution": "Rent Distribution",
+      "newContracts": "New Contracts"
     }
   },
   "incidents": {
@@ -421,7 +429,8 @@
       "avgCost": "Avg Cost",
       "openRate": "Open Rate",
       "withCost": "With Cost",
-      "costByCategory": "Cost by Category"
+      "costByCategory": "Cost by Category",
+      "costTrend": "Cost Trend (6 months)"
     }
   },
   "tasks": {
@@ -1886,7 +1895,9 @@
     "type_otro": "Other",
     "limit": "Limit",
     "total": "All-time total",
-    "receipt": "Receipt"
+    "receipt": "Receipt",
+    "overLimitAlert": "{count} service(s) over limit — S/ {variance} total excess",
+    "overBy": "over by"
   },
   "responsables": {
     "title": "Responsables",

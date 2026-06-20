@@ -37,6 +37,32 @@ export default async function ContractsPage() {
   const expiringIn60 = active.filter((c) => c.end_date && c.end_date > in30Days && c.end_date <= in60Days);
   const totalMonthlyRent = active.reduce((s, c) => s + Number(c.monthly_rent), 0);
 
+  // Rent distribution for active contracts (buckets)
+  const rentBuckets: Record<string, number> = { '<500': 0, '500-1k': 0, '1k-2k': 0, '2k-5k': 0, '>5k': 0 };
+  for (const c of active) {
+    const r = Number(c.monthly_rent);
+    if (r < 500) rentBuckets['<500']++;
+    else if (r < 1000) rentBuckets['500-1k']++;
+    else if (r < 2000) rentBuckets['1k-2k']++;
+    else if (r < 5000) rentBuckets['2k-5k']++;
+    else rentBuckets['>5k']++;
+  }
+  const maxBucket = Math.max(1, ...Object.values(rentBuckets));
+
+  // Contracts started per month (last 6 months)
+  const contractsLast6: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    contractsLast6.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const startedByMonth: Record<string, number> = {};
+  for (const c of contracts) {
+    if (!c.start_date) continue;
+    const key = String(c.start_date).slice(0, 7);
+    startedByMonth[key] = (startedByMonth[key] ?? 0) + 1;
+  }
+  const maxStarted = Math.max(1, ...contractsLast6.map((k) => startedByMonth[k] ?? 0));
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
@@ -66,6 +92,49 @@ export default async function ContractsPage() {
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.expiring60')}</p>
             <p className="text-xl font-bold text-slate-900">{expiringIn60.length}</p>
           </div>
+        </div>
+      )}
+
+      {/* Rent distribution + started trend */}
+      {active.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <h2 className="text-sm font-semibold text-slate-700 mb-3">{t('kpi.rentDistribution')}</h2>
+            <div className="space-y-1.5">
+              {Object.entries(rentBuckets).filter(([, count]) => count > 0).map(([label, count]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 w-16 shrink-0">S/ {label}</span>
+                  <div className="flex-1 bg-slate-100 rounded-full h-2">
+                    <div className="bg-brand-500 h-2 rounded-full" style={{ width: `${Math.round((count / maxBucket) * 100)}%` }} />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700 w-4 text-right">{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          {contractsLast6.some((k) => startedByMonth[k] > 0) && (
+            <div className="bg-white rounded-xl border border-slate-200 p-5">
+              <h2 className="text-sm font-semibold text-slate-700 mb-3">{t('kpi.newContracts')}</h2>
+              <div className="flex items-end gap-1 h-20">
+                {contractsLast6.map((k) => {
+                  const count = startedByMonth[k] ?? 0;
+                  const heightPct = Math.round((count / maxStarted) * 100);
+                  return (
+                    <div key={k} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full flex items-end justify-center" style={{ height: '48px' }}>
+                        <div
+                          title={`${k}: ${count}`}
+                          style={{ height: `${heightPct}%`, minHeight: count > 0 ? '4px' : '0' }}
+                          className="w-full rounded-t-sm bg-brand-400"
+                        />
+                      </div>
+                      <p className="text-xs text-slate-400">{k.slice(5)}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

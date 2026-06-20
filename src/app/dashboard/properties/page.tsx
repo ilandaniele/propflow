@@ -22,7 +22,7 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.from('properties').select('*, units(id, status)').order('created_at', { ascending: false }).then(({ data }: { data: (Property & { units?: { id: string; status: string | null }[] })[] | null }) => {
+    supabase.from('properties').select('*, units(id, status, monthly_rent_default)').order('created_at', { ascending: false }).then(({ data }: { data: (Property & { units?: { id: string; status: string | null; monthly_rent_default?: number | null }[] })[] | null }) => {
       setProperties(data ?? []);
       setLoading(false);
     });
@@ -105,9 +105,9 @@ export default function PropertiesPage() {
                       <span className="text-xs text-slate-400">💧 #{String((property as Record<string, unknown>).n_suministro_agua)}</span>
                     )}
                   </div>
-                  {/* Unit occupancy mini-bar */}
+                  {/* Unit occupancy mini-bar + monthly rent */}
                   {(() => {
-                    const units = (property as Record<string, unknown>).units as { id: string; status: string | null }[] | undefined;
+                    const units = (property as Record<string, unknown>).units as { id: string; status: string | null; monthly_rent_default?: number | null }[] | undefined;
                     if (!units?.length) return null;
                     const occupied = units.filter((u) => u.status === 'occupied').length;
                     const pct = Math.round((occupied / units.length) * 100);
@@ -117,6 +117,10 @@ export default function PropertiesPage() {
                           <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
                         </div>
                         <span className="text-xs text-slate-500">{occupied}/{units.length} {t('occupied')}</span>
+                        {(() => {
+                          const monthlyRent = units.filter((u) => u.status === 'occupied' && u.monthly_rent_default).reduce((s, u) => s + Number(u.monthly_rent_default ?? 0), 0);
+                          return monthlyRent > 0 ? <span className="text-xs text-green-600 font-medium">S/ {monthlyRent.toLocaleString('es-PE', { minimumFractionDigits: 0 })}/mo</span> : null;
+                        })()}
                       </div>
                     );
                   })()}

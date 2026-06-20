@@ -36,6 +36,20 @@ export default async function IncidentsPage() {
   const openCount = list.filter((i) => i.status !== 'solved').length;
   const solvedCount = list.filter((i) => i.status === 'solved').length;
 
+  // Monthly cost trend (last 6 months)
+  const incNow = new Date();
+  const incLast6: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(incNow.getFullYear(), incNow.getMonth() - i, 1);
+    incLast6.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const costByMonth: Record<string, number> = {};
+  for (const inc of withCost) {
+    const key = String(inc.created_at).slice(0, 7);
+    costByMonth[key] = (costByMonth[key] ?? 0) + Number(inc.cost);
+  }
+  const maxCostMonth = Math.max(1, ...incLast6.map((k) => costByMonth[k] ?? 0));
+
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
@@ -88,6 +102,31 @@ export default async function IncidentsPage() {
                   </div>
                 );
               })}
+          </div>
+        </div>
+      )}
+
+      {/* Monthly cost trend */}
+      {incLast6.some((k) => costByMonth[k] > 0) && (
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">{t('kpi.costTrend')}</h2>
+          <div className="flex items-end gap-1 h-20">
+            {incLast6.map((k) => {
+              const amount = costByMonth[k] ?? 0;
+              const heightPct = Math.round((amount / maxCostMonth) * 100);
+              return (
+                <div key={k} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full flex items-end justify-center" style={{ height: '48px' }}>
+                    <div
+                      title={`${k}: S/ ${amount.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                      style={{ height: `${heightPct}%`, minHeight: amount > 0 ? '4px' : '0' }}
+                      className="w-full rounded-t-sm bg-amber-400"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400">{k.slice(5)}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

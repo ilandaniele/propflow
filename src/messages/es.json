@@ -252,7 +252,12 @@
       "demographics": "Cobertura de Datos (campos Airtable)",
       "phone": "Teléfono",
       "dni": "DNI",
-      "photo": "Foto"
+      "photo": "Foto",
+      "tenure": "Antigüedad de Inquilinos",
+      "lt3m": "< 3 meses",
+      "bt3_12m": "3–12 meses",
+      "bt1_2y": "1–2 años",
+      "gt2y": "2+ años"
     }
   },
   "properties": {
@@ -341,7 +346,8 @@
       "methodCash": "Efectivo",
       "methodTransfer": "Transferencia",
       "methodCard": "Tarjeta",
-      "methodOther": "Otro"
+      "methodOther": "Otro",
+      "monthlyTrend": "Cobros Mensuales"
     },
     "analytics": "Análisis"
   },
@@ -372,7 +378,9 @@
       "expiring30": "Vence ≤30d",
       "expiring60": "Vence 31-60d",
       "expiringAlert": "{count} contrato(s) vencen en los próximos 30 días",
-      "endsOn": "vence"
+      "endsOn": "vence",
+      "rentDistribution": "Distribución de Renta",
+      "newContracts": "Nuevos Contratos"
     }
   },
   "incidents": {
@@ -421,7 +429,8 @@
       "avgCost": "Costo Promedio",
       "openRate": "Tasa Abiertos",
       "withCost": "Con Costo",
-      "costByCategory": "Costo por Categoría"
+      "costByCategory": "Costo por Categoría",
+      "costTrend": "Tendencia de Costos (6 meses)"
     }
   },
   "tasks": {
@@ -1886,7 +1895,9 @@
     "type_otro": "Otro",
     "limit": "Tope",
     "total": "Total histórico",
-    "receipt": "Constancia"
+    "receipt": "Constancia",
+    "overLimitAlert": "{count} servicio(s) sobre el tope — S/ {variance} de exceso total",
+    "overBy": "excede en"
   },
   "responsables": {
     "title": "Responsables",
