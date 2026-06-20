@@ -39,7 +39,7 @@ export default async function UtilitiesPage() {
     .eq('org_id', ctx.orgId)
     .order('service_type');
 
-  const services = (rows ?? []) as ServiceRow[];
+  const services = (rows ?? []) as unknown as ServiceRow[];
 
   // Aggregate totals per service type across all months
   function sumMonthly(data: Record<string, MonthEntry> | null): number {
