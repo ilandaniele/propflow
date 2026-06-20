@@ -469,7 +469,9 @@
       "sanctionApproved": "A sanction of ${amount} has been applied for: {reason}.",
       "sanctionWarning": "Formal warning: {reason}.",
       "leaseRenewal": "Your lease expires in {days} days ({date}). Please contact your landlord to discuss renewal."
-    }
+    },
+    "messagePlaceholder": "Type a message...",
+    "sentOk": "Message sent."
   },
   "sanctions": {
     "title": "Sanctions",
@@ -1686,7 +1688,13 @@
       "bedsPlaceholder": "Beds",
       "minPlaceholder": "Min $",
       "maxPlaceholder": "Max $",
-      "suggestedPlaceholder": "Suggested $"
+      "suggestedPlaceholder": "Suggested $",
+      "tableNameLabel": "Table name",
+      "tableNamePlaceholder": "Downtown Apartments 2025",
+      "propertyTypeLabel": "Property type",
+      "propertyTypePlaceholder": "apartment",
+      "marketZoneLabel": "Market zone",
+      "marketZonePlaceholder": "downtown"
     }
   },
   "ocrReceiptsClient": {
@@ -1755,5 +1763,15 @@
     "empty": "No tasks assigned",
     "due": "Due:",
     "completed": "Completed:"
+  },
+  "newTask": {
+    "tenantIdLabel": "Tenant ID",
+    "tenantIdPlaceholder": "UUID of tenant",
+    "taskTypeLabel": "Task Type",
+    "titleLabel": "Title",
+    "titlePlaceholder": "e.g. Clean bathroom filter",
+    "descriptionLabel": "Description",
+    "dueDateLabel": "Due Date",
+    "createdOk": "Task created successfully."
   }
 }

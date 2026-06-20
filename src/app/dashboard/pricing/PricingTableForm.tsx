@@ -34,9 +34,9 @@ export function PricingTableForm() {
       return action(formData);
     }} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Input label="Table name" name="name" required placeholder="Downtown Apartments 2025" />
-        <Input label="Property type" name="property_type" required placeholder="apartment" />
-        <Input label="Market zone" name="market_zone" required placeholder="downtown" />
+        <Input label={t('tableNameLabel')} name="name" required placeholder={t('tableNamePlaceholder')} />
+        <Input label={t('propertyTypeLabel')} name="property_type" required placeholder={t('propertyTypePlaceholder')} />
+        <Input label={t('marketZoneLabel')} name="market_zone" required placeholder={t('marketZonePlaceholder')} />
       </div>
 
       <div>

@@ -23,6 +23,7 @@ function SubmitButton() {
 
 export default function NewTaskPage() {
   const t = useTranslations('tasks');
+  const nt = useTranslations('newTask');
   const [state, action] = useActionState<ActionResult, FormData>(createTenantTask, {});
 
   return (
@@ -39,21 +40,21 @@ export default function NewTaskPage() {
       <form action={action} className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
         <div>
           <label htmlFor="tenant_id" className="block text-sm font-medium text-slate-700 mb-1">
-            Tenant ID <span className="text-red-500">*</span>
+            {nt('tenantIdLabel')} <span className="text-red-500">*</span>
           </label>
           <input
             id="tenant_id"
             name="tenant_id"
             type="text"
             required
-            placeholder="UUID of tenant"
+            placeholder={nt('tenantIdPlaceholder')}
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
 
         <div>
           <label htmlFor="task_type" className="block text-sm font-medium text-slate-700 mb-1">
-            Task Type <span className="text-red-500">*</span>
+            {nt('taskTypeLabel')} <span className="text-red-500">*</span>
           </label>
           <select
             id="task_type"
@@ -61,15 +62,15 @@ export default function NewTaskPage() {
             required
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
-            {TASK_TYPES.map((t) => (
-              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+            {TASK_TYPES.map((type) => (
+              <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label htmlFor="title" className="block text-sm font-medium text-slate-700 mb-1">
-            Title <span className="text-red-500">*</span>
+            {nt('titleLabel')} <span className="text-red-500">*</span>
           </label>
           <input
             id="title"
@@ -77,14 +78,14 @@ export default function NewTaskPage() {
             type="text"
             required
             maxLength={200}
-            placeholder="e.g. Clean bathroom filter"
+            placeholder={nt('titlePlaceholder')}
             className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
 
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
-            Description
+            {nt('descriptionLabel')}
           </label>
           <textarea
             id="description"
@@ -97,7 +98,7 @@ export default function NewTaskPage() {
 
         <div>
           <label htmlFor="due_at" className="block text-sm font-medium text-slate-700 mb-1">
-            Due Date <span className="text-red-500">*</span>
+            {nt('dueDateLabel')} <span className="text-red-500">*</span>
           </label>
           <input
             id="due_at"
@@ -115,7 +116,7 @@ export default function NewTaskPage() {
         )}
         {!state.error && Object.keys(state).length > 0 && state.data !== undefined && (
           <div role="status" className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-            Task created successfully.
+            {nt('createdOk')}
           </div>
         )}
 

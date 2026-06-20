@@ -46,7 +46,7 @@ export default function ConversationPage() {
           <input
             name="body"
             type="text"
-            placeholder="Type a message..."
+            placeholder={t('messagePlaceholder')}
             required
             className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
@@ -56,7 +56,7 @@ export default function ConversationPage() {
           <p className="text-xs text-red-600 mt-2">{state.error.message}</p>
         )}
         {!state.error && state.data !== undefined && (
-          <p className="text-xs text-green-600 mt-2">Message sent.</p>
+          <p className="text-xs text-green-600 mt-2">{t('sentOk')}</p>
         )}
       </div>
     </div>

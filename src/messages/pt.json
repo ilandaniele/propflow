@@ -469,7 +469,9 @@
       "sanctionApproved": "Uma sanção de ${amount} foi aplicada por: {reason}.",
       "sanctionWarning": "Advertência formal: {reason}.",
       "leaseRenewal": "Seu contrato vence em {days} dias ({date}). Por favor entre em contato com seu proprietário para discutir a renovação."
-    }
+    },
+    "messagePlaceholder": "Digite uma mensagem...",
+    "sentOk": "Mensagem enviada."
   },
   "sanctions": {
     "title": "Sanções",
@@ -1686,7 +1688,13 @@
       "bedsPlaceholder": "Quartos",
       "minPlaceholder": "Mín R$",
       "maxPlaceholder": "Máx R$",
-      "suggestedPlaceholder": "Sugerido R$"
+      "suggestedPlaceholder": "Sugerido R$",
+      "tableNameLabel": "Nome da tabela",
+      "tableNamePlaceholder": "Apartamentos Centro 2025",
+      "propertyTypeLabel": "Tipo de propriedade",
+      "propertyTypePlaceholder": "apartamento",
+      "marketZoneLabel": "Zona de mercado",
+      "marketZonePlaceholder": "centro"
     }
   },
   "ocrReceiptsClient": {
@@ -1755,5 +1763,15 @@
     "empty": "Sem tarefas atribuídas",
     "due": "Vencimento:",
     "completed": "Concluído:"
+  },
+  "newTask": {
+    "tenantIdLabel": "ID do inquilino",
+    "tenantIdPlaceholder": "UUID do inquilino",
+    "taskTypeLabel": "Tipo de tarefa",
+    "titleLabel": "Título",
+    "titlePlaceholder": "ex.: Limpar filtro do banheiro",
+    "descriptionLabel": "Descrição",
+    "dueDateLabel": "Data limite",
+    "createdOk": "Tarefa criada com sucesso."
   }
 }
