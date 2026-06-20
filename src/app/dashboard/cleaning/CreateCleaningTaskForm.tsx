@@ -2,25 +2,28 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { createCleaningTask } from '@/app/actions/ops';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import type { ActionResult } from '@/lib/errors';
 
 function SubmitButton() {
+  const t = useTranslations('forms.cleaningTask');
   const { pending } = useFormStatus();
-  return <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Create Task'}</Button>;
+  return <Button type="submit" disabled={pending}>{pending ? t('saving') : t('submit')}</Button>;
 }
 
 export function CreateCleaningTaskForm() {
+  const t = useTranslations('forms.cleaningTask');
   const [state, action] = useActionState<ActionResult, FormData>(createCleaningTask, {});
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <form action={action} className="flex flex-wrap gap-3 items-end">
-      <Input label="Task title" name="title" required placeholder="Clean unit 1A" className="flex-1 min-w-48" />
+      <Input label={t('titleLabel')} name="title" required placeholder={t('titlePlaceholder')} className="flex-1 min-w-48" />
       <div className="space-y-1">
-        <label htmlFor="scheduled_date" className="block text-sm font-medium text-slate-700">Scheduled date</label>
+        <label htmlFor="scheduled_date" className="block text-sm font-medium text-slate-700">{t('dateLabel')}</label>
         <input
           id="scheduled_date"
           type="date"

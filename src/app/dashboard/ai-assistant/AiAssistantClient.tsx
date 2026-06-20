@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 
 interface Message {
@@ -9,18 +10,12 @@ interface Message {
   isStreaming?: boolean;
 }
 
-const QUICK_PROMPTS = [
-  "What is my current occupancy rate?",
-  "How many tenants are overdue?",
-  "What is the net income this month?",
-  "How many open incidents are there?",
-];
-
 function generateSessionId(): string {
   return crypto.randomUUID();
 }
 
 export function AiAssistantClient() {
+  const t = useTranslations('aiAssistant');
   const [sessionId] = useState(() => generateSessionId());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -53,14 +48,14 @@ export function AiAssistantClient() {
 
       if (res.status === 429) {
         setMessages(prev => prev.filter(m => !m.isStreaming));
-        setError('Daily message limit reached. Please try again tomorrow.');
+        setError(t('limitReached'));
         setIsLoading(false);
         return;
       }
 
       if (!res.ok || !res.body) {
         setMessages(prev => prev.filter(m => !m.isStreaming));
-        setError('Failed to get a response. Please try again.');
+        setError(t('failed'));
         setIsLoading(false);
         return;
       }
@@ -109,7 +104,7 @@ export function AiAssistantClient() {
       );
     } catch {
       setMessages(prev => prev.filter(m => !m.isStreaming));
-      setError('An error occurred. Please try again.');
+      setError(t('error'));
     } finally {
       setIsLoading(false);
     }
@@ -120,8 +115,8 @@ export function AiAssistantClient() {
       {/* Header */}
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">AI Property Insights</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Ask questions about your portfolio KPIs and metrics.</p>
+          <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('subtitle')}</p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 max-w-xs">
           Read-only insights — verify before acting. AI answers may not be perfectly accurate.
@@ -132,15 +127,15 @@ export function AiAssistantClient() {
       <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl bg-slate-50 p-4 space-y-4 mb-4">
         {messages.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-slate-400 text-sm">Ask a question about your portfolio</p>
+            <p className="text-slate-400 text-sm">{t('emptyPrompt')}</p>
             <div className="flex flex-wrap gap-2 justify-center mt-4">
-              {QUICK_PROMPTS.map((p) => (
+              {(['prompt1', 'prompt2', 'prompt3', 'prompt4'] as const).map((key) => (
                 <button
-                  key={p}
-                  onClick={() => sendMessage(p)}
+                  key={key}
+                  onClick={() => sendMessage(t(key))}
                   className="text-xs bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors"
                 >
-                  {p}
+                  {t(key)}
                 </button>
               ))}
             </div>
@@ -181,13 +176,13 @@ export function AiAssistantClient() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-          placeholder="Ask about occupancy, overdue payments, incidents…"
+          placeholder={t('placeholder')}
           disabled={isLoading}
           className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
           aria-label="Chat message input"
         />
         <Button onClick={() => sendMessage(input)} disabled={isLoading || !input.trim()}>
-          {isLoading ? '…' : 'Send'}
+          {isLoading ? t('loading') : t('send')}
         </Button>
       </div>
     </div>

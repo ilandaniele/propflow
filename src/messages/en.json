@@ -1314,9 +1314,9 @@
     "colPurpose": "Purpose"
   },
   "community": {
-    "title": "Community Board",
-    "emptyTitle": "No posts yet",
-    "emptyDesc": "Community posts from tenants will appear here."
+    "pinned": "Pinned",
+    "unpin": "Unpin",
+    "pin": "Pin"
   },
   "leads": {
     "title": "CRM Leads",
@@ -1523,5 +1523,191 @@
       "lastWhatsApp": "Last WhatsApp Message",
       "attachment": "(attachment)"
     }
+  },
+  "forms": {
+    "createCharge": {
+      "openButton": "Add Charge",
+      "modalTitle": "New Charge",
+      "selectContract": "Select contract",
+      "periodLabel": "Period",
+      "dueDateLabel": "Due Date",
+      "cancel": "Cancel",
+      "submit": "Create Charge",
+      "creating": "Creating…",
+      "perMonth": "/mo"
+    },
+    "approvePayment": {
+      "pending": "…",
+      "approve": "Approve"
+    },
+    "createContract": {
+      "openButton": "New Contract",
+      "modalTitle": "New Contract",
+      "selectTenant": "Select tenant",
+      "selectUnit": "Select unit",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "monthlyRent": "Monthly Rent ($)",
+      "deposit": "Deposit ($)",
+      "cancel": "Cancel",
+      "submit": "Create"
+    },
+    "contractTemplate": {
+      "saving": "Saving…",
+      "submit": "Create Template",
+      "nameLabel": "Template name",
+      "namePlaceholder": "Standard Lease Agreement",
+      "bodyLabel": "(Markdown, use {{variable_name}} for substitution)"
+    },
+    "updateIncident": {
+      "submit": "Save Changes",
+      "saved": "Saved",
+      "statusLabel": "Status",
+      "priorityLabel": "Priority",
+      "assignLabel": "Assign to",
+      "unassigned": "Unassigned",
+      "statusPending": "Pending",
+      "statusInProgress": "In Progress",
+      "statusSolved": "Solved",
+      "priorityLow": "Low",
+      "priorityMedium": "Medium",
+      "priorityHigh": "High",
+      "priorityUrgent": "Urgent"
+    },
+    "comment": {
+      "submit": "Post Comment",
+      "placeholder": "Add a comment…"
+    },
+    "announcement": {
+      "saving": "Saving…",
+      "submit": "Save Draft",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Building maintenance notice",
+      "bodyLabel": "Body",
+      "bodyPlaceholder": "There will be scheduled maintenance on…",
+      "audienceLabel": "Audience",
+      "audienceAll": "All tenants",
+      "audienceProperty": "Specific property",
+      "audienceUnit": "Specific unit"
+    },
+    "cleaningTask": {
+      "saving": "Saving…",
+      "submit": "Create Task",
+      "titleLabel": "Task title",
+      "titlePlaceholder": "Clean unit 1A",
+      "dateLabel": "Scheduled date"
+    },
+    "createLead": {
+      "saving": "Saving…",
+      "submit": "Add Lead",
+      "nameLabel": "Full name",
+      "emailLabel": "Email",
+      "phoneLabel": "Phone",
+      "interestLabel": "Property interest",
+      "sourceLabel": "Source",
+      "namePlaceholder": "Jane Smith",
+      "emailPlaceholder": "jane@example.com",
+      "phonePlaceholder": "+1 555 000 0000",
+      "interestPlaceholder": "2-bedroom apartment",
+      "sourcePlaceholder": "Zillow, referral, walk-in…"
+    },
+    "createTenant": {
+      "submit": "Create",
+      "openButton": "Add Tenant",
+      "modalTitle": "New Tenant",
+      "nameLabel": "Full Name",
+      "emailLabel": "Email",
+      "phoneLabel": "Phone",
+      "notesLabel": "Notes",
+      "cancel": "Cancel"
+    },
+    "createUnit": {
+      "submit": "Create",
+      "openButton": "Add Unit",
+      "modalTitle": "New Unit",
+      "selectProperty": "Select property",
+      "unitLabelField": "Unit Label",
+      "floorLabel": "Floor",
+      "bedroomsLabel": "Bedrooms",
+      "defaultRentLabel": "Default Monthly Rent ($)",
+      "bathroomLabel": "Bathroom",
+      "privateBathroom": "🚿 Private",
+      "sharedBathroom": "🚽 Shared",
+      "noBathroom": "— No bathroom",
+      "cancel": "Cancel"
+    },
+    "createVisitor": {
+      "logging": "Logging…",
+      "submit": "Log Visitor",
+      "nameLabel": "Visitor name",
+      "namePlaceholder": "John Doe",
+      "dateLabel": "Visit date",
+      "purposeLabel": "Purpose",
+      "purposePlaceholder": "Delivery, guest, maintenance…"
+    },
+    "createExpenseCategory": {
+      "saving": "Saving…",
+      "submit": "Add Category",
+      "nameLabel": "Category name",
+      "namePlaceholder": "e.g. Maintenance",
+      "colorLabel": "Color (optional)"
+    },
+    "pricingTable": {
+      "saving": "Saving…",
+      "submit": "Create Table",
+      "tiersLabel": "Rent Tiers",
+      "addTier": "+ Add tier",
+      "labelPlaceholder": "Label",
+      "bedsPlaceholder": "Beds",
+      "minPlaceholder": "Min $",
+      "maxPlaceholder": "Max $",
+      "suggestedPlaceholder": "Suggested $"
+    }
+  },
+  "ocrReceiptsClient": {
+    "matchedSuccess": "Matched successfully",
+    "ocrFailed": "OCR failed. Please try again.",
+    "ocrTriggered": "OCR triggered — refresh in a moment to see results.",
+    "amountLabel": "Amount:",
+    "dateLabel": "Date:",
+    "vendorLabel": "Vendor:",
+    "confidenceLabel": "Confidence:",
+    "selectPayment": "Select payment…",
+    "confirmMatch": "Confirm Match",
+    "cancel": "Cancel",
+    "runOcr": "Run OCR",
+    "matchToPayment": "Match to Payment"
+  },
+  "profileHeader": {
+    "overdue": "Overdue",
+    "balanceOk": "Balance OK",
+    "balanceDue": "Balance Due",
+    "noPortal": "No Portal",
+    "portalActive": "Portal Active",
+    "noUnit": "No unit assigned",
+    "onTime": "On-time",
+    "disputes": "Disputes",
+    "response": "Response"
+  },
+  "quickActions": {
+    "sendWhatsApp": "Send WhatsApp",
+    "recordPayment": "Record Payment",
+    "newTask": "New Task",
+    "proposeSanction": "Propose Sanction"
+  },
+  "aiAssistant": {
+    "title": "AI Property Insights",
+    "subtitle": "Ask questions about your portfolio KPIs and metrics.",
+    "placeholder": "Ask about occupancy, overdue payments, incidents…",
+    "emptyPrompt": "Ask a question about your portfolio",
+    "send": "Send",
+    "loading": "…",
+    "limitReached": "Daily message limit reached. Please try again tomorrow.",
+    "failed": "Failed to get a response. Please try again.",
+    "error": "An error occurred. Please try again.",
+    "prompt1": "What is my current occupancy rate?",
+    "prompt2": "How many tenants are overdue?",
+    "prompt3": "What is the net income this month?",
+    "prompt4": "How many open incidents are there?"
   }
 }

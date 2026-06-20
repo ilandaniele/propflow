@@ -1314,9 +1314,9 @@
     "colPurpose": "Motivo"
   },
   "community": {
-    "title": "Mural da Comunidade",
-    "emptyTitle": "Sem publicações ainda",
-    "emptyDesc": "Publicações da comunidade dos inquilinos aparecerão aqui."
+    "pinned": "Fixado",
+    "unpin": "Desafixar",
+    "pin": "Fixar"
   },
   "leads": {
     "title": "Leads CRM",
@@ -1523,5 +1523,191 @@
       "lastWhatsApp": "Ultima mensagem WhatsApp",
       "attachment": "(anexo)"
     }
+  },
+  "forms": {
+    "createCharge": {
+      "openButton": "Adicionar Cobrança",
+      "modalTitle": "Nova Cobrança",
+      "selectContract": "Selecionar contrato",
+      "periodLabel": "Período",
+      "dueDateLabel": "Data de vencimento",
+      "cancel": "Cancelar",
+      "submit": "Criar Cobrança",
+      "creating": "Criando…",
+      "perMonth": "/mês"
+    },
+    "approvePayment": {
+      "pending": "…",
+      "approve": "Aprovar"
+    },
+    "createContract": {
+      "openButton": "Novo Contrato",
+      "modalTitle": "Novo Contrato",
+      "selectTenant": "Selecionar inquilino",
+      "selectUnit": "Selecionar unidade",
+      "startDate": "Data de início",
+      "endDate": "Data de término",
+      "monthlyRent": "Aluguel mensal (R$)",
+      "deposit": "Depósito (R$)",
+      "cancel": "Cancelar",
+      "submit": "Criar"
+    },
+    "contractTemplate": {
+      "saving": "Salvando…",
+      "submit": "Criar modelo",
+      "nameLabel": "Nome do modelo",
+      "namePlaceholder": "Contrato de locação padrão",
+      "bodyLabel": "(Markdown, use {{nome_variável}} para substituição)"
+    },
+    "updateIncident": {
+      "submit": "Salvar alterações",
+      "saved": "Salvo",
+      "statusLabel": "Status",
+      "priorityLabel": "Prioridade",
+      "assignLabel": "Atribuir a",
+      "unassigned": "Não atribuído",
+      "statusPending": "Pendente",
+      "statusInProgress": "Em andamento",
+      "statusSolved": "Resolvido",
+      "priorityLow": "Baixa",
+      "priorityMedium": "Média",
+      "priorityHigh": "Alta",
+      "priorityUrgent": "Urgente"
+    },
+    "comment": {
+      "submit": "Publicar comentário",
+      "placeholder": "Adicionar um comentário…"
+    },
+    "announcement": {
+      "saving": "Salvando…",
+      "submit": "Salvar rascunho",
+      "titleLabel": "Título",
+      "titlePlaceholder": "Aviso de manutenção do edifício",
+      "bodyLabel": "Conteúdo",
+      "bodyPlaceholder": "Haverá manutenção programada em…",
+      "audienceLabel": "Público",
+      "audienceAll": "Todos os inquilinos",
+      "audienceProperty": "Propriedade específica",
+      "audienceUnit": "Unidade específica"
+    },
+    "cleaningTask": {
+      "saving": "Salvando…",
+      "submit": "Criar tarefa",
+      "titleLabel": "Título da tarefa",
+      "titlePlaceholder": "Limpar unidade 1A",
+      "dateLabel": "Data agendada"
+    },
+    "createLead": {
+      "saving": "Salvando…",
+      "submit": "Adicionar lead",
+      "nameLabel": "Nome completo",
+      "emailLabel": "E-mail",
+      "phoneLabel": "Telefone",
+      "interestLabel": "Propriedade de interesse",
+      "sourceLabel": "Fonte",
+      "namePlaceholder": "João Silva",
+      "emailPlaceholder": "joao@exemplo.com",
+      "phonePlaceholder": "+55 11 99999-0000",
+      "interestPlaceholder": "Apartamento de 2 quartos",
+      "sourcePlaceholder": "Referência, anúncio, visita…"
+    },
+    "createTenant": {
+      "submit": "Criar",
+      "openButton": "Adicionar inquilino",
+      "modalTitle": "Novo inquilino",
+      "nameLabel": "Nome completo",
+      "emailLabel": "E-mail",
+      "phoneLabel": "Telefone",
+      "notesLabel": "Notas",
+      "cancel": "Cancelar"
+    },
+    "createUnit": {
+      "submit": "Criar",
+      "openButton": "Adicionar unidade",
+      "modalTitle": "Nova unidade",
+      "selectProperty": "Selecionar propriedade",
+      "unitLabelField": "Rótulo da unidade",
+      "floorLabel": "Andar",
+      "bedroomsLabel": "Quartos",
+      "defaultRentLabel": "Aluguel mensal padrão (R$)",
+      "bathroomLabel": "Banheiro",
+      "privateBathroom": "🚿 Privativo",
+      "sharedBathroom": "🚽 Compartilhado",
+      "noBathroom": "— Sem banheiro",
+      "cancel": "Cancelar"
+    },
+    "createVisitor": {
+      "logging": "Registrando…",
+      "submit": "Registrar visita",
+      "nameLabel": "Nome do visitante",
+      "namePlaceholder": "João Silva",
+      "dateLabel": "Data da visita",
+      "purposeLabel": "Finalidade",
+      "purposePlaceholder": "Entrega, visita, manutenção…"
+    },
+    "createExpenseCategory": {
+      "saving": "Salvando…",
+      "submit": "Adicionar categoria",
+      "nameLabel": "Nome da categoria",
+      "namePlaceholder": "ex.: Manutenção",
+      "colorLabel": "Cor (opcional)"
+    },
+    "pricingTable": {
+      "saving": "Salvando…",
+      "submit": "Criar tabela",
+      "tiersLabel": "Faixas de aluguel",
+      "addTier": "+ Adicionar faixa",
+      "labelPlaceholder": "Rótulo",
+      "bedsPlaceholder": "Quartos",
+      "minPlaceholder": "Mín R$",
+      "maxPlaceholder": "Máx R$",
+      "suggestedPlaceholder": "Sugerido R$"
+    }
+  },
+  "ocrReceiptsClient": {
+    "matchedSuccess": "Associado com sucesso",
+    "ocrFailed": "OCR falhou. Tente novamente.",
+    "ocrTriggered": "OCR iniciado — atualize em instantes para ver os resultados.",
+    "amountLabel": "Valor:",
+    "dateLabel": "Data:",
+    "vendorLabel": "Fornecedor:",
+    "confidenceLabel": "Confiança:",
+    "selectPayment": "Selecionar pagamento…",
+    "confirmMatch": "Confirmar associação",
+    "cancel": "Cancelar",
+    "runOcr": "Executar OCR",
+    "matchToPayment": "Associar ao pagamento"
+  },
+  "profileHeader": {
+    "overdue": "Vencido",
+    "balanceOk": "Saldo OK",
+    "balanceDue": "Saldo devedor",
+    "noPortal": "Sem portal",
+    "portalActive": "Portal ativo",
+    "noUnit": "Sem unidade atribuída",
+    "onTime": "Pontual",
+    "disputes": "Disputas",
+    "response": "Resposta"
+  },
+  "quickActions": {
+    "sendWhatsApp": "Enviar WhatsApp",
+    "recordPayment": "Registrar pagamento",
+    "newTask": "Nova tarefa",
+    "proposeSanction": "Propor sanção"
+  },
+  "aiAssistant": {
+    "title": "Insights de IA",
+    "subtitle": "Faça perguntas sobre os KPIs e métricas do seu portfólio.",
+    "placeholder": "Pergunte sobre ocupação, pagamentos vencidos, incidentes…",
+    "emptyPrompt": "Faça uma pergunta sobre o seu portfólio",
+    "send": "Enviar",
+    "loading": "…",
+    "limitReached": "Limite diário de mensagens atingido. Tente amanhã.",
+    "failed": "Não foi possível obter resposta. Tente novamente.",
+    "error": "Ocorreu um erro. Tente novamente.",
+    "prompt1": "Qual é minha taxa de ocupação atual?",
+    "prompt2": "Quantos inquilinos estão inadimplentes?",
+    "prompt3": "Qual é o rendimento líquido deste mês?",
+    "prompt4": "Quantos incidentes abertos existem?"
   }
 }

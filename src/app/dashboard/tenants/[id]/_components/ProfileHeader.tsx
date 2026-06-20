@@ -3,6 +3,7 @@
  * Server Component (no 'use client').
  */
 
+import { getTranslations } from 'next-intl/server';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import type { ReliabilityScores } from '@/lib/tenants/reliability';
@@ -42,7 +43,8 @@ function ScoreBadge({ label, score }: { label: string; score: number }) {
   );
 }
 
-export function ProfileHeader({ tenant, unit, statement, avatarSignedUrl }: ProfileHeaderProps) {
+export async function ProfileHeader({ tenant, unit, statement, avatarSignedUrl }: ProfileHeaderProps) {
+  const t = await getTranslations('profileHeader');
   const scores = tenant.reliability_scores as ReliabilityScores | null;
   const isOverdue = statement?.is_overdue ?? false;
   const balance = statement?.balance ?? 0;
@@ -65,22 +67,22 @@ export function ProfileHeader({ tenant, unit, statement, avatarSignedUrl }: Prof
             <h1 className="text-2xl font-bold text-slate-900 truncate">{tenant.full_name}</h1>
             {/* Balance status */}
             {isOverdue ? (
-              <Badge variant="danger">Overdue</Badge>
+              <Badge variant="danger">{t('overdue')}</Badge>
             ) : balance > 0 ? (
-              <Badge variant="success">Balance OK</Badge>
+              <Badge variant="success">{t('balanceOk')}</Badge>
             ) : balance < 0 ? (
-              <Badge variant="warning">Balance Due</Badge>
+              <Badge variant="warning">{t('balanceDue')}</Badge>
             ) : null}
             {/* Portal access */}
             {tenant.profile_id ? (
-              <Badge variant="info">Portal Active</Badge>
+              <Badge variant="info">{t('portalActive')}</Badge>
             ) : (
-              <Badge variant="default">No Portal</Badge>
+              <Badge variant="default">{t('noPortal')}</Badge>
             )}
           </div>
 
           <p className="text-sm text-slate-500 mt-1">
-            {unit ? `${unit.properties?.name ?? ''} — ${unit.label}` : 'No unit assigned'}
+            {unit ? `${unit.properties?.name ?? ''} — ${unit.label}` : t('noUnit')}
           </p>
           <div className="flex gap-4 mt-1 text-sm text-slate-500">
             {tenant.email && <span>{tenant.email}</span>}
@@ -91,9 +93,9 @@ export function ProfileHeader({ tenant, unit, statement, avatarSignedUrl }: Prof
         {/* Reliability scores */}
         {scores && typeof scores.on_time === 'number' && (
           <div className="flex gap-3 shrink-0">
-            <ScoreBadge label="On-time" score={scores.on_time} />
-            <ScoreBadge label="Disputes" score={scores.dispute} />
-            <ScoreBadge label="Response" score={scores.response} />
+            <ScoreBadge label={t('onTime')} score={scores.on_time} />
+            <ScoreBadge label={t('disputes')} score={scores.dispute} />
+            <ScoreBadge label={t('response')} score={scores.response} />
           </div>
         )}
       </div>

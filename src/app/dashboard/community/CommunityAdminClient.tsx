@@ -1,6 +1,7 @@
 'use client';
 
 import { useTransition } from 'react';
+import { useTranslations } from 'next-intl';
 import { pinPost } from '@/app/actions/community';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +17,7 @@ interface Post {
 }
 
 export function CommunityAdminClient({ posts }: { posts: Post[] }) {
+  const t = useTranslations('community');
   const [isPending, startTransition] = useTransition();
 
   function handlePin(postId: string, currentlyPinned: boolean) {
@@ -33,7 +35,7 @@ export function CommunityAdminClient({ posts }: { posts: Post[] }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 {post.pinned && (
-                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Pinned</span>
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">{t('pinned')}</span>
                 )}
                 <h3 className="text-sm font-medium text-slate-900">{post.title}</h3>
                 <Badge variant="default">{post.category}</Badge>
@@ -48,7 +50,7 @@ export function CommunityAdminClient({ posts }: { posts: Post[] }) {
               onClick={() => handlePin(post.id, post.pinned)}
               disabled={isPending}
             >
-              {post.pinned ? 'Unpin' : 'Pin'}
+              {post.pinned ? t('unpin') : t('pin')}
             </Button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useTransition, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { matchReceiptToPayment } from '@/app/actions/finance';
 import { StatusPill } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
+  const t = useTranslations('ocrReceiptsClient');
   const [isPending, startTransition] = useTransition();
   const [matchingReceiptId, setMatchingReceiptId] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<string>('');
@@ -34,7 +36,7 @@ export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
       if (result.error) {
         setMessage(result.error.message);
       } else {
-        setMessage('Matched successfully');
+        setMessage(t('matchedSuccess'));
         setMatchingReceiptId(null);
         setSelectedPayment('');
       }
@@ -49,9 +51,9 @@ export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
         body: JSON.stringify({ receipt_id: receiptId }),
       });
       if (!res.ok) {
-        setMessage('OCR failed. Please try again.');
+        setMessage(t('ocrFailed'));
       } else {
-        setMessage('OCR triggered — refresh in a moment to see results.');
+        setMessage(t('ocrTriggered'));
       }
     });
   }
@@ -73,13 +75,13 @@ export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
 
           {(r.ocr_status === 'extracted' || r.ocr_status === 'matched') && (
             <div className="text-xs text-slate-600 grid grid-cols-2 gap-1 bg-slate-50 rounded p-2">
-              <span className="font-medium">Amount:</span>
-              <span>{r.extracted_amount ? `$${r.extracted_amount}` : '—'}</span>
-              <span className="font-medium">Date:</span>
+              <span className="font-medium">{t('amountLabel')}</span>
+              <span>{r.extracted_amount ? `S/ ${Number(r.extracted_amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : '—'}</span>
+              <span className="font-medium">{t('dateLabel')}</span>
               <span>{r.extracted_date ?? '—'}</span>
-              <span className="font-medium">Vendor:</span>
+              <span className="font-medium">{t('vendorLabel')}</span>
               <span>{r.extracted_vendor ?? '—'}</span>
-              <span className="font-medium">Confidence:</span>
+              <span className="font-medium">{t('confidenceLabel')}</span>
               <span>{r.confidence != null ? `${Math.round(r.confidence * 100)}%` : '—'}</span>
             </div>
           )}
@@ -96,7 +98,7 @@ export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
                 onClick={() => handleOcr(r.id)}
                 disabled={isPending}
               >
-                Run OCR
+                {t('runOcr')}
               </Button>
             )}
 
@@ -109,7 +111,7 @@ export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
                     onChange={e => setSelectedPayment(e.target.value)}
                     aria-label="Select payment to match"
                   >
-                    <option value="">Select payment…</option>
+                    <option value="">{t('selectPayment')}</option>
                     {pendingPayments.map(p => (
                       <option key={p.id} value={p.id}>
                         ${p.amount} — {p.paid_at.slice(0, 10)}{p.reference ? ` (${p.reference})` : ''}
@@ -117,10 +119,10 @@ export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
                     ))}
                   </select>
                   <Button size="sm" onClick={() => handleMatch(r.id)} disabled={isPending || !selectedPayment}>
-                    Confirm Match
+                    {t('confirmMatch')}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setMatchingReceiptId(null)}>
-                    Cancel
+                    {t('cancel')}
                   </Button>
                 </div>
               ) : (
@@ -129,7 +131,7 @@ export function OcrReceiptsClient({ receipts, pendingPayments }: Props) {
                   onClick={() => setMatchingReceiptId(r.id)}
                   disabled={isPending}
                 >
-                  Match to Payment
+                  {t('matchToPayment')}
                 </Button>
               )
             )}

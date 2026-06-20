@@ -2,25 +2,28 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { createContractTemplate } from '@/app/actions/contractDoc';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import type { ActionResult } from '@/lib/errors';
 
 function SubmitButton() {
+  const t = useTranslations('forms.contractTemplate');
   const { pending } = useFormStatus();
-  return <Button type="submit" disabled={pending}>{pending ? 'Saving…' : 'Create Template'}</Button>;
+  return <Button type="submit" disabled={pending}>{pending ? t('saving') : t('submit')}</Button>;
 }
 
 export function ContractTemplateForm() {
+  const t = useTranslations('forms.contractTemplate');
   const [state, action] = useActionState<ActionResult, FormData>(createContractTemplate, {});
 
   return (
     <form action={action} className="space-y-4">
-      <Input label="Template name" name="name" required placeholder="Standard Lease Agreement" />
+      <Input label={t('nameLabel')} name="name" required placeholder={t('namePlaceholder')} />
       <div className="space-y-1">
         <label htmlFor="body_markdown" className="block text-sm font-medium text-slate-700">
-          Template body <span className="text-slate-400 font-normal">(Markdown, use {'{{variable_name}}'} for substitution)</span>
+          Template body <span className="text-slate-400 font-normal">{t('bodyLabel')}</span>
         </label>
         <textarea
           id="body_markdown"
