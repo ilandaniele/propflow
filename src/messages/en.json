@@ -1461,5 +1461,67 @@
     "selectedUser": "Selected user",
     "linking": "Linking…",
     "confirmLink": "Confirm & Link"
+  },
+  "tenantTabs": {
+    "activityTab": {
+      "title": "Activity Timeline",
+      "emptyState": "No recent activity"
+    },
+    "contractsTab": {
+      "title": "Contracts",
+      "emptyState": "No contracts",
+      "perMonth": "/mo",
+      "downloadPdf": "Download PDF"
+    },
+    "documentsTab": {
+      "contractPdfsTitle": "Contract PDFs",
+      "noContracts": "No contracts",
+      "contractsAvailable": "{count} contract(s) available. See the Contracts tab for download links.",
+      "signatureRequestsTitle": "Signature Requests",
+      "noSignatureRequests": "No signature requests",
+      "sentLabel": "Sent:"
+    },
+    "incidentsTab": {
+      "title": "Incidents",
+      "emptyState": "No incidents"
+    },
+    "sanctionsTab": {
+      "title": "Sanctions",
+      "emptyState": "No sanctions"
+    },
+    "whatsappTab": {
+      "title": "WhatsApp",
+      "noConversation": "No WhatsApp conversation for this tenant yet.",
+      "addPhoneHint": "Add a WhatsApp phone number to the tenant profile to start receiving messages.",
+      "conversationWith": "Conversation with",
+      "openFullConversation": "Open full conversation",
+      "noMessages": "No messages yet",
+      "attachment": "(attachment)"
+    },
+    "notesTab": {
+      "addTitle": "Add Internal Note",
+      "notesTitle": "Internal Notes",
+      "placeholder": "Write an internal note about this tenant...",
+      "adding": "Adding...",
+      "addNote": "Add Note",
+      "emptyState": "No internal notes yet"
+    },
+    "overviewTab": {
+      "financialTitle": "Financial Summary",
+      "totalCharged": "Total Charged",
+      "totalPaid": "Total Paid",
+      "balance": "Balance",
+      "noFinancialData": "No financial data yet",
+      "contractTitle": "Active Contract",
+      "monthlyRent": "Monthly rent",
+      "perMonth": "/mo",
+      "period": "Period",
+      "status": "Status",
+      "noActiveContract": "No active contract",
+      "activeIncidents": "Active Incidents",
+      "pendingTasks": "Pending Tasks",
+      "lastWhatsApp": "Last WhatsApp Message",
+      "attachment": "(attachment)"
+    }
   }
 }

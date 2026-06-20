@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import Link from 'next/link';
@@ -29,13 +30,14 @@ export async function IncidentsTab({ tenantId }: Props) {
     .limit(50);
 
   const incidents = data ?? [];
+  const t = await getTranslations('tenantTabs.incidentsTab');
 
   return (
     <div className="p-4">
       <Card>
-        <CardHeader><CardTitle>Incidents</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
         {incidents.length === 0 ? (
-          <p className="text-sm text-slate-400">No incidents</p>
+          <p className="text-sm text-slate-400">{t('emptyState')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {incidents.map((i) => (

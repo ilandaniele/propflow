@@ -63,20 +63,20 @@ export async function PaymentsTab({ tenantId }: Props) {
       {/* Account Statement */}
       {statement && (
         <Card>
-          <CardHeader><CardTitle>Account Statement</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('accountStatement')}</CardTitle></CardHeader>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-slate-500">Total charged</dt>
-              <dd>${statement.total_charges.toLocaleString()}</dd>
+              <dt className="text-slate-500">{t('totalCharged')}</dt>
+              <dd>S/ {statement.total_charges.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">Total paid</dt>
-              <dd className="text-green-600">${statement.total_approved_payments.toLocaleString()}</dd>
+              <dt className="text-slate-500">{t('totalPaid')}</dt>
+              <dd className="text-green-600">S/ {statement.total_approved_payments.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</dd>
             </div>
             <div className="flex justify-between border-t pt-2">
-              <dt className="font-semibold">Balance</dt>
+              <dt className="font-semibold">{t('balance')}</dt>
               <dd className={`font-bold ${statement.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {statement.balance < 0 ? '-' : ''}${Math.abs(statement.balance).toLocaleString()}
+                {statement.balance < 0 ? '-' : ''}S/ {Math.abs(statement.balance).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
               </dd>
             </div>
           </dl>
@@ -85,15 +85,15 @@ export async function PaymentsTab({ tenantId }: Props) {
 
       {/* Payments */}
       <Card>
-        <CardHeader><CardTitle>Payment History</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
         {payments.length === 0 ? (
-          <p className="text-sm text-slate-400">No payments</p>
+          <p className="text-sm text-slate-400">{t('list.emptyTitle')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {payments.map((p) => (
               <div key={p.id} className="py-3 flex items-center justify-between text-sm">
                 <div>
-                  <p className="font-medium text-slate-900">${Number(p.amount).toLocaleString()}</p>
+                  <p className="font-medium text-slate-900">S/ {Number(p.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
                   <p className="text-xs text-slate-500">{p.paid_at} · {p.method}</p>
                   {p.reference && <p className="text-xs text-slate-400">{p.reference}</p>}
                 </div>
@@ -106,18 +106,18 @@ export async function PaymentsTab({ tenantId }: Props) {
 
       {/* Charges */}
       <Card>
-        <CardHeader><CardTitle>Charges</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('charges')}</CardTitle></CardHeader>
         {charges.length === 0 ? (
-          <p className="text-sm text-slate-400">No charges</p>
+          <p className="text-sm text-slate-400">{t('list.emptyTitle')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {charges.map((c) => (
               <div key={c.id} className="py-3 flex items-center justify-between text-sm">
                 <div>
                   <p className="font-medium text-slate-900">{c.description}</p>
-                  <p className="text-xs text-slate-500">Period: {c.period} · Due: {c.due_date}</p>
+                  <p className="text-xs text-slate-500">{t('period')}: {c.period} · {t('dueDate')}: {c.due_date}</p>
                 </div>
-                <span className="font-medium">${Number(c.amount).toLocaleString()}</span>
+                <span className="font-medium">S/ {Number(c.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
               </div>
             ))}
           </div>
@@ -135,7 +135,7 @@ export async function PaymentsTab({ tenantId }: Props) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-slate-900">
-                      {r.extracted_amount ? `$${Number(r.extracted_amount).toLocaleString()}` : 'Amount unknown'}
+                      {r.extracted_amount ? `S/ ${Number(r.extracted_amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : t('amount')}
                     </p>
                     <p className="text-xs text-slate-500">
                       {t('receipts.source')}: {r.source} · {new Date(r.created_at).toLocaleDateString()}

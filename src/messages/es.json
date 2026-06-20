@@ -1461,5 +1461,67 @@
     "selectedUser": "Usuario seleccionado",
     "linking": "Vinculando…",
     "confirmLink": "Confirmar y vincular"
+  },
+  "tenantTabs": {
+    "activityTab": {
+      "title": "Linea de tiempo",
+      "emptyState": "Sin actividad reciente"
+    },
+    "contractsTab": {
+      "title": "Contratos",
+      "emptyState": "Sin contratos",
+      "perMonth": "/mes",
+      "downloadPdf": "Descargar PDF"
+    },
+    "documentsTab": {
+      "contractPdfsTitle": "PDFs de contratos",
+      "noContracts": "Sin contratos",
+      "contractsAvailable": "{count} contrato(s) disponible(s). Ver pestana Contratos para los enlaces.",
+      "signatureRequestsTitle": "Solicitudes de firma",
+      "noSignatureRequests": "Sin solicitudes de firma",
+      "sentLabel": "Enviado:"
+    },
+    "incidentsTab": {
+      "title": "Incidentes",
+      "emptyState": "Sin incidentes"
+    },
+    "sanctionsTab": {
+      "title": "Sanciones",
+      "emptyState": "Sin sanciones"
+    },
+    "whatsappTab": {
+      "title": "WhatsApp",
+      "noConversation": "No hay conversacion de WhatsApp para este inquilino aun.",
+      "addPhoneHint": "Agrega un numero de WhatsApp al perfil del inquilino para recibir mensajes.",
+      "conversationWith": "Conversacion con",
+      "openFullConversation": "Ver conversacion completa",
+      "noMessages": "Sin mensajes aun",
+      "attachment": "(adjunto)"
+    },
+    "notesTab": {
+      "addTitle": "Agregar nota interna",
+      "notesTitle": "Notas internas",
+      "placeholder": "Escribe una nota interna sobre este inquilino...",
+      "adding": "Agregando...",
+      "addNote": "Agregar nota",
+      "emptyState": "Sin notas internas aun"
+    },
+    "overviewTab": {
+      "financialTitle": "Resumen financiero",
+      "totalCharged": "Total cobrado",
+      "totalPaid": "Total pagado",
+      "balance": "Saldo",
+      "noFinancialData": "Sin datos financieros aun",
+      "contractTitle": "Contrato activo",
+      "monthlyRent": "Renta mensual",
+      "perMonth": "/mes",
+      "period": "Periodo",
+      "status": "Estado",
+      "noActiveContract": "Sin contrato activo",
+      "activeIncidents": "Incidentes activos",
+      "pendingTasks": "Tareas pendientes",
+      "lastWhatsApp": "Ultimo mensaje de WhatsApp",
+      "attachment": "(adjunto)"
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 
@@ -52,24 +53,25 @@ export async function DocumentsTab({ tenantId }: Props) {
 
   const signatureRequests = signatureReqRes.data ?? [];
   const contractCount = contractsRes.count ?? 0;
+  const t = await getTranslations('tenantTabs.documentsTab');
 
   return (
     <div className="p-4 space-y-4">
       <Card>
-        <CardHeader><CardTitle>Contract PDFs</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('contractPdfsTitle')}</CardTitle></CardHeader>
         {contractCount === 0 ? (
-          <p className="text-sm text-slate-400">No contracts</p>
+          <p className="text-sm text-slate-400">{t('noContracts')}</p>
         ) : (
           <p className="text-sm text-slate-600">
-            {contractCount} contract(s) available. See the Contracts tab for download links.
+            {t('contractsAvailable', { count: contractCount })}
           </p>
         )}
       </Card>
 
       <Card>
-        <CardHeader><CardTitle>Signature Requests</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('signatureRequestsTitle')}</CardTitle></CardHeader>
         {signatureRequests.length === 0 ? (
-          <p className="text-sm text-slate-400">No signature requests</p>
+          <p className="text-sm text-slate-400">{t('noSignatureRequests')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {signatureRequests.map((sr) => (
@@ -77,7 +79,7 @@ export async function DocumentsTab({ tenantId }: Props) {
                 <div>
                   <p className="font-medium text-slate-900">{sr.signer_email}</p>
                   <p className="text-xs text-slate-500">
-                    Sent: {new Date(sr.sent_at).toLocaleDateString()}
+                    {t('sentLabel')} {new Date(sr.sent_at).toLocaleDateString()}
                   </p>
                 </div>
                 <StatusPill status={sr.status} />

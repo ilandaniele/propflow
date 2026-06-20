@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 
@@ -27,19 +28,20 @@ export async function ContractsTab({ tenantId }: Props) {
     .order('created_at', { ascending: false });
 
   const contracts = data ?? [];
+  const t = await getTranslations('tenantTabs.contractsTab');
 
   return (
     <div className="p-4">
       <Card>
-        <CardHeader><CardTitle>Contracts</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
         {contracts.length === 0 ? (
-          <p className="text-sm text-slate-400">No contracts</p>
+          <p className="text-sm text-slate-400">{t('emptyState')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {contracts.map((c) => (
               <div key={c.id} className="py-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">${Number(c.monthly_rent).toLocaleString()}/mo</p>
+                  <p className="text-sm font-medium text-slate-900">S/ {Number(c.monthly_rent).toLocaleString('es-PE', { minimumFractionDigits: 2 })}{t('perMonth')}</p>
                   <p className="text-xs text-slate-500">{c.start_date} → {c.end_date ?? '—'}</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -51,7 +53,7 @@ export async function ContractsTab({ tenantId }: Props) {
                       rel="noopener noreferrer"
                       className="text-xs text-brand-600 hover:text-brand-800 underline"
                     >
-                      Download PDF
+                      {t('downloadPdf')}
                     </a>
                   )}
                 </div>

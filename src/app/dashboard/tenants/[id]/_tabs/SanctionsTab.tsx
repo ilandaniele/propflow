@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 
@@ -28,13 +29,14 @@ export async function SanctionsTab({ tenantId }: Props) {
     .limit(50);
 
   const sanctions = data ?? [];
+  const t = await getTranslations('tenantTabs.sanctionsTab');
 
   return (
     <div className="p-4">
       <Card>
-        <CardHeader><CardTitle>Sanctions</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
         {sanctions.length === 0 ? (
-          <p className="text-sm text-slate-400">No sanctions</p>
+          <p className="text-sm text-slate-400">{t('emptyState')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
             {sanctions.map((s) => (
@@ -54,7 +56,7 @@ export async function SanctionsTab({ tenantId }: Props) {
                 <div className="flex items-center gap-2 shrink-0">
                   {s.amount && (
                     <span className="text-sm font-medium text-slate-900">
-                      ${Number(s.amount).toLocaleString()}
+                      S/ {Number(s.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                     </span>
                   )}
                   <Badge

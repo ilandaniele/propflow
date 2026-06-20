@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import Link from 'next/link';
 
@@ -19,6 +20,7 @@ export async function WhatsAppTab({ tenantId }: Props) {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const supabase = await createClient();
+  const t = await getTranslations('tenantTabs.whatsappTab');
 
   const { data: conversation } = await supabase
     .from('whatsapp_conversations')
@@ -32,11 +34,9 @@ export async function WhatsAppTab({ tenantId }: Props) {
     return (
       <div className="p-4">
         <Card>
-          <CardHeader><CardTitle>WhatsApp</CardTitle></CardHeader>
-          <p className="text-sm text-slate-400">No WhatsApp conversation for this tenant yet.</p>
-          <p className="text-xs text-slate-400 mt-1">
-            Add a WhatsApp phone number to the tenant profile to start receiving messages.
-          </p>
+          <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
+          <p className="text-sm text-slate-400">{t('noConversation')}</p>
+          <p className="text-xs text-slate-400 mt-1">{t('addPhoneHint')}</p>
         </Card>
       </div>
     );
@@ -56,7 +56,7 @@ export async function WhatsAppTab({ tenantId }: Props) {
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <div className="text-sm text-slate-500">
-          Conversation with{' '}
+          {t('conversationWith')}{' '}
           <span className="font-medium text-slate-700">
             {conversation.external_phone.slice(0, 4)}****
           </span>
@@ -65,13 +65,13 @@ export async function WhatsAppTab({ tenantId }: Props) {
           href={`/dashboard/whatsapp/${conversation.id}`}
           className="text-xs text-brand-600 hover:text-brand-800 font-medium"
         >
-          Open full conversation →
+          {t('openFullConversation')} →
         </Link>
       </div>
 
       <Card>
         {messages.length === 0 ? (
-          <p className="text-sm text-slate-400">No messages yet</p>
+          <p className="text-sm text-slate-400">{t('noMessages')}</p>
         ) : (
           <div className="space-y-3 max-h-80 overflow-y-auto">
             {messages.map((m) => (
@@ -87,7 +87,7 @@ export async function WhatsAppTab({ tenantId }: Props) {
                       : 'bg-slate-100 text-slate-900',
                   ].join(' ')}
                 >
-                  <p>{m.body ?? '(attachment)'}</p>
+                  <p>{m.body ?? t('attachment')}</p>
                   {m.classification && m.classification !== 'other' && (
                     <p
                       className={`text-xs mt-1 ${
