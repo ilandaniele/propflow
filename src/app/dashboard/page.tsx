@@ -194,9 +194,9 @@ export default async function DashboardPage() {
               {t('kpis.financialTitle')}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <FinKpiCard title="True Net Profit" value={netProfitKpi.formatted} rawValue={netProfitKpi.value} sub="Income − expenses (MTD)" positiveIsGood />
-              <FinKpiCard title="Past Due Balance" value={pastDueKpi.formatted} rawValue={pastDueKpi.value} sub="Total overdue across all tenants" positiveIsGood={false} />
-              <FinKpiCard title="Occupancy" value={occupancyKpi.formatted} rawValue={occupancyKpi.value} sub={`${occupiedUnits} of ${totalUnits} units`} positiveIsGood />
+              <FinKpiCard title={t('kpis.trueNetProfit')} value={netProfitKpi.formatted} rawValue={netProfitKpi.value} sub={t('kpis.trueNetProfitSub')} positiveIsGood />
+              <FinKpiCard title={t('kpis.pastDueBalance')} value={pastDueKpi.formatted} rawValue={pastDueKpi.value} sub={t('kpis.pastDueBalanceSub')} positiveIsGood={false} />
+              <FinKpiCard title={t('kpis.occupancyFinancial')} value={occupancyKpi.formatted} rawValue={occupancyKpi.value} sub={t('kpis.occupancyFinancialSub', { occupied: occupiedUnits, total: totalUnits })} positiveIsGood />
               <AirtableOccupancyDelta liveRate={liveRate} snapshot={airtableSnapshot} />
             </div>
           </div>

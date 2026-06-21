@@ -186,7 +186,7 @@ export default async function ContractsPage() {
                       {unit ? `${unit.properties?.name ?? ''} — ${unit.label}` : '—'}
                     </td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                      S/ {contract.monthly_rent.toLocaleString('es-PE', { minimumFractionDigits: 2 })}/mo
+                      {contract.monthly_rent != null ? `S/ ${Number(contract.monthly_rent).toLocaleString('es-PE', { minimumFractionDigits: 2 })}/mo` : '—'}
                     </td>
                     <td className="px-5 py-4 text-xs hidden md:table-cell">
                       <span className={isExpiringSoon ? 'text-amber-700 font-medium' : 'text-slate-500'}>

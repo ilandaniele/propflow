@@ -641,7 +641,8 @@
       "vacancy": "Vacancy",
       "occupancyPct": "Occupancy %",
       "area": "Avg Area (m²)",
-      "byStatus": "By Status"
+      "byStatus": "By Status",
+      "maintenance": "maintenance"
     },
     "list": {
       "emptyTitle": "No units yet",
@@ -1388,7 +1389,13 @@
       "pendingStatements": "Statements Pending",
       "pendingStatementsSub": "Account statements unsent",
       "avgFeedback": "Avg Feedback",
-      "avgFeedbackSub": "Tenant satisfaction"
+      "avgFeedbackSub": "Tenant satisfaction",
+      "trueNetProfit": "True Net Profit",
+      "trueNetProfitSub": "Income − expenses (MTD)",
+      "pastDueBalance": "Past Due Balance",
+      "pastDueBalanceSub": "Total overdue across all tenants",
+      "occupancyFinancial": "Occupancy",
+      "occupancyFinancialSub": "{occupied} of {total} units"
     },
     "quickActions": {
       "title": "Quick Actions",

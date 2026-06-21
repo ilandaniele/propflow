@@ -641,7 +641,8 @@
       "vacancy": "Disponíveis",
       "occupancyPct": "Ocupação %",
       "area": "Área Média (m²)",
-      "byStatus": "Por Status"
+      "byStatus": "Por Status",
+      "maintenance": "manutenção"
     },
     "list": {
       "emptyTitle": "Sem unidades",
@@ -1388,7 +1389,13 @@
       "pendingStatements": "Extratos Pendentes",
       "pendingStatementsSub": "Extratos de conta não enviados",
       "avgFeedback": "Satisfação Média",
-      "avgFeedbackSub": "Avaliação dos inquilinos"
+      "avgFeedbackSub": "Avaliação dos inquilinos",
+      "trueNetProfit": "Lucro Líquido Real",
+      "trueNetProfitSub": "Receitas − despesas (mês atual)",
+      "pastDueBalance": "Saldo Vencido",
+      "pastDueBalanceSub": "Total vencido de todos os inquilinos",
+      "occupancyFinancial": "Ocupação",
+      "occupancyFinancialSub": "{occupied} de {total} unidades"
     },
     "quickActions": {
       "title": "Ações Rápidas",

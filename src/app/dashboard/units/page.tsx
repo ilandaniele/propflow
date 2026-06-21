@@ -76,7 +76,7 @@ export default async function UnitsPage() {
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('kpi.occupied')}</p>
               <p className="text-2xl font-bold text-green-700">{occupiedUnits}</p>
               {maintenanceUnits > 0 && (
-                <p className="text-xs text-amber-500 mt-0.5">{maintenanceUnits} maintenance</p>
+                <p className="text-xs text-amber-500 mt-0.5">{maintenanceUnits} {t('kpi.maintenance')}</p>
               )}
             </article>
             <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">

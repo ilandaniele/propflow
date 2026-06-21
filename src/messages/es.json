@@ -641,7 +641,8 @@
       "vacancy": "Disponibles",
       "occupancyPct": "Ocupación %",
       "area": "Área Prom. (m²)",
-      "byStatus": "Por Estado"
+      "byStatus": "Por Estado",
+      "maintenance": "mantenimiento"
     },
     "list": {
       "emptyTitle": "Sin habitaciones",
@@ -1388,7 +1389,13 @@
       "pendingStatements": "EECC Pendientes",
       "pendingStatementsSub": "Estados de cuenta sin enviar",
       "avgFeedback": "Satisfacción Promedio",
-      "avgFeedbackSub": "Calificación de inquilinos"
+      "avgFeedbackSub": "Calificación de inquilinos",
+      "trueNetProfit": "Ganancia Neta Real",
+      "trueNetProfitSub": "Ingresos − gastos (mes actual)",
+      "pastDueBalance": "Saldo Vencido",
+      "pastDueBalanceSub": "Total vencido de todos los inquilinos",
+      "occupancyFinancial": "Ocupación",
+      "occupancyFinancialSub": "{occupied} de {total} unidades"
     },
     "quickActions": {
       "title": "Acciones Rápidas",
