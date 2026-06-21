@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -54,8 +53,16 @@ export async function proxy(request: NextRequest) {
     return publicResponse;
   }
 
-  // Get session/user
-  const { response, user } = await updateSession(request);
+  // Fast-path session check: NextAuth v5 with strategy:'database' stores an opaque
+  // session token cookie. Middleware cannot do a DB lookup (Edge runtime), so we check
+  // cookie presence as a routing hint. Real auth validation happens in requireAdmin()
+  // / requireTenant() in each page/layout — this is just a redirect shortcut.
+  const hasSession =
+    request.cookies.has('authjs.session-token') ||
+    request.cookies.has('__Secure-authjs.session-token');
+  const user = hasSession ? { app_metadata: {} } : null;
+
+  const response = NextResponse.next({ request });
 
   // Pass nonce to layout via request header
   response.headers.set('x-nonce', nonce);
