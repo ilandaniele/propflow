@@ -19,10 +19,13 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { z } from 'zod';
+import { eq } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { provisionOrgAndProfile, getExistingProfile } from '@/lib/auth/provision';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
+import { db } from '@/lib/db';
+import { profiles } from '@/lib/db/schema';
 import type { AuthState } from '@/app/actions/auth';
 export type { AuthState };
 
@@ -85,18 +88,11 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
 
     // Store terms acceptance if user accepted during onboarding
     if (parsed.data.termsAccepted && result?.profileId) {
-      const { createAdminClient } = await import('@/lib/supabase/admin');
-      const admin = createAdminClient();
-      const now = new Date().toISOString();
-      await admin
-        .from('profiles')
-        .update({
-          terms_accepted_at:   now,
-          terms_version:       '1.0',
-          privacy_accepted_at: now,
-          privacy_version:     '1.0',
-        })
-        .eq('id', result.profileId);
+      const now = new Date();
+      await db
+        .update(profiles)
+        .set({ termsAcceptedAt: now, termsVersion: '1.0', privacyAcceptedAt: now, privacyVersion: '1.0' })
+        .where(eq(profiles.id, result.profileId));
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.name : 'unknown';
