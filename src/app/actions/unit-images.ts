@@ -14,7 +14,9 @@
  */
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { unitImages, units, tenants } from '@/lib/db/schema';
+import { eq, and, asc, desc, count as drizzleCount } from 'drizzle-orm';
 import { requireAdmin, requireTenant } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import {
@@ -90,23 +92,19 @@ export async function uploadUnitImage(
     return Errors.VALIDATION_ERROR({ formErrors: ['file is required'], fieldErrors: {} });
   }
 
-  const supabase = await createClient();
-
   // 5. IDOR: verify unit belongs to admin's org
-  const { data: unit } = await supabase
-    .from('units')
-    .select('id, org_id')
-    .eq('id', parsed.data.unit_id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const unitRows = await db
+    .select({ id: units.id })
+    .from(units)
+    .where(and(eq(units.id, parsed.data.unit_id), eq(units.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!unit) return Errors.NOT_FOUND();
+  if (!unitRows[0]) return Errors.NOT_FOUND();
 
   // 6. Validate file buffer (MIME allowlist + magic bytes + size)
   const buffer = Buffer.from(await file.arrayBuffer());
   const validation = validateImageFile(buffer, file.type);
   if (!validation.valid) {
-    // Distinguish size error from MIME error for correct HTTP status
     if (validation.error?.includes('exceeds maximum')) {
       return Errors.IMAGE_TOO_LARGE();
     }
@@ -114,18 +112,19 @@ export async function uploadUnitImage(
   }
 
   // 7. Check per-unit image quota (20 images max)
-  const { count, error: countError } = await supabase
-    .from('unit_images')
-    .select('id', { count: 'exact', head: true })
-    .eq('unit_id', parsed.data.unit_id)
-    .eq('org_id', ctx.orgId);
-
-  if (countError) {
-    log.error('[uploadUnitImage] quota check error', { code: countError.code });
+  let currentCount = 0;
+  try {
+    const countRows = await db
+      .select({ count: drizzleCount() })
+      .from(unitImages)
+      .where(and(eq(unitImages.unitId, parsed.data.unit_id), eq(unitImages.orgId, ctx.orgId)));
+    currentCount = countRows[0]?.count ?? 0;
+  } catch (e) {
+    log.error('[uploadUnitImage] quota check error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
-  if ((count ?? 0) >= MAX_IMAGES_PER_UNIT) {
+  if (currentCount >= MAX_IMAGES_PER_UNIT) {
     return Errors.IMAGE_QUOTA_EXCEEDED();
   }
 
@@ -141,45 +140,49 @@ export async function uploadUnitImage(
     return Errors.INTERNAL();
   }
 
-  // 10. If is_cover=true, unset previous cover atomically (same transaction via RPC)
+  // 10. If is_cover=true, unset previous cover
   if (parsed.data.is_cover) {
-    const { error: unsetError } = await supabase
-      .from('unit_images')
-      .update({ is_cover: false })
-      .eq('unit_id', parsed.data.unit_id)
-      .eq('org_id', ctx.orgId)
-      .eq('is_cover', true);
-
-    if (unsetError) {
-      log.error('[uploadUnitImage] unset previous cover error', { code: unsetError.code });
-      // Clean up the uploaded file before returning error
+    try {
+      await db
+        .update(unitImages)
+        .set({ isCover: false })
+        .where(and(
+          eq(unitImages.unitId, parsed.data.unit_id),
+          eq(unitImages.orgId, ctx.orgId),
+          eq(unitImages.isCover, true),
+        ));
+    } catch (e) {
+      log.error('[uploadUnitImage] unset previous cover error', { code: e instanceof Error ? e.message : String(e) });
       await deleteImage(BUCKET, storagePath).catch(() => undefined);
       return Errors.INTERNAL();
     }
   }
 
   // 11. Insert unit_images row
-  const { data: newImage, error: insertError } = await supabase
-    .from('unit_images')
-    .insert({
-      org_id: ctx.orgId,
-      unit_id: parsed.data.unit_id,
-      storage_path: storagePath,
-      filename: file.name.slice(0, 255),
-      mime_type: mimeType,
-      size_bytes: file.size,
-      width: parsed.data.width ?? null,
-      height: parsed.data.height ?? null,
-      is_cover: parsed.data.is_cover ?? false,
-      caption: parsed.data.caption ?? null,
-      sort_order: count ?? 0,
-      uploaded_by: ctx.userId,
-    })
-    .select('id')
-    .single();
+  let newImageId: string;
+  try {
+    const rows = await db
+      .insert(unitImages)
+      .values({
+        orgId:       ctx.orgId,
+        unitId:      parsed.data.unit_id,
+        storagePath,
+        filename:    file.name.slice(0, 255),
+        mimeType,
+        sizeBytes:   file.size,
+        width:       parsed.data.width ?? null,
+        height:      parsed.data.height ?? null,
+        isCover:     parsed.data.is_cover ?? false,
+        caption:     parsed.data.caption ?? null,
+        sortOrder:   currentCount,
+        uploadedBy:  ctx.userId,
+      })
+      .returning({ id: unitImages.id });
 
-  if (insertError || !newImage) {
-    log.error('[uploadUnitImage] db insert error', { code: insertError?.code });
+    if (!rows[0]) throw new Error('No row returned');
+    newImageId = rows[0].id;
+  } catch (e) {
+    log.error('[uploadUnitImage] db insert error', { code: e instanceof Error ? e.message : String(e) });
     await deleteImage(BUCKET, storagePath).catch(() => undefined);
     return Errors.INTERNAL();
   }
@@ -189,15 +192,14 @@ export async function uploadUnitImage(
   try {
     signedUrl = await getSignedUrl(BUCKET, storagePath);
   } catch {
-    // Non-fatal: return ok with empty URL rather than failing the whole upload
     signedUrl = '';
   }
 
   // 13. Audit log + cache invalidation
-  log.adminAction(ctx.userId, 'unit_image.upload', 'unit_image', newImage.id);
+  log.adminAction(ctx.userId, 'unit_image.upload', 'unit_image', newImageId);
   revalidatePath(`/dashboard/units/${parsed.data.unit_id}`);
 
-  return ok({ id: newImage.id, signed_url: signedUrl });
+  return ok({ id: newImageId, signed_url: signedUrl });
 }
 
 // ---------------------------------------------------------------------------
@@ -217,52 +219,47 @@ export async function deleteUnitImage(
   const imageId = formData.get('id') as string | null;
   if (!imageId) return Errors.VALIDATION_ERROR({ formErrors: ['id is required'], fieldErrors: {} });
 
-  const supabase = await createClient();
-
   // IDOR: fetch the row and verify it belongs to admin's org
-  const { data: image } = await supabase
-    .from('unit_images')
-    .select('id, org_id, unit_id, storage_path, is_cover')
-    .eq('id', imageId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const imageRows = await db
+    .select({ id: unitImages.id, unitId: unitImages.unitId, storagePath: unitImages.storagePath, isCover: unitImages.isCover })
+    .from(unitImages)
+    .where(and(eq(unitImages.id, imageId), eq(unitImages.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!image) return Errors.NOT_FOUND();
+  if (!imageRows[0]) return Errors.NOT_FOUND();
+  const image = imageRows[0];
 
   // Spec: cannot delete cover image if other images exist
-  if (image.is_cover) {
-    const { count } = await supabase
-      .from('unit_images')
-      .select('id', { count: 'exact', head: true })
-      .eq('unit_id', image.unit_id)
-      .eq('org_id', ctx.orgId);
+  if (image.isCover) {
+    const countRows = await db
+      .select({ count: drizzleCount() })
+      .from(unitImages)
+      .where(and(eq(unitImages.unitId, image.unitId), eq(unitImages.orgId, ctx.orgId)));
 
-    if ((count ?? 0) > 1) {
+    if ((countRows[0]?.count ?? 0) > 1) {
       return Errors.IMAGE_COVER_CONFLICT();
     }
   }
 
   // Delete from storage first, then from DB
   try {
-    await deleteImage(BUCKET, image.storage_path);
+    await deleteImage(BUCKET, image.storagePath);
   } catch (storageErr) {
     log.error('[deleteUnitImage] storage delete failed', { error: String(storageErr) });
     return Errors.INTERNAL();
   }
 
-  const { error: deleteError } = await supabase
-    .from('unit_images')
-    .delete()
-    .eq('id', imageId)
-    .eq('org_id', ctx.orgId);
-
-  if (deleteError) {
-    log.error('[deleteUnitImage] db delete error', { code: deleteError.code });
+  try {
+    await db
+      .delete(unitImages)
+      .where(and(eq(unitImages.id, imageId), eq(unitImages.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[deleteUnitImage] db delete error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
   log.adminAction(ctx.userId, 'unit_image.delete', 'unit_image', imageId);
-  revalidatePath(`/dashboard/units/${image.unit_id}`);
+  revalidatePath(`/dashboard/units/${image.unitId}`);
 
   return ok(undefined);
 }
@@ -284,44 +281,38 @@ export async function setUnitCoverImage(
   const imageId = formData.get('id') as string | null;
   if (!imageId) return Errors.VALIDATION_ERROR({ formErrors: ['id is required'], fieldErrors: {} });
 
-  const supabase = await createClient();
-
   // IDOR: verify the image belongs to admin's org
-  const { data: image } = await supabase
-    .from('unit_images')
-    .select('id, org_id, unit_id')
-    .eq('id', imageId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const imageRows = await db
+    .select({ id: unitImages.id, unitId: unitImages.unitId })
+    .from(unitImages)
+    .where(and(eq(unitImages.id, imageId), eq(unitImages.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!image) return Errors.NOT_FOUND();
+  if (!imageRows[0]) return Errors.NOT_FOUND();
+  const image = imageRows[0];
 
   // Atomic cover toggle: unset previous cover, then set new cover
-  const { error: unsetError } = await supabase
-    .from('unit_images')
-    .update({ is_cover: false })
-    .eq('unit_id', image.unit_id)
-    .eq('org_id', ctx.orgId)
-    .eq('is_cover', true);
+  try {
+    await db
+      .update(unitImages)
+      .set({ isCover: false })
+      .where(and(
+        eq(unitImages.unitId, image.unitId),
+        eq(unitImages.orgId, ctx.orgId),
+        eq(unitImages.isCover, true),
+      ));
 
-  if (unsetError) {
-    log.error('[setUnitCoverImage] unset error', { code: unsetError.code });
-    return Errors.INTERNAL();
-  }
-
-  const { error: setError } = await supabase
-    .from('unit_images')
-    .update({ is_cover: true })
-    .eq('id', imageId)
-    .eq('org_id', ctx.orgId);
-
-  if (setError) {
-    log.error('[setUnitCoverImage] set error', { code: setError.code });
+    await db
+      .update(unitImages)
+      .set({ isCover: true })
+      .where(and(eq(unitImages.id, imageId), eq(unitImages.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[setUnitCoverImage] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
   log.adminAction(ctx.userId, 'unit_image.set_cover', 'unit_image', imageId);
-  revalidatePath(`/dashboard/units/${image.unit_id}`);
+  revalidatePath(`/dashboard/units/${image.unitId}`);
 
   return ok(undefined);
 }
@@ -340,7 +331,6 @@ export async function reorderUnitImages(
   const rl = mutRateLimit(ctx.userId, 'reorder');
   if (!rl.success) return Errors.RATE_LIMITED();
 
-  // Parse order array from JSON string in FormData
   let orderRaw: unknown;
   try {
     const orderStr = formData.get('order') as string | null;
@@ -355,33 +345,32 @@ export async function reorderUnitImages(
   });
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // IDOR: verify the unit belongs to admin's org
-  const { data: unit } = await supabase
-    .from('units')
-    .select('id')
-    .eq('id', parsed.data.unit_id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const unitRows = await db
+    .select({ id: units.id })
+    .from(units)
+    .where(and(eq(units.id, parsed.data.unit_id), eq(units.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!unit) return Errors.NOT_FOUND();
+  if (!unitRows[0]) return Errors.NOT_FOUND();
 
-  // Update sort_order for each image in one transaction using sequential updates.
-  // N <= 20 so O(N) updates are trivial (IC-13).
+  // Update sort_order for each image. N <= 20 so O(N) updates are trivial.
   const updates = parsed.data.order.map((id, index) =>
-    supabase
-      .from('unit_images')
-      .update({ sort_order: index })
-      .eq('id', id)
-      .eq('unit_id', parsed.data.unit_id)
-      .eq('org_id', ctx.orgId)
+    db
+      .update(unitImages)
+      .set({ sortOrder: index })
+      .where(and(
+        eq(unitImages.id, id),
+        eq(unitImages.unitId, parsed.data.unit_id),
+        eq(unitImages.orgId, ctx.orgId),
+      ))
+      .catch((e: Error) => e)
   );
 
   const results = await Promise.all(updates);
-  const firstError = results.find((r) => r.error);
-  if (firstError?.error) {
-    log.error('[reorderUnitImages] db update error', { code: firstError.error.code });
+  const firstError = results.find((r): r is Error => r instanceof Error);
+  if (firstError) {
+    log.error('[reorderUnitImages] db update error', { code: firstError.message });
     return Errors.INTERNAL();
   }
 
@@ -411,31 +400,28 @@ export async function updateUnitImageCaption(
   });
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // IDOR: verify image belongs to admin's org
-  const { data: image } = await supabase
-    .from('unit_images')
-    .select('id, unit_id')
-    .eq('id', parsed.data.id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const imageRows = await db
+    .select({ id: unitImages.id, unitId: unitImages.unitId })
+    .from(unitImages)
+    .where(and(eq(unitImages.id, parsed.data.id), eq(unitImages.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!image) return Errors.NOT_FOUND();
+  if (!imageRows[0]) return Errors.NOT_FOUND();
+  const image = imageRows[0];
 
-  const { error } = await supabase
-    .from('unit_images')
-    .update({ caption: parsed.data.caption })
-    .eq('id', parsed.data.id)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[updateUnitImageCaption] db error', { code: error.code });
+  try {
+    await db
+      .update(unitImages)
+      .set({ caption: parsed.data.caption })
+      .where(and(eq(unitImages.id, parsed.data.id), eq(unitImages.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[updateUnitImageCaption] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
   log.adminAction(ctx.userId, 'unit_image.update_caption', 'unit_image', parsed.data.id);
-  revalidatePath(`/dashboard/units/${image.unit_id}`);
+  revalidatePath(`/dashboard/units/${image.unitId}`);
 
   return ok(undefined);
 }
@@ -452,52 +438,67 @@ export async function getUnitImagesAdmin(
 
   if (!unitId) return Errors.VALIDATION_ERROR({ formErrors: ['unitId is required'], fieldErrors: {} });
 
-  const supabase = await createClient();
-
   // IDOR: verify unit belongs to admin's org
-  const { data: unit } = await supabase
-    .from('units')
-    .select('id')
-    .eq('id', unitId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const unitRows = await db
+    .select({ id: units.id })
+    .from(units)
+    .where(and(eq(units.id, unitId), eq(units.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!unit) return Errors.NOT_FOUND();
+  if (!unitRows[0]) return Errors.NOT_FOUND();
 
-  const { data: rows, error } = await supabase
-    .from('unit_images')
-    .select('id, org_id, unit_id, storage_path, filename, mime_type, size_bytes, width, height, is_cover, caption, sort_order, uploaded_by, uploaded_at')
-    .eq('unit_id', unitId)
-    .eq('org_id', ctx.orgId)
-    .order('sort_order', { ascending: true })
-    .order('is_cover', { ascending: false });
+  let rows: Array<{
+    id: string; unitId: string; storagePath: string; filename: string; mimeType: string;
+    sizeBytes: number; width: number | null; height: number | null; isCover: boolean;
+    caption: string | null; sortOrder: number; uploadedBy: string | null; createdAt: Date;
+  }>;
 
-  if (error) {
-    log.error('[getUnitImagesAdmin] db error', { code: error.code });
+  try {
+    rows = await db
+      .select({
+        id:          unitImages.id,
+        unitId:      unitImages.unitId,
+        storagePath: unitImages.storagePath,
+        filename:    unitImages.filename,
+        mimeType:    unitImages.mimeType,
+        sizeBytes:   unitImages.sizeBytes,
+        width:       unitImages.width,
+        height:      unitImages.height,
+        isCover:     unitImages.isCover,
+        caption:     unitImages.caption,
+        sortOrder:   unitImages.sortOrder,
+        uploadedBy:  unitImages.uploadedBy,
+        createdAt:   unitImages.createdAt,
+      })
+      .from(unitImages)
+      .where(and(eq(unitImages.unitId, unitId), eq(unitImages.orgId, ctx.orgId)))
+      .orderBy(asc(unitImages.sortOrder), desc(unitImages.isCover));
+  } catch (e) {
+    log.error('[getUnitImagesAdmin] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
   const images: NormalizedImage[] = await Promise.all(
-    (rows ?? []).map(async (row) => {
+    rows.map(async (row) => {
       let url = '';
       try {
-        url = await getSignedUrl(BUCKET, row.storage_path);
+        url = await getSignedUrl(BUCKET, row.storagePath);
       } catch {
         url = '';
       }
 
       return NormalizedImageSchema.parse({
-        id: row.id,
+        id:        row.id,
         url,
-        filename: row.filename,
-        mimeType: row.mime_type,
-        sizeBytes: row.size_bytes,
-        width: row.width ?? undefined,
-        height: row.height ?? undefined,
-        isCover: row.is_cover,
-        caption: row.caption,
-        sortOrder: row.sort_order,
-        createdAt: row.uploaded_at,
+        filename:  row.filename,
+        mimeType:  row.mimeType,
+        sizeBytes: row.sizeBytes,
+        width:     row.width ?? undefined,
+        height:    row.height ?? undefined,
+        isCover:   row.isCover,
+        caption:   row.caption,
+        sortOrder: row.sortOrder,
+        createdAt: row.createdAt,
       });
     })
   );
@@ -513,55 +514,69 @@ export async function getUnitImagesTenant(): Promise<ActionResult<NormalizedImag
   let ctx;
   try { ctx = await requireTenant(); } catch { return Errors.UNAUTHORIZED(); }
 
-  const supabase = await createClient();
-
   // Look up the tenant's assigned unit from the tenants table
-  const { data: tenantRow } = await supabase
-    .from('tenants')
-    .select('unit_id')
-    .eq('profile_id', ctx.userId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const tenantRows = await db
+    .select({ unitId: tenants.unitId })
+    .from(tenants)
+    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!tenantRow?.unit_id) {
+  const assignedUnitId = tenantRows[0]?.unitId ?? null;
+  if (!assignedUnitId) {
     // Tenant has no assigned unit — return empty list
     return ok([]);
   }
 
-  const { data: rows, error } = await supabase
-    .from('unit_images')
-    .select('id, storage_path, filename, mime_type, size_bytes, width, height, is_cover, caption, sort_order, uploaded_at')
-    .eq('unit_id', tenantRow.unit_id)
-    .eq('org_id', ctx.orgId)
-    .order('sort_order', { ascending: true })
-    .order('is_cover', { ascending: false });
+  let rows: Array<{
+    id: string; storagePath: string; filename: string; mimeType: string;
+    sizeBytes: number; width: number | null; height: number | null; isCover: boolean;
+    caption: string | null; sortOrder: number; createdAt: Date;
+  }>;
 
-  if (error) {
-    log.error('[getUnitImagesTenant] db error', { code: error.code });
+  try {
+    rows = await db
+      .select({
+        id:          unitImages.id,
+        storagePath: unitImages.storagePath,
+        filename:    unitImages.filename,
+        mimeType:    unitImages.mimeType,
+        sizeBytes:   unitImages.sizeBytes,
+        width:       unitImages.width,
+        height:      unitImages.height,
+        isCover:     unitImages.isCover,
+        caption:     unitImages.caption,
+        sortOrder:   unitImages.sortOrder,
+        createdAt:   unitImages.createdAt,
+      })
+      .from(unitImages)
+      .where(and(eq(unitImages.unitId, assignedUnitId), eq(unitImages.orgId, ctx.orgId)))
+      .orderBy(asc(unitImages.sortOrder), desc(unitImages.isCover));
+  } catch (e) {
+    log.error('[getUnitImagesTenant] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
   const images: NormalizedImage[] = await Promise.all(
-    (rows ?? []).map(async (row) => {
+    rows.map(async (row) => {
       let url = '';
       try {
-        url = await getSignedUrl(BUCKET, row.storage_path);
+        url = await getSignedUrl(BUCKET, row.storagePath);
       } catch {
         url = '';
       }
 
       return NormalizedImageSchema.parse({
-        id: row.id,
+        id:        row.id,
         url,
-        filename: row.filename,
-        mimeType: row.mime_type,
-        sizeBytes: row.size_bytes,
-        width: row.width ?? undefined,
-        height: row.height ?? undefined,
-        isCover: row.is_cover,
-        caption: row.caption,
-        sortOrder: row.sort_order,
-        createdAt: row.uploaded_at,
+        filename:  row.filename,
+        mimeType:  row.mimeType,
+        sizeBytes: row.sizeBytes,
+        width:     row.width ?? undefined,
+        height:    row.height ?? undefined,
+        isCover:   row.isCover,
+        caption:   row.caption,
+        sortOrder: row.sortOrder,
+        createdAt: row.createdAt,
       });
     })
   );

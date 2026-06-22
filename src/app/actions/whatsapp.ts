@@ -1,14 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { db } from '@/lib/db';
+import { whatsappConversations, whatsappMessages } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
-import { insertMessage } from '@/lib/whatsapp/db';
 import { SendWhatsAppMessageSchema } from '@/lib/schemas/whatsapp';
 import type { ActionResult } from '@/lib/errors';
 
@@ -31,42 +31,62 @@ export async function sendWhatsappMessage(
 
   const { conversation_id, body } = parsed.data;
 
-  const supabase = await createClient();
+  // Verify conversation belongs to this org (IDOR guard)
+  const convRows = await db
+    .select({ id: whatsappConversations.id, externalPhone: whatsappConversations.externalPhone })
+    .from(whatsappConversations)
+    .where(and(eq(whatsappConversations.id, conversation_id), eq(whatsappConversations.orgId, ctx.orgId)))
+    .limit(1);
 
-  // Verify conversation belongs to this org
-  const { data: conv } = await supabase
-    .from('whatsapp_conversations')
-    .select('id, external_phone, tenant_id')
-    .eq('id', conversation_id)
-    .eq('org_id', ctx.orgId)
-    .single();
-
-  if (!conv) return Errors.NOT_FOUND();
+  if (!convRows[0]) return Errors.NOT_FOUND();
+  const conv = convRows[0];
 
   // Call provider (mock: no network, logs only)
   const provider = getWhatsAppProvider();
   const sendResult = await provider.sendMessage(ctx.orgId, {
-    to: conv.external_phone,  // PII — not logged by provider
+    to: conv.externalPhone,  // PII — not logged by provider
     body,
   });
 
-  const adminClient = createAdminClient();
+  // Insert outbound message directly with Drizzle
+  let messageId: string | null = null;
+  try {
+    const rows = await db
+      .insert(whatsappMessages)
+      .values({
+        orgId:             ctx.orgId,
+        conversationId:    conversation_id,
+        direction:         'outbound',
+        providerMessageId: sendResult.providerMessageId ?? null,
+        body:              body ?? null,
+        status:            sendResult.success ? 'sent' : 'failed',
+        meta:              {},
+      })
+      .returning({ id: whatsappMessages.id });
 
-  // Upsert conversation (already exists)
-  const messageId = await insertMessage({
-    adminClient,
-    orgId: ctx.orgId,
-    conversationId: conversation_id,
-    direction: 'outbound',
-    providerMessageId: sendResult.providerMessageId ?? null,
-    body,
-    status: sendResult.success ? 'sent' : 'failed',
-  });
+    messageId = rows[0]?.id ?? null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // 23505 = unique_violation — idempotent duplicate
+    if (msg.includes('23505')) {
+      log.info('[sendWhatsappMessage] duplicate message ignored', { orgId: ctx.orgId });
+    } else {
+      log.error('[sendWhatsappMessage] insert failed', { orgId: ctx.orgId, code: msg });
+      return Errors.INTERNAL();
+    }
+  }
 
   if (!messageId) {
-    log.error('[sendWhatsappMessage] insert failed', { orgId: ctx.orgId });
+    log.error('[sendWhatsappMessage] insert returned no id', { orgId: ctx.orgId });
     return Errors.INTERNAL();
   }
+
+  // Update conversation last_message_at
+  await db
+    .update(whatsappConversations)
+    .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+    .where(eq(whatsappConversations.id, conversation_id))
+    .catch(() => undefined);
 
   log.adminAction(ctx.userId, 'send_whatsapp', 'conversation', conversation_id);
   revalidatePath(`/dashboard/whatsapp/${conversation_id}`);
@@ -86,15 +106,13 @@ export async function markConversationRead(
   const conversationId = formData.get('conversation_id') as string;
   if (!conversationId) return Errors.VALIDATION_ERROR({ formErrors: ['conversation_id required'], fieldErrors: {} });
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('whatsapp_conversations')
-    .update({ unread_count_admin: 0, updated_at: new Date().toISOString() })
-    .eq('id', conversationId)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[markConversationRead] db error', { code: error.code });
+  try {
+    await db
+      .update(whatsappConversations)
+      .set({ unreadCountAdmin: 0, updatedAt: new Date() })
+      .where(and(eq(whatsappConversations.id, conversationId), eq(whatsappConversations.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[markConversationRead] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
