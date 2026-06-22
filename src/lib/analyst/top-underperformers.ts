@@ -3,13 +3,17 @@
  *
  * Deterministic analyst functions — AC15.
  *
- * All functions are pure async queries against Supabase aggregates.
+ * All functions are pure async queries against Drizzle aggregates.
  * NO LLM calls are made here. NO tenant PII is returned (only unit/room identifiers).
  *
  * SERVER-ONLY: never import from client components.
+ *
+ * Migrated from Supabase client to Drizzle ORM (W6).
  */
 
-import { SupabaseClient } from '@supabase/supabase-js';
+import { db } from '@/lib/db';
+import { units, charges, payments, contracts, expenses, tenants, incidents } from '@/lib/db/schema';
+import { eq, and, gte, lt, neq, inArray, sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -56,7 +60,7 @@ export interface RiskTenantRow {
   unitLabel: string;
   overdueBalance: number;
   openIncidents: number;
-  riskScore: number; // overdueBalance * 0.7 + openIncidents * 0.3 (normalized)
+  riskScore: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,12 +83,9 @@ function monthsAgo(n: number): string {
 
 // ---------------------------------------------------------------------------
 // 1. getWorstPerformingRooms
-//    Returns top-N rooms by loss ratio = (billed - collected) / billed.
-//    Uses charges (billed) and payments (collected) scoped to last 30 days.
 // ---------------------------------------------------------------------------
 
 export async function getWorstPerformingRooms(
-  supabase: SupabaseClient,
   orgId: string,
   topN: number = 5,
 ): Promise<RoomPerformanceRow[]> {
@@ -92,52 +93,76 @@ export async function getWorstPerformingRooms(
     .toISOString()
     .slice(0, 10);
 
-  // Fetch units with property info
-  const { data: units } = await supabase
-    .from('units')
-    .select('id, label, property_id, properties(name)')
-    .eq('org_id', orgId);
+  // Fetch units with property name via join
+  const unitRows = await db
+    .select({
+      id: units.id,
+      label: units.label,
+      propertyId: units.propertyId,
+      propertyName: sql<string>`p.name`.as('propertyName'),
+    })
+    .from(units)
+    .leftJoin(sql`properties p ON p.id = ${units.propertyId}`)
+    .where(eq(units.orgId, orgId));
 
-  if (!units || units.length === 0) return [];
+  if (unitRows.length === 0) return [];
 
-  // Fetch charges (billed) in last 30 days
-  const { data: charges } = await supabase
-    .from('charges')
-    .select('amount, contract_id, contracts!inner(unit_id, org_id)')
-    .eq('contracts.org_id', orgId)
-    .gte('due_date', thirtyDaysAgo);
+  const unitIds = unitRows.map((u) => u.id);
 
-  // Fetch approved payments (collected) in last 30 days
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('amount, contract_id, contracts!inner(unit_id, org_id)')
-    .eq('contracts.org_id', orgId)
-    .eq('status', 'approved')
-    .gte('paid_at', thirtyDaysAgo);
+  // Fetch contracts for these units to get contractId→unitId mapping
+  const contractRows = await db
+    .select({ id: contracts.id, unitId: contracts.unitId })
+    .from(contracts)
+    .where(and(eq(contracts.orgId, orgId), inArray(contracts.unitId, unitIds)));
 
-  // Build per-unit aggregates
+  const contractIds = contractRows.map((c) => c.id);
+  const contractUnitMap = new Map<string, string>();
+  for (const c of contractRows) contractUnitMap.set(c.id, c.unitId);
+
+  // Fetch charges in last 30 days for these contracts
+  const chargeRows = contractIds.length > 0
+    ? await db
+        .select({ contractId: charges.contractId, amount: charges.amount })
+        .from(charges)
+        .where(and(
+          eq(charges.orgId, orgId),
+          inArray(charges.contractId, contractIds),
+          gte(charges.dueDate, thirtyDaysAgo),
+        ))
+    : [];
+
+  // Fetch approved payments in last 30 days for these contracts
+  const paymentRows = contractIds.length > 0
+    ? await db
+        .select({ contractId: payments.contractId, amount: payments.amount })
+        .from(payments)
+        .where(and(
+          eq(payments.orgId, orgId),
+          inArray(payments.contractId, contractIds),
+          eq(payments.status, 'approved'),
+          gte(payments.paidAt, thirtyDaysAgo),
+        ))
+    : [];
+
+  // Aggregate per unit
   const billedByUnit = new Map<string, number>();
   const collectedByUnit = new Map<string, number>();
-
-  for (const charge of charges ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (contracts) not generically typed by the JS client; unit_id shape verified by select()
-    const contract = (charge as any).contracts;
-    if (!contract?.unit_id) continue;
-    const prev = billedByUnit.get(contract.unit_id) ?? 0;
-    billedByUnit.set(contract.unit_id, prev + (charge.amount ?? 0));
+  for (const u of unitRows) {
+    billedByUnit.set(u.id, 0);
+    collectedByUnit.set(u.id, 0);
   }
 
-  for (const payment of payments ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (contracts) not generically typed by the JS client; unit_id shape verified by select()
-    const contract = (payment as any).contracts;
-    if (!contract?.unit_id) continue;
-    const prev = collectedByUnit.get(contract.unit_id) ?? 0;
-    collectedByUnit.set(contract.unit_id, prev + (payment.amount ?? 0));
+  for (const c of chargeRows) {
+    const unitId = contractUnitMap.get(c.contractId);
+    if (unitId) billedByUnit.set(unitId, (billedByUnit.get(unitId) ?? 0) + Number(c.amount ?? 0));
   }
 
-  const rows: RoomPerformanceRow[] = units.map((u) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (properties) not generically typed by the JS client; name shape verified by select()
-    const prop = (u as any).properties;
+  for (const p of paymentRows) {
+    const unitId = contractUnitMap.get(p.contractId);
+    if (unitId) collectedByUnit.set(unitId, (collectedByUnit.get(unitId) ?? 0) + Number(p.amount ?? 0));
+  }
+
+  const rows: RoomPerformanceRow[] = unitRows.map((u) => {
     const billed = billedByUnit.get(u.id) ?? 0;
     const collected = collectedByUnit.get(u.id) ?? 0;
     const net = collected - billed;
@@ -145,7 +170,7 @@ export async function getWorstPerformingRooms(
     return {
       unitId: u.id,
       unitLabel: u.label ?? u.id,
-      propertyName: prop?.name ?? 'Unknown',
+      propertyName: u.propertyName ?? 'Unknown',
       billed,
       collected,
       net,
@@ -153,34 +178,24 @@ export async function getWorstPerformingRooms(
     };
   });
 
-  // Sort descending by lossRatio, return top-N
   rows.sort((a, b) => b.lossRatio - a.lossRatio);
   return rows.slice(0, topN);
 }
 
 // ---------------------------------------------------------------------------
-// 2. getLostDebtThisMonth
-//    Sum of overdue amounts from tenant_statement view for the org.
+// 2. getLostDebtThisMonth — uses tenant_statement PG view via raw SQL
 // ---------------------------------------------------------------------------
 
 export async function getLostDebtThisMonth(
-  supabase: SupabaseClient,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _orgId: string, // RLS on tenant_statement view already scopes to current org
+  orgId: string,
 ): Promise<DebtSummary> {
-  const { data: statements } = await supabase
-    .from('tenant_statement')
-    .select('balance, is_overdue, tenant_id');
+  const rows = await db.execute(
+    sql`SELECT is_overdue, balance FROM tenant_statement WHERE org_id = ${orgId}`
+  ) as unknown as Array<{ is_overdue: boolean; balance: string | number }>;
 
-  if (!statements) return { totalOverdueAmount: 0, overdueCount: 0 };
-
-  // tenant_statement is a view — RLS scopes it to the current org already.
-  const overdue = statements.filter(
-    (s: { is_overdue: boolean; balance: number }) => s.is_overdue && s.balance < 0,
-  );
-
+  const overdue = rows.filter((s) => s.is_overdue && Number(s.balance) < 0);
   const totalOverdueAmount = overdue.reduce(
-    (sum: number, s: { balance: number }) => sum + Math.abs(s.balance),
+    (sum, s) => sum + Math.abs(Number(s.balance)),
     0,
   );
 
@@ -189,11 +204,9 @@ export async function getLostDebtThisMonth(
 
 // ---------------------------------------------------------------------------
 // 3. getHighestExpenseProperties
-//    Returns properties ranked by total expenses in last 30 days.
 // ---------------------------------------------------------------------------
 
 export async function getHighestExpenseProperties(
-  supabase: SupabaseClient,
   orgId: string,
   topN: number = 5,
 ): Promise<ExpensesByProperty[]> {
@@ -201,136 +214,117 @@ export async function getHighestExpenseProperties(
     .toISOString()
     .slice(0, 10);
 
-  const { data: expenses } = await supabase
-    .from('expenses')
-    .select('amount, property_id, properties(name)')
-    .eq('org_id', orgId)
-    .gte('incurred_on', thirtyDaysAgo);
+  const expenseRows = await db
+    .select({
+      amount: expenses.amount,
+      propertyId: expenses.propertyId,
+      propertyName: sql<string>`p.name`.as('propertyName'),
+    })
+    .from(expenses)
+    .leftJoin(sql`properties p ON p.id = ${expenses.propertyId}`)
+    .where(and(eq(expenses.orgId, orgId), gte(expenses.incurredOn, thirtyDaysAgo)));
 
-  if (!expenses || expenses.length === 0) return [];
+  if (expenseRows.length === 0) return [];
 
   const byProperty = new Map<string, { name: string; total: number }>();
-
-  for (const expense of expenses) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (properties) not generically typed by the JS client; name shape verified by select()
-    const prop = (expense as any).properties;
-    const propId = expense.property_id ?? '__no_property__';
-    const propName = prop?.name ?? 'Sin propiedad';
+  for (const e of expenseRows) {
+    const propId = e.propertyId ?? '__no_property__';
+    const propName = e.propertyName ?? 'Sin propiedad';
     const prev = byProperty.get(propId) ?? { name: propName, total: 0 };
-    byProperty.set(propId, { name: propName, total: prev.total + (expense.amount ?? 0) });
+    byProperty.set(propId, { name: propName, total: prev.total + Number(e.amount ?? 0) });
   }
 
-  const rows: ExpensesByProperty[] = Array.from(byProperty.entries()).map(
-    ([propertyId, { name, total }]) => ({
-      propertyId,
-      propertyName: name,
-      totalExpenses: total,
-    }),
+  const result: ExpensesByProperty[] = Array.from(byProperty.entries()).map(
+    ([propertyId, { name, total }]) => ({ propertyId, propertyName: name, totalExpenses: total }),
   );
 
-  rows.sort((a, b) => b.totalExpenses - a.totalExpenses);
-  return rows.slice(0, topN);
+  result.sort((a, b) => b.totalExpenses - a.totalExpenses);
+  return result.slice(0, topN);
 }
 
 // ---------------------------------------------------------------------------
 // 4. getRentToMarketGap
-//    Compares monthly_rent_default per unit against market_rate column (if it
-//    exists). If no market_rate column is present, gap = null and a note is
-//    included in the result.
 // ---------------------------------------------------------------------------
 
 export async function getRentToMarketGap(
-  supabase: SupabaseClient,
   orgId: string,
 ): Promise<{ rows: RentToMarketRow[]; hasMarketData: boolean }> {
-  // Try to fetch market_rate — if column doesn't exist, Supabase returns an error
-  const { data: units, error } = await supabase
-    .from('units')
-    .select('id, label, monthly_rent_default, market_rate')
-    .eq('org_id', orgId);
+  // market_rate column may not exist — use try/catch
+  try {
+    const unitRows = await db.execute(
+      sql`SELECT id, label, monthly_rent_default, market_rate FROM units WHERE org_id = ${orgId}`
+    ) as unknown as Array<{
+      id: string;
+      label: string | null;
+      monthly_rent_default: string | number | null;
+      market_rate: string | number | null;
+    }>;
 
-  const hasMarketData = !error && units !== null && units.some(
-    (u: { market_rate: unknown }) => u.market_rate !== null && u.market_rate !== undefined,
-  );
+    if (!unitRows || unitRows.length === 0) return { rows: [], hasMarketData: false };
 
-  if (!units || units.length === 0 || error) {
+    const hasMarketData = unitRows.some(
+      (u) => u.market_rate !== null && u.market_rate !== undefined,
+    );
+
+    const rows: RentToMarketRow[] = unitRows.map((u) => {
+      const monthlyRent = Number(u.monthly_rent_default ?? 0);
+      const marketRate = u.market_rate !== null ? Number(u.market_rate) : null;
+      const gap = marketRate !== null ? monthlyRent - marketRate : null;
+      return {
+        unitId: u.id,
+        unitLabel: u.label ?? u.id,
+        monthlyRent,
+        marketRate,
+        gap,
+      };
+    });
+
+    return { rows, hasMarketData };
+  } catch {
     return { rows: [], hasMarketData: false };
   }
-
-  const rows: RentToMarketRow[] = units.map((u) => {
-    const monthlyRent = (u as { monthly_rent_default: number }).monthly_rent_default ?? 0;
-    const marketRate = (u as { market_rate: number | null }).market_rate ?? null;
-    const gap = marketRate !== null ? monthlyRent - marketRate : null;
-    return {
-      unitId: u.id,
-      unitLabel: (u as { label: string }).label ?? u.id,
-      monthlyRent,
-      marketRate,
-      gap,
-    };
-  });
-
-  return { rows, hasMarketData };
 }
 
 // ---------------------------------------------------------------------------
 // 5. getMonthlyVs3MonthTrend
-//    Compares current month revenue/expenses/net vs 3-month rolling average.
 // ---------------------------------------------------------------------------
 
 export async function getMonthlyVs3MonthTrend(
-  supabase: SupabaseClient,
   orgId: string,
 ): Promise<MonthlyTrendRow[]> {
   const now = new Date();
   const currentMonthStart = startOfMonth(now);
   const threeMonthsAgoStart = monthsAgo(3);
 
-  const [{ data: currentPayments }, { data: historicPayments }, { data: currentExpenses }, { data: historicExpenses }] =
+  const [currentPaymentRows, historicPaymentRows, currentExpenseRows, historicExpenseRows] =
     await Promise.all([
-      supabase
-        .from('payments')
-        .select('amount')
-        .eq('org_id', orgId)
-        .eq('status', 'approved')
-        .gte('paid_at', currentMonthStart),
-      supabase
-        .from('payments')
-        .select('amount')
-        .eq('org_id', orgId)
-        .eq('status', 'approved')
-        .gte('paid_at', threeMonthsAgoStart)
-        .lt('paid_at', currentMonthStart),
-      supabase
-        .from('expenses')
-        .select('amount')
-        .eq('org_id', orgId)
-        .gte('incurred_on', currentMonthStart),
-      supabase
-        .from('expenses')
-        .select('amount')
-        .eq('org_id', orgId)
-        .gte('incurred_on', threeMonthsAgoStart)
-        .lt('incurred_on', currentMonthStart),
+      db.select({ amount: payments.amount })
+        .from(payments)
+        .where(and(eq(payments.orgId, orgId), eq(payments.status, 'approved'), gte(payments.paidAt, currentMonthStart))),
+      db.select({ amount: payments.amount })
+        .from(payments)
+        .where(and(
+          eq(payments.orgId, orgId),
+          eq(payments.status, 'approved'),
+          gte(payments.paidAt, threeMonthsAgoStart),
+          lt(payments.paidAt, currentMonthStart),
+        )),
+      db.select({ amount: expenses.amount })
+        .from(expenses)
+        .where(and(eq(expenses.orgId, orgId), gte(expenses.incurredOn, currentMonthStart))),
+      db.select({ amount: expenses.amount })
+        .from(expenses)
+        .where(and(
+          eq(expenses.orgId, orgId),
+          gte(expenses.incurredOn, threeMonthsAgoStart),
+          lt(expenses.incurredOn, currentMonthStart),
+        )),
     ]);
 
-  const currentRevenue = (currentPayments ?? []).reduce(
-    (s: number, p: { amount: number }) => s + (p.amount ?? 0),
-    0,
-  );
-  const currentExpensesTotal = (currentExpenses ?? []).reduce(
-    (s: number, e: { amount: number }) => s + (e.amount ?? 0),
-    0,
-  );
-
-  const historicRevenue3m = (historicPayments ?? []).reduce(
-    (s: number, p: { amount: number }) => s + (p.amount ?? 0),
-    0,
-  ) / 3;
-  const historicExpenses3m = (historicExpenses ?? []).reduce(
-    (s: number, e: { amount: number }) => s + (e.amount ?? 0),
-    0,
-  ) / 3;
+  const currentRevenue = currentPaymentRows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const currentExpensesTotal = currentExpenseRows.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const historicRevenue3m = historicPaymentRows.reduce((s, p) => s + Number(p.amount ?? 0), 0) / 3;
+  const historicExpenses3m = historicExpenseRows.reduce((s, e) => s + Number(e.amount ?? 0), 0) / 3;
 
   return [
     {
@@ -350,67 +344,54 @@ export async function getMonthlyVs3MonthTrend(
 
 // ---------------------------------------------------------------------------
 // 6. getHighestRiskTenants
-//    Tenants with overdue payments + open incidents. No PII — only tenant IDs
-//    and their linked unit label.
 // ---------------------------------------------------------------------------
 
 export async function getHighestRiskTenants(
-  supabase: SupabaseClient,
   orgId: string,
   topN: number = 5,
 ): Promise<RiskTenantRow[]> {
-  const { data: statements } = await supabase
-    .from('tenant_statement')
-    .select('tenant_id, balance, is_overdue');
+  const [statementRows, incidentRows, tenantRows] = await Promise.all([
+    db.execute(
+      sql`SELECT tenant_id, balance, is_overdue FROM tenant_statement WHERE org_id = ${orgId}`
+    ) as Promise<unknown>,
+    db.select({ tenantId: incidents.tenantId })
+      .from(incidents)
+      .where(and(eq(incidents.orgId, orgId), neq(incidents.status, 'solved'))),
+    db.select({ id: tenants.id, unitId: tenants.unitId, unitLabel: sql<string>`u.label`.as('unitLabel') })
+      .from(tenants)
+      .leftJoin(sql`units u ON u.id = ${tenants.unitId}`)
+      .where(eq(tenants.orgId, orgId)),
+  ]);
 
-  const { data: incidents } = await supabase
-    .from('incidents')
-    .select('tenant_id')
-    .eq('org_id', orgId)
-    .neq('status', 'solved');
+  const stmts = statementRows as Array<{ tenant_id: string | null; balance: string | number; is_overdue: boolean }>;
 
-  const { data: tenants } = await supabase
-    .from('tenants')
-    .select('id, unit_id, units(label)')
-    .eq('org_id', orgId);
-
-  if (!tenants) return [];
-
-  // Count open incidents per tenant
   const incidentsByTenant = new Map<string, number>();
-  for (const incident of incidents ?? []) {
-    if (!incident.tenant_id) continue;
-    incidentsByTenant.set(
-      incident.tenant_id,
-      (incidentsByTenant.get(incident.tenant_id) ?? 0) + 1,
-    );
+  for (const inc of incidentRows) {
+    if (!inc.tenantId) continue;
+    incidentsByTenant.set(inc.tenantId, (incidentsByTenant.get(inc.tenantId) ?? 0) + 1);
   }
 
-  // Map balance per tenant
   const balanceByTenant = new Map<string, number>();
-  for (const stmt of statements ?? []) {
-    if (!stmt.tenant_id || !stmt.is_overdue) continue;
-    balanceByTenant.set(stmt.tenant_id, Math.abs(Math.min(0, stmt.balance)));
+  for (const s of stmts) {
+    if (!s.tenant_id || !s.is_overdue) continue;
+    balanceByTenant.set(s.tenant_id, Math.abs(Math.min(0, Number(s.balance))));
   }
 
-  const rows: RiskTenantRow[] = tenants
+  const result: RiskTenantRow[] = (tenantRows as Array<{ id: string; unitId: string | null; unitLabel: string | null }>)
     .filter((t) => balanceByTenant.has(t.id) || (incidentsByTenant.get(t.id) ?? 0) > 0)
     .map((t) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join (units) not generically typed by the JS client; label shape verified by select()
-      const unit = (t as any).units;
       const overdueBalance = balanceByTenant.get(t.id) ?? 0;
       const openIncidents = incidentsByTenant.get(t.id) ?? 0;
-      // Simple risk score — weighted sum (arbitrary weights for ranking only)
       const riskScore = overdueBalance * 0.7 + openIncidents * 30 * 0.3;
       return {
         tenantId: t.id,
-        unitLabel: unit?.label ?? 'Unknown',
+        unitLabel: t.unitLabel ?? 'Unknown',
         overdueBalance,
         openIncidents,
         riskScore,
       };
     });
 
-  rows.sort((a, b) => b.riskScore - a.riskScore);
-  return rows.slice(0, topN);
+  result.sort((a, b) => b.riskScore - a.riskScore);
+  return result.slice(0, topN);
 }

@@ -1,20 +1,25 @@
 /**
  * WhatsApp DB helpers — upsert conversation, insert message, tenant lookup by phone.
- * Uses service-role admin client (called from webhook handler, which runs outside user context).
+ * Uses db directly (called from webhook handler, which runs outside user context).
+ * Migrated from Supabase admin client to Drizzle ORM (W6).
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { db } from '@/lib/db';
+import {
+  whatsappConversations,
+  whatsappMessages,
+  tenants,
+} from '@/lib/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { log } from '@/lib/log';
 
 export interface UpsertConversationArgs {
-  adminClient: SupabaseClient;
   orgId: string;
   externalPhone: string;    // E.164
   tenantId?: string | null;
 }
 
 export interface InsertMessageArgs {
-  adminClient: SupabaseClient;
   orgId: string;
   conversationId: string;
   direction: 'inbound' | 'outbound';
@@ -32,43 +37,47 @@ export interface InsertMessageArgs {
  * Returns the conversation id.
  */
 export async function upsertConversation({
-  adminClient,
   orgId,
   externalPhone,
   tenantId,
 }: UpsertConversationArgs): Promise<string> {
-  const { data, error } = await adminClient
-    .from('whatsapp_conversations')
-    .upsert(
-      {
-        org_id: orgId,
-        external_phone: externalPhone,
-        tenant_id: tenantId ?? null,
-        last_message_at: new Date().toISOString(),
+  const rows = await db
+    .insert(whatsappConversations)
+    .values({
+      orgId,
+      externalPhone,
+      tenantId: tenantId ?? null,
+      lastMessageAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [whatsappConversations.orgId, whatsappConversations.externalPhone],
+      set: {
+        lastMessageAt: new Date(),
+        tenantId: tenantId ?? null,
       },
-      { onConflict: 'org_id,external_phone' }
-    )
-    .select('id')
-    .single();
+    })
+    .returning({ id: whatsappConversations.id });
 
-  if (error || !data) {
-    log.error('[whatsapp:db] upsertConversation failed', { code: error?.code, orgId });
+  if (!rows[0]?.id) {
+    log.error('[whatsapp:db] upsertConversation failed', { orgId });
     throw new Error('Failed to upsert conversation');
   }
 
-  return data.id;
+  return rows[0].id;
 }
 
 /**
- * Increment unread_count_admin on a conversation.
+ * Increment unread_count_admin on a conversation using a raw SQL update.
  */
 export async function incrementUnread(
-  adminClient: SupabaseClient,
   conversationId: string
 ): Promise<void> {
-  await adminClient.rpc('increment_wa_unread', { conv_id: conversationId }).maybeSingle();
-  // If the RPC doesn't exist yet, fall back to a raw update
-  // (migration 000017 doesn't define this RPC — handled gracefully)
+  await db
+    .update(whatsappConversations)
+    .set({
+      unreadCountAdmin: sql`${whatsappConversations.unreadCountAdmin} + 1`,
+    })
+    .where(eq(whatsappConversations.id, conversationId));
 }
 
 /**
@@ -77,37 +86,37 @@ export async function incrementUnread(
  * Returns the new message id, or null if it was a duplicate.
  */
 export async function insertMessage(args: InsertMessageArgs): Promise<string | null> {
-  const { adminClient, orgId, conversationId, direction, providerMessageId, body,
+  const { orgId, conversationId, direction, providerMessageId, body,
           attachmentPath, attachmentKind, classification, status = 'received', meta = {} } = args;
 
-  const { data, error } = await adminClient
-    .from('whatsapp_messages')
-    .insert({
-      org_id: orgId,
-      conversation_id: conversationId,
-      direction,
-      provider_message_id: providerMessageId ?? null,
-      body: body ?? null,     // PII — stored but never logged
-      attachment_path: attachmentPath ?? null,
-      attachment_kind: attachmentKind ?? null,
-      classification: classification ?? null,
-      status,
-      meta,
-    })
-    .select('id')
-    .single();
+  try {
+    const rows = await db
+      .insert(whatsappMessages)
+      .values({
+        orgId,
+        conversationId,
+        direction: direction as 'inbound' | 'outbound',
+        providerMessageId: providerMessageId ?? null,
+        body: body ?? null,     // PII — stored but never logged
+        attachmentPath: attachmentPath ?? null,
+        attachmentKind: attachmentKind ?? null,
+        classification: classification ?? null,
+        status,
+        meta,
+      })
+      .onConflictDoNothing()
+      .returning({ id: whatsappMessages.id });
 
-  if (error) {
-    // 23505 = unique_violation — idempotent duplicate
-    if (error.code === '23505') {
+    if (!rows[0]?.id) {
       log.info('[whatsapp:db] duplicate message ignored', { orgId, providerMessageId: providerMessageId?.slice(0, 8) });
       return null;
     }
-    log.error('[whatsapp:db] insertMessage failed', { code: error.code, orgId });
+
+    return rows[0].id;
+  } catch (err) {
+    log.error('[whatsapp:db] insertMessage failed', { orgId, err: (err as Error).message });
     throw new Error('Failed to insert message');
   }
-
-  return data?.id ?? null;
 }
 
 /**
@@ -115,48 +124,54 @@ export async function insertMessage(args: InsertMessageArgs): Promise<string | n
  * Returns tenant id and profile_id, or null if not found.
  */
 export async function findTenantByPhone(
-  adminClient: SupabaseClient,
   orgId: string,
   phone: string   // E.164 — PII, do not log
 ): Promise<{ id: string; profile_id: string | null; preferred_language: string } | null> {
-  const { data } = await adminClient
-    .from('tenants')
-    .select('id, profile_id, preferred_language')
-    .eq('org_id', orgId)
-    .eq('whatsapp_phone', phone)
-    .limit(1)
-    .single();
+  const rows = await db
+    .select({
+      id: tenants.id,
+      profileId: tenants.profileId,
+      preferredLanguage: tenants.preferredLanguage,
+    })
+    .from(tenants)
+    .where(and(
+      eq(tenants.orgId, orgId),
+      eq(tenants.whatsappPhone, phone),
+    ))
+    .limit(1);
 
-  return data ?? null;
+  if (!rows[0]) return null;
+
+  return {
+    id: rows[0].id,
+    profile_id: rows[0].profileId ?? null,
+    preferred_language: rows[0].preferredLanguage ?? 'es',
+  };
 }
 
 /**
  * Update conversation after a new message (last_message_at, unread_count_admin).
  */
 export async function updateConversationActivity(
-  adminClient: SupabaseClient,
   conversationId: string,
   incrementUnreadCount: boolean
 ): Promise<void> {
-  const updates: Record<string, unknown> = {
-    last_message_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
   if (incrementUnreadCount) {
-    // Fetch current count and increment (no RPC needed)
-    const { data: conv } = await adminClient
-      .from('whatsapp_conversations')
-      .select('unread_count_admin')
-      .eq('id', conversationId)
-      .single();
-    if (conv) {
-      updates.unread_count_admin = (conv.unread_count_admin ?? 0) + 1;
-    }
+    await db
+      .update(whatsappConversations)
+      .set({
+        lastMessageAt: new Date(),
+        updatedAt: new Date(),
+        unreadCountAdmin: sql`${whatsappConversations.unreadCountAdmin} + 1`,
+      })
+      .where(eq(whatsappConversations.id, conversationId));
+  } else {
+    await db
+      .update(whatsappConversations)
+      .set({
+        lastMessageAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(whatsappConversations.id, conversationId));
   }
-
-  await adminClient
-    .from('whatsapp_conversations')
-    .update(updates)
-    .eq('id', conversationId);
 }

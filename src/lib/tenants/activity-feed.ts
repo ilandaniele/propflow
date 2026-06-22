@@ -9,9 +9,13 @@
  * Only whatsapp_messages remains as the single DB query inside this function,
  * because those messages are fetched separately by conversation_id elsewhere
  * and the activity feed needs them joined via whatsapp_conversations.
+ *
+ * Migrated from Supabase client to Drizzle ORM (W6).
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { db } from '@/lib/db';
+import { whatsappMessages, whatsappConversations } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 
 export type ActivityEventType =
   | 'payment'
@@ -31,9 +35,6 @@ export interface ActivityEvent {
 }
 
 // Minimal shapes of the pre-fetched rows that the builder needs.
-// The page fetches wider rows (select('*') or named columns); these interfaces
-// only declare the fields the builder actually reads so TypeScript stays strict.
-
 export interface PaymentRow {
   id: string;
   amount: number | string;
@@ -65,7 +66,6 @@ export interface SanctionRow {
 }
 
 export interface BuildFeedArgs {
-  supabase: SupabaseClient;
   tenantId: string;
   orgId: string;
   payments: PaymentRow[];
@@ -78,12 +78,10 @@ const FEED_LIMIT = 50;
 
 /**
  * Build the activity timeline in memory from already-fetched arrays.
- * Only whatsapp_messages is still fetched from the DB here, because the
- * conversation-level messages fetched by the page use a different query
- * (by conversation_id) and lack the join needed for the activity timeline.
+ * Only whatsapp_messages is still fetched from the DB here, joined via
+ * whatsapp_conversations to resolve tenant_id.
  */
 export async function buildTenantActivityFeed({
-  supabase,
   tenantId,
   orgId,
   payments,
@@ -139,26 +137,35 @@ export async function buildTenantActivityFeed({
     });
   }
 
-  // WhatsApp messages (direction=inbound — tenant-initiated).
-  // Remains as the only DB query: the page fetches messages by conversation_id
-  // but the activity feed needs them joined via whatsapp_conversations to
-  // resolve tenant_id, which is a different query shape.
-  const { data: messages } = await supabase
-    .from('whatsapp_messages')
-    .select('id, direction, classification, status, created_at, conversation:whatsapp_conversations!inner(tenant_id)')
-    .eq('whatsapp_conversations.tenant_id', tenantId)
-    .eq('org_id', orgId)
-    .order('created_at', { ascending: false })
+  // WhatsApp messages joined via whatsapp_conversations to resolve tenant_id
+  const messages = await db
+    .select({
+      id: whatsappMessages.id,
+      direction: whatsappMessages.direction,
+      classification: whatsappMessages.classification,
+      status: whatsappMessages.status,
+      createdAt: whatsappMessages.createdAt,
+    })
+    .from(whatsappMessages)
+    .innerJoin(
+      whatsappConversations,
+      eq(whatsappMessages.conversationId, whatsappConversations.id),
+    )
+    .where(and(
+      eq(whatsappConversations.tenantId, tenantId),
+      eq(whatsappMessages.orgId, orgId),
+    ))
+    .orderBy(desc(whatsappMessages.createdAt))
     .limit(20);
 
-  for (const m of messages ?? []) {
+  for (const m of messages) {
     events.push({
       id: m.id,
       type: 'whatsapp',
       label: `WhatsApp — ${m.direction === 'inbound' ? 'Inbound' : 'Outbound'}`,
       detail: m.classification ?? undefined,
       status: m.status,
-      createdAt: m.created_at,
+      createdAt: m.createdAt ? String(m.createdAt) : '',
     });
   }
 

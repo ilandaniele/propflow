@@ -7,9 +7,10 @@
  * Results are returned as structured AnalystResult objects for rendering.
  *
  * SERVER-ONLY: never import from client components.
+ *
+ * Migrated from Supabase client to Drizzle ORM (W6).
  */
 
-import { SupabaseClient } from '@supabase/supabase-js';
 import {
   getWorstPerformingRooms,
   getLostDebtThisMonth,
@@ -42,8 +43,7 @@ export interface AnalystResult {
   slug: AnalystPromptSlug;
   question: string;
   answer: string;
-  /** Tabular data rows — shape depends on slug */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally flexible: each slug returns a different row shape; callers are expected to narrow the type per slug
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentionally flexible: each slug returns a different row shape
   data: any[];
   columns?: string[];
   source: 'deterministic';
@@ -71,7 +71,6 @@ export function getPromptLabel(slug: AnalystPromptSlug): string {
 // ---------------------------------------------------------------------------
 
 export async function analyzePortfolio(
-  supabase: SupabaseClient,
   orgId: string,
   slug: AnalystPromptSlug,
 ): Promise<AnalystResult> {
@@ -79,7 +78,7 @@ export async function analyzePortfolio(
 
   switch (slug) {
     case 'worst_performing_rooms': {
-      const rows = await getWorstPerformingRooms(supabase, orgId, 5);
+      const rows = await getWorstPerformingRooms(orgId, 5);
       const answer =
         rows.length === 0
           ? 'No hay datos suficientes para los últimos 30 días.'
@@ -95,7 +94,7 @@ export async function analyzePortfolio(
     }
 
     case 'lost_debt_this_month': {
-      const summary = await getLostDebtThisMonth(supabase, orgId);
+      const summary = await getLostDebtThisMonth(orgId);
       const answer =
         summary.overdueCount === 0
           ? 'No hay inquilinos con saldo vencido este mes.'
@@ -111,7 +110,7 @@ export async function analyzePortfolio(
     }
 
     case 'highest_expense_property': {
-      const rows = await getHighestExpenseProperties(supabase, orgId, 5);
+      const rows = await getHighestExpenseProperties(orgId, 5);
       const answer =
         rows.length === 0
           ? 'No hay gastos registrados en los últimos 30 días.'
@@ -127,7 +126,7 @@ export async function analyzePortfolio(
     }
 
     case 'rent_to_market_gap': {
-      const { rows, hasMarketData } = await getRentToMarketGap(supabase, orgId);
+      const { rows, hasMarketData } = await getRentToMarketGap(orgId);
       const answer = hasMarketData
         ? `Análisis de brecha renta/mercado para ${rows.length} unidades.`
         : 'No hay datos de precio de mercado disponibles. Agrega un campo "market_rate" a las unidades para activar este análisis.';
@@ -144,7 +143,7 @@ export async function analyzePortfolio(
     }
 
     case 'monthly_vs_3month_trend': {
-      const rows = await getMonthlyVs3MonthTrend(supabase, orgId);
+      const rows = await getMonthlyVs3MonthTrend(orgId);
       const current = rows.find((r) => r.period === 'current_month');
       const avg = rows.find((r) => r.period === 'rolling_3_month_avg');
       let answer = 'Datos de tendencia no disponibles.';
@@ -164,7 +163,7 @@ export async function analyzePortfolio(
     }
 
     case 'highest_risk_tenants': {
-      const rows = await getHighestRiskTenants(supabase, orgId, 5);
+      const rows = await getHighestRiskTenants(orgId, 5);
       const answer =
         rows.length === 0
           ? 'No se detectaron inquilinos con riesgo elevado.'
