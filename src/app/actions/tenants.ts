@@ -53,7 +53,7 @@ export async function createTenant(
 
   try {
     await db.insert(tenants).values({
-      ...parsed.data,
+      fullName: parsed.data.full_name,
       orgId: ctx.orgId,
       email: parsed.data.email || null,
       phone: parsed.data.phone || null,

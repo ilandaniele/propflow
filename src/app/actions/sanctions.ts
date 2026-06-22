@@ -45,7 +45,7 @@ export async function proposeSanction(
         kind: parsed.data.kind,
         title: parsed.data.title,
         reason: parsed.data.reason,
-        amount: parsed.data.amount ?? null,
+        amount: parsed.data.amount != null ? String(parsed.data.amount) : null,
         status: 'proposed',
       })
       .returning({ id: sanctions.id });

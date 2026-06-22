@@ -74,9 +74,13 @@ export async function createUnit(
 
   try {
     await db.insert(units).values({
-      ...parsed.data,
       orgId: ctx.orgId,
+      propertyId: parsed.data.property_id,
+      label: parsed.data.label,
       floor: parsed.data.floor || null,
+      bedrooms: parsed.data.bedrooms,
+      toiletType: parsed.data.toilet_type,
+      monthlyRentDefault: parsed.data.monthly_rent_default != null ? String(parsed.data.monthly_rent_default) : null,
     });
   } catch (e) {
     log.error('[createUnit] db error', { code: e instanceof Error ? e.message : String(e) });
@@ -103,7 +107,14 @@ export async function updateUnit(
   try {
     await db
       .update(units)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({
+        label: updates.label,
+        floor: updates.floor ?? undefined,
+        bedrooms: updates.bedrooms,
+        toiletType: updates.toilet_type,
+        monthlyRentDefault: updates.monthly_rent_default != null ? String(updates.monthly_rent_default) : undefined,
+        updatedAt: new Date(),
+      })
       .where(and(eq(units.id, id), eq(units.orgId, ctx.orgId)));
   } catch (e) {
     log.error('[updateUnit] db error', { code: e instanceof Error ? e.message : String(e) });

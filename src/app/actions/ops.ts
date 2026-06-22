@@ -256,7 +256,7 @@ export async function createLead(
       phone: parsed.data.phone ?? null,
       propertyInterest: parsed.data.property_interest ?? null,
       source: parsed.data.source ?? null,
-      status: parsed.data.status ?? 'new',
+      status: 'new',
       notes: parsed.data.notes ?? null,
     });
   } catch (e) {

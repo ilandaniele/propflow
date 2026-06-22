@@ -169,7 +169,7 @@ export async function generateContractPdf(
     property_name:    property?.name ?? '',
     property_address: property?.address ?? '',
     start_date:       contract.startDate,
-    end_date:         contract.endDate,
+    end_date:         contract.endDate ?? undefined,
     monthly_rent:     String(contract.monthlyRent),
     deposit:          contract.deposit != null ? String(contract.deposit) : '',
     org_name:         orgRows[0]?.name ?? '',

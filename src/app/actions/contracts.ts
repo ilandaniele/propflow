@@ -34,8 +34,8 @@ export async function createContract(
       unitId: parsed.data.unit_id,
       startDate: parsed.data.start_date,
       endDate: parsed.data.end_date ?? null,
-      monthlyRent: parsed.data.monthly_rent,
-      deposit: parsed.data.deposit ?? null,
+      monthlyRent: String(parsed.data.monthly_rent),
+      deposit: parsed.data.deposit != null ? String(parsed.data.deposit) : null,
       orgId: ctx.orgId,
       status: 'active',
     });

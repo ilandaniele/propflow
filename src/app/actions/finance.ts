@@ -85,10 +85,9 @@ export async function createExpense(
       propertyId: parsed.data.property_id ?? null,
       unitId: parsed.data.unit_id ?? null,
       categoryId: parsed.data.category_id ?? null,
-      amount: parsed.data.amount,
+      amount: String(parsed.data.amount),
       description: parsed.data.description,
       incurredOn: parsed.data.incurred_on,
-      receiptPath: parsed.data.receipt_path ?? null,
     });
   } catch (e) {
     log.error('[createExpense] db error', { code: e instanceof Error ? e.message : String(e) });
@@ -122,7 +121,15 @@ export async function updateExpense(
   try {
     await db
       .update(expenses)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({
+        propertyId: updates.property_id ?? undefined,
+        unitId: updates.unit_id ?? undefined,
+        categoryId: updates.category_id ?? undefined,
+        amount: updates.amount != null ? String(updates.amount) : undefined,
+        description: updates.description,
+        incurredOn: updates.incurred_on,
+        updatedAt: new Date(),
+      })
       .where(and(eq(expenses.id, id), eq(expenses.orgId, ctx.orgId)));
   } catch (e) {
     log.error('[updateExpense] db error', { code: e instanceof Error ? e.message : String(e) });
