@@ -319,25 +319,19 @@ export class MetaWhatsAppProvider implements IWhatsAppProvider {
       throw e;
     }
 
-    // Step 3: Upload to Supabase storage
-    const { createAdminClient } = await import('@/lib/supabase/admin');
-    const adminClient = createAdminClient();
+    // Step 3: Upload to Tigris storage
+    const { uploadFile } = await import('@/lib/storage');
 
-    const { error: uploadError } = await adminClient.storage
-      .from(bucket)
-      .upload(storagePath, buffer, {
-        contentType: 'image/jpeg',
-        upsert: false,
-      });
-
-    if (uploadError) {
+    try {
+      await uploadFile(bucket, storagePath, buffer, 'image/jpeg', false);
+    } catch (uploadError) {
       log.error('[meta-provider] storage upload failed', {
         orgId,
-        error: uploadError.message,
+        error: (uploadError as Error).message,
         bucket,
         // Never log storagePath if it contains org/tenant data
       });
-      throw new Error(`[meta-provider] storage upload failed: ${uploadError.message}`);
+      throw new Error(`[meta-provider] storage upload failed: ${(uploadError as Error).message}`);
     }
 
     log.info('[meta-provider] attachment downloaded and stored', {

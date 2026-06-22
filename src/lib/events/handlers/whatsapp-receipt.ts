@@ -2,15 +2,28 @@
  * Handler: whatsapp.attachment.received → receipt OCR auto-approve flow.
  * IC4: classify → OCR → match charge → gate (conf ≥ 0.92, ≤1% delta, no dup) → insert.
  * LLM08: auto-approval requires hard threshold — LLM cannot trigger directly.
+ *
+ * Migrated from Supabase admin client + storage to Drizzle ORM + Tigris (W6).
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import {
+  tenants,
+  profiles,
+  charges,
+  contracts,
+  payments,
+  paymentReceipts,
+  notificationInbox,
+} from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { getSignedUrl } from '@/lib/storage';
 import { runOcr } from '@/lib/ocr/run-ocr';
 import { sha256Hex } from '@/lib/whatsapp/dedupe';
 import { log } from '@/lib/log';
 import type { WhatsAppAttachmentReceivedPayload } from '../types';
 
-const AUTO_APPROVE_CONFIDENCE = 0.92;
+const AUTO_APPROVE_CONFIDENCE  = 0.92;
 const AUTO_APPROVE_AMOUNT_DELTA = 0.01; // 1%
 
 export async function handleWhatsAppReceipt(
@@ -20,15 +33,13 @@ export async function handleWhatsAppReceipt(
   if (!payload.tenantId) return;
 
   const { orgId, tenantId, messageId, attachmentPath } = payload;
-  const adminClient = createAdminClient();
 
-  // Fetch the stored attachment from Supabase storage
-  const { data: signedUrlData } = await adminClient.storage
-    .from('receipts')
-    .createSignedUrl(attachmentPath, 60);
-
-  if (!signedUrlData?.signedUrl) {
-    log.error('[receipt-handler] cannot get signed URL', { orgId, attachmentPath });
+  // Fetch presigned URL from Tigris storage
+  let signedUrl: string;
+  try {
+    signedUrl = await getSignedUrl('receipts', attachmentPath, 60);
+  } catch (e) {
+    log.error('[receipt-handler] cannot get signed URL', { orgId, attachmentPath, error: (e as Error).message });
     return;
   }
 
@@ -36,11 +47,11 @@ export async function handleWhatsAppReceipt(
   let imageBuffer: Buffer;
   let mimeType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' = 'image/jpeg';
   try {
-    const res = await fetch(signedUrlData.signedUrl, { signal: AbortSignal.timeout(20_000) });
+    const res = await fetch(signedUrl, { signal: AbortSignal.timeout(20_000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     imageBuffer = Buffer.from(await res.arrayBuffer());
     const ct = res.headers.get('content-type') ?? 'image/jpeg';
-    if (['image/jpeg','image/png','image/webp','image/gif'].includes(ct)) {
+    if (['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(ct)) {
       mimeType = ct as typeof mimeType;
     }
   } catch (e) {
@@ -48,26 +59,30 @@ export async function handleWhatsAppReceipt(
     return;
   }
 
-  const sha256 = sha256Hex(imageBuffer);
+  const sha256      = sha256Hex(imageBuffer);
   const imageBase64 = imageBuffer.toString('base64');
 
   // Run OCR
   const ocrResult = await runOcr({ imageBase64, mimeType, contextTag: 'wa-receipt' });
 
   if (!ocrResult.success) {
-    // Insert as pending_review — attempt insert and handle 23505 (duplicate) gracefully
-    const { error: insertErr } = await adminClient.from('payment_receipts').insert({
-      org_id: orgId,
-      tenant_id: tenantId,
-      source: 'whatsapp',
-      whatsapp_message_id: messageId ?? null,
-      image_path: attachmentPath,
-      image_sha256: sha256,
-      status: 'pending_review',
-    });
-    if (insertErr?.code === '23505') {
-      log.info('[receipt-handler] duplicate detected (OCR-fail path) — skipping', { orgId });
-      return;
+    try {
+      await db.insert(paymentReceipts).values({
+        orgId,
+        tenantId,
+        source:             'whatsapp',
+        whatsappMessageId:  messageId ?? null,
+        imagePath:          attachmentPath,
+        imageSha256:        sha256,
+        status:             'pending_review',
+      });
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === '23505') {
+        log.info('[receipt-handler] duplicate detected (OCR-fail path) — skipping', { orgId });
+        return;
+      }
+      throw err;
     }
     log.info('[receipt-handler] OCR failed → pending_review', { orgId });
     return;
@@ -75,188 +90,186 @@ export async function handleWhatsAppReceipt(
 
   const { amount, confidence } = ocrResult.data;
 
-  // Find matching open charge for tenant (include contract_id for later use)
-  const { data: charges } = await adminClient
-    .from('charges')
-    .select('id, amount, contract_id')
-    .eq('org_id', orgId)
-    .eq('tenant_id', tenantId)
-    .order('due_date', { ascending: true })
+  // Find matching open charges for tenant
+  const chargeRows = await db
+    .select({ id: charges.id, amount: charges.amount, contractId: charges.contractId })
+    .from(charges)
+    .where(and(eq(charges.orgId, orgId), eq(charges.tenantId, tenantId)))
+    .orderBy(charges.dueDate)
     .limit(10);
 
-  let matchedChargeId: string | null = null;
+  let matchedChargeId: string | null   = null;
   let matchedContractId: string | null = null;
   let expectedAmount = 0;
-  if (charges && amount) {
-    for (const c of charges) {
+
+  if (amount) {
+    for (const c of chargeRows) {
       const delta = Math.abs(Number(c.amount) - amount) / Number(c.amount);
       if (delta <= AUTO_APPROVE_AMOUNT_DELTA) {
-        matchedChargeId = c.id;
-        matchedContractId = c.contract_id as string | null;
-        expectedAmount = Number(c.amount);
+        matchedChargeId   = c.id;
+        matchedContractId = c.contractId;
+        expectedAmount    = Number(c.amount);
         break;
       }
     }
   }
 
-  // Gate: confidence ≥ 0.92 AND amount within 1% of a charge AND no duplicate
   const safeAmount = amount ?? null;
   const isAutoApprove =
     (confidence ?? 0) >= AUTO_APPROVE_CONFIDENCE &&
     matchedChargeId !== null &&
     safeAmount !== null &&
-    safeAmount !== undefined &&
     expectedAmount > 0 &&
     Math.abs(expectedAmount - safeAmount) / expectedAmount <= AUTO_APPROVE_AMOUNT_DELTA;
 
   if (isAutoApprove && safeAmount != null && matchedChargeId) {
-    // B4: Before auto-approve, verify an active contract exists for the tenant.
-    // Prefer the contract linked to the matched charge; fall back to any active contract.
+    // B4: Before auto-approve, ensure active contract exists for the tenant.
     let contractId: string | null = matchedContractId;
 
     if (!contractId) {
-      // Derive contract_id from the matched charge if not already resolved above
-      const { data: chargeRow } = await adminClient
-        .from('charges')
-        .select('contract_id')
-        .eq('id', matchedChargeId)
-        .eq('org_id', orgId)
-        .single();
-      contractId = (chargeRow?.contract_id as string | null) ?? null;
+      const chargeDetail = await db
+        .select({ contractId: charges.contractId })
+        .from(charges)
+        .where(and(eq(charges.id, matchedChargeId), eq(charges.orgId, orgId)))
+        .limit(1);
+      contractId = chargeDetail[0]?.contractId ?? null;
     }
 
     if (!contractId) {
-      // Last resort: find any active contract for this tenant in this org
-      const { data: activeContract } = await adminClient
-        .from('contracts')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('tenant_id', tenantId)
-        .eq('status', 'active')
-        .limit(1)
-        .single();
-      contractId = activeContract?.id ?? null;
+      const activeContracts = await db
+        .select({ id: contracts.id })
+        .from(contracts)
+        .where(and(
+          eq(contracts.orgId, orgId),
+          eq(contracts.tenantId, tenantId),
+          eq(contracts.status, 'active'),
+        ))
+        .limit(1);
+      contractId = activeContracts[0]?.id ?? null;
     }
 
     if (!contractId) {
-      // No active contract — cannot auto-approve; route to pending_review and notify admin
       log.warn('[receipt-handler] no active contract for tenant — routing to pending_review', { orgId, tenantId });
 
-      const { error: insertErr } = await adminClient.from('payment_receipts').insert({
-        org_id: orgId,
-        tenant_id: tenantId,
-        source: 'whatsapp',
-        whatsapp_message_id: messageId ?? null,
-        image_path: attachmentPath,
-        image_sha256: sha256,
-        extracted_amount: safeAmount,
-        extracted_date: ocrResult.data.date ?? null,
-        extracted_vendor: ocrResult.data.vendor ?? null,
-        confidence,
-        matched_charge_id: matchedChargeId,
-        status: 'pending_review',
-      });
-
-      if (insertErr?.code === '23505') {
-        log.info('[receipt-handler] duplicate detected (no-contract path) — skipping', { orgId });
-        return;
+      try {
+        await db.insert(paymentReceipts).values({
+          orgId,
+          tenantId,
+          source:            'whatsapp',
+          whatsappMessageId: messageId ?? null,
+          imagePath:         attachmentPath,
+          imageSha256:       sha256,
+          extractedAmount:   String(safeAmount),
+          extractedDate:     ocrResult.data.date ?? null,
+          extractedVendor:   ocrResult.data.vendor ?? null,
+          confidence:        String(confidence),
+          matchedChargeId,
+          status:            'pending_review',
+        });
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === '23505') {
+          log.info('[receipt-handler] duplicate detected (no-contract path) — skipping', { orgId });
+          return;
+        }
+        throw err;
       }
 
-      await notifyAdmin(adminClient, orgId, tenantId, confidence, 'no_active_contract');
+      await notifyAdmin(orgId, tenantId, confidence, 'no_active_contract');
       log.info('[receipt-handler] pending_review (no active contract)', { orgId });
       return;
     }
 
-    // Insert payment_receipts row with auto_approved
-    const { data: receipt, error: receiptErr } = await adminClient
-      .from('payment_receipts')
-      .insert({
-        org_id: orgId,
-        tenant_id: tenantId,
-        source: 'whatsapp',
-        whatsapp_message_id: messageId ?? null,
-        image_path: attachmentPath,
-        image_sha256: sha256,
-        extracted_amount: safeAmount,
-        extracted_date: ocrResult.data.date ?? null,
-        extracted_vendor: ocrResult.data.vendor ?? null,
-        confidence,
-        matched_charge_id: matchedChargeId,
-        status: 'auto_approved',
-      })
-      .select('id')
-      .single();
+    // Insert payment_receipts as auto_approved
+    let receiptId: string;
+    try {
+      const inserted = await db.insert(paymentReceipts).values({
+        orgId,
+        tenantId,
+        source:            'whatsapp',
+        whatsappMessageId: messageId ?? null,
+        imagePath:         attachmentPath,
+        imageSha256:       sha256,
+        extractedAmount:   String(safeAmount),
+        extractedDate:     ocrResult.data.date ?? null,
+        extractedVendor:   ocrResult.data.vendor ?? null,
+        confidence:        String(confidence),
+        matchedChargeId,
+        status:            'auto_approved',
+      }).returning({ id: paymentReceipts.id });
 
-    // B1: If insert fails with 23505 (unique_violation), this is a duplicate — skip silently.
-    // The UNIQUE(org_id, image_sha256) constraint is the authoritative dedupe gate.
-    if (receiptErr?.code === '23505') {
-      log.info('[receipt-handler] duplicate detected (auto-approve path) — skipping', { orgId });
+      receiptId = inserted[0]?.id ?? '';
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === '23505') {
+        log.info('[receipt-handler] duplicate detected (auto-approve path) — skipping', { orgId });
+        return;
+      }
+      log.error('[receipt-handler] insert receipt failed', { orgId, error: (err as Error).message });
       return;
     }
 
-    if (receiptErr || !receipt) {
-      log.error('[receipt-handler] insert receipt failed', { code: receiptErr?.code });
+    // Create payment row
+    let paymentId: string;
+    try {
+      const paymentInserted = await db.insert(payments).values({
+        orgId,
+        contractId,
+        tenantId,
+        amount:     String(safeAmount),
+        status:     'approved',
+        method:     'transfer',
+        paidAt:     ocrResult.data.date ?? new Date().toISOString().slice(0, 10),
+        reference:  `WA-OCR-${receiptId.slice(0, 8)}`,
+        approvedAt: new Date(),
+      }).returning({ id: payments.id });
+
+      paymentId = paymentInserted[0]?.id ?? '';
+    } catch (err) {
+      log.error('[receipt-handler] insert payment failed', { orgId, error: (err as Error).message });
+      // Receipt already inserted as auto_approved — revert to pending_review
+      await db
+        .update(paymentReceipts)
+        .set({ status: 'pending_review' })
+        .where(eq(paymentReceipts.id, receiptId));
       return;
     }
 
-    // Create payment row — contract_id is required (NOT NULL FK on payments table)
-    const { data: payment, error: paymentErr } = await adminClient
-      .from('payments')
-      .insert({
-        org_id: orgId,
-        contract_id: contractId,
-        tenant_id: tenantId,
-        amount: safeAmount,
-        status: 'approved',
-        method: 'transfer',
-        paid_at: ocrResult.data.date ?? new Date().toISOString().slice(0, 10),
-        reference: `WA-OCR-${receipt.id.slice(0, 8)}`,
-        approved_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+    // Link receipt to payment
+    await db
+      .update(paymentReceipts)
+      .set({ matchedPaymentId: paymentId })
+      .where(eq(paymentReceipts.id, receiptId));
 
-    if (paymentErr || !payment) {
-      log.error('[receipt-handler] insert payment failed', { code: paymentErr?.code });
-      // Receipt already inserted as auto_approved — update to pending_review to reflect reality
-      await adminClient
-        .from('payment_receipts')
-        .update({ status: 'pending_review' })
-        .eq('id', receipt.id);
-      return;
-    }
+    log.info('[receipt-handler] auto_approved', { orgId, receiptId });
 
-    // Link receipt to the created payment row (use the returned ID — no secondary SELECT needed)
-    await adminClient
-      .from('payment_receipts')
-      .update({ matched_payment_id: payment.id })
-      .eq('id', receipt.id);
-
-    log.info('[receipt-handler] auto_approved', { orgId, receiptId: receipt.id });
   } else {
     // Insert as pending_review
-    const { error: insertErr } = await adminClient.from('payment_receipts').insert({
-      org_id: orgId,
-      tenant_id: tenantId,
-      source: 'whatsapp',
-      whatsapp_message_id: messageId ?? null,
-      image_path: attachmentPath,
-      image_sha256: sha256,
-      extracted_amount: amount ?? null,
-      extracted_date: ocrResult.data.date ?? null,
-      extracted_vendor: ocrResult.data.vendor ?? null,
-      confidence: confidence ?? null,
-      matched_charge_id: matchedChargeId,
-      status: 'pending_review',
-    });
-
-    // B1: If insert fails with 23505, this is a duplicate — skip silently.
-    if (insertErr?.code === '23505') {
-      log.info('[receipt-handler] duplicate detected (pending_review path) — skipping', { orgId });
-      return;
+    try {
+      await db.insert(paymentReceipts).values({
+        orgId,
+        tenantId,
+        source:            'whatsapp',
+        whatsappMessageId: messageId ?? null,
+        imagePath:         attachmentPath,
+        imageSha256:       sha256,
+        extractedAmount:   amount != null ? String(amount) : null,
+        extractedDate:     ocrResult.data.date ?? null,
+        extractedVendor:   ocrResult.data.vendor ?? null,
+        confidence:        confidence != null ? String(confidence) : null,
+        matchedChargeId,
+        status:            'pending_review',
+      });
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === '23505') {
+        log.info('[receipt-handler] duplicate detected (pending_review path) — skipping', { orgId });
+        return;
+      }
+      throw err;
     }
 
-    await notifyAdmin(adminClient, orgId, tenantId, confidence, 'below_threshold');
+    await notifyAdmin(orgId, tenantId, confidence, 'below_threshold');
     log.info('[receipt-handler] pending_review', { orgId });
   }
 }
@@ -266,28 +279,27 @@ export async function handleWhatsAppReceipt(
 // ---------------------------------------------------------------------------
 
 async function notifyAdmin(
-  adminClient: ReturnType<typeof createAdminClient>,
   orgId: string,
   tenantId: string,
   confidence: number | null | undefined,
   reason: 'below_threshold' | 'no_active_contract'
 ): Promise<void> {
-  const { data: tenantRow } = await adminClient
-    .from('tenants')
-    .select('org_id, full_name')
-    .eq('id', tenantId)
-    .single();
+  const tenantRows = await db
+    .select({ fullName: tenants.fullName })
+    .from(tenants)
+    .where(and(eq(tenants.id, tenantId), eq(tenants.orgId, orgId)))
+    .limit(1);
 
-  if (!tenantRow) return;
+  const tenant = tenantRows[0];
+  if (!tenant) return;
 
-  const { data: adminProfile } = await adminClient
-    .from('profiles')
-    .select('id')
-    .eq('org_id', orgId)
-    .eq('role', 'admin')
-    .limit(1)
-    .single();
+  const adminRows = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(and(eq(profiles.orgId, orgId), eq(profiles.role, 'admin')))
+    .limit(1);
 
+  const adminProfile = adminRows[0];
   if (!adminProfile) return;
 
   const reasonLabel =
@@ -295,12 +307,13 @@ async function notifyAdmin(
       ? 'No active contract found'
       : `Low confidence: ${((confidence ?? 0) * 100).toFixed(0)}%`;
 
-  await adminClient.from('notification_inbox').insert({
-    org_id: orgId,
-    profile_id: adminProfile.id,
-    type: 'receipt_pending',
-    title: 'Receipt Pending Review',
-    body: `WhatsApp receipt from ${tenantRow.full_name} requires review (${reasonLabel})`,
-    related_type: 'payment_receipt',
+  await db.insert(notificationInbox).values({
+    orgId,
+    profileId:   adminProfile.id,
+    type:        'receipt_pending',
+    title:       'Receipt Pending Review',
+    body:        `WhatsApp receipt from ${tenant.fullName ?? 'tenant'} requires review (${reasonLabel})`,
+    relatedType: 'payment_receipt',
+    relatedId:   null,
   });
 }

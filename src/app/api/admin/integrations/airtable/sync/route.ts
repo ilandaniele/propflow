@@ -3,9 +3,6 @@
  *
  * Triggers an on-demand Airtable sync for the admin's org only.
  * Auth: require admin session.
- *
- * TODO(W6): syncEntityTable still accepts SupabaseClient — adminClient is kept
- * here until W6 migrates that lib function to Drizzle.
  */
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +10,6 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/guards';
-// TODO(W6): remove createAdminClient once syncEntityTable uses Drizzle
-import { createAdminClient } from '@/lib/supabase/admin';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
@@ -53,8 +48,6 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // TODO(W6): replace adminClient with db once syncEntityTable is migrated to Drizzle.
-  const adminClient = createAdminClient();
   const orgId = ctx.orgId;
 
   const idMaps: Partial<Record<EntityName, IdMap>> = {};
@@ -77,7 +70,6 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       orgId,
       entity,
       tableEnvKey,
-      adminClient,
       airtableClient,
       idMaps
     );

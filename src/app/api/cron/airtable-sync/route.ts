@@ -3,10 +3,6 @@
  * Fly scheduled machine (replaces Vercel Cron) — syncs all configured Airtable tables.
  *
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
- *
- * TODO(W6): syncAirtableTable and syncEntityTable still accept SupabaseClient.
- * The adminClient is kept here only to pass to those lib functions until W6 migrates them
- * to Drizzle. The org-list query has been migrated to Drizzle already.
  */
 
 export const dynamic = 'force-dynamic';
@@ -16,8 +12,6 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { organizations } from '@/lib/db/schema';
-// TODO(W6): remove createAdminClient once syncAirtableTable + syncEntityTable use Drizzle
-import { createAdminClient } from '@/lib/supabase/admin';
 import { syncAirtableTable } from '@/lib/airtable/sync';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
@@ -94,10 +88,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.info('[cron/airtable-sync] No organizations found — nothing to sync');
     return NextResponse.json({ status: 'ok', snapshotResults: [], entityResults: [] });
   }
-
-  // TODO(W6): adminClient is kept only because syncAirtableTable + syncEntityTable
-  // still accept SupabaseClient. Remove after W6 migrates those lib functions.
-  const adminClient = createAdminClient();
 
   // ── Phase 1: Legacy snapshot sync (rooms/performance/kpis — AC10) ────────
   const snapshotResults: Array<{
@@ -189,7 +179,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         orgId,
         entity,
         tableEnvKey,
-        adminClient,
         airtableClient,
         idMaps
       );

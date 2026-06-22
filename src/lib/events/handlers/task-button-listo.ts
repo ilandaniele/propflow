@@ -1,9 +1,13 @@
 /**
  * Handler: task.button_pressed { action: 'listo' }
  * Tenant pressed "Listo" — transition task to awaiting_proof and prompt for photo.
+ *
+ * Migrated from Supabase admin client to Drizzle ORM (W6).
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenantTasks } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
 import { buildWhatsAppPhase6Template } from '@/lib/whatsapp/templates';
 import { log } from '@/lib/log';
@@ -13,35 +17,29 @@ export async function handleTaskButtonListo(
   payload: TaskButtonPressedPayload
 ): Promise<void> {
   const { orgId, taskId, fromPhone } = payload;
-  const adminClient = createAdminClient();
 
   // 1. Update task status to awaiting_proof
-  const { error: updateError } = await adminClient
-    .from('tenant_tasks')
-    .update({
-      status:     'awaiting_proof',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', taskId)
-    .eq('org_id', orgId);
+  const updated = await db
+    .update(tenantTasks)
+    .set({ status: 'awaiting_proof', updatedAt: new Date() })
+    .where(and(eq(tenantTasks.id, taskId), eq(tenantTasks.orgId, orgId)))
+    .returning({ id: tenantTasks.id });
 
-  if (updateError) {
-    log.error('[task-button-listo] status update failed', {
-      orgId,
-      taskId,
-      errorCode: updateError.code,
-    });
+  if (updated.length === 0) {
+    log.error('[task-button-listo] status update failed — row not found', { orgId, taskId });
     return;
   }
 
   log.info('[task-button-listo] task transitioned to awaiting_proof', { orgId, taskId });
 
   // 2. Fetch task for template context
-  const { data: task } = await adminClient
-    .from('tenant_tasks')
-    .select('title, task_type')
-    .eq('id', taskId)
-    .single();
+  const taskRows = await db
+    .select({ title: tenantTasks.title, taskType: tenantTasks.taskType })
+    .from(tenantTasks)
+    .where(and(eq(tenantTasks.id, taskId), eq(tenantTasks.orgId, orgId)))
+    .limit(1);
+
+  const task = taskRows[0];
 
   // 3. Send interactive buttons or text asking for photo proof
   const provider = getWhatsAppProvider();
