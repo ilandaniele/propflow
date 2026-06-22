@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { contracts, tenants, units, properties } from '@/lib/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -14,33 +16,54 @@ export default async function ContractsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('contracts')]);
+  const t = await getTranslations('contracts');
 
-  const [contractsRes, tenantsRes, unitsRes] = await Promise.all([
-    supabase.from('contracts').select('*, tenants(full_name), units(label, properties(name))').eq('org_id', ctx.orgId).order('created_at', { ascending: false }),
-    supabase.from('tenants').select('id, full_name').eq('org_id', ctx.orgId),
-    supabase.from('units').select('id, label, property_id, properties(name)').eq('org_id', ctx.orgId),
+  const [contractRows, tenantRows, unitRows] = await Promise.all([
+    db
+      .select({
+        id:           contracts.id,
+        status:       contracts.status,
+        monthlyRent:  contracts.monthlyRent,
+        startDate:    contracts.startDate,
+        endDate:      contracts.endDate,
+        tenantId:     contracts.tenantId,
+        unitId:       contracts.unitId,
+        createdAt:    contracts.createdAt,
+        tenantName:   tenants.fullName,
+        unitLabel:    units.label,
+        propertyName: properties.name,
+      })
+      .from(contracts)
+      .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
+      .leftJoin(units, and(eq(units.id, contracts.unitId), eq(units.orgId, ctx.orgId)))
+      .leftJoin(properties, and(eq(properties.id, units.propertyId), eq(properties.orgId, ctx.orgId)))
+      .where(eq(contracts.orgId, ctx.orgId))
+      .orderBy(desc(contracts.createdAt)),
+    db
+      .select({ id: tenants.id, fullName: tenants.fullName })
+      .from(tenants)
+      .where(eq(tenants.orgId, ctx.orgId)),
+    db
+      .select({ id: units.id, label: units.label, propertyId: units.propertyId, propertyName: properties.name })
+      .from(units)
+      .leftJoin(properties, and(eq(properties.id, units.propertyId), eq(properties.orgId, ctx.orgId)))
+      .where(eq(units.orgId, ctx.orgId)),
   ]);
-
-  const contracts = contractsRes.data ?? [];
-  const tenants = tenantsRes.data ?? [];
-  const units = unitsRes.data ?? [];
 
   // Analytics
   const now = new Date();
   const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const today = now.toISOString().slice(0, 10);
+  const today    = now.toISOString().slice(0, 10);
 
-  const active = contracts.filter((c) => c.status === 'active');
-  const expiringSoon = active.filter((c) => c.end_date && c.end_date >= today && c.end_date <= in30Days);
-  const expiringIn60 = active.filter((c) => c.end_date && c.end_date > in30Days && c.end_date <= in60Days);
-  const totalMonthlyRent = active.reduce((s, c) => s + Number(c.monthly_rent), 0);
+  const active        = contractRows.filter((c) => c.status === 'active');
+  const expiringSoon  = active.filter((c) => c.endDate && c.endDate >= today && c.endDate <= in30Days);
+  const expiringIn60  = active.filter((c) => c.endDate && c.endDate > in30Days && c.endDate <= in60Days);
+  const totalMonthlyRent = active.reduce((s, c) => s + Number(c.monthlyRent), 0);
 
-  // Rent distribution for active contracts (buckets)
   const rentBuckets: Record<string, number> = { '<500': 0, '500-1k': 0, '1k-2k': 0, '2k-5k': 0, '>5k': 0 };
   for (const c of active) {
-    const r = Number(c.monthly_rent);
+    const r = Number(c.monthlyRent);
     if (r < 500) rentBuckets['<500']++;
     else if (r < 1000) rentBuckets['500-1k']++;
     else if (r < 2000) rentBuckets['1k-2k']++;
@@ -49,32 +72,35 @@ export default async function ContractsPage() {
   }
   const maxBucket = Math.max(1, ...Object.values(rentBuckets));
 
-  // Contracts started per month (last 6 months)
   const contractsLast6: string[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     contractsLast6.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
   const startedByMonth: Record<string, number> = {};
-  for (const c of contracts) {
-    if (!c.start_date) continue;
-    const key = String(c.start_date).slice(0, 7);
+  for (const c of contractRows) {
+    if (!c.startDate) continue;
+    const key = String(c.startDate).slice(0, 7);
     startedByMonth[key] = (startedByMonth[key] ?? 0) + 1;
   }
   const maxStarted = Math.max(1, ...contractsLast6.map((k) => startedByMonth[k] ?? 0));
+
+  // Shape for CreateContractForm (legacy prop shape)
+  const tenantsForForm = tenantRows.map((t) => ({ id: t.id, full_name: t.fullName }));
+  const unitsForForm = unitRows.map((u) => ({ id: u.id, label: u.label, property_id: u.propertyId, properties: u.propertyName ? { name: u.propertyName } : null }));
 
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
-          <p className="text-sm text-slate-500 mt-1">{contracts.length} total · {active.length} {t('kpi.active')}</p>
+          <p className="text-sm text-slate-500 mt-1">{contractRows.length} total · {active.length} {t('kpi.active')}</p>
         </div>
-        <CreateContractForm tenants={tenants} units={units as unknown as Array<{ id: string; label: string; property_id: string; properties: { name: string } | null }>} />
+        <CreateContractForm tenants={tenantsForForm} units={unitsForForm as unknown as Array<{ id: string; label: string; property_id: string; properties: { name: string } | null }>} />
       </div>
 
       {/* KPI tiles */}
-      {contracts.length > 0 && (
+      {contractRows.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.monthlyRent')}</p>
@@ -143,24 +169,18 @@ export default async function ContractsPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
           <p className="text-sm font-semibold text-amber-800 mb-1">{t('kpi.expiringAlert', { count: expiringSoon.length })}</p>
           <ul className="space-y-0.5">
-            {expiringSoon.map((c) => {
-              const tenant = c.tenants as { full_name: string } | null;
-              return (
-                <li key={c.id} className="text-xs text-amber-700">
-                  {tenant?.full_name ?? '—'} — {t('kpi.endsOn')} {c.end_date}
-                </li>
-              );
-            })}
+            {expiringSoon.map((c) => (
+              <li key={c.id} className="text-xs text-amber-700">
+                {c.tenantName ?? '—'} — {t('kpi.endsOn')} {c.endDate}
+              </li>
+            ))}
           </ul>
         </div>
       )}
 
-      {contracts.length === 0 ? (
+      {contractRows.length === 0 ? (
         <Card>
-          <EmptyState
-            title={t('list.emptyTitle')}
-            description={t('list.emptyDesc')}
-          />
+          <EmptyState title={t('list.emptyTitle')} description={t('list.emptyDesc')} />
         </Card>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -175,22 +195,20 @@ export default async function ContractsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {contracts.map((contract) => {
-                const tenant = contract.tenants as { full_name: string } | null;
-                const unit = contract.units as { label: string; properties: { name: string } | null } | null;
+              {contractRows.map((contract) => {
                 const isExpiringSoon = expiringSoon.some((c) => c.id === contract.id);
                 return (
                   <tr key={contract.id} className={`transition-colors ${isExpiringSoon ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}`}>
-                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{tenant?.full_name ?? '—'}</td>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{contract.tenantName ?? '—'}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">
-                      {unit ? `${unit.properties?.name ?? ''} — ${unit.label}` : '—'}
+                      {contract.propertyName || contract.unitLabel ? `${contract.propertyName ?? ''} — ${contract.unitLabel ?? ''}` : '—'}
                     </td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                      {contract.monthly_rent != null ? `S/ ${Number(contract.monthly_rent).toLocaleString('es-PE', { minimumFractionDigits: 2 })}/mo` : '—'}
+                      {contract.monthlyRent != null ? `S/ ${Number(contract.monthlyRent).toLocaleString('es-PE', { minimumFractionDigits: 2 })}/mo` : '—'}
                     </td>
                     <td className="px-5 py-4 text-xs hidden md:table-cell">
                       <span className={isExpiringSoon ? 'text-amber-700 font-medium' : 'text-slate-500'}>
-                        {contract.start_date} → {contract.end_date ?? '—'}
+                        {contract.startDate} → {contract.endDate ?? '—'}
                       </span>
                     </td>
                     <td className="px-5 py-4"><StatusPill status={contract.status} /></td>
