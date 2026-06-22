@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { servicePayments, properties } from '@/lib/db/schema';
+import { eq, asc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -11,12 +13,11 @@ export const metadata: Metadata = { title: 'Utility Payments' };
 type MonthEntry = { amount: number | null; eecc: string | null; receipt_url: string | null };
 type ServiceRow = {
   id: string;
-  service_type: string;
-  supply_number: string | null;
-  tope: number | null;
-  monthly_data: Record<string, MonthEntry> | null;
-  property_id: string | null;
-  properties: { name: string } | null;
+  serviceType: string;
+  supplyNumber: string | null;
+  tope: string | null;
+  monthlyData: Record<string, MonthEntry> | null;
+  propertyName: string | null;
 };
 
 const SERVICE_COLORS: Record<string, string> = {
@@ -31,23 +32,29 @@ export default async function UtilitiesPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('utilities')]);
+  const t = await getTranslations('utilities');
 
-  const { data: rows } = await supabase
-    .from('service_payments')
-    .select('id, service_type, supply_number, tope, monthly_data, property_id, properties(name)')
-    .eq('org_id', ctx.orgId)
-    .order('service_type');
+  const rows = await db
+    .select({
+      id:           servicePayments.id,
+      serviceType:  servicePayments.serviceType,
+      supplyNumber: servicePayments.supplyNumber,
+      tope:         servicePayments.tope,
+      monthlyData:  servicePayments.monthlyData,
+      propertyName: properties.name,
+    })
+    .from(servicePayments)
+    .leftJoin(properties, and(eq(properties.id, servicePayments.propertyId), eq(properties.orgId, ctx.orgId)))
+    .where(eq(servicePayments.orgId, ctx.orgId))
+    .orderBy(asc(servicePayments.serviceType));
 
-  const services = (rows ?? []) as unknown as ServiceRow[];
+  const services = rows as unknown as ServiceRow[];
 
-  // Aggregate totals per service type across all months
   function sumMonthly(data: Record<string, MonthEntry> | null): number {
     if (!data) return 0;
     return Object.values(data).reduce((s, e) => s + (e.amount ?? 0), 0);
   }
 
-  // Get last 6 months labels
   const now = new Date();
   const last6: string[] = [];
   for (let i = 5; i >= 0; i--) {
@@ -55,29 +62,26 @@ export default async function UtilitiesPage() {
     last6.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   }
 
-  // KPIs: total per service type
   const byType: Record<string, number> = {};
   for (const svc of services) {
-    byType[svc.service_type] = (byType[svc.service_type] ?? 0) + sumMonthly(svc.monthly_data);
+    byType[svc.serviceType] = (byType[svc.serviceType] ?? 0) + sumMonthly(svc.monthlyData);
   }
 
-  // Current month total per service
   const currentMonth = last6[last6.length - 1];
   const currentByType: Record<string, number> = {};
   for (const svc of services) {
-    const entry = svc.monthly_data?.[currentMonth];
-    currentByType[svc.service_type] = (currentByType[svc.service_type] ?? 0) + (entry?.amount ?? 0);
+    const entry = svc.monthlyData?.[currentMonth];
+    currentByType[svc.serviceType] = (currentByType[svc.serviceType] ?? 0) + (entry?.amount ?? 0);
   }
 
-  // Tope variance: services over limit this month
   const overLimitServices = services.filter((svc) => {
     if (svc.tope === null) return false;
-    const entry = svc.monthly_data?.[currentMonth];
-    return (entry?.amount ?? 0) > svc.tope;
+    const entry = svc.monthlyData?.[currentMonth];
+    return (entry?.amount ?? 0) > Number(svc.tope);
   });
   const totalVariance = overLimitServices.reduce((s, svc) => {
-    const amount = svc.monthly_data?.[currentMonth]?.amount ?? 0;
-    return s + (amount - (svc.tope ?? 0));
+    const amount = svc.monthlyData?.[currentMonth]?.amount ?? 0;
+    return s + (amount - Number(svc.tope ?? 0));
   }, 0);
 
   const serviceTypes = ['agua', 'luz', 'gas', 'internet', 'otro'];
@@ -114,11 +118,11 @@ export default async function UtilitiesPage() {
           </p>
           <ul className="space-y-0.5">
             {overLimitServices.map((svc) => {
-              const amount = svc.monthly_data?.[currentMonth]?.amount ?? 0;
-              const excess = amount - (svc.tope ?? 0);
+              const amount = svc.monthlyData?.[currentMonth]?.amount ?? 0;
+              const excess = amount - Number(svc.tope ?? 0);
               return (
                 <li key={svc.id} className="text-xs text-red-700">
-                  {svc.properties?.name ?? '—'} · {t(`type_${svc.service_type}` as Parameters<typeof t>[0])} — S/ {amount.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({t('overBy')} S/ {excess.toLocaleString('es-PE', { minimumFractionDigits: 2 })})
+                  {svc.propertyName ?? '—'} · {t(`type_${svc.serviceType}` as Parameters<typeof t>[0])} — S/ {amount.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({t('overBy')} S/ {excess.toLocaleString('es-PE', { minimumFractionDigits: 2 })})
                 </li>
               );
             })}
@@ -133,20 +137,20 @@ export default async function UtilitiesPage() {
       ) : (
         <div className="space-y-4">
           {services.map((svc) => {
-            const recentMonths = last6.filter((m) => svc.monthly_data?.[m]);
-            const maxAmount = Math.max(1, ...recentMonths.map((m) => svc.monthly_data?.[m]?.amount ?? 0));
+            const recentMonths = last6.filter((m) => svc.monthlyData?.[m]);
+            const maxAmount    = Math.max(1, ...recentMonths.map((m) => svc.monthlyData?.[m]?.amount ?? 0));
             return (
               <div key={svc.id} className="bg-white rounded-xl border border-slate-200 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${SERVICE_COLORS[svc.service_type] ?? 'bg-slate-100 text-slate-600'}`}>
-                      {t(`type_${svc.service_type}` as Parameters<typeof t>[0])}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${SERVICE_COLORS[svc.serviceType] ?? 'bg-slate-100 text-slate-600'}`}>
+                      {t(`type_${svc.serviceType}` as Parameters<typeof t>[0])}
                     </span>
                     <span className="text-sm font-medium text-slate-900">
-                      {svc.properties?.name ?? '—'}
+                      {svc.propertyName ?? '—'}
                     </span>
-                    {svc.supply_number && (
-                      <span className="text-xs text-slate-400">#{svc.supply_number}</span>
+                    {svc.supplyNumber && (
+                      <span className="text-xs text-slate-400">#{svc.supplyNumber}</span>
                     )}
                   </div>
                   <div className="text-right">
@@ -156,7 +160,7 @@ export default async function UtilitiesPage() {
                       </p>
                     )}
                     <p className="text-xs text-slate-400">
-                      {t('total')}: S/ {sumMonthly(svc.monthly_data).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                      {t('total')}: S/ {sumMonthly(svc.monthlyData).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                     </p>
                   </div>
                 </div>
@@ -165,10 +169,10 @@ export default async function UtilitiesPage() {
                 {recentMonths.length > 0 && (
                   <div className="flex items-end gap-1 h-16">
                     {last6.map((month) => {
-                      const entry = svc.monthly_data?.[month];
-                      const amount = entry?.amount ?? 0;
+                      const entry     = svc.monthlyData?.[month];
+                      const amount    = entry?.amount ?? 0;
                       const heightPct = amount > 0 ? Math.round((amount / maxAmount) * 100) : 0;
-                      const isOverLimit = svc.tope !== null && amount > svc.tope;
+                      const isOverLimit = svc.tope !== null && amount > Number(svc.tope);
                       return (
                         <div key={month} className="flex-1 flex flex-col items-center gap-1">
                           <div className="w-full flex items-end justify-center" style={{ height: '48px' }}>
@@ -178,9 +182,7 @@ export default async function UtilitiesPage() {
                               className={`w-full rounded-t-sm ${isOverLimit ? 'bg-red-400' : 'bg-brand-400'} transition-all`}
                             />
                           </div>
-                          <p className="text-xs text-slate-400 truncate w-full text-center">
-                            {month.slice(5)}
-                          </p>
+                          <p className="text-xs text-slate-400 truncate w-full text-center">{month.slice(5)}</p>
                         </div>
                       );
                     })}
@@ -191,8 +193,8 @@ export default async function UtilitiesPage() {
                 {recentMonths.length > 0 && (
                   <div className="mt-3 divide-y divide-slate-50">
                     {recentMonths.slice(-3).reverse().map((month) => {
-                      const entry = svc.monthly_data?.[month]!;
-                      const isOver = svc.tope !== null && (entry.amount ?? 0) > svc.tope;
+                      const entry  = svc.monthlyData?.[month]!;
+                      const isOver = svc.tope !== null && (entry.amount ?? 0) > Number(svc.tope);
                       return (
                         <div key={month} className="flex items-center justify-between py-1.5 text-xs">
                           <span className="text-slate-500">{month}</span>
