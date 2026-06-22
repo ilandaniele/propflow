@@ -16,7 +16,7 @@ export default async function ResponsablesPage() {
 
   const { data: rows } = await supabase
     .from('responsables')
-    .select('id, full_name, dni, phone, email, employment, company, job_title, industry, photo_dni_url, airtable_synced_at')
+    .select('id, full_name, dni, phone, email, employment, company, job_title, industry, photo_url, airtable_synced_at')
     .eq('org_id', ctx.orgId)
     .order('full_name');
 

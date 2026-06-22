@@ -74,6 +74,13 @@ export interface Database {
           country: string | null;
           created_at: string;
           updated_at: string;
+          // Airtable-synced fields
+          airtable_id: string | null;
+          airtable_synced_at: string | null;
+          district: string | null;
+          total_rooms: number | null;
+          supply_number_luz: string | null;
+          n_suministro_agua: string | null;
         };
         Insert: {
           id?: string;
@@ -84,6 +91,12 @@ export interface Database {
           country?: string | null;
           created_at?: string;
           updated_at?: string;
+          airtable_id?: string | null;
+          airtable_synced_at?: string | null;
+          district?: string | null;
+          total_rooms?: number | null;
+          supply_number_luz?: string | null;
+          n_suministro_agua?: string | null;
         };
         Update: {
           name?: string;
@@ -91,6 +104,12 @@ export interface Database {
           city?: string | null;
           country?: string | null;
           updated_at?: string;
+          airtable_id?: string | null;
+          airtable_synced_at?: string | null;
+          district?: string | null;
+          total_rooms?: number | null;
+          supply_number_luz?: string | null;
+          n_suministro_agua?: string | null;
         };
       };
       units: {
