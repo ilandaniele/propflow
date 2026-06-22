@@ -11,9 +11,12 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { organizations } from '@/lib/db/schema';
 import { webhookRateLimit } from '@/lib/ratelimit';
 import { validateHmacSignature } from '@/lib/whatsapp/signature';
 import { InboundWebhookSchema } from '@/lib/schemas/whatsapp';
+// TODO(W6): remove createAdminClient once whatsapp/db lib functions are migrated to Drizzle
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   upsertConversation,
@@ -85,22 +88,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { provider_message_id, from, type, text, attachment_url, timestamp } = parsed.data;
 
-  // We need to find the org — for MVP with mock provider, we look up by phone
-  // In production, the 'to' number maps to an org's WhatsApp number (config table)
-  // For now, find all orgs and use the first match (single-org MVP)
-  const adminClient = createAdminClient();
-
-  const { data: orgs } = await adminClient
-    .from('organizations')
-    .select('id')
+  // Find the first org — Drizzle (AC1)
+  const orgRows = await db
+    .select({ id: organizations.id })
+    .from(organizations)
     .limit(1);
 
-  if (!orgs || orgs.length === 0) {
+  if (!orgRows.length) {
     log.error('[webhook] no organizations found');
     return NextResponse.json({ ok: true }); // Return 200 to prevent provider retry
   }
 
-  const orgId = orgs[0].id;
+  const orgId = orgRows[0].id;
+
+  // TODO(W6): replace adminClient with db once whatsapp/db lib functions are migrated to Drizzle
+  const adminClient = createAdminClient();
 
   // Find tenant by phone (PII: do not log phone)
   const tenant = await findTenantByPhone(adminClient, orgId, from);

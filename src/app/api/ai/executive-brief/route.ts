@@ -22,7 +22,6 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Errors } from '@/lib/errors';
 import { aiExecutiveBriefRateLimit } from '@/lib/ratelimit';
@@ -30,6 +29,9 @@ import { serverEnv } from '@/lib/env';
 import { sanitizeForLLM } from '@/lib/ai/sanitize';
 import { checkAndIncrementBudget, recordActualUsage, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
+// TODO(W6): fetchKPIs uses tenant_statement view + tables not in Drizzle schema;
+// replace createClient() with db once view is mapped or replaced with Drizzle aggregates.
+import { createClient } from '@/lib/supabase/server';
 
 // ---------------------------------------------------------------------------
 // Zod validation — LLM01: no raw user input concatenated into system prompt
@@ -63,7 +65,10 @@ interface ExecutiveBriefKPIs {
 }
 
 // ---------------------------------------------------------------------------
-// Aggregate KPI query (RLS-scoped, anon client — no service role)
+// Aggregate KPI query
+// TODO(W6): tenant_statement is a DB view not yet mapped in Drizzle schema.
+// Migrate fetchKPIs to Drizzle once the view is replaced with a proper table
+// or a drizzle-orm pgView definition is added.
 // ---------------------------------------------------------------------------
 
 async function fetchKPIs(
@@ -213,6 +218,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { period } = parsed.data;
 
+  // TODO(W6): replace with db once fetchKPIs is migrated to Drizzle
   const supabase = await createClient();
 
   try {

@@ -27,7 +27,9 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { tenants } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { getSignedUrl } from '@/lib/storage/index';
 import { Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
@@ -68,27 +70,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const [pathOrgId, pathUnitId] = segments;
 
-  // 3. IDOR guard: path must start with the caller's org_id
+  // 3. IDOR guard: path must start with the caller's org_id (AC8: orgId isolation)
   if (pathOrgId !== ctx.orgId) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  // 4. Tenant-specific IDOR: must be tenant's assigned unit
+  // 4. Tenant-specific IDOR: must be tenant's assigned unit — Drizzle (AC1)
   if (ctx.role === 'tenant') {
-    const supabase = await createClient();
-    const { data: tenantRow } = await supabase
-      .from('tenants')
-      .select('unit_id')
-      .eq('profile_id', ctx.userId)
-      .eq('org_id', ctx.orgId)
-      .single();
+    const tenantRows = await db
+      .select({ unitId: tenants.unitId })
+      .from(tenants)
+      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+      .limit(1);
 
-    if (!tenantRow?.unit_id || tenantRow.unit_id !== pathUnitId) {
+    const tenantRow = tenantRows[0];
+    if (!tenantRow?.unitId || tenantRow.unitId !== pathUnitId) {
       return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
     }
   }
 
-  // 5. Generate signed URL
+  // 5. Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
   let signedUrl: string;
   try {
     signedUrl = await getSignedUrl(BUCKET, path, SIGNED_URL_TTL_S);

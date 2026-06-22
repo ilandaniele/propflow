@@ -2,8 +2,11 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { receiptUploads } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { getSignedUrl } from '@/lib/storage/index';
 import { Errors } from '@/lib/errors';
 
 const SIGNED_URL_TTL_SECONDS = 3600; // 1 hour
@@ -19,33 +22,28 @@ export async function GET(
     return NextResponse.json(Errors.UNAUTHORIZED(), { status: 401 });
   }
 
-  const supabase = await createClient();
+  // Load the receipt — must belong to this org (AC8: org_id isolation) — Drizzle (AC1)
+  const rows = await db
+    .select({ id: receiptUploads.id, filePath: receiptUploads.filePath, uploadedBy: receiptUploads.uploadedBy })
+    .from(receiptUploads)
+    .where(and(eq(receiptUploads.id, id), eq(receiptUploads.orgId, ctx.orgId)))
+    .limit(1);
 
-  // Load the receipt — must belong to this org (RLS + explicit check)
-  // Tenant can only read their own uploads (enforced by RLS policy)
-  const { data: receipt } = await supabase
-    .from('receipt_uploads')
-    .select('id, file_path, uploaded_by, org_id')
-    .eq('id', id)
-    .eq('org_id', ctx.orgId)
-    .single();
-
+  const receipt = rows[0];
   if (!receipt) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  // Tenant can only access their own receipts (defense in depth — RLS also enforces)
-  if (ctx.role === 'tenant' && receipt.uploaded_by !== ctx.userId) {
+  // Tenant can only access their own receipts (defense in depth)
+  if (ctx.role === 'tenant' && receipt.uploadedBy !== ctx.userId) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  const { data: urlData, error } = await supabase.storage
-    .from('receipts')
-    .createSignedUrl(receipt.file_path, SIGNED_URL_TTL_SECONDS);
-
-  if (error || !urlData?.signedUrl) {
+  // Generate signed URL via Tigris storage lib (AC3: no direct supabase.storage calls)
+  try {
+    const url = await getSignedUrl('receipts', receipt.filePath, SIGNED_URL_TTL_SECONDS);
+    return NextResponse.json({ url });
+  } catch {
     return NextResponse.json(Errors.INTERNAL(), { status: 500 });
   }
-
-  return NextResponse.json({ url: urlData.signedUrl });
 }

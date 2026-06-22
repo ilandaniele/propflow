@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { signatureRequests, contracts, tenants, units, properties } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { Errors } from '@/lib/errors';
 import { uploadFile } from '@/lib/storage';
 import { SignSubmitSchema } from '@/lib/schemas/contractDoc';
@@ -20,29 +22,32 @@ export async function GET(
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  const admin = createAdminClient();
+  // Load the signature request by token — Drizzle (AC1)
+  const sigReqRows = await db
+    .select({
+      id:          signatureRequests.id,
+      status:      signatureRequests.status,
+      expiresAt:   signatureRequests.expiresAt,
+      signerEmail: signatureRequests.signerEmail,
+      contractId:  signatureRequests.contractId,
+    })
+    .from(signatureRequests)
+    .where(eq(signatureRequests.token, token))
+    .limit(1);
 
-  // Load the signature request by token — service-role, scoped to token
-  const { data: sigReq } = await admin
-    .from('signature_requests')
-    .select(`
-      id, status, expires_at, signer_email,
-      contract:contracts(id, org_id, start_date, end_date, monthly_rent,
-        tenant:tenants(full_name),
-        unit:units(label, property:properties(name, address))
-      )
-    `)
-    .eq('token', token)
-    .single();
+  const sigReq = sigReqRows[0];
 
   // Invalid/expired/missing: always 404 (no enumeration — IC-B2)
   if (!sigReq) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  if (new Date(sigReq.expires_at) < new Date()) {
+  if (new Date(sigReq.expiresAt) < new Date()) {
     // Mark expired but still 404 to avoid leaking state
-    await admin.from('signature_requests').update({ status: 'expired' }).eq('id', sigReq.id);
+    await db
+      .update(signatureRequests)
+      .set({ status: 'expired' })
+      .where(eq(signatureRequests.id, sigReq.id));
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
@@ -50,28 +55,45 @@ export async function GET(
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  // Mark as viewed
+  // Mark as viewed — Drizzle (AC1)
   if (sigReq.status === 'sent') {
-    await admin.from('signature_requests').update({
-      status: 'viewed',
-      viewed_at: new Date().toISOString(),
-    }).eq('id', sigReq.id);
+    await db
+      .update(signatureRequests)
+      .set({ status: 'viewed', viewedAt: new Date() })
+      .where(eq(signatureRequests.id, sigReq.id));
   }
 
-  // Return minimal contract preview (no PII beyond what the signer already knows)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase nested join (contract:contracts → unit:units → property:properties, tenant:tenants) not generically typed by the JS client
-  const contract = sigReq.contract as any;
+  // Fetch contract + unit + property + tenant for preview — Drizzle (AC1)
+  const contractRows = await db
+    .select({
+      startDate:       contracts.startDate,
+      endDate:         contracts.endDate,
+      monthlyRent:     contracts.monthlyRent,
+      unitLabel:       units.label,
+      propertyName:    properties.name,
+      propertyAddress: properties.address,
+      tenantFullName:  tenants.fullName,
+    })
+    .from(contracts)
+    .leftJoin(units, eq(contracts.unitId, units.id))
+    .leftJoin(properties, eq(units.propertyId, properties.id))
+    .leftJoin(tenants, eq(contracts.tenantId, tenants.id))
+    .where(eq(contracts.id, sigReq.contractId))
+    .limit(1);
+
+  const contract = contractRows[0];
+
   return NextResponse.json({
     sigRequestId: sigReq.id,
-    expiresAt: sigReq.expires_at,
+    expiresAt: sigReq.expiresAt,
     contract: {
-      startDate: contract?.start_date,
-      endDate: contract?.end_date,
-      monthlyRent: contract?.monthly_rent,
-      unitLabel: contract?.unit?.label,
-      propertyName: contract?.unit?.property?.name,
-      propertyAddress: contract?.unit?.property?.address,
-      tenantName: contract?.tenant?.full_name,
+      startDate:       contract?.startDate,
+      endDate:         contract?.endDate,
+      monthlyRent:     contract?.monthlyRent,
+      unitLabel:       contract?.unitLabel,
+      propertyName:    contract?.propertyName,
+      propertyAddress: contract?.propertyAddress,
+      tenantName:      contract?.tenantFullName,
     },
   });
 }
@@ -104,19 +126,27 @@ export async function POST(
     return NextResponse.json(Errors.VALIDATION_ERROR(parsed.error.flatten()), { status: 400 });
   }
 
-  const admin = createAdminClient();
+  // Load token — must be sent/viewed, not expired — Drizzle (AC1)
+  const sigReqRows = await db
+    .select({
+      id:         signatureRequests.id,
+      status:     signatureRequests.status,
+      expiresAt:  signatureRequests.expiresAt,
+      contractId: signatureRequests.contractId,
+      orgId:      signatureRequests.orgId,
+    })
+    .from(signatureRequests)
+    .where(eq(signatureRequests.token, token))
+    .limit(1);
 
-  // Load token — must be sent/viewed, not expired
-  const { data: sigReq } = await admin
-    .from('signature_requests')
-    .select('id, status, expires_at, contract_id, org_id')
-    .eq('token', token)
-    .single();
-
+  const sigReq = sigReqRows[0];
   if (!sigReq) return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
 
-  if (new Date(sigReq.expires_at) < new Date()) {
-    await admin.from('signature_requests').update({ status: 'expired' }).eq('id', sigReq.id);
+  if (new Date(sigReq.expiresAt) < new Date()) {
+    await db
+      .update(signatureRequests)
+      .set({ status: 'expired' })
+      .where(eq(signatureRequests.id, sigReq.id));
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
@@ -136,7 +166,7 @@ export async function POST(
   // Strip the data URL header
   const base64Data = parsed.data.signature_image_base64.replace(/^data:image\/png;base64,/, '');
   const imageBytes = Buffer.from(base64Data, 'base64');
-  const signaturePath = `${sigReq.org_id}/${sigReq.contract_id}/signature.png`;
+  const signaturePath = `${sigReq.orgId}/${sigReq.contractId}/signature.png`;
 
   try {
     await uploadFile('contracts', signaturePath, imageBytes, 'image/png', true);
@@ -145,26 +175,32 @@ export async function POST(
     return NextResponse.json(Errors.INTERNAL(), { status: 500 });
   }
 
-  const now = new Date().toISOString();
+  const now = new Date();
   const userAgent = request.headers.get('user-agent') ?? '';
 
-  // Update signature_request — all mutations via service-role scoped to this token's record
-  await admin.from('signature_requests').update({
-    status: 'signed',
-    signed_at: now,
-    signed_ip: ip,
-    signed_user_agent: userAgent.slice(0, 512),
-    signature_image_path: signaturePath,
-    updated_at: now,
-  }).eq('id', sigReq.id);
+  // Update signature_request — Drizzle (AC1), scoped to this token's record
+  await db
+    .update(signatureRequests)
+    .set({
+      status: 'signed',
+      signedAt: now,
+      signedIp: ip,
+      signedUserAgent: userAgent.slice(0, 512),
+      signatureImagePath: signaturePath,
+      updatedAt: now,
+    })
+    .where(eq(signatureRequests.id, sigReq.id));
 
-  // Flip contract.signature_status = 'signed' and signed_at
-  await admin.from('contracts').update({
-    signature_status: 'signed',
-    signed_at: now,
-    updated_at: now,
-  }).eq('id', sigReq.contract_id);
+  // Flip contract.signature_status = 'signed' and signed_at — Drizzle (AC1)
+  await db
+    .update(contracts)
+    .set({
+      signatureStatus: 'signed',
+      signedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(contracts.id, sigReq.contractId));
 
-  log.info('[sign] contract signed', { sigRequestId: sigReq.id, contractId: sigReq.contract_id });
+  log.info('[sign] contract signed', { sigRequestId: sigReq.id, contractId: sigReq.contractId });
   return NextResponse.json({ status: 'signed' });
 }
