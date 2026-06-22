@@ -158,23 +158,7 @@ export default async function DashboardPage() {
             {t('diagnosticCheck')}{' '}
             {unhealthyEntities.map((e) => entityLabel(e.entity as never)).join(', ')}.
           </p>
-          <p className="text-amber-800">
-            {t('diagnosticCause').split('NEXT_PUBLIC_SUPABASE_URL').map((part, i) =>
-              i === 0 ? part : (
-                <span key={i}>
-                  <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_URL</code>
-                  {part.split('NEXT_PUBLIC_SUPABASE_ANON_KEY').map((p2, j) =>
-                    j === 0 ? p2 : (
-                      <span key={j}>
-                        <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
-                        {p2}
-                      </span>
-                    )
-                  )}
-                </span>
-              )
-            )}
-          </p>
+          <p className="text-amber-800">{t('diagnosticCause')}</p>
         </div>
       )}
 
