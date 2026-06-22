@@ -12,8 +12,8 @@
  */
 
 import { db } from '@/lib/db';
-import { units, charges, payments, contracts, expenses, tenants, incidents } from '@/lib/db/schema';
-import { eq, and, gte, lt, neq, inArray, sql } from 'drizzle-orm';
+import { units, charges, payments, contracts, expenses, tenants, incidents, properties } from '@/lib/db/schema';
+import { eq, and, gte, lt, ne, inArray, sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -99,10 +99,10 @@ export async function getWorstPerformingRooms(
       id: units.id,
       label: units.label,
       propertyId: units.propertyId,
-      propertyName: sql<string>`p.name`.as('propertyName'),
+      propertyName: properties.name,
     })
     .from(units)
-    .leftJoin(sql`properties p ON p.id = ${units.propertyId}`)
+    .leftJoin(properties, eq(properties.id, units.propertyId))
     .where(eq(units.orgId, orgId));
 
   if (unitRows.length === 0) return [];
@@ -218,10 +218,10 @@ export async function getHighestExpenseProperties(
     .select({
       amount: expenses.amount,
       propertyId: expenses.propertyId,
-      propertyName: sql<string>`p.name`.as('propertyName'),
+      propertyName: properties.name,
     })
     .from(expenses)
-    .leftJoin(sql`properties p ON p.id = ${expenses.propertyId}`)
+    .leftJoin(properties, eq(properties.id, expenses.propertyId))
     .where(and(eq(expenses.orgId, orgId), gte(expenses.incurredOn, thirtyDaysAgo)));
 
   if (expenseRows.length === 0) return [];
@@ -356,10 +356,10 @@ export async function getHighestRiskTenants(
     ) as Promise<unknown>,
     db.select({ tenantId: incidents.tenantId })
       .from(incidents)
-      .where(and(eq(incidents.orgId, orgId), neq(incidents.status, 'solved'))),
-    db.select({ id: tenants.id, unitId: tenants.unitId, unitLabel: sql<string>`u.label`.as('unitLabel') })
+      .where(and(eq(incidents.orgId, orgId), ne(incidents.status, 'solved'))),
+    db.select({ id: tenants.id, unitId: tenants.unitId, unitLabel: units.label })
       .from(tenants)
-      .leftJoin(sql`units u ON u.id = ${tenants.unitId}`)
+      .leftJoin(units, eq(units.id, tenants.unitId))
       .where(eq(tenants.orgId, orgId)),
   ]);
 

@@ -12,7 +12,7 @@
 
 import { db } from '@/lib/db';
 import { organizations, units, payments, expenses, incidents } from '@/lib/db/schema';
-import { eq, and, gte, neq } from 'drizzle-orm';
+import { eq, and, gte, ne } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 export interface OrgContext {
@@ -51,7 +51,7 @@ export async function buildOrgContext(orgId: string): Promise<OrgContext> {
     )),
     db.select({ id: incidents.id }).from(incidents).where(and(
       eq(incidents.orgId, orgId),
-      neq(incidents.status, 'solved'),
+      ne(incidents.status, 'solved'),
     )),
   ]);
 

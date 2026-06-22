@@ -230,26 +230,37 @@ export async function syncEntityTable(
       }
     }
 
-    // Use raw SQL upsert for flexibility across all entity tables
+    // Use raw SQL upsert for flexibility across all entity tables.
+    // sql.raw() is safe here because dbTable is derived from EntityName (a controlled string enum),
+    // not from user input. Column names are derived from normalizer output keys — also controlled.
     for (let i = 0; i < domainRows.length; i += BATCH) {
       const batch = domainRows.slice(i, i + BATCH);
       try {
-        // Build parameterized upsert using raw SQL
-        // This preserves the ON CONFLICT (org_id, airtable_external_id) behavior
         for (const row of batch) {
           const cols = Object.keys(row);
           const vals = Object.values(row);
-          const placeholders = vals.map((_, idx) => `$${idx + 1}`).join(', ');
+
+          // Build the values part of the query using sql tagged template for parameterization
+          const valParts = vals.map(v => sql`${v}`);
           const setClauses = cols
             .filter(c => c !== 'id' && c !== 'org_id' && c !== 'airtable_external_id')
             .map(c => `${c} = EXCLUDED.${c}`)
             .join(', ');
 
+          // Interleave columns and value placeholders into a single sql query
+          const colSql    = sql.raw(cols.join(', '));
+          const tablesSql = sql.raw(dbTable);
+          const conflictSql = sql.raw(setClauses || 'org_id = EXCLUDED.org_id');
+
+          // Build values expression: (val1, val2, ...)
+          const valuesSql = valParts.reduce<ReturnType<typeof sql>>(
+            (acc, part, idx) => idx === 0 ? sql`(${part}` : sql`${acc}, ${part}`,
+            sql``
+          );
+          const valuesWithClose = sql`${valuesSql})`;
+
           await db.execute(
-            sql.raw(
-              `INSERT INTO ${dbTable} (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT (org_id, airtable_external_id) DO UPDATE SET ${setClauses}`,
-              vals
-            )
+            sql`INSERT INTO ${tablesSql} (${colSql}) VALUES ${valuesWithClose} ON CONFLICT (org_id, airtable_external_id) DO UPDATE SET ${conflictSql}`
           );
         }
         upsertedCount += batch.length;
@@ -290,11 +301,9 @@ export async function syncEntityTable(
 
       if (extIds.length > 0) {
         try {
+          const tableSql = sql.raw(dbTable);
           const freshRows = await db.execute(
-            sql.raw(
-              `SELECT id, airtable_external_id FROM ${dbTable} WHERE org_id = $1 AND airtable_external_id = ANY($2)`,
-              [orgId, extIds]
-            )
+            sql`SELECT id, airtable_external_id FROM ${tableSql} WHERE org_id = ${orgId} AND airtable_external_id = ANY(${extIds})`
           ) as unknown as Array<{ id: string; airtable_external_id: string }>;
 
           if (freshRows) {

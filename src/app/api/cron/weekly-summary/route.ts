@@ -5,9 +5,6 @@
  *
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
  * Idempotency: UNIQUE(property_id, iso_week) on property_weekly_summaries.
- *
- * TODO(W6): buildWeeklySummary still uses SupabaseClient internally.
- * Replace after W6 migrates that lib function to Drizzle.
  */
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +15,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { organizations, properties, profiles, propertyWeeklySummaries } from '@/lib/db/schema';
 import { eq, and, isNotNull } from 'drizzle-orm';
-// TODO(W6): buildWeeklySummary still expects a SupabaseClient — remove once migrated.
 import { buildWeeklySummary } from '@/lib/whatsapp/weekly-summary';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
 import { log } from '@/lib/log';

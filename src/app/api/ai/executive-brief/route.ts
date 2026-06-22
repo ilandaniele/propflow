@@ -31,7 +31,7 @@ import { checkAndIncrementBudget, recordActualUsage, DAILY_TOKEN_BUDGET } from '
 import { log } from '@/lib/log';
 import { db } from '@/lib/db';
 import { units, payments, expenses, incidents } from '@/lib/db/schema';
-import { eq, and, gte, lt, neq } from 'drizzle-orm';
+import { eq, and, gte, lt, ne } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ async function fetchKPIs(
       )),
     db.select({ id: incidents.id })
       .from(incidents)
-      .where(and(eq(incidents.orgId, orgId), neq(incidents.status, 'solved'))),
+      .where(and(eq(incidents.orgId, orgId), ne(incidents.status, 'solved'))),
     db.execute(
       sql`SELECT is_overdue, tenant_id FROM tenant_statement WHERE org_id = ${orgId}`
     ) as Promise<unknown>,
