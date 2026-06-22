@@ -1,8 +1,22 @@
 import type { Metadata } from 'next';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
+import { db } from '@/lib/db';
+import {
+  units as unitsTable,
+  payments as paymentsTable,
+  incidents as incidentsTable,
+  expenses as expensesTable,
+  airtableSnapshots,
+  additionalCharges,
+  accountStatements,
+  tenantFeedback,
+  tenants,
+  properties,
+  contracts,
+} from '@/lib/db/schema';
+import { eq, and, gte, ne, desc, sql } from 'drizzle-orm';
 import { Card } from '@/components/ui/Card';
 import {
   computeOccupancyRate,
@@ -14,7 +28,7 @@ import {
 import { AirtableOccupancyDelta } from '@/components/portfolio/AirtableOccupancyDelta';
 import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
-import { checkEntityHealth, entityLabel } from '@/lib/dashboard/health';
+import { entityLabel } from '@/lib/dashboard/health';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -22,84 +36,107 @@ export default async function DashboardPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
   const t = await getTranslations('adminDashboard');
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
   const [
-    unitsRes,
-    paymentsRes,
-    incidentsRes,
-    statementRes,
-    expensesRes,
-    airtableRes,
-    additionalChargesRes,
-    statementsRes,
-    feedbackRes,
+    unitRows,
+    paymentRows,
+    incidentRows,
+    statementResult,
+    expenseRows,
+    airtableRows,
+    additionalChargeRows,
+    accountStatementRows,
+    feedbackRows,
+    // Entity health checks — inlined (faster than calling checkEntityHealth per entity)
+    tenantCount,
+    propertyCount,
+    paymentCount,
+    contractCount,
   ] = await Promise.all([
-    supabase.from('units').select('id, status').eq('org_id', ctx.orgId),
-    supabase.from('payments').select('amount, paid_at, status').eq('org_id', ctx.orgId).eq('status', 'approved'),
-    supabase.from('incidents').select('id, status').eq('org_id', ctx.orgId).neq('status', 'solved'),
-    supabase.from('tenant_statement').select('*').eq('org_id', ctx.orgId),
-    supabase.from('expenses').select('amount, incurred_on').eq('org_id', ctx.orgId).gte('incurred_on', startOfMonth),
-    supabase.from('airtable_snapshots').select('data, synced_at').eq('org_id', ctx.orgId).eq('table_name', 'kpis').order('synced_at', { ascending: false }).limit(1).maybeSingle(),
-    // New Airtable-sourced KPIs — current year additional charges
-    supabase.from('additional_charges').select('amount, anio').eq('org_id', ctx.orgId).eq('anio', now.getFullYear()),
-    supabase.from('account_statements').select('id, send_status').eq('org_id', ctx.orgId),
-    supabase.from('tenant_feedback').select('cleaning_score, coexistence_score, attention_score, security_score, value_score').eq('org_id', ctx.orgId),
+    db.select({ id: unitsTable.id, status: unitsTable.status }).from(unitsTable).where(eq(unitsTable.orgId, ctx.orgId)),
+    db.select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, status: paymentsTable.status })
+      .from(paymentsTable).where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'))),
+    db.select({ id: incidentsTable.id, status: incidentsTable.status })
+      .from(incidentsTable).where(and(eq(incidentsTable.orgId, ctx.orgId), ne(incidentsTable.status, 'solved'))),
+    db.execute(sql`SELECT is_overdue, total_charged, total_paid, balance FROM tenant_statement WHERE org_id = ${ctx.orgId}`),
+    db.select({ amount: expensesTable.amount, incurredOn: expensesTable.incurredOn })
+      .from(expensesTable).where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, startOfMonth))),
+    db.select({ data: airtableSnapshots.data, syncedAt: airtableSnapshots.syncedAt })
+      .from(airtableSnapshots)
+      .where(and(eq(airtableSnapshots.orgId, ctx.orgId), eq(airtableSnapshots.tableName, 'kpis')))
+      .orderBy(desc(airtableSnapshots.syncedAt))
+      .limit(1),
+    db.select({ amount: additionalCharges.amount, anio: additionalCharges.anio })
+      .from(additionalCharges).where(and(eq(additionalCharges.orgId, ctx.orgId), eq(additionalCharges.anio, now.getFullYear()))),
+    db.select({ id: accountStatements.id, sendStatus: accountStatements.sendStatus })
+      .from(accountStatements).where(eq(accountStatements.orgId, ctx.orgId)),
+    db.select({ cleaningScore: tenantFeedback.cleaningScore, coexistenceScore: tenantFeedback.coexistenceScore, attentionScore: tenantFeedback.attentionScore, securityScore: tenantFeedback.securityScore, valueScore: tenantFeedback.valueScore })
+      .from(tenantFeedback).where(eq(tenantFeedback.orgId, ctx.orgId)),
+    db.select({ count: sql<number>`count(*)::int` }).from(tenants).where(eq(tenants.orgId, ctx.orgId)),
+    db.select({ count: sql<number>`count(*)::int` }).from(properties).where(eq(properties.orgId, ctx.orgId)),
+    db.select({ count: sql<number>`count(*)::int` }).from(paymentsTable).where(eq(paymentsTable.orgId, ctx.orgId)),
+    db.select({ count: sql<number>`count(*)::int` }).from(contracts).where(eq(contracts.orgId, ctx.orgId)),
   ]);
 
-  const entityHealth = await checkEntityHealth(supabase, ctx.orgId);
-  const unhealthyEntities = entityHealth.filter((e) => e.count === 0 || e.error !== null);
+  // Entity health — derived from counts
+  type EntityName = 'tenants' | 'properties' | 'payments' | 'contracts';
+  const entityHealthMap: Record<EntityName, number> = {
+    tenants:    tenantCount[0]?.count ?? 0,
+    properties: propertyCount[0]?.count ?? 0,
+    payments:   paymentCount[0]?.count ?? 0,
+    contracts:  contractCount[0]?.count ?? 0,
+  };
+  const unhealthyEntities = (Object.entries(entityHealthMap) as Array<[EntityName, number]>)
+    .filter(([, count]) => count === 0)
+    .map(([entity]) => ({ entity, count: 0, error: null }));
 
-  const units = unitsRes.data ?? [];
-  const approvedPayments = paymentsRes.data ?? [];
-  const openIncidents = incidentsRes.data ?? [];
-  const statements = statementRes.data ?? [];
-  const expenses = expensesRes.data ?? [];
+  const statements = (statementResult as unknown as Array<{ is_overdue: boolean; total_charged: string; total_paid: string; balance: string }>);
 
   // Operational KPIs
-  const totalUnits = units.length;
-  const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const occupancyRate = computeOccupancyRate(occupiedUnits, totalUnits);
-  const rentCollected = computeRentCollectedThisMonth(approvedPayments);
+
+  // computeRentCollectedThisMonth expects { amount: number; paid_at: string }[]
+  const paymentsForKpi = paymentRows.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt ? String(p.paidAt) : '' }));
+  const rentCollected = computeRentCollectedThisMonth(paymentsForKpi);
+
   const overdueCount = statements.filter((s) => s.is_overdue).length;
 
   // Financial KPIs
-  const overdueAmounts: number[] = statements
+  const overdueAmounts = statements
     .filter((s) => s.is_overdue)
     .map((s) => Math.max(0, Number(s.total_charged ?? 0) - Number(s.total_paid ?? 0)));
   const pastDueKpi = computePastDueBalance(overdueAmounts);
-  const mtdIncome = approvedPayments.filter((p) => p.paid_at && p.paid_at >= startOfMonth).reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-  const mtdExpenses = expenses.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
+
+  const mtdIncome = paymentRows.filter((p) => p.paidAt && String(p.paidAt) >= startOfMonth).reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const mtdExpenses = expenseRows.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
   const netProfitKpi = computeTrueNetProfit(mtdIncome, mtdExpenses);
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
 
   // Airtable occupancy delta
-  const airtableRow = airtableRes.data;
+  const airtableRow = airtableRows[0] ?? null;
   const airtableSnapshot = airtableRow?.data
     ? {
         occupancyRate: typeof (airtableRow.data as Record<string, unknown>).occupancy_rate === 'number'
           ? ((airtableRow.data as Record<string, unknown>).occupancy_rate as number) : 0,
-        syncedAt: airtableRow.synced_at as string,
+        syncedAt: airtableRow.syncedAt ? String(airtableRow.syncedAt) : '',
       }
     : null;
   const liveRate = totalUnits > 0 ? occupiedUnits / totalUnits : 0;
 
   // New Airtable KPIs
-  const additionalChargesRows = additionalChargesRes.data ?? [];
-  const totalAdditionalCharges = additionalChargesRows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+  const totalAdditionalCharges = additionalChargeRows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+  const pendingStatements = accountStatementRows.filter((s) => s.sendStatus !== 'sent').length;
 
-  const accountStatements = statementsRes.data ?? [];
-  const pendingStatements = accountStatements.filter((s) => s.send_status !== 'sent').length;
-
-  const feedbackRows = feedbackRes.data ?? [];
   let avgFeedback: number | null = null;
   if (feedbackRows.length > 0) {
     const allScores = feedbackRows.flatMap((r) =>
-      [r.cleaning_score, r.coexistence_score, r.attention_score, r.security_score, r.value_score].filter((v): v is number => v !== null)
+      [r.cleaningScore, r.coexistenceScore, r.attentionScore, r.securityScore, r.valueScore].filter((v): v is number => v !== null)
     );
     avgFeedback = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : null;
   }
@@ -119,25 +156,9 @@ export default async function DashboardPage() {
           <p className="font-semibold mb-1">⚠ {t('diagnosticTitle')}</p>
           <p className="mb-1">
             {t('diagnosticCheck')}{' '}
-            {unhealthyEntities.map((e) => entityLabel(e.entity)).join(', ')}.
+            {unhealthyEntities.map((e) => entityLabel(e.entity as never)).join(', ')}.
           </p>
-          <p className="text-amber-800">
-            {t('diagnosticCause').split('NEXT_PUBLIC_SUPABASE_URL').map((part, i) =>
-              i === 0 ? part : (
-                <span key={i}>
-                  <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_URL</code>
-                  {part.split('NEXT_PUBLIC_SUPABASE_ANON_KEY').map((p2, j) =>
-                    j === 0 ? p2 : (
-                      <span key={j}>
-                        <code className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
-                        {p2}
-                      </span>
-                    )
-                  )}
-                </span>
-              )
-            )}
-          </p>
+          <p className="text-amber-800">{t('diagnosticCause')}</p>
         </div>
       )}
 
@@ -158,41 +179,23 @@ export default async function DashboardPage() {
         <>
           {/* Row 1 — Operational KPIs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard
-              title={t('kpis.occupancy')}
-              value={`${occupancyRate}%`}
-              sub={t('kpis.occupancySub', { occupied: occupiedUnits, total: totalUnits })}
-              color="text-green-600"
+            <KpiCard title={t('kpis.occupancy')} value={`${occupancyRate}%`} sub={t('kpis.occupancySub', { occupied: occupiedUnits, total: totalUnits })} color="text-green-600"
               icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>}
             />
-            <KpiCard
-              title={t('kpis.rentCollected')}
-              value={`S/ ${rentCollected.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
-              sub={t('kpis.rentCollectedSub')}
-              color="text-brand-600"
+            <KpiCard title={t('kpis.rentCollected')} value={`S/ ${rentCollected.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`} sub={t('kpis.rentCollectedSub')} color="text-brand-600"
               icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>}
             />
-            <KpiCard
-              title={t('kpis.openIncidents')}
-              value={String(openIncidents.length)}
-              sub={t('kpis.openIncidentsSub')}
-              color={openIncidents.length > 0 ? 'text-amber-600' : 'text-slate-600'}
+            <KpiCard title={t('kpis.openIncidents')} value={String(incidentRows.length)} sub={t('kpis.openIncidentsSub')} color={incidentRows.length > 0 ? 'text-amber-600' : 'text-slate-600'}
               icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>}
             />
-            <KpiCard
-              title={t('kpis.overdueTenants')}
-              value={String(overdueCount)}
-              sub={t('kpis.overdueTenantsSubSingle')}
-              color={overdueCount > 0 ? 'text-red-600' : 'text-slate-600'}
+            <KpiCard title={t('kpis.overdueTenants')} value={String(overdueCount)} sub={t('kpis.overdueTenantsSubSingle')} color={overdueCount > 0 ? 'text-red-600' : 'text-slate-600'}
               icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>}
             />
           </div>
 
           {/* Row 2 — Financial KPIs */}
           <div>
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              {t('kpis.financialTitle')}
-            </h2>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('kpis.financialTitle')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <FinKpiCard title={t('kpis.trueNetProfit')} value={netProfitKpi.formatted} rawValue={netProfitKpi.value} sub={t('kpis.trueNetProfitSub')} positiveIsGood />
               <FinKpiCard title={t('kpis.pastDueBalance')} value={pastDueKpi.formatted} rawValue={pastDueKpi.value} sub={t('kpis.pastDueBalanceSub')} positiveIsGood={false} />
@@ -203,35 +206,21 @@ export default async function DashboardPage() {
 
           {/* Row 3 — Airtable-sourced KPIs */}
           <div>
-            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              {t('kpis.additionalChargesTitle')}
-            </h2>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('kpis.additionalChargesTitle')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  {t('kpis.totalAdditionalCharges')}
-                </p>
-                <p className="text-2xl font-bold text-slate-900">
-                  S/ {totalAdditionalCharges.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                </p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('kpis.totalAdditionalCharges')}</p>
+                <p className="text-2xl font-bold text-slate-900">S/ {totalAdditionalCharges.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
                 <p className="text-xs text-slate-400 mt-1">{t('kpis.totalAdditionalChargesSub')}</p>
               </article>
               <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  {t('kpis.pendingStatements')}
-                </p>
-                <p className={`text-2xl font-bold ${pendingStatements > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
-                  {pendingStatements}
-                </p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('kpis.pendingStatements')}</p>
+                <p className={`text-2xl font-bold ${pendingStatements > 0 ? 'text-amber-600' : 'text-slate-900'}`}>{pendingStatements}</p>
                 <p className="text-xs text-slate-400 mt-1">{t('kpis.pendingStatementsSub')}</p>
               </article>
               <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  {t('kpis.avgFeedback')}
-                </p>
-                <p className="text-2xl font-bold text-slate-900">
-                  {avgFeedback !== null ? `${avgFeedback.toFixed(1)} / 5` : '—'}
-                </p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('kpis.avgFeedback')}</p>
+                <p className="text-2xl font-bold text-slate-900">{avgFeedback !== null ? `${avgFeedback.toFixed(1)} / 5` : '—'}</p>
                 <p className="text-xs text-slate-400 mt-1">{t('kpis.avgFeedbackSub')}</p>
               </article>
             </div>
@@ -273,7 +262,6 @@ function FinKpiCard({ title, value, rawValue, sub, positiveIsGood }: {
     rawValue > 0 && positiveIsGood ? 'text-green-700'
     : rawValue < 0 || (!positiveIsGood && rawValue > 0) ? 'text-red-600'
     : 'text-slate-700';
-
   return (
     <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{title}</p>
@@ -285,10 +273,7 @@ function FinKpiCard({ title, value, rawValue, sub, positiveIsGood }: {
 
 function QuickAction({ href, label, description }: { href: string; label: string; description: string }) {
   return (
-    <Link
-      href={href}
-      className="group block bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition-all duration-150"
-    >
+    <Link href={href} className="group block bg-white rounded-xl border border-slate-200 p-5 hover:border-brand-300 hover:shadow-md transition-all duration-150">
       <p className="font-semibold text-slate-900 text-sm mb-1 group-hover:text-brand-700 transition-colors">{label}</p>
       <p className="text-xs text-slate-500">{description}</p>
     </Link>

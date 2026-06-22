@@ -1,5 +1,4 @@
-﻿import { getTranslations } from 'next-intl/server';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -13,17 +12,17 @@ interface Props {
 
 /**
  * Async Server Component — read-only table of visitor_logs scoped to this tenant.
- * Uses the AC7-compliant helper: .eq('host_tenant_id', tenantId) AND .eq('org_id', orgId).
+ * AC7: uses eq(visitorLogs.hostTenantId, tenantId) AND eq(visitorLogs.orgId, orgId).
  * No forms, buttons, or mutations. No reference to internal_notes.
  */
 export async function VisitorsSection({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const t = await getTranslations('tenants');
-  const supabase = await createClient();
-
-  const visitors = await getPortalPreviewVisitors(supabase, tenantId, ctx.orgId);
+  const [visitors, t] = await Promise.all([
+    getPortalPreviewVisitors(tenantId, ctx.orgId),
+    getTranslations('tenants'),
+  ]);
 
   return (
     <Card data-testid="portal-preview-visitors">

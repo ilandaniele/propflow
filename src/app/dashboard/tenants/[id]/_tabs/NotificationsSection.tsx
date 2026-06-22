@@ -1,5 +1,4 @@
 ﻿import { getTranslations } from 'next-intl/server';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -23,10 +22,9 @@ export async function NotificationsSection({ profileId }: Props) {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const t = await getTranslations('tenants');
-  const supabase = await createClient();
 
   // getPortalPreviewNotifications returns [] immediately when profileId is null (IC5)
-  const notifications = await getPortalPreviewNotifications(supabase, profileId, ctx.orgId);
+  const notifications = await getPortalPreviewNotifications(profileId, ctx.orgId);
 
   return (
     <Card data-testid="portal-preview-notifications">

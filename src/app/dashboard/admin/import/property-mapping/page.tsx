@@ -1,4 +1,4 @@
-﻿/**
+/**
  * /dashboard/admin/import/property-mapping
  *
  * Property Mapping (AC20):
@@ -9,52 +9,40 @@
 
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { propertyMappings, properties } from '@/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { PropertyMappingForm } from './PropertyMappingForm';
 
 export const dynamic = 'force-dynamic';
 
-interface InternalProperty {
-  id: string;
-  name: string;
-}
-
-interface PropertyMappingRow {
-  id: string;
-  external_name: string;
-  internal_property_id: string | null;
-  last_matched_at: string | null;
-}
-
 export default async function PropertyMappingPage() {
-  try {
-    await requireAdmin();
-  } catch {
-    redirect('/login');
-  }
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
+  const t = await getTranslations('adminImport.propertyMapping');
 
-  const [{ data: mappings }, { data: properties }] = await Promise.all([
-    supabase
-      .from('property_mappings')
-      .select('id, external_name, internal_property_id, last_matched_at')
-      .order('external_name', { ascending: true }),
-    supabase
-      .from('properties')
-      .select('id, name')
-      .order('name', { ascending: true }),
+  const [mappingRows, propertyRows] = await Promise.all([
+    db
+      .select({
+        id:                 propertyMappings.id,
+        externalName:       propertyMappings.externalName,
+        internalPropertyId: propertyMappings.internalPropertyId,
+        lastMatchedAt:      propertyMappings.lastMatchedAt,
+      })
+      .from(propertyMappings)
+      .where(eq(propertyMappings.orgId, ctx.orgId))
+      .orderBy(asc(propertyMappings.externalName)),
+    db
+      .select({ id: properties.id, name: properties.name })
+      .from(properties)
+      .where(eq(properties.orgId, ctx.orgId))
+      .orderBy(asc(properties.name)),
   ]);
 
-  const propList: InternalProperty[] = (properties ?? []).map((p: { id: string; name: string }) => ({
-    id: p.id,
-    name: p.name,
-  }));
-
-  const propMap = new Map<string, string>(propList.map((p) => [p.id, p.name]));
-  const rows: PropertyMappingRow[] = mappings ?? [];
-  const t = await getTranslations('adminImport.propertyMapping');
+  const propList = propertyRows.map((p) => ({ id: p.id, name: p.name }));
+  const propMap  = new Map<string, string>(propList.map((p) => [p.id, p.name]));
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -71,12 +59,12 @@ export default async function PropertyMappingPage() {
           <h2 className="text-base font-semibold text-slate-800">
             {t('savedTitle')}
             <span className="ml-2 bg-slate-100 text-slate-600 text-xs font-medium px-2 py-0.5 rounded-full">
-              {rows.length}
+              {mappingRows.length}
             </span>
           </h2>
         </div>
 
-        {rows.length === 0 ? (
+        {mappingRows.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-slate-400">
             {t('emptyState')}
           </div>
@@ -90,18 +78,18 @@ export default async function PropertyMappingPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {mappingRows.map((row) => (
                 <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-slate-700 text-sm">{row.external_name}</td>
+                  <td className="px-4 py-3 font-mono text-slate-700 text-sm">{row.externalName}</td>
                   <td className="px-4 py-3 text-slate-600">
-                    {row.internal_property_id
-                      ? propMap.get(row.internal_property_id) ?? row.internal_property_id
+                    {row.internalPropertyId
+                      ? propMap.get(row.internalPropertyId) ?? row.internalPropertyId
                       : <span className="text-slate-400 italic">{t('unassigned')}</span>
                     }
                   </td>
                   <td className="px-4 py-3 text-slate-400 text-xs">
-                    {row.last_matched_at
-                      ? new Date(row.last_matched_at).toLocaleDateString('es-AR')
+                    {row.lastMatchedAt
+                      ? new Date(row.lastMatchedAt).toLocaleDateString('es-AR')
                       : '—'}
                   </td>
                 </tr>

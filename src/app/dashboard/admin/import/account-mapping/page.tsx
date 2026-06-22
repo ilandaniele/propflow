@@ -1,4 +1,4 @@
-﻿/**
+/**
  * /dashboard/admin/import/account-mapping
  *
  * Account Mapping (AC20):
@@ -9,36 +9,31 @@
 
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { accountMappings } from '@/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { AccountMappingForm } from './AccountMappingForm';
 
 export const dynamic = 'force-dynamic';
 
-interface AccountMappingRow {
-  id: string;
-  external_account: string;
-  internal_category: string | null;
-  is_income: boolean;
-  affects_net_profit: boolean;
-}
-
 export default async function AccountMappingPage() {
-  try {
-    await requireAdmin();
-  } catch {
-    redirect('/login');
-  }
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
   const t = await getTranslations('adminImport.accountMapping');
 
-  const { data: mappings, error } = await supabase
-    .from('account_mappings')
-    .select('id, external_account, internal_category, is_income, affects_net_profit')
-    .order('external_account', { ascending: true });
-
-  const rows: AccountMappingRow[] = mappings ?? [];
+  const rows = await db
+    .select({
+      id:               accountMappings.id,
+      externalAccount:  accountMappings.externalAccount,
+      internalCategory: accountMappings.internalCategory,
+      isIncome:         accountMappings.isIncome,
+      affectsNetProfit: accountMappings.affectsNetProfit,
+    })
+    .from(accountMappings)
+    .where(eq(accountMappings.orgId, ctx.orgId))
+    .orderBy(asc(accountMappings.externalAccount));
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -60,12 +55,6 @@ export default async function AccountMappingPage() {
           </h2>
         </div>
 
-        {error && (
-          <div className="px-5 py-3 bg-red-50 border-b border-red-100 text-sm text-red-700" role="alert">
-            {t('loadError')}
-          </div>
-        )}
-
         {rows.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-slate-400">
             {t('emptyState')}
@@ -83,19 +72,21 @@ export default async function AccountMappingPage() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-slate-700 text-sm">{row.external_account}</td>
-                  <td className="px-4 py-3 text-slate-600">{row.internal_category ?? <span className="text-slate-400 italic">{t('unassigned')}</span>}</td>
+                  <td className="px-4 py-3 font-mono text-slate-700 text-sm">{row.externalAccount}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {row.internalCategory ?? <span className="text-slate-400 italic">{t('unassigned')}</span>}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
-                      row.is_income
+                      row.isIncome
                         ? 'bg-green-50 text-green-700 border-green-200'
                         : 'bg-red-50 text-red-700 border-red-200'
                     }`}>
-                      {row.is_income ? t('income') : t('expense')}
+                      {row.isIncome ? t('income') : t('expense')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500 text-xs">
-                    {row.affects_net_profit ? t('yes') : t('no')}
+                    {row.affectsNetProfit ? t('yes') : t('no')}
                   </td>
                 </tr>
               ))}

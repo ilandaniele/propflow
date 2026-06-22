@@ -3,7 +3,8 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { aiChatMessages } from '@/lib/db/schema';
 import { requireUser } from '@/lib/auth/guards';
 import { Errors } from '@/lib/errors';
 import { aiChatRateLimit } from '@/lib/ratelimit';
@@ -24,7 +25,7 @@ const MAX_TOKENS = 1024;
 const MAX_CONTEXT_BYTES = 8 * 1024; // 8 KB
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Auth guard (manual, like /api/incident-photo)
+  // Auth guard
   let ctx;
   try { ctx = await requireUser(); } catch {
     return NextResponse.json(Errors.UNAUTHORIZED(), { status: 401 });
@@ -58,11 +59,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.VALIDATION_ERROR(parsed.error.flatten()), { status: 400 });
   }
 
-  const supabase = await createClient();
-
   try {
     // Build org-scoped context (aggregates only — LLM06)
-    const orgCtx = await buildOrgContext(supabase, ctx.orgId);
+    const orgCtx = await buildOrgContext(ctx.orgId);
     const systemPrompt = buildSystemPrompt(orgCtx);
 
     // LLM01: user input as structured user turn, never concatenated into system prompt
@@ -70,8 +69,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const cleanedMessage = redactPiiFromUserMessage(parsed.data.message);
 
     // AC16: enforce combined context bound <= 8 KB (system + user message).
-    // buildOrgContext produces ~600-900 bytes; user message is capped at 4000 chars
-    // via AiChatSchema. Truncation here is a defence-in-depth safeguard.
     const combinedBytes =
       Buffer.byteLength(systemPrompt, 'utf8') + Buffer.byteLength(cleanedMessage, 'utf8');
     let effectiveSystemPrompt = systemPrompt;
@@ -84,11 +81,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       log.info('[ai/chat] context truncated to 8 KB', { originalBytes: combinedBytes });
     }
 
-    // Persist user message
-    await supabase.from('ai_chat_messages').insert({
-      org_id: ctx.orgId,
-      profile_id: ctx.userId,
-      session_id: parsed.data.session_id,
+    // Persist user message — Drizzle (AC1, AC8: orgId scoped)
+    await db.insert(aiChatMessages).values({
+      orgId: ctx.orgId,
+      profileId: ctx.userId,
+      sessionId: parsed.data.session_id,
       role: 'user',
       content: parsed.data.message, // store original (not redacted) for UX
     });
@@ -121,11 +118,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             }
           }
 
-          // Persist assistant message after stream completes
-          await supabase.from('ai_chat_messages').insert({
-            org_id: ctx.orgId,
-            profile_id: ctx.userId,
-            session_id: parsed.data.session_id,
+          // Persist assistant message after stream completes — Drizzle (AC1, AC8)
+          await db.insert(aiChatMessages).values({
+            orgId: ctx.orgId,
+            profileId: ctx.userId,
+            sessionId: parsed.data.session_id,
             role: 'assistant',
             content: fullResponse,
           });

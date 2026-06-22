@@ -29,7 +29,9 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { airtableSnapshots } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { log } from '@/lib/log';
 import { actionRateLimit } from '@/lib/ratelimit';
 import { AirtableAttachmentSchema } from '@/lib/schemas/airtable';
@@ -108,16 +110,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(cached.url, { status: 302 });
   }
 
-  // 5. Fetch snapshot from DB — org scoped (IDOR: admin can only see their org)
-  const supabase = await createClient();
-  const { data: snapshot, error: dbError } = await supabase
-    .from('airtable_snapshots')
-    .select('id, org_id, data')
-    .eq('id', snapshot_id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  // 5. Fetch snapshot from DB — org scoped (IDOR: admin can only see their org) — Drizzle (AC1, AC8)
+  const snapshotRows = await db
+    .select({ id: airtableSnapshots.id, orgId: airtableSnapshots.orgId, data: airtableSnapshots.data })
+    .from(airtableSnapshots)
+    .where(and(eq(airtableSnapshots.id, snapshot_id), eq(airtableSnapshots.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (dbError || !snapshot) {
+  const snapshot = snapshotRows[0];
+  if (!snapshot) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }
 
@@ -149,9 +150,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (!Array.isArray(fieldValue)) continue;
 
       for (const item of fieldValue) {
-        const parsed = AirtableAttachmentSchema.safeParse(item);
-        if (parsed.success && parsed.data.id === att_id) {
-          attachmentUrl = parsed.data.url;
+        const parsedAtt = AirtableAttachmentSchema.safeParse(item);
+        if (parsedAtt.success && parsedAtt.data.id === att_id) {
+          attachmentUrl = parsedAtt.data.url;
           break;
         }
       }

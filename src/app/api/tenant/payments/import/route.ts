@@ -8,7 +8,10 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { profiles, tenants, importLogs, payments } from '@/lib/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -35,37 +38,44 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const csvText = await file.text();
   const { rows, errors } = parsePaymentsCsv(csvText);
 
-  const admin = createAdminClient();
+  // Get profile for email security check — Drizzle (AC1, AC8: orgId scoped)
+  const profileRows = await db
+    .select({ email: profiles.email })
+    .from(profiles)
+    .where(and(eq(profiles.userId, ctx.userId), eq(profiles.orgId, ctx.orgId)))
+    .limit(1);
 
-  // Get profile for email security check + tenant record
-  const { data: profile } = await admin.from('profiles').select('email').eq('id', ctx.userId).single();
-  const tenantEmail = (profile?.email ?? '').trim().toLowerCase();
+  const tenantEmail = (profileRows[0]?.email ?? '').trim().toLowerCase();
 
-  const { data: tenantRecord } = await admin
-    .from('tenants').select('id').eq('profile_id', ctx.userId).eq('org_id', ctx.orgId).single();
+  // Get tenant record — Drizzle (AC1, AC8: profileId + orgId scoped)
+  const tenantRows = await db
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+    .limit(1);
 
+  const tenantRecord = tenantRows[0];
   if (!tenantRecord) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant record not found.' } }, { status: 404 });
   }
 
-  // Create import log
-  const { data: importLog, error: logError } = await admin
-    .from('import_logs')
-    .insert({
-      org_id: ctx.orgId,
-      import_type: 'payment',
-      file_name: file.name,
-      imported_by: ctx.userId,
+  // Create import log — Drizzle (AC1)
+  const importLogRows = await db
+    .insert(importLogs)
+    .values({
+      orgId: ctx.orgId,
+      importType: 'payment',
+      fileName: file.name,
+      importedBy: ctx.userId,
       role: 'tenant',
       status: 'pending',
-      rows_received: rows.length,
-      error_details: errors,
+      rowsReceived: rows.length,
+      errorDetails: errors,
     })
-    .select('id')
-    .single();
+    .returning({ id: importLogs.id });
 
-  if (logError || !importLog) {
-    console.error('[api/tenant/payments/import POST] log error', logError?.code);
+  const importLog = importLogRows[0];
+  if (!importLog) {
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'No se pudo iniciar la importación.' } }, { status: 500 });
   }
 
@@ -80,35 +90,85 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     try {
-      const payload = {
-        org_id: ctx.orgId,
-        tenant_id: tenantRecord.id,
-        amount: row.amount,
-        currency: row.currency,
-        paid_at: row.payment_date,
-        due_date: row.due_date ?? null,
-        status: 'under_review' as const, // tenant imports always go to review
-        method: row.payment_method,
-        reference: row.reference ?? null,
-        period_month: row.billing_period ?? null,
-        movement_type: 'payment' as const,
-        notes: row.description ?? null,
-        external_payment_id: row.external_payment_id ?? null,
-        import_source: 'csv_import' as const,
-        import_id,
-      };
-
       if (row.external_payment_id) {
         // Upsert by org_id + external_payment_id
-        const { error: upsertErr } = await admin
-          .from('payments')
-          .upsert(payload, { onConflict: 'org_id,external_payment_id', ignoreDuplicates: false });
-
-        if (upsertErr) { failed++; continue; }
+        // NOTE: payments.contract_id is notNull() in schema but CSV imports do not supply it.
+        // TODO(W1/schema): relax contract_id to nullable for import rows, then switch to Drizzle .insert()/.onConflictDoUpdate().
+        await db.execute(sql`
+          INSERT INTO payments (
+            org_id, tenant_id, amount, currency,
+            paid_at, due_date, status, method, reference,
+            period_month, movement_type, notes,
+            external_payment_id, import_source, import_id,
+            contract_id
+          )
+          SELECT
+            ${ctx.orgId}::uuid,
+            ${tenantRecord.id}::uuid,
+            ${row.amount},
+            ${row.currency ?? 'PEN'},
+            ${row.payment_date},
+            ${row.due_date ?? null},
+            ${'under_review'},
+            ${row.payment_method ?? 'transfer'},
+            ${row.reference ?? null},
+            ${row.billing_period ?? null},
+            ${'payment'},
+            ${row.description ?? null},
+            ${row.external_payment_id},
+            ${'csv_import'},
+            ${import_id}::uuid,
+            c.id
+          FROM contracts c
+          WHERE c.tenant_id = ${tenantRecord.id}::uuid
+            AND c.org_id = ${ctx.orgId}::uuid
+            AND c.status = 'active'
+          ORDER BY c.created_at DESC
+          LIMIT 1
+          ON CONFLICT (org_id, external_payment_id) DO UPDATE SET
+            amount = EXCLUDED.amount,
+            currency = EXCLUDED.currency,
+            paid_at = EXCLUDED.paid_at,
+            method = EXCLUDED.method,
+            reference = EXCLUDED.reference,
+            period_month = EXCLUDED.period_month,
+            notes = EXCLUDED.notes,
+            import_id = EXCLUDED.import_id,
+            updated_at = NOW()
+        `);
         updated++;
       } else {
-        const { error: insertErr } = await admin.from('payments').insert(payload);
-        if (insertErr) { failed++; continue; }
+        await db.execute(sql`
+          INSERT INTO payments (
+            org_id, tenant_id, amount, currency,
+            paid_at, due_date, status, method, reference,
+            period_month, movement_type, notes,
+            import_source, import_id,
+            contract_id
+          )
+          SELECT
+            ${ctx.orgId}::uuid,
+            ${tenantRecord.id}::uuid,
+            ${row.amount},
+            ${row.currency ?? 'PEN'},
+            ${row.payment_date},
+            ${row.due_date ?? null},
+            ${'under_review'},
+            ${row.payment_method ?? 'transfer'},
+            ${row.reference ?? null},
+            ${row.billing_period ?? null},
+            ${'payment'},
+            ${row.description ?? null},
+            ${'csv_import'},
+            ${import_id}::uuid,
+            c.id
+          FROM contracts c
+          WHERE c.tenant_id = ${tenantRecord.id}::uuid
+            AND c.org_id = ${ctx.orgId}::uuid
+            AND c.status = 'active'
+          ORDER BY c.created_at DESC
+          LIMIT 1
+        `);
         created++;
       }
     } catch {
@@ -116,19 +176,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Update import log
+  // Update import log — Drizzle (AC1)
   const finalStatus = failed > 0 && created + updated === 0 ? 'failed'
     : failed > 0 ? 'partial'
     : 'completed';
 
-  await admin.from('import_logs').update({
-    status: finalStatus,
-    rows_created: created,
-    rows_updated: updated,
-    rows_skipped: skipped,
-    rows_failed: failed,
-    completed_at: new Date().toISOString(),
-  }).eq('id', import_id);
+  await db
+    .update(importLogs)
+    .set({
+      status: finalStatus,
+      rowsCreated: created,
+      rowsUpdated: updated,
+      rowsSkipped: skipped,
+      rowsFailed: failed,
+      completedAt: new Date(),
+    })
+    .where(eq(importLogs.id, import_id));
 
   return NextResponse.json({ created, updated, skipped, failed, import_id });
 }

@@ -8,7 +8,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { profiles, payments } from '@/lib/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -36,15 +38,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const csvText = await file.text();
   const { rows, errors, warnings } = parsePaymentsCsv(csvText);
 
-  // Get tenant email from session profile
-  const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('email')
-    .eq('id', ctx.userId)
-    .single();
+  // Get tenant email from session profile — Drizzle (AC1, AC8: orgId scoped)
+  const profileRows = await db
+    .select({ email: profiles.email })
+    .from(profiles)
+    .where(and(eq(profiles.userId, ctx.userId), eq(profiles.orgId, ctx.orgId)))
+    .limit(1);
 
-  const tenantEmail = profile?.email ?? '';
+  const tenantEmail = profileRows[0]?.email ?? '';
 
   // Security: tenant can only import rows for their own email
   const rowErrors = [...errors];
@@ -60,16 +61,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return true;
   });
 
-  // Check for duplicate external_payment_id in DB
+  // Check for duplicate external_payment_id in DB — Drizzle (AC1, AC8: orgId scoped)
   const externalIds = validRows.map(r => r.external_payment_id).filter(Boolean) as string[];
   let duplicates: string[] = [];
   if (externalIds.length > 0) {
-    const { data: existing } = await admin
-      .from('payments')
-      .select('external_payment_id')
-      .eq('org_id', ctx.orgId)
-      .in('external_payment_id', externalIds);
-    duplicates = (existing ?? []).map((r: { external_payment_id: string }) => r.external_payment_id).filter(Boolean);
+    const existingRows = await db
+      .select({ externalPaymentId: payments.externalPaymentId })
+      .from(payments)
+      .where(and(eq(payments.orgId, ctx.orgId), inArray(payments.externalPaymentId, externalIds)));
+    duplicates = existingRows.map(r => r.externalPaymentId).filter((v): v is string => v !== null);
   }
 
   const rowsWithStatus = validRows.map(row => ({

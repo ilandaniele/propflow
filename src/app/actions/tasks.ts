@@ -1,8 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { db } from '@/lib/db';
+import { tenants, tenantTasks, taskProofs } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
@@ -22,39 +24,39 @@ export async function createTenantTask(
   const parsed = CreateTenantTaskSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify tenant belongs to this org
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('id')
-    .eq('id', parsed.data.tenant_id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const tenantRows = await db
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(and(eq(tenants.id, parsed.data.tenant_id), eq(tenants.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!tenant) return Errors.NOT_FOUND();
+  if (!tenantRows[0]) return Errors.NOT_FOUND();
 
-  const { data: task, error } = await supabase
-    .from('tenant_tasks')
-    .insert({
-      org_id: ctx.orgId,
-      tenant_id: parsed.data.tenant_id,
-      created_by: ctx.userId,
-      task_type: parsed.data.task_type,
-      title: parsed.data.title,
-      description: parsed.data.description ?? null,
-      due_at: parsed.data.due_at,
-      status: 'pending',
-    })
-    .select('id')
-    .single();
+  let taskId: string;
+  try {
+    const rows = await db
+      .insert(tenantTasks)
+      .values({
+        orgId: ctx.orgId,
+        tenantId: parsed.data.tenant_id,
+        createdBy: ctx.userId,
+        taskType: parsed.data.task_type,
+        title: parsed.data.title,
+        description: parsed.data.description ?? null,
+        dueAt: new Date(parsed.data.due_at),
+        status: 'pending',
+      })
+      .returning({ id: tenantTasks.id });
 
-  if (error || !task) {
-    log.error('[createTenantTask] db error', { code: error?.code });
+    if (!rows[0]) throw new Error('No row returned');
+    taskId = rows[0].id;
+  } catch (e) {
+    log.error('[createTenantTask] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
-  log.adminAction(ctx.userId, 'create_task', 'tenant_task', task.id);
+  log.adminAction(ctx.userId, 'create_task', 'tenant_task', taskId);
   revalidatePath('/dashboard/tasks');
   revalidatePath(`/dashboard/tenants/${parsed.data.tenant_id}`);
   return ok(undefined);
@@ -74,16 +76,14 @@ export async function updateTenantTask(
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
   const { id, ...updates } = parsed.data;
-  const supabase = await createClient();
 
-  const { error } = await supabase
-    .from('tenant_tasks')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[updateTenantTask] db error', { code: error.code });
+  try {
+    await db
+      .update(tenantTasks)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(tenantTasks.id, id), eq(tenantTasks.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[updateTenantTask] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -105,16 +105,13 @@ export async function cancelTenantTask(
   const parsed = CancelTenantTaskSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from('tenant_tasks')
-    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-    .eq('id', parsed.data.id)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[cancelTenantTask] db error', { code: error.code });
+  try {
+    await db
+      .update(tenantTasks)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(and(eq(tenantTasks.id, parsed.data.id), eq(tenantTasks.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[cancelTenantTask] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -141,20 +138,21 @@ export async function verifyTaskProofAdminOverride(
     return Errors.VALIDATION_ERROR({ formErrors: ['proof_id, task_id, decision required'], fieldErrors: {} });
   }
 
-  const supabase = await createClient();
+  try {
+    await db
+      .update(taskProofs)
+      .set({ adminDecision: decision })
+      .where(and(eq(taskProofs.id, proofId), eq(taskProofs.orgId, ctx.orgId)));
 
-  await supabase
-    .from('task_proofs')
-    .update({ admin_decision: decision })
-    .eq('id', proofId)
-    .eq('org_id', ctx.orgId);
-
-  if (decision === 'accepted') {
-    await supabase
-      .from('tenant_tasks')
-      .update({ status: 'completed', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', taskId)
-      .eq('org_id', ctx.orgId);
+    if (decision === 'accepted') {
+      await db
+        .update(tenantTasks)
+        .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(tenantTasks.id, taskId), eq(tenantTasks.orgId, ctx.orgId)));
+    }
+  } catch (e) {
+    log.error('[verifyTaskProofAdminOverride] db error', { code: e instanceof Error ? e.message : String(e) });
+    return Errors.INTERNAL();
   }
 
   log.adminAction(ctx.userId, `task_proof_${decision}`, 'task_proof', proofId);

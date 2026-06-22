@@ -2,7 +2,10 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { contracts, tenants } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { getSignedUrl } from '@/lib/storage/index';
 import { requireUser } from '@/lib/auth/guards';
 import { Errors } from '@/lib/errors';
 
@@ -19,46 +22,42 @@ export async function GET(
     return NextResponse.json(Errors.UNAUTHORIZED(), { status: 401 });
   }
 
-  const supabase = await createClient();
+  // Load the contract — must belong to this org (AC8: orgId isolation) — Drizzle (AC1)
+  const contractRows = await db
+    .select({ id: contracts.id, orgId: contracts.orgId, documentUrl: contracts.documentUrl, tenantId: contracts.tenantId })
+    .from(contracts)
+    .where(and(eq(contracts.id, id), eq(contracts.orgId, ctx.orgId)))
+    .limit(1);
 
-  // Load the contract — must belong to this org
-  const { data: contract } = await supabase
-    .from('contracts')
-    .select('id, org_id, document_url, tenant_id')
-    .eq('id', id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const contract = contractRows[0];
 
   // IDOR: always 404, never 403 (no resource enumeration)
   if (!contract) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  if (!contract.document_url) {
+  if (!contract.documentUrl) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  // Tenant: must be the contract's own tenant
+  // Tenant: must be the contract's own tenant — Drizzle (AC1)
   if (ctx.role === 'tenant') {
-    const { data: tenantRow } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('profile_id', ctx.userId)
-      .eq('id', contract.tenant_id)
-      .single();
+    const tenantRows = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.id, contract.tenantId)))
+      .limit(1);
 
-    if (!tenantRow) {
+    if (!tenantRows[0]) {
       return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
     }
   }
 
-  const { data: urlData, error } = await supabase.storage
-    .from('contracts')
-    .createSignedUrl(contract.document_url, SIGNED_URL_TTL_SECONDS);
-
-  if (error || !urlData?.signedUrl) {
+  // Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
+  try {
+    const url = await getSignedUrl('contracts', contract.documentUrl, SIGNED_URL_TTL_SECONDS);
+    return NextResponse.json({ url });
+  } catch {
     return NextResponse.json(Errors.INTERNAL(), { status: 500 });
   }
-
-  return NextResponse.json({ url: urlData.signedUrl });
 }

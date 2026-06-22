@@ -8,17 +8,22 @@
  *   total collected amount (approved payments). If the gap exceeds 15% of the
  *   billed total AND the absolute gap > 0, flag it as a LeakFinding.
  *
- * The function is PURE from the caller's perspective: it accepts a Supabase
- * client (RLS-scoped) and returns a typed array. No LLM, no side effects.
+ * The function is PURE from the caller's perspective: returns a typed array.
+ * No LLM, no side effects.
  *
  * Threshold: (billed - collected) / billed > 0.15
  *
  * Used by:
+ *   - src/app/actions/executive-brief.ts via runHiddenLeakDetector()
  *   - src/app/dashboard/executive-brief/page.tsx via AgentCard "Hidden Leak Detector"
  *   - tests/unit/finance/leak-detector.test.ts (AC14 unit tests)
+ *
+ * Migrated from Supabase client to Drizzle ORM (W6).
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { db } from '@/lib/db';
+import { units, charges, payments, contracts, tenants } from '@/lib/db/schema';
+import { eq, and, gte, lt, inArray } from 'drizzle-orm';
 
 /** Severity thresholds for gap size */
 const SEVERITY_HIGH_THRESHOLD = 0.35;   // >35% gap → high
@@ -27,17 +32,11 @@ const SEVERITY_MEDIUM_THRESHOLD = 0.15; // >15% gap → medium
 export type LeakSeverity = 'medium' | 'high';
 
 export interface LeakFinding {
-  /** Supabase unit id */
   unitId: string;
-  /** Human-readable unit label (e.g. "Room 3A") */
   unitLabel: string;
-  /** Total billed across all charges for this unit in the period */
   billedTotal: number;
-  /** Total collected via approved payments for this unit in the period */
   collectedTotal: number;
-  /** Absolute gap: billedTotal - collectedTotal */
   amount: number;
-  /** Gap ratio: amount / billedTotal (0–1) */
   gapRatio: number;
   severity: LeakSeverity;
   description: string;
@@ -50,152 +49,124 @@ export interface DetectLeaksOptions {
   periodEnd?: string;
 }
 
-/**
- * Returns the ISO date of the first day of the current month.
- */
 function currentMonthStart(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-/**
- * Returns the ISO date of the first day of the next month.
- */
 function nextMonthStart(): string {
   const now = new Date();
-  const month = now.getMonth(); // 0-indexed
+  const month = now.getMonth();
   const year = now.getFullYear();
-  if (month === 11) {
-    return `${year + 1}-01-01`;
-  }
+  if (month === 11) return `${year + 1}-01-01`;
   return `${year}-${String(month + 2).padStart(2, '0')}-01`;
 }
 
 /**
  * Detect units where the gap between billed and collected exceeds 15%.
+ * orgId is required for AC8 isolation — every query includes eq(table.orgId, orgId).
  *
- * @param supabase RLS-scoped Supabase client (user-scoped, not service-role).
- *                 The caller is responsible for ensuring the client is scoped
- *                 to the correct org via RLS policies.
- * @param options  Optional date range. Defaults to current month.
- * @returns        Array of LeakFinding (may be empty if no leaks found).
+ * @param orgId   Organization UUID — required for org isolation.
+ * @param options Optional date range. Defaults to current month.
+ * @returns       Array of LeakFinding (may be empty if no leaks found).
  */
 export async function detectHiddenLeaks(
-  supabase: SupabaseClient,
+  orgId: string,
   options: DetectLeaksOptions = {}
 ): Promise<LeakFinding[]> {
   const periodStart = options.periodStart ?? currentMonthStart();
   const periodEnd = options.periodEnd ?? nextMonthStart();
 
-  // Fetch all units with their label (RLS-scoped to the current org)
-  const { data: units, error: unitsError } = await supabase
-    .from('units')
-    .select('id, label');
+  // Fetch all units for org
+  const unitRows = await db
+    .select({ id: units.id, label: units.label })
+    .from(units)
+    .where(eq(units.orgId, orgId));
 
-  if (unitsError || !units) {
-    // Return empty on error — caller can decide to surface it
-    return [];
-  }
+  if (unitRows.length === 0) return [];
 
-  if (units.length === 0) {
-    return [];
-  }
+  const unitIds = unitRows.map((u) => u.id);
 
-  const unitIds = units.map((u: { id: string }) => u.id);
+  // Fetch tenant IDs by unit
+  const tenantRows = await db
+    .select({ id: tenants.id, unitId: tenants.unitId })
+    .from(tenants)
+    .where(and(eq(tenants.orgId, orgId), inArray(tenants.unitId, unitIds)));
 
-  // Fetch charges (billed) for these units within the period
-  const { data: charges, error: chargesError } = await supabase
-    .from('charges')
-    .select('id, tenant_id, amount')
-    .in('tenant_id', await getTenantIdsByUnitIds(supabase, unitIds))
-    .gte('due_date', periodStart)
-    .lt('due_date', periodEnd);
+  const tenantIds = tenantRows.map((t) => t.id);
+  if (tenantIds.length === 0) return [];
 
-  if (chargesError) {
-    return [];
-  }
+  // Fetch charges (billed) within period
+  const chargeRows = await db
+    .select({ tenantId: charges.tenantId, amount: charges.amount })
+    .from(charges)
+    .where(and(
+      eq(charges.orgId, orgId),
+      inArray(charges.tenantId, tenantIds),
+      gte(charges.dueDate, periodStart),
+      lt(charges.dueDate, periodEnd),
+    ));
 
-  // Fetch approved payments for these units within the period
-  const { data: payments, error: paymentsError } = await supabase
-    .from('payments')
-    .select('id, contract_id, amount, paid_at')
-    .eq('status', 'approved')
-    .gte('paid_at', periodStart)
-    .lt('paid_at', periodEnd);
-
-  if (paymentsError) {
-    return [];
-  }
+  // Fetch approved payments within period via contracts
+  const paymentRows = await db
+    .select({ contractId: payments.contractId, amount: payments.amount })
+    .from(payments)
+    .where(and(
+      eq(payments.orgId, orgId),
+      eq(payments.status, 'approved'),
+      gte(payments.paidAt, periodStart),
+      lt(payments.paidAt, periodEnd),
+    ));
 
   // Map contract_id → unit_id via contracts table
-  const contractIds = [...new Set((payments ?? []).map((p: { contract_id: string }) => p.contract_id))];
-  const contractUnitMap: Map<string, string> = new Map();
-
+  const contractIds = [...new Set(paymentRows.map((p) => p.contractId).filter(Boolean) as string[])];
+  const contractUnitMap = new Map<string, string>();
   if (contractIds.length > 0) {
-    const { data: contracts } = await supabase
-      .from('contracts')
-      .select('id, unit_id')
-      .in('id', contractIds);
-
-    if (contracts) {
-      for (const c of contracts as Array<{ id: string; unit_id: string }>) {
-        contractUnitMap.set(c.id, c.unit_id);
-      }
+    const contractRows = await db
+      .select({ id: contracts.id, unitId: contracts.unitId })
+      .from(contracts)
+      .where(and(eq(contracts.orgId, orgId), inArray(contracts.id, contractIds)));
+    for (const c of contractRows) {
+      contractUnitMap.set(c.id, c.unitId);
     }
   }
 
-  // Map tenant_id → unit_id via tenants table (for charges)
-  const tenantIds = [...new Set((charges ?? []).map((c: { tenant_id: string }) => c.tenant_id).filter(Boolean))];
-  const tenantUnitMap: Map<string, string> = new Map();
-
-  if (tenantIds.length > 0) {
-    const { data: tenants } = await supabase
-      .from('tenants')
-      .select('id, unit_id')
-      .in('id', tenantIds);
-
-    if (tenants) {
-      for (const t of tenants as Array<{ id: string; unit_id: string | null }>) {
-        if (t.unit_id) tenantUnitMap.set(t.id, t.unit_id);
-      }
-    }
+  // Map tenant_id → unit_id
+  const tenantUnitMap = new Map<string, string>();
+  for (const t of tenantRows) {
+    if (t.unitId) tenantUnitMap.set(t.id, t.unitId);
   }
 
   // Aggregate billed and collected per unit
   const billedByUnit = new Map<string, number>();
   const collectedByUnit = new Map<string, number>();
-
-  // Initialize all units to 0
-  for (const unit of units as Array<{ id: string }>) {
-    billedByUnit.set(unit.id, 0);
-    collectedByUnit.set(unit.id, 0);
+  for (const u of unitRows) {
+    billedByUnit.set(u.id, 0);
+    collectedByUnit.set(u.id, 0);
   }
 
-  // Accumulate charges (billed)
-  for (const charge of (charges ?? []) as Array<{ tenant_id: string; amount: number }>) {
-    const unitId = tenantUnitMap.get(charge.tenant_id);
+  for (const c of chargeRows) {
+    const unitId = tenantUnitMap.get(c.tenantId);
     if (unitId) {
-      billedByUnit.set(unitId, (billedByUnit.get(unitId) ?? 0) + (charge.amount ?? 0));
+      billedByUnit.set(unitId, (billedByUnit.get(unitId) ?? 0) + Number(c.amount ?? 0));
     }
   }
 
-  // Accumulate approved payments (collected)
-  for (const payment of (payments ?? []) as Array<{ contract_id: string; amount: number }>) {
-    const unitId = contractUnitMap.get(payment.contract_id);
+  for (const p of paymentRows) {
+    if (!p.contractId) continue;
+    const unitId = contractUnitMap.get(p.contractId);
     if (unitId) {
-      collectedByUnit.set(unitId, (collectedByUnit.get(unitId) ?? 0) + (payment.amount ?? 0));
+      collectedByUnit.set(unitId, (collectedByUnit.get(unitId) ?? 0) + Number(p.amount ?? 0));
     }
   }
 
-  // Find leaks: (billed - collected) / billed > 15% AND amount > 0
   const findings: LeakFinding[] = [];
 
-  for (const unit of units as Array<{ id: string; label: string }>) {
+  for (const unit of unitRows) {
     const billed = billedByUnit.get(unit.id) ?? 0;
     const collected = collectedByUnit.get(unit.id) ?? 0;
     const gap = billed - collected;
 
-    // Only flag if billed > 0 and gap > 0 and ratio > LEAK_THRESHOLD
     if (billed <= 0 || gap <= 0) continue;
 
     const gapRatio = gap / billed;
@@ -203,26 +174,22 @@ export async function detectHiddenLeaks(
     if (gapRatio <= SEVERITY_MEDIUM_THRESHOLD) continue;
 
     const severity: LeakSeverity = gapRatio > SEVERITY_HIGH_THRESHOLD ? 'high' : 'medium';
+    const label = unit.label ?? unit.id;
 
     findings.push({
       unitId: unit.id,
-      unitLabel: unit.label ?? unit.id,
+      unitLabel: label,
       billedTotal: round2(billed),
       collectedTotal: round2(collected),
       amount: round2(gap),
       gapRatio: Math.round(gapRatio * 1000) / 1000,
       severity,
-      description: buildDescription(unit.label ?? unit.id, billed, collected, gap, gapRatio),
+      description: buildDescription(label, billed, collected, gap, gapRatio),
     });
   }
 
-  // Sort by gap ratio descending (worst leaks first)
   return findings.sort((a, b) => b.gapRatio - a.gapRatio);
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -237,20 +204,4 @@ function buildDescription(
 ): string {
   const pct = Math.round(gapRatio * 100);
   return `${unitLabel}: facturado $${billed.toFixed(2)}, cobrado $${collected.toFixed(2)}, diferencia $${gap.toFixed(2)} (${pct}%)`;
-}
-
-/**
- * Helper: get tenant IDs for a set of unit IDs.
- * Returns an empty array if no tenants found (avoids empty IN clause).
- */
-async function getTenantIdsByUnitIds(
-  supabase: SupabaseClient,
-  unitIds: string[]
-): Promise<string[]> {
-  if (unitIds.length === 0) return [];
-  const { data } = await supabase
-    .from('tenants')
-    .select('id')
-    .in('unit_id', unitIds);
-  return (data ?? []).map((t: { id: string }) => t.id);
 }

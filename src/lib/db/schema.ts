@@ -1092,6 +1092,142 @@ export const sanctions = pgTable('sanctions', {
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Domain table 48: charge_concepts (Conceptos — lookup for additional charge types)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const chargeConcepts = pgTable('charge_concepts', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableId:         text('airtable_id'),
+  airtableSyncedAt:   timestamp('airtable_synced_at', { withTimezone: true }),
+  code:               text('code'),
+  description:        text('description').notNull(),
+  tipo:               text('tipo'),
+  baseAmount:         numeric('base_amount', { precision: 12, scale: 2 }),
+  notes:              text('notes'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_charge_concepts_org').on(t.orgId),
+  airtableUniq: uniqueIndex('uq_charge_concepts_airtable').on(t.orgId, t.airtableId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 49: additional_charges (Adicionales — extra charges per contract/month)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const additionalCharges = pgTable('additional_charges', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  orgId:            uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableId:       text('airtable_id'),
+  airtableSyncedAt: timestamp('airtable_synced_at', { withTimezone: true }),
+  contractId:       uuid('contract_id').references(() => contracts.id, { onDelete: 'set null' }),
+  conceptId:        uuid('concept_id').references(() => chargeConcepts.id, { onDelete: 'set null' }),
+  mes:              text('mes'),
+  anio:             integer('anio'),
+  amount:           numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  description:      text('description'),
+  numero:           integer('numero'),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_additional_charges_org').on(t.orgId),
+  contractIdx:  index('idx_additional_charges_contract').on(t.contractId),
+  airtableUniq: uniqueIndex('uq_additional_charges_airtable').on(t.orgId, t.airtableId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 50: account_statements (EECC — monthly billing statements)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const accountStatements = pgTable('account_statements', {
+  id:                    uuid('id').primaryKey().defaultRandom(),
+  orgId:                 uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableId:            text('airtable_id'),
+  airtableSyncedAt:      timestamp('airtable_synced_at', { withTimezone: true }),
+  contractId:            uuid('contract_id').references(() => contracts.id, { onDelete: 'set null' }),
+  eeccCode:              text('eecc_code'),
+  mes:                   text('mes'),
+  anio:                  integer('anio'),
+  issueDate:             date('issue_date'),
+  dueDate:               date('due_date'),
+  rentAmount:            numeric('rent_amount', { precision: 12, scale: 2 }),
+  additionalSubtotal:    numeric('additional_subtotal', { precision: 12, scale: 2 }),
+  previousRentBalance:   numeric('previous_rent_balance', { precision: 12, scale: 2 }),
+  previousAddlBalance:   numeric('previous_addl_balance', { precision: 12, scale: 2 }),
+  totalDue:              numeric('total_due', { precision: 12, scale: 2 }),
+  sendStatus:            text('send_status'),
+  sendDate:              date('send_date'),
+  pdfUrl:                text('pdf_url'),
+  whatsappMessageId:     text('whatsapp_message_id'),
+  sendError:             text('send_error'),
+  createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_account_statements_org').on(t.orgId),
+  contractIdx:  index('idx_account_statements_contract').on(t.contractId),
+  dateIdx:      index('idx_account_statements_date').on(t.orgId, t.anio, t.mes),
+  airtableUniq: uniqueIndex('uq_account_statements_airtable').on(t.orgId, t.airtableId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 51: tax_receipts (Impuestos / Comprobantes — invoices per contract)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const taxReceipts = pgTable('tax_receipts', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  orgId:            uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableId:       text('airtable_id'),
+  airtableSyncedAt: timestamp('airtable_synced_at', { withTimezone: true }),
+  contractId:       uuid('contract_id').references(() => contracts.id, { onDelete: 'set null' }),
+  receiptCode:      text('receipt_code'),
+  tipo:             text('tipo'),
+  numero:           text('numero'),
+  mes:              text('mes'),
+  anio:             integer('anio'),
+  issueDate:        date('issue_date'),
+  baseAmount:       numeric('base_amount', { precision: 12, scale: 2 }),
+  includesIgv:      boolean('includes_igv').default(false),
+  igvAmount:        numeric('igv_amount', { precision: 12, scale: 2 }),
+  totalAmount:      numeric('total_amount', { precision: 12, scale: 2 }),
+  status:           text('status'),
+  fileUrl:          text('file_url'),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_tax_receipts_org').on(t.orgId),
+  contractIdx:  index('idx_tax_receipts_contract').on(t.contractId),
+  airtableUniq: uniqueIndex('uq_tax_receipts_airtable').on(t.orgId, t.airtableId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 52: tenant_feedback (Feedback — satisfaction surveys per tenant)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const tenantFeedback = pgTable('tenant_feedback', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  orgId:            uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableId:       text('airtable_id'),
+  airtableSyncedAt: timestamp('airtable_synced_at', { withTimezone: true }),
+  tenantId:         uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  fecha:            date('fecha'),
+  cleaningScore:    integer('cleaning_score'),
+  coexistenceScore: integer('coexistence_score'),
+  attentionScore:   integer('attention_score'),
+  securityScore:    integer('security_score'),
+  valueScore:       integer('value_score'),
+  wouldRecommend:   boolean('would_recommend'),
+  comment:          text('comment'),
+  worstExperience:  text('worst_experience'),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_tenant_feedback_org').on(t.orgId),
+  tenantIdx:    index('idx_tenant_feedback_tenant').on(t.tenantId),
+  airtableUniq: uniqueIndex('uq_tenant_feedback_airtable').on(t.orgId, t.airtableId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Relations (used by Drizzle query builder — optional but enables join inference)
 // ─────────────────────────────────────────────────────────────────────────────
 

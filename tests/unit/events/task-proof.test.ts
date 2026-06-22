@@ -2,16 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Hoist mocks before module resolution ─────────────────────────────────────
 
-const { mockMessagesCreate, mockAdminClient } = vi.hoisted(() => {
-  const mockAdminClient = {
-    storage: { from: vi.fn() },
-    from: vi.fn(),
-  };
-  return { mockMessagesCreate: vi.fn(), mockAdminClient };
-});
+const { mockMessagesCreate, mockGetSignedUrl, mockFetch } = vi.hoisted(() => ({
+  mockMessagesCreate: vi.fn(),
+  mockGetSignedUrl:   vi.fn(),
+  mockFetch:          vi.fn(),
+}));
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn().mockReturnValue(mockAdminClient),
+// ── Mock @/lib/storage ────────────────────────────────────────────────────────
+vi.mock('@/lib/storage', () => ({
+  getSignedUrl: mockGetSignedUrl,
+  uploadFile:   vi.fn(),
+  deleteImage:  vi.fn(),
 }));
 
 // ── Mock @anthropic-ai/sdk ────────────────────────────────────────────────────
@@ -24,14 +25,68 @@ vi.mock('@anthropic-ai/sdk', () => {
 });
 
 // ── Mock @/lib/env ────────────────────────────────────────────────────────────
-
 vi.mock('@/lib/env', () => ({
   assertServerEnv: vi.fn().mockReturnValue('test-api-key'),
 }));
 
-// ── Mock global fetch ─────────────────────────────────────────────────────────
+// ── Mock @/lib/db — Drizzle ───────────────────────────────────────────────────
 
-const mockFetch = vi.fn();
+// Per-table select results
+const selectResults: Record<string, unknown[]> = {};
+// Capture update calls: updateCalls[table] = [{ set, where }]
+const updateCalls: Record<string, Array<Record<string, unknown>>> = {};
+// Capture insert calls
+const insertCalls: Array<{ table: string; values: unknown }> = [];
+
+vi.mock('@/lib/db', () => {
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return 'unknown';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find((s) => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : 'unknown';
+  }
+
+  return {
+    db: {
+      select: vi.fn(() => {
+        let tableName = 'unknown';
+        const chain = {
+          from: vi.fn((tableRef: unknown) => {
+            tableName = getTableName(tableRef);
+            return chain;
+          }),
+          where: vi.fn().mockReturnThis(),
+          limit: vi.fn(async () => selectResults[tableName] ?? []),
+        };
+        return chain;
+      }),
+
+      update: (tableRef: unknown) => {
+        const tableName = getTableName(tableRef);
+        return {
+          set: vi.fn((vals: Record<string, unknown>) => {
+            updateCalls[tableName] = updateCalls[tableName] ?? [];
+            updateCalls[tableName].push(vals);
+            return {
+              where: vi.fn(async () => []),
+            };
+          }),
+        };
+      },
+
+      insert: (tableRef: unknown) => {
+        const tableName = getTableName(tableRef);
+        return {
+          values: vi.fn((vals: unknown) => {
+            insertCalls.push({ table: tableName, values: vals });
+            return Promise.resolve([]);
+          }),
+        };
+      },
+    },
+  };
+});
+
 vi.stubGlobal('fetch', mockFetch);
 
 import { handleTaskProof } from '@/lib/events/handlers/task-proof';
@@ -40,7 +95,7 @@ import type { TaskProofReceivedPayload } from '@/lib/events/types';
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const BASE_PAYLOAD: TaskProofReceivedPayload = {
-  orgId: 'org-1',
+  orgId:  'org-1',
   taskId: 'task-1',
   proofId: 'proof-1',
   tenantId: 'tenant-1',
@@ -49,73 +104,34 @@ const BASE_PAYLOAD: TaskProofReceivedPayload = {
 function makeFetchOkResponse() {
   const bytes = new Uint8Array([1, 2, 3]);
   return {
-    ok: true,
-    status: 200,
+    ok:          true,
+    status:      200,
     arrayBuffer: vi.fn().mockResolvedValue(bytes.buffer),
-    headers: { get: vi.fn().mockReturnValue('image/jpeg') },
+    headers:     { get: vi.fn().mockReturnValue('image/jpeg') },
   };
 }
 
 function makeClaudeResponse(text: string) {
-  return {
-    content: [{ type: 'text', text }],
-  };
+  return { content: [{ type: 'text', text }] };
 }
 
-function makeChainableBuilder(finalResult: unknown = { data: null, error: null }) {
-  const b: Record<string, unknown> = {};
-  const chainMethods = ['select', 'eq', 'update', 'order', 'limit'];
-  for (const m of chainMethods) {
-    b[m] = vi.fn().mockReturnValue(b);
-  }
-  b.single = vi.fn().mockResolvedValue(finalResult);
-  b.insert = vi.fn().mockResolvedValue(finalResult);
-  return b;
-}
-
-function setupDefaultAdminClient() {
-  const proofData = { id: 'proof-1', image_path: 'orgs/org-1/proofs/img.jpg' };
-  const taskData = { id: 'task-1', task_type: 'maintenance', title: 'Fix roof' };
-
-  mockAdminClient.storage.from = vi.fn().mockReturnValue({
-    createSignedUrl: vi.fn().mockResolvedValue({
-      data: { signedUrl: 'https://storage.example.com/proof.jpg' },
-    }),
-  });
-
-  mockFetch.mockResolvedValue(makeFetchOkResponse());
-
-  mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-    if (table === 'task_proofs') {
-      const b = makeChainableBuilder({ data: proofData, error: null });
-      b.update = vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-      });
-      return b;
-    }
-    if (table === 'tenant_tasks') {
-      const b = makeChainableBuilder({ data: taskData, error: null });
-      b.update = vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-      });
-      return b;
-    }
-    if (table === 'profiles') {
-      const b = makeChainableBuilder({ data: { id: 'admin-1' }, error: null });
-      b.limit = vi.fn().mockReturnValue(b);
-      b.single = vi.fn().mockResolvedValue({ data: { id: 'admin-1' }, error: null });
-      return b;
-    }
-    if (table === 'notification_inbox') {
-      return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-    }
-    return makeChainableBuilder({ data: null, error: null });
-  });
+function setupDefaultData(opts: { proof?: unknown; task?: unknown } = {}) {
+  selectResults['task_proofs']  = opts.proof ? [opts.proof] : [{ id: 'proof-1', imagePath: 'orgs/org-1/proofs/img.jpg' }];
+  selectResults['tenant_tasks'] = opts.task  ? [opts.task]  : [{ id: 'task-1', taskType: 'maintenance', title: 'Fix roof' }];
+  selectResults['profiles']     = [{ id: 'admin-1' }];
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  setupDefaultAdminClient();
+  for (const k of Object.keys(selectResults))  delete selectResults[k];
+  for (const k of Object.keys(updateCalls))    delete updateCalls[k];
+  insertCalls.length = 0;
+
+  mockGetSignedUrl.mockResolvedValue('https://storage.example.com/proof.jpg');
+  mockFetch.mockResolvedValue(makeFetchOkResponse());
+  mockMessagesCreate.mockResolvedValue(makeClaudeResponse('{"valid":true,"confidence":0.90,"reasoning":"OK"}'));
+
+  setupDefaultData();
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -124,63 +140,28 @@ describe('handleTaskProof', () => {
   // ── Missing data guard ─────────────────────────────────────────────────────
 
   it('returns early when proof row not found', async () => {
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        return makeChainableBuilder({ data: null, error: null });
-      }
-      if (table === 'tenant_tasks') {
-        return makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
+    selectResults['task_proofs'] = [];  // no proof
 
     await handleTaskProof(BASE_PAYLOAD);
-    // Storage should not be called since proof was not found
-    expect(mockAdminClient.storage.from).not.toHaveBeenCalled();
+    expect(mockGetSignedUrl).not.toHaveBeenCalled();
   });
 
   it('returns early when task row not found', async () => {
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        return makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-      }
-      if (table === 'tenant_tasks') {
-        return makeChainableBuilder({ data: null, error: null });
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
+    selectResults['tenant_tasks'] = [];  // no task
 
     await handleTaskProof(BASE_PAYLOAD);
-    expect(mockAdminClient.storage.from).not.toHaveBeenCalled();
+    expect(mockGetSignedUrl).not.toHaveBeenCalled();
   });
 
   // ── Signed URL failure ─────────────────────────────────────────────────────
 
   it('marks proof as uncertain when signed URL cannot be obtained', async () => {
-    mockAdminClient.storage.from = vi.fn().mockReturnValue({
-      createSignedUrl: vi.fn().mockResolvedValue({ data: null }),
-    });
-
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        return makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
+    mockGetSignedUrl.mockRejectedValue(new Error('Storage error'));
 
     await handleTaskProof(BASE_PAYLOAD);
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'uncertain', admin_decision: null })
-    );
+
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'uncertain')).toBe(true);
   });
 
   // ── Image fetch failure ────────────────────────────────────────────────────
@@ -188,31 +169,10 @@ describe('handleTaskProof', () => {
   it('marks proof as uncertain when image fetch fails', async () => {
     mockFetch.mockRejectedValue(new Error('Network error'));
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-    const updateTaskMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        const b = makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-        b.update = updateTaskMock;
-        return b;
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'uncertain' })
-    );
+
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'uncertain')).toBe(true);
   });
 
   // ── AI verdict: accepted (valid + confidence >= 0.80) ─────────────────────
@@ -222,84 +182,29 @@ describe('handleTaskProof', () => {
       makeClaudeResponse('{"valid":true,"confidence":0.90,"reasoning":"Photo clearly shows completed task"}')
     );
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-    const updateTaskMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        const b = makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-        b.update = updateTaskMock;
-        return b;
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
 
-    // task_proofs updated with valid verdict + accepted decision
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'valid', admin_decision: 'accepted' })
-    );
-    // tenant_tasks updated to completed
-    expect(updateTaskMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'completed' })
-    );
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'valid' && u['adminDecision'] === 'accepted')).toBe(true);
+
+    const taskUpdates = updateCalls['tenant_tasks'] ?? [];
+    expect(taskUpdates.some(u => u['status'] === 'completed')).toBe(true);
   });
 
-  // ── AI verdict: rejected (valid=false or confidence < 0.80) ───────────────
+  // ── AI verdict: rejected ───────────────────────────────────────────────────
 
   it('routes to proof_pending_review when AI verdict is invalid', async () => {
     mockMessagesCreate.mockResolvedValue(
       makeClaudeResponse('{"valid":false,"confidence":0.85,"reasoning":"Photo does not show task completion"}')
     );
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-    const updateTaskMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        const b = makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-        b.update = updateTaskMock;
-        return b;
-      }
-      if (table === 'profiles') {
-        const b = makeChainableBuilder({ data: { id: 'admin-1' }, error: null });
-        b.limit = vi.fn().mockReturnValue(b);
-        b.single = vi.fn().mockResolvedValue({ data: { id: 'admin-1' }, error: null });
-        return b;
-      }
-      if (table === 'notification_inbox') {
-        return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
 
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'invalid', admin_decision: null })
-    );
-    expect(updateTaskMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'proof_pending_review' })
-    );
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'invalid' && u['adminDecision'] === null)).toBe(true);
+
+    const taskUpdates = updateCalls['tenant_tasks'] ?? [];
+    expect(taskUpdates.some(u => u['status'] === 'proof_pending_review')).toBe(true);
   });
 
   it('routes to proof_pending_review when valid=true but confidence < 0.80', async () => {
@@ -307,41 +212,10 @@ describe('handleTaskProof', () => {
       makeClaudeResponse('{"valid":true,"confidence":0.65,"reasoning":"Unclear photo"}')
     );
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-    const updateTaskMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        const b = makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-        b.update = updateTaskMock;
-        return b;
-      }
-      if (table === 'profiles') {
-        const b = makeChainableBuilder({ data: null, error: null });
-        b.limit = vi.fn().mockReturnValue(b);
-        b.single = vi.fn().mockResolvedValue({ data: null, error: null });
-        return b;
-      }
-      if (table === 'notification_inbox') {
-        return { insert: vi.fn().mockResolvedValue({ data: null, error: null }) };
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
 
-    expect(updateTaskMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'proof_pending_review' })
-    );
+    const taskUpdates = updateCalls['tenant_tasks'] ?? [];
+    expect(taskUpdates.some(u => u['status'] === 'proof_pending_review')).toBe(true);
   });
 
   // ── JSON parse error ───────────────────────────────────────────────────────
@@ -351,26 +225,10 @@ describe('handleTaskProof', () => {
       makeClaudeResponse('I cannot verify this photo.')
     );
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        return makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'uncertain' })
-    );
+
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'uncertain')).toBe(true);
   });
 
   // ── Schema validation error ────────────────────────────────────────────────
@@ -380,26 +238,10 @@ describe('handleTaskProof', () => {
       makeClaudeResponse('{"result":"yes"}')
     );
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        return makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'uncertain' })
-    );
+
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'uncertain')).toBe(true);
   });
 
   // ── Claude SDK error ───────────────────────────────────────────────────────
@@ -407,67 +249,22 @@ describe('handleTaskProof', () => {
   it('marks proof as uncertain and task as proof_pending_review when Claude SDK throws', async () => {
     mockMessagesCreate.mockRejectedValue(new Error('API rate limit'));
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-    const updateTaskMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        const b = makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-        b.update = updateTaskMock;
-        return b;
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
 
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'uncertain' })
-    );
-    expect(updateTaskMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'proof_pending_review' })
-    );
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'uncertain')).toBe(true);
+
+    const taskUpdates = updateCalls['tenant_tasks'] ?? [];
+    expect(taskUpdates.some(u => u['status'] === 'proof_pending_review')).toBe(true);
   });
 
   // ── Source matching ────────────────────────────────────────────────────────
 
   it('uses task_type and title in the Claude message content', async () => {
+    selectResults['tenant_tasks'] = [{ id: 'task-1', taskType: 'inspection', title: 'Monthly smoke detector check' }];
     mockMessagesCreate.mockResolvedValue(
       makeClaudeResponse('{"valid":true,"confidence":0.92,"reasoning":"OK"}')
     );
-
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-    const updateTaskMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        const b = makeChainableBuilder({
-          data: { id: 'task-1', task_type: 'inspection', title: 'Monthly smoke detector check' },
-          error: null,
-        });
-        b.update = updateTaskMock;
-        return b;
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
 
     await handleTaskProof(BASE_PAYLOAD);
 
@@ -484,31 +281,10 @@ describe('handleTaskProof', () => {
       makeClaudeResponse('```json\n{"valid":true,"confidence":0.85,"reasoning":"Done"}\n```')
     );
 
-    const updateTaskProofMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-    const updateTaskMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-    });
-
-    mockAdminClient.from = vi.fn().mockImplementation((table: string) => {
-      if (table === 'task_proofs') {
-        const b = makeChainableBuilder({ data: { id: 'proof-1', image_path: 'img.jpg' }, error: null });
-        b.update = updateTaskProofMock;
-        return b;
-      }
-      if (table === 'tenant_tasks') {
-        const b = makeChainableBuilder({ data: { id: 'task-1', task_type: 'maintenance', title: 'Fix' }, error: null });
-        b.update = updateTaskMock;
-        return b;
-      }
-      return makeChainableBuilder({ data: null, error: null });
-    });
-
     await handleTaskProof(BASE_PAYLOAD);
+
     // valid=true, confidence=0.85 >= 0.80 → should be accepted
-    expect(updateTaskProofMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ai_verdict: 'valid', admin_decision: 'accepted' })
-    );
+    const proofUpdates = updateCalls['task_proofs'] ?? [];
+    expect(proofUpdates.some(u => u['aiVerdict'] === 'valid' && u['adminDecision'] === 'accepted')).toBe(true);
   });
 });

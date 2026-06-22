@@ -4,11 +4,10 @@
  * evaluation from throwing when env vars are absent from the build container.
  *
  * NEXT_PUBLIC_* vars: available in the browser bundle AND on the server at request time.
- *   They ARE present in the Vercel build container (injected at compile time), but if this
- *   module is imported during next build's static page-data collection (before the runtime
- *   context is set up) the eager z.parse() would throw. Lazy getters sidestep that entirely.
+ *   They are injected at compile time (Fly build args or local .env). Lazy getters prevent
+ *   build-time throws when static-analysis runs before the runtime context is set up.
  *
- * Server-only vars (ANTHROPIC_API_KEY, RESEND_*, CRON_SECRET, SUPABASE_SERVICE_ROLE_KEY):
+ * Server-only vars (ANTHROPIC_API_KEY, RESEND_*, CRON_SECRET):
  *   Only available at request time — NEVER in the build container. Always lazy.
  */
 
@@ -28,8 +27,6 @@ function optional(name: string, fallback = ''): string {
 // they must still be set in Vercel project settings under "Build & Development".
 // ---------------------------------------------------------------------------
 export const env = {
-  get NEXT_PUBLIC_SUPABASE_URL() { return required('NEXT_PUBLIC_SUPABASE_URL'); },
-  get NEXT_PUBLIC_SUPABASE_ANON_KEY() { return required('NEXT_PUBLIC_SUPABASE_ANON_KEY'); },
   get NEXT_PUBLIC_SITE_URL() { return optional('NEXT_PUBLIC_SITE_URL', 'http://localhost:3000'); },
 };
 
@@ -38,9 +35,6 @@ export const env = {
 // IC-C4: use assertServerEnv() at the call-site to get a clear error message.
 // ---------------------------------------------------------------------------
 export const serverEnv = {
-  // Supabase admin — bypasses RLS (createAdminClient only)
-  get SUPABASE_SERVICE_ROLE_KEY() { return optional('SUPABASE_SERVICE_ROLE_KEY'); },
-  get SUPABASE_DB_URL() { return optional('SUPABASE_DB_URL'); },
   // Observability
   get SENTRY_DSN() { return optional('SENTRY_DSN'); },
   get CSP_REPORT_URI() { return optional('CSP_REPORT_URI'); },
@@ -62,7 +56,7 @@ export function assertServerEnv(key: keyof typeof serverEnv, featureName: string
   if (!value) {
     throw new Error(
       `[env] ${key} is required for ${featureName} but is not set. ` +
-      `Add it to .env.local (dev) or Vercel environment variables (staging/prod).`
+      `Add it to .env.local (dev) or Fly secrets (prod).`
     );
   }
   return value;

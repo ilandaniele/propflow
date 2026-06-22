@@ -1,5 +1,4 @@
 ﻿import { getTranslations } from 'next-intl/server';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -24,10 +23,8 @@ export async function AnnouncementsSection({ unitId, propertyId }: Props) {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const t = await getTranslations('tenants');
-  const supabase = await createClient();
 
   const announcements = await getPortalPreviewAnnouncements(
-    supabase,
     unitId,
     propertyId,
     ctx.orgId

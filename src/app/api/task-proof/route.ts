@@ -1,6 +1,6 @@
 /**
  * GET /api/task-proof?path=...
- * Returns a signed URL for a task proof image (TTL 3600s).
+ * Returns a presigned URL for a task proof image (TTL 3600s).
  * Admin only (tenants cannot access proof images directly).
  */
 
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { getSignedUrl } from '@/lib/storage';
 import { Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
 
@@ -24,15 +24,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.storage
-    .from('task-proofs')
-    .createSignedUrl(path, 3600);
-
-  if (error || !data?.signedUrl) {
-    log.error('[task-proof] signed URL failed', { code: error?.message });
+  try {
+    const signedUrl = await getSignedUrl('task-proofs', path, 3600);
+    return NextResponse.json({ signedUrl });
+  } catch (err) {
+    log.error('[task-proof] signed URL failed', { code: err instanceof Error ? err.message : String(err) });
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
-
-  return NextResponse.json({ signedUrl: data.signedUrl });
 }

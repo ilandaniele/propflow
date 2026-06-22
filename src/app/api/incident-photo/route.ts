@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { profiles } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { createClient } from '@/lib/supabase/server';
+import { getSignedUrl } from '@/lib/storage/index';
 import { z } from 'zod';
 
 const QuerySchema = z.object({
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Invalid path format' } }, { status: 404 });
   }
 
-  // Verify the user has access to the incident this photo belongs to
+  // Verify the user has access to the incident this photo belongs to — Drizzle (AC1)
   const profileRows = await db
     .select({ orgId: profiles.orgId })
     .from(profiles)
@@ -45,21 +45,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Profile not found' } }, { status: 401 });
   }
 
-  // The path must start with the user's org_id
+  // The path must start with the user's org_id (AC8: orgId isolation)
   const orgIdFromPath = pathParts[0];
   if (orgIdFromPath !== profile.orgId) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }
 
-  // Generate signed URL (60 min TTL) — storage still uses Supabase
-  const supabase = await createClient();
-  const { data, error } = await supabase.storage
-    .from('incident-photos')
-    .createSignedUrl(storagePath, 3600);
-
-  if (error || !data) {
+  // Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
+  try {
+    const signedUrl = await getSignedUrl('incident-photos', storagePath, 3600);
+    return NextResponse.json({ signedUrl });
+  } catch {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Photo not found' } }, { status: 404 });
   }
-
-  return NextResponse.json({ signedUrl: data.signedUrl });
 }

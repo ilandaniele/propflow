@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { payments as paymentsTable, contracts, tenants } from '@/lib/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -16,23 +18,43 @@ export default async function PaymentsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('payments')]);
+  const t = await getTranslations('payments');
 
-  const [paymentsRes, contractsRes] = await Promise.all([
-    supabase.from('payments').select('*, tenants(full_name)').eq('org_id', ctx.orgId).order('created_at', { ascending: false }).limit(200),
-    supabase.from('contracts').select('id, monthly_rent, tenant_id, tenants(full_name)').eq('org_id', ctx.orgId).eq('status', 'active'),
+  const [paymentRows, contractRows] = await Promise.all([
+    db
+      .select({
+        id:         paymentsTable.id,
+        amount:     paymentsTable.amount,
+        paidAt:     paymentsTable.paidAt,
+        method:     paymentsTable.method,
+        status:     paymentsTable.status,
+        createdAt:  paymentsTable.createdAt,
+        tenantName: tenants.fullName,
+      })
+      .from(paymentsTable)
+      .leftJoin(tenants, and(eq(tenants.id, paymentsTable.tenantId), eq(tenants.orgId, ctx.orgId)))
+      .where(eq(paymentsTable.orgId, ctx.orgId))
+      .orderBy(desc(paymentsTable.createdAt))
+      .limit(200),
+    db
+      .select({
+        id:          contracts.id,
+        monthlyRent: contracts.monthlyRent,
+        tenantId:    contracts.tenantId,
+        tenantName:  tenants.fullName,
+      })
+      .from(contracts)
+      .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
+      .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
   ]);
 
-  const payments = paymentsRes.data ?? [];
-  const contracts = contractsRes.data ?? [];
-
-  const pendingCount = payments.filter((p) => p.status === 'pending').length;
+  const pendingCount = paymentRows.filter((p) => p.status === 'pending').length;
 
   // Analytics
-  const approved = payments.filter((p) => p.status === 'approved');
+  const approved       = paymentRows.filter((p) => p.status === 'approved');
   const collectedTotal = approved.reduce((s, p) => s + Number(p.amount), 0);
-  const pendingTotal = payments.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount), 0);
-  const collectionRate = payments.length > 0 ? Math.round((approved.length / payments.length) * 100) : 0;
+  const pendingTotal   = paymentRows.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount), 0);
+  const collectionRate = paymentRows.length > 0 ? Math.round((approved.length / paymentRows.length) * 100) : 0;
 
   const byMethod: Record<string, number> = {};
   for (const p of approved) {
@@ -50,12 +72,20 @@ export default async function PaymentsPage() {
   }
   const byMonth: Record<string, number> = {};
   for (const p of approved) {
-    const dateStr = p.paid_at ?? p.created_at;
+    const dateStr = p.paidAt ?? p.createdAt;
     if (!dateStr) continue;
     const key = String(dateStr).slice(0, 7);
     byMonth[key] = (byMonth[key] ?? 0) + Number(p.amount);
   }
   const maxMonthAmount = Math.max(1, ...last6months.map((k) => byMonth[k] ?? 0));
+
+  // Shape for CreateChargeForm
+  const contractsForForm = contractRows.map((c) => ({
+    id: c.id,
+    monthly_rent: Number(c.monthlyRent),
+    tenant_id: c.tenantId,
+    tenants: c.tenantName ? { full_name: c.tenantName } : null,
+  }));
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -70,12 +100,12 @@ export default async function PaymentsPage() {
         </div>
         <div className="flex items-center gap-2">
           <AdminPaymentsCsvButtons />
-          <CreateChargeForm contracts={contracts as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
+          <CreateChargeForm contracts={contractsForForm as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
         </div>
       </div>
 
       {/* Analytics KPIs */}
-      {payments.length > 0 && (
+      {paymentRows.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.collected')}</p>
@@ -128,12 +158,9 @@ export default async function PaymentsPage() {
         </div>
       )}
 
-      {payments.length === 0 ? (
+      {paymentRows.length === 0 ? (
         <Card>
-          <EmptyState
-            title={t('list.emptyTitle')}
-            description={t('list.emptyDesc')}
-          />
+          <EmptyState title={t('list.emptyTitle')} description={t('list.emptyDesc')} />
         </Card>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -149,25 +176,22 @@ export default async function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {payments.map((payment) => {
-                const tenant = payment.tenants as { full_name: string } | null;
-                return (
-                  <tr key={payment.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{tenant?.full_name ?? '—'}</td>
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                      S/ {Number(payment.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{payment.paid_at}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500 capitalize hidden md:table-cell">{payment.method}</td>
-                    <td className="px-5 py-4"><StatusPill status={payment.status} /></td>
-                    <td className="px-5 py-4 text-right">
-                      {payment.status === 'pending' && (
-                        <ApprovePaymentButton paymentId={payment.id} />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {paymentRows.map((payment) => (
+                <tr key={payment.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-5 py-4 text-sm font-medium text-slate-900">{payment.tenantName ?? '—'}</td>
+                  <td className="px-5 py-4 text-sm font-semibold text-slate-900">
+                    S/ {Number(payment.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{payment.paidAt}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500 capitalize hidden md:table-cell">{payment.method}</td>
+                  <td className="px-5 py-4"><StatusPill status={payment.status} /></td>
+                  <td className="px-5 py-4 text-right">
+                    {payment.status === 'pending' && (
+                      <ApprovePaymentButton paymentId={payment.id} />
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

@@ -10,8 +10,8 @@ export async function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
-    `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase.co'} wss://*.supabase.co https://accounts.google.com`,
-    "img-src 'self' data: https:",
+    `connect-src 'self' ${process.env.TIGRIS_ENDPOINT ?? 'https://fly.storage.tigris.dev'} https://accounts.google.com`,
+    `img-src 'self' data: https: ${process.env.TIGRIS_ENDPOINT ?? 'https://fly.storage.tigris.dev'}`,
     "font-src 'self' data:",
     "frame-ancestors 'none'",
     "frame-src https://accounts.google.com",           // Google OAuth redirect/popup
@@ -23,9 +23,8 @@ export async function proxy(request: NextRequest) {
       : []),
   ].join('; ');
 
-  // Public routes — skip Supabase session check entirely (no auth needed, no env-var
-  // dependency). This prevents a 500 when NEXT_PUBLIC_SUPABASE_URL resolves to a
-  // placeholder in CI (Lighthouse job) or when env vars are absent on cold-start.
+  // Public routes — skip auth check entirely (no auth needed).
+  // These routes either have no auth requirement or handle their own auth guard in-page.
   //
   // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding.
   // These routes either have no auth requirement or handle their own auth guard in-page.

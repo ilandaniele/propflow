@@ -1372,7 +1372,7 @@
     "emptyAction": "Add property",
     "diagnosticTitle": "Some data isn't loading correctly.",
     "diagnosticCheck": "Check:",
-    "diagnosticCause": "Possible causes: Supabase credentials in your deployment (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY), pending migrations, or profile without an assigned organization.",
+    "diagnosticCause": "Possible causes: missing DATABASE_URL or Fly Postgres connection, pending Drizzle migrations, or profile without an assigned organization.",
     "kpis": {
       "occupancy": "Occupancy",
       "occupancySub": "{occupied} / {total} units",

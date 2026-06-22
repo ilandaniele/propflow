@@ -3,10 +3,11 @@
  * In production, the real provider's downloadAttachment() fetches from Meta/Twilio CDN.
  * MockProvider returns the storagePath as-is (no real download).
  *
- * This module handles the Supabase storage upload side.
+ * This module handles the Tigris S3 storage upload side.
+ * Migrated from Supabase storage to Tigris S3 (W6).
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { uploadFile } from '@/lib/storage';
 import { log } from '@/lib/log';
 import { sha256Hex } from './dedupe';
 
@@ -18,11 +19,10 @@ export interface StoreAttachmentResult {
 }
 
 /**
- * Download a URL (from a signed storage URL or provider URL) and upload to Supabase storage.
+ * Download a URL (from a signed storage URL or provider URL) and upload to Tigris S3.
  * Returns { storagePath, imageBytes, sha256, mimeType }.
  */
 export async function downloadAndStoreAttachment(
-  adminClient: SupabaseClient,
   sourceUrl: string,
   orgId: string,
   bucket: string,
@@ -38,19 +38,14 @@ export async function downloadAndStoreAttachment(
   const sha256 = sha256Hex(buf);
   const mimeType = imageRes.headers.get('content-type') ?? 'image/jpeg';
 
-  // Upload to Supabase storage
-  const { error: uploadErr } = await adminClient.storage
-    .from(bucket)
-    .upload(storagePath, buf, {
-      contentType: mimeType,
-      upsert: false,
-    });
-
-  if (uploadErr) {
+  // Upload to Tigris S3 via storage lib
+  try {
+    await uploadFile(bucket, storagePath, buf, mimeType, false);
+  } catch (err) {
     log.error('[attachments] storage upload failed', {
       bucket,
       storagePath,
-      code: uploadErr.message,
+      error: (err as Error).message,
     });
     throw new Error('Storage upload failed');
   }

@@ -9,10 +9,12 @@
  * and returns a structured result. NO LLM call is made.
  *
  * Security: requireAdmin + mutationRateLimit + Zod validation.
+ * AC8: orgId from requireAdmin() context — never from client params.
+ *
+ * Migrated from Supabase to Drizzle (W6 — analyzePortfolio no longer needs a client).
  */
 
 import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { Errors, ok } from '@/lib/errors';
 import { z } from 'zod';
@@ -58,13 +60,11 @@ export async function runDeterministicAnalysis(
   }
 
   // 4. Execute deterministic function — NO LLM call
-  const supabase = await createClient();
   try {
-    const result = await analyzePortfolio(supabase, ctx.orgId, parsed.data.slug);
+    const result = await analyzePortfolio(ctx.orgId, parsed.data.slug);
     return ok(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown';
-    // Log code only — never log PII or stack trace in production
     console.error('[analyst] dispatch error', { slug: parsed.data.slug, error: msg });
     return Errors.INTERNAL();
   }

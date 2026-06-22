@@ -3,21 +3,19 @@ export const runtime = 'nodejs';
 
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
 import { runReminderEngine } from '@/lib/notifications/reminder-engine';
 import { assertServerEnv, env } from '@/lib/env';
 import { log } from '@/lib/log';
 
 /**
  * POST /api/cron/reminders
- * Called by Vercel Cron daily at 08:00 UTC.
+ * Called by Fly scheduled machine (replaces Vercel Cron).
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare)
- * No user session — uses service-role client (admin client).
+ * No user session — uses Drizzle ORM directly (W6 migration complete).
  * Idempotent: dedup via reminders table.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Constant-time secret comparison (prevent timing attacks).
-  // timingSafeEqual requires equal-length buffers — length check must precede the call.
   const authHeader = request.headers.get('authorization') ?? '';
   const cronSecret = assertServerEnv('CRON_SECRET', 'cron reminders');
   const expected = Buffer.from(`Bearer ${cronSecret}`, 'utf8');
@@ -29,10 +27,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const adminClient = createAdminClient();
     const siteUrl = env.NEXT_PUBLIC_SITE_URL;
-
-    const results = await runReminderEngine({ adminClient, siteUrl });
+    const results = await runReminderEngine(siteUrl);
 
     const totalSent = results.reduce((s, r) => s + r.remindersSent, 0);
     const totalFailed = results.reduce((s, r) => s + r.remindersFailed, 0);
@@ -52,4 +48,3 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Cron failed' } }, { status: 500 });
   }
 }
-

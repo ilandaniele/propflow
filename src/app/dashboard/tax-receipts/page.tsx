@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { taxReceipts } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -21,34 +23,31 @@ export default async function TaxReceiptsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('taxReceipts')]);
+  const t = await getTranslations('taxReceipts');
 
-  const { data: receipts } = await supabase
-    .from('tax_receipts')
-    .select('*')
-    .eq('org_id', ctx.orgId)
-    .order('anio', { ascending: false })
-    .order('mes', { ascending: false })
+  const rows = await db
+    .select()
+    .from(taxReceipts)
+    .where(eq(taxReceipts.orgId, ctx.orgId))
+    .orderBy(desc(taxReceipts.anio), desc(taxReceipts.mes))
     .limit(200);
-
-  const rows = receipts ?? [];
 
   // Analytics
   const issuedRows    = rows.filter((r) => r.status === 'issued');
   const cancelledRows = rows.filter((r) => r.status === 'cancelled');
   const draftRows     = rows.filter((r) => r.status === 'draft');
 
-  const totalAmount   = issuedRows.reduce((s, r) => s + (r.total_amount ?? 0), 0);
-  const totalBase     = issuedRows.reduce((s, r) => s + (r.base_amount ?? 0), 0);
-  const totalIGV      = issuedRows.reduce((s, r) => s + (r.igv_amount ?? 0), 0);
+  const totalAmount = issuedRows.reduce((s, r) => s + Number(r.totalAmount ?? 0), 0);
+  const totalBase   = issuedRows.reduce((s, r) => s + Number(r.baseAmount ?? 0), 0);
+  const totalIGV    = issuedRows.reduce((s, r) => s + Number(r.igvAmount ?? 0), 0);
 
-  // By type (boleta / factura / recibo)
+  // By type
   const byType: Record<string, { count: number; total: number }> = {};
   for (const r of rows) {
     const key = r.tipo ?? 'other';
     if (!byType[key]) byType[key] = { count: 0, total: 0 };
     byType[key].count += 1;
-    byType[key].total += (r.total_amount ?? 0);
+    byType[key].total += Number(r.totalAmount ?? 0);
   }
 
   // Monthly trend (last 6 months with data)
@@ -56,7 +55,7 @@ export default async function TaxReceiptsPage() {
   for (const r of issuedRows) {
     if (r.mes && r.anio) {
       const k = `${r.anio}-${String(r.mes).padStart(2, '0')}`;
-      byMonth[k] = (byMonth[k] ?? 0) + (r.total_amount ?? 0);
+      byMonth[k] = (byMonth[k] ?? 0) + Number(r.totalAmount ?? 0);
     }
   }
   const monthKeys = Object.keys(byMonth).sort().slice(-6);
@@ -164,16 +163,16 @@ export default async function TaxReceiptsPage() {
                 const period = receipt.mes && receipt.anio ? `${receipt.mes} ${receipt.anio}` : '—';
                 return (
                   <tr key={receipt.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{receipt.receipt_code ?? receipt.numero ?? '—'}</td>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{receipt.receiptCode ?? receipt.numero ?? '—'}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell capitalize">{receipt.tipo ?? '—'}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{period}</td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                      S/ {(receipt.total_amount ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                      S/ {Number(receipt.totalAmount ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
-                      {receipt.includes_igv ? `S/ ${(receipt.igv_amount ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : '—'}
+                      {receipt.includesIgv ? `S/ ${Number(receipt.igvAmount ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : '—'}
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden lg:table-cell">{receipt.issue_date ?? '—'}</td>
+                    <td className="px-5 py-4 text-sm text-slate-500 hidden lg:table-cell">{receipt.issueDate ?? '—'}</td>
                     <td className="px-5 py-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${statusClass(receipt.status)}`}>
                         {receipt.status ?? 'unknown'}

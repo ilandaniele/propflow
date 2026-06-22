@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { tenantFeedback, tenants } from '@/lib/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -23,33 +25,44 @@ export default async function TenantFeedbackPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('tenantFeedback')]);
+  const t = await getTranslations('tenantFeedback');
 
-  const { data: feedback } = await supabase
-    .from('tenant_feedback')
-    .select('*, tenants(full_name)')
-    .eq('org_id', ctx.orgId)
-    .order('fecha', { ascending: false })
+  const rows = await db
+    .select({
+      id:               tenantFeedback.id,
+      fecha:            tenantFeedback.fecha,
+      cleaningScore:    tenantFeedback.cleaningScore,
+      coexistenceScore: tenantFeedback.coexistenceScore,
+      attentionScore:   tenantFeedback.attentionScore,
+      securityScore:    tenantFeedback.securityScore,
+      valueScore:       tenantFeedback.valueScore,
+      wouldRecommend:   tenantFeedback.wouldRecommend,
+      comment:          tenantFeedback.comment,
+      worstExperience:  tenantFeedback.worstExperience,
+      tenantFullName:   tenants.fullName,
+    })
+    .from(tenantFeedback)
+    .leftJoin(tenants, and(eq(tenants.id, tenantFeedback.tenantId), eq(tenants.orgId, ctx.orgId)))
+    .where(eq(tenantFeedback.orgId, ctx.orgId))
+    .orderBy(desc(tenantFeedback.fecha))
     .limit(100);
 
-  const rows = feedback ?? [];
-
-  const avgScore = (field: string) => {
-    const vals = rows.map((r) => (r as Record<string, unknown>)[field] as number | null).filter((v): v is number => v !== null);
+  const avgScore = (getter: (r: typeof rows[number]) => number | null) => {
+    const vals = rows.map(getter).filter((v): v is number => v !== null);
     if (!vals.length) return null;
     return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
   };
 
   const metrics = [
-    { label: t('metricCleaning'), key: 'cleaning_score' },
-    { label: t('metricCoexistence'), key: 'coexistence_score' },
-    { label: t('metricAttention'), key: 'attention_score' },
-    { label: t('metricSecurity'), key: 'security_score' },
-    { label: t('metricValue'), key: 'value_score' },
+    { label: t('metricCleaning'),    getter: (r: typeof rows[number]) => r.cleaningScore },
+    { label: t('metricCoexistence'), getter: (r: typeof rows[number]) => r.coexistenceScore },
+    { label: t('metricAttention'),   getter: (r: typeof rows[number]) => r.attentionScore },
+    { label: t('metricSecurity'),    getter: (r: typeof rows[number]) => r.securityScore },
+    { label: t('metricValue'),       getter: (r: typeof rows[number]) => r.valueScore },
   ];
 
-  const recommendCount = rows.filter((r) => r.would_recommend === true).length;
-  const recommendRate = rows.length > 0 ? Math.round((recommendCount / rows.length) * 100) : 0;
+  const recommendCount = rows.filter((r) => r.wouldRecommend === true).length;
+  const recommendRate  = rows.length > 0 ? Math.round((recommendCount / rows.length) * 100) : 0;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -62,12 +75,12 @@ export default async function TenantFeedbackPage() {
         <>
           {/* Average score tiles */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {metrics.map(({ label, key }) => {
-              const avg = avgScore(key);
+            {metrics.map(({ label, getter }) => {
+              const avg = avgScore(getter);
               const numAvg = avg !== null ? parseFloat(avg) : null;
               const color = numAvg !== null ? (numAvg >= 4 ? 'text-green-600' : numAvg >= 3 ? 'text-amber-500' : 'text-red-500') : 'text-slate-900';
               return (
-                <div key={key} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
+                <div key={label} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{label}</p>
                   <p className={`text-2xl font-bold ${color}`}>{avg ?? '—'}</p>
                   <p className="text-xs text-slate-400">{t('avgLabel')}</p>
@@ -92,10 +105,7 @@ export default async function TenantFeedbackPage() {
 
       {rows.length === 0 ? (
         <Card>
-          <EmptyState
-            title={t('emptyTitle')}
-            description={t('emptyDesc')}
-          />
+          <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
         </Card>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -113,29 +123,26 @@ export default async function TenantFeedbackPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((fb) => {
-                const tenant = fb.tenants as { full_name: string } | null;
-                return (
-                  <tr key={fb.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{tenant?.full_name ?? '—'}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{fb.fecha ?? '—'}</td>
-                    <td className="px-5 py-4 text-sm"><StarScore score={fb.cleaning_score} /></td>
-                    <td className="px-5 py-4 text-sm hidden md:table-cell"><StarScore score={fb.attention_score} /></td>
-                    <td className="px-5 py-4 text-sm hidden md:table-cell"><StarScore score={fb.security_score} /></td>
-                    <td className="px-5 py-4 text-sm hidden lg:table-cell"><StarScore score={fb.value_score} /></td>
-                    <td className="px-5 py-4 text-sm hidden lg:table-cell">
-                      {fb.would_recommend === true ? (
-                        <span className="text-green-600 font-medium">{t('yes')}</span>
-                      ) : fb.would_recommend === false ? (
-                        <span className="text-red-500 font-medium">{t('no')}</span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden xl:table-cell max-w-xs truncate">
-                      {fb.worst_experience ?? fb.comment ?? '—'}
-                    </td>
-                  </tr>
-                );
-              })}
+              {rows.map((fb) => (
+                <tr key={fb.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-5 py-4 text-sm font-medium text-slate-900">{fb.tenantFullName ?? '—'}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{fb.fecha ?? '—'}</td>
+                  <td className="px-5 py-4 text-sm"><StarScore score={fb.cleaningScore} /></td>
+                  <td className="px-5 py-4 text-sm hidden md:table-cell"><StarScore score={fb.attentionScore} /></td>
+                  <td className="px-5 py-4 text-sm hidden md:table-cell"><StarScore score={fb.securityScore} /></td>
+                  <td className="px-5 py-4 text-sm hidden lg:table-cell"><StarScore score={fb.valueScore} /></td>
+                  <td className="px-5 py-4 text-sm hidden lg:table-cell">
+                    {fb.wouldRecommend === true ? (
+                      <span className="text-green-600 font-medium">{t('yes')}</span>
+                    ) : fb.wouldRecommend === false ? (
+                      <span className="text-red-500 font-medium">{t('no')}</span>
+                    ) : '—'}
+                  </td>
+                  <td className="px-5 py-4 text-sm text-slate-500 hidden xl:table-cell max-w-xs truncate">
+                    {fb.worstExperience ?? fb.comment ?? '—'}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

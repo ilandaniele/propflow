@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
 import { requireTenant } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { tenants, sanctions } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { Badge } from '@/components/ui/Badge';
 
 export const metadata: Metadata = { title: 'My Sanctions' };
@@ -11,23 +13,30 @@ export default async function PortalSanctionsPage() {
   let ctx;
   try { ctx = await requireTenant(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
+  const tenantRows = await db
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+    .limit(1);
 
-  const { data: tenant } = await supabase
-    .from('tenants')
-    .select('id')
-    .eq('profile_id', ctx.userId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  if (!tenantRows.length) redirect('/portal');
 
-  if (!tenant) redirect('/portal');
+  const tenantId = tenantRows[0].id;
 
-  const { data: sanctions } = await supabase
-    .from('sanctions')
-    .select('id, kind, title, reason, amount, status, created_at, dispute_reason')
-    .eq('tenant_id', tenant.id)
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
+  const sanctionRows = await db
+    .select({
+      id:            sanctions.id,
+      kind:          sanctions.kind,
+      title:         sanctions.title,
+      reason:        sanctions.reason,
+      amount:        sanctions.amount,
+      status:        sanctions.status,
+      createdAt:     sanctions.createdAt,
+      disputeReason: sanctions.disputeReason,
+    })
+    .from(sanctions)
+    .where(and(eq(sanctions.tenantId, tenantId), eq(sanctions.orgId, ctx.orgId)))
+    .orderBy(desc(sanctions.createdAt))
     .limit(50);
 
   return (
@@ -35,10 +44,10 @@ export default async function PortalSanctionsPage() {
       <h1 className="text-xl font-bold text-slate-900">My Sanctions</h1>
 
       <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
-        {(sanctions ?? []).length === 0 ? (
+        {sanctionRows.length === 0 ? (
           <div className="p-8 text-center text-sm text-slate-400">No sanctions on your account</div>
         ) : (
-          (sanctions ?? []).map((s) => (
+          sanctionRows.map((s) => (
             <div key={s.id} className="px-4 py-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -47,7 +56,9 @@ export default async function PortalSanctionsPage() {
                     <Badge variant={s.kind === 'monetary' ? 'danger' : 'warning'}>{s.kind}</Badge>
                   </div>
                   <p className="text-xs text-slate-600 mt-0.5">{s.reason}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{new Date(s.created_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {s.amount && <span className="text-sm font-medium">${Number(s.amount).toLocaleString()}</span>}
@@ -72,8 +83,8 @@ export default async function PortalSanctionsPage() {
                   </Link>
                 </div>
               )}
-              {s.dispute_reason && (
-                <p className="text-xs text-amber-600 mt-1">Dispute: {s.dispute_reason}</p>
+              {s.disputeReason && (
+                <p className="text-xs text-amber-600 mt-1">Dispute: {s.disputeReason}</p>
               )}
             </div>
           ))

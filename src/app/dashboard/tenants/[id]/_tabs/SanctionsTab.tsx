@@ -1,5 +1,7 @@
-﻿import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { sanctions } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -18,28 +20,33 @@ export async function SanctionsTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from('sanctions')
-    .select('id, kind, title, reason, amount, status, created_at')
-    .eq('tenant_id', tenantId)
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  const sanctions = data ?? [];
-  const t = await getTranslations('tenantTabs.sanctionsTab');
+  const [rows, t] = await Promise.all([
+    db
+      .select({
+        id:        sanctions.id,
+        kind:      sanctions.kind,
+        title:     sanctions.title,
+        reason:    sanctions.reason,
+        amount:    sanctions.amount,
+        status:    sanctions.status,
+        createdAt: sanctions.createdAt,
+      })
+      .from(sanctions)
+      .where(and(eq(sanctions.tenantId, tenantId), eq(sanctions.orgId, ctx.orgId)))
+      .orderBy(desc(sanctions.createdAt))
+      .limit(50),
+    getTranslations('tenantTabs.sanctionsTab'),
+  ]);
 
   return (
     <div className="p-4">
       <Card>
         <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
-        {sanctions.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="text-sm text-slate-400">{t('emptyState')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {sanctions.map((s) => (
+            {rows.map((s) => (
               <div key={s.id} className="py-3 flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -50,7 +57,7 @@ export async function SanctionsTab({ tenantId }: Props) {
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">{s.reason}</p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {new Date(s.created_at).toLocaleDateString()}
+                    {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

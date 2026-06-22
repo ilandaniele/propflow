@@ -1,8 +1,10 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { incidents, profiles, tenants } from '@/lib/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -15,25 +17,33 @@ export default async function IncidentsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('incidents')]);
+  const t = await getTranslations('incidents');
 
-  const { data: incidents } = await supabase
-    .from('incidents')
-    .select('*, profiles!incidents_created_by_fkey(full_name), tenants(full_name)')
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
+  const list = await db
+    .select({
+      id:         incidents.id,
+      title:      incidents.title,
+      category:   incidents.category,
+      priority:   incidents.priority,
+      status:     incidents.status,
+      cost:       incidents.cost,
+      createdAt:  incidents.createdAt,
+      creatorName: profiles.fullName,
+    })
+    .from(incidents)
+    .leftJoin(profiles, eq(profiles.id, incidents.createdBy))
+    .where(eq(incidents.orgId, ctx.orgId))
+    .orderBy(desc(incidents.createdAt))
     .limit(200);
 
-  const list = incidents ?? [];
-
   // Cost analytics
-  const withCost = list.filter((i) => i.cost != null && Number(i.cost) > 0);
-  const totalCost = withCost.reduce((s, i) => s + Number(i.cost), 0);
+  const withCost   = list.filter((i) => i.cost != null && Number(i.cost) > 0);
+  const totalCost  = withCost.reduce((s, i) => s + Number(i.cost), 0);
   const costByCategory: Record<string, number> = {};
   for (const i of withCost) {
     costByCategory[i.category] = (costByCategory[i.category] ?? 0) + Number(i.cost);
   }
-  const openCount = list.filter((i) => i.status !== 'solved').length;
+  const openCount   = list.filter((i) => i.status !== 'solved').length;
   const solvedCount = list.filter((i) => i.status === 'solved').length;
 
   // Monthly cost trend (last 6 months)
@@ -45,7 +55,7 @@ export default async function IncidentsPage() {
   }
   const costByMonth: Record<string, number> = {};
   for (const inc of withCost) {
-    const key = String(inc.created_at).slice(0, 7);
+    const key = String(inc.createdAt).slice(0, 7);
     costByMonth[key] = (costByMonth[key] ?? 0) + Number(inc.cost);
   }
   const maxCostMonth = Math.max(1, ...incLast6.map((k) => costByMonth[k] ?? 0));
@@ -135,38 +145,32 @@ export default async function IncidentsPage() {
 
       {list.length === 0 ? (
         <Card>
-          <EmptyState
-            title={t('list.emptyTitle')}
-            description={t('list.emptyDesc')}
-          />
+          <EmptyState title={t('list.emptyTitle')} description={t('list.emptyDesc')} />
         </Card>
       ) : (
         <div className="space-y-2">
-          {list.map((incident) => {
-            const createdBy = incident.profiles as { full_name: string | null } | null;
-            return (
-              <Link key={incident.id} href={`/dashboard/incidents/${incident.id}`} className="block">
-                <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 hover:border-brand-300 hover:shadow-md transition-all duration-150 flex items-center justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <PriorityPill priority={incident.priority} />
-                      <span className="text-xs text-slate-400 capitalize">{incident.category}</span>
-                      {incident.cost != null && Number(incident.cost) > 0 && (
-                        <span className="text-xs font-semibold text-amber-600">
-                          S/ {Number(incident.cost).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                        </span>
-                      )}
-                    </div>
-                    <p className="font-medium text-slate-900 text-sm truncate">{incident.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {createdBy?.full_name ?? t('list.unknown')} · {new Date(incident.created_at).toLocaleDateString()}
-                    </p>
+          {list.map((incident) => (
+            <Link key={incident.id} href={`/dashboard/incidents/${incident.id}`} className="block">
+              <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 hover:border-brand-300 hover:shadow-md transition-all duration-150 flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <PriorityPill priority={incident.priority} />
+                    <span className="text-xs text-slate-400 capitalize">{incident.category}</span>
+                    {incident.cost != null && Number(incident.cost) > 0 && (
+                      <span className="text-xs font-semibold text-amber-600">
+                        S/ {Number(incident.cost).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                      </span>
+                    )}
                   </div>
-                  <StatusPill status={incident.status} />
+                  <p className="font-medium text-slate-900 text-sm truncate">{incident.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {incident.creatorName ?? t('list.unknown')} · {new Date(incident.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
-              </Link>
-            );
-          })}
+                <StatusPill status={incident.status} />
+              </div>
+            </Link>
+          ))}
         </div>
       )}
     </div>

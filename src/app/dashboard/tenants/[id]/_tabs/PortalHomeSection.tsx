@@ -1,7 +1,10 @@
-﻿import { getTranslations } from 'next-intl/server';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
+import { db } from '@/lib/db';
+import { contracts } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 import {
@@ -36,33 +39,31 @@ export async function PortalHomeSection({ tenant }: Props) {
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const t = await getTranslations('tenants');
-  const supabase = await createClient();
 
-  // Fetch all data in parallel — read-only queries, no mutations
-  const [contract, statementRes, recentPayments, recentIncidents, allVisitors] =
+  const [activeContractRows, statementResult, recentPayments, recentIncidents, allVisitors] =
     await Promise.all([
-      supabase
-        .from('contracts')
-        .select('monthly_rent, status, start_date, end_date')
-        .eq('tenant_id', tenant.id)
-        .eq('org_id', ctx.orgId)
-        .eq('status', 'active')
-        .order('start_date', { ascending: false })
-        .limit(1)
-        .single()
-        .then((r) => r.data),
-      supabase
-        .from('tenant_statement')
-        .select('total_charges, total_approved_payments, balance, is_overdue')
-        .eq('tenant_id', tenant.id)
-        .single()
-        .then((r) => r.data ?? null),
-      getPortalPreviewRecentPayments(supabase, tenant.id, ctx.orgId),
-      getPortalPreviewRecentIncidents(supabase, tenant.id, ctx.orgId),
-      getPortalPreviewVisitors(supabase, tenant.id, ctx.orgId),
+      db
+        .select({ monthlyRent: contracts.monthlyRent, status: contracts.status, startDate: contracts.startDate, endDate: contracts.endDate })
+        .from(contracts)
+        .where(and(eq(contracts.tenantId, tenant.id), eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active')))
+        .orderBy(desc(contracts.startDate))
+        .limit(1),
+      // tenant_statement is a PG VIEW — use raw SQL
+      db.execute(sql`SELECT total_charges, total_approved_payments, balance, is_overdue FROM tenant_statement WHERE tenant_id = ${tenant.id} LIMIT 1`),
+      getPortalPreviewRecentPayments(tenant.id, ctx.orgId),
+      getPortalPreviewRecentIncidents(tenant.id, ctx.orgId),
+      getPortalPreviewVisitors(tenant.id, ctx.orgId),
     ]);
 
-  // Visitor count for last 30 days — derived in-memory from the already-fetched rows
+  const contract = activeContractRows[0] ?? null;
+  const statementRes = ((statementResult as unknown as Array<{
+    total_charges: string;
+    total_approved_payments: string;
+    balance: string;
+    is_overdue: boolean;
+  }>)?.[0] ?? null);
+
+  // Visitor count for last 30 days — derived in-memory from already-fetched rows
   const now = new Date();
   const thirtyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30)
     .toISOString()
@@ -108,7 +109,7 @@ export async function PortalHomeSection({ tenant }: Props) {
           <div className="flex justify-between">
             <dt className="text-slate-500">{t('portalPreview.home.monthlyRent')}</dt>
             <dd className="font-medium text-slate-900">
-              ${Number(contract.monthly_rent).toLocaleString()}/mo
+              ${Number(contract.monthlyRent).toLocaleString()}/mo
             </dd>
           </div>
         )}
@@ -127,11 +128,11 @@ export async function PortalHomeSection({ tenant }: Props) {
             <dd
               data-testid="portal-home-balance"
               className={`font-bold ${
-                statementRes.balance < 0 ? 'text-red-600' : 'text-green-600'
+                Number(statementRes.balance) < 0 ? 'text-red-600' : 'text-green-600'
               }`}
             >
-              {statementRes.balance < 0 ? '-' : ''}
-              ${Math.abs(statementRes.balance).toLocaleString()}
+              {Number(statementRes.balance) < 0 ? '-' : ''}
+              ${Math.abs(Number(statementRes.balance)).toLocaleString()}
             </dd>
           </div>
         ) : null}

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Executive Brief page — /dashboard/executive-brief (AC12, AC14)
  *
  * Server Component. Fetches:
@@ -9,14 +9,17 @@
  *
  * Security:
  *   - requireAdmin() guard — redirect to /login on failure
- *   - All queries use createClient() (RLS-scoped, anon key)
+ *   - All queries include eq(table.orgId, ctx.orgId)
  *   - No PII fetched or rendered
  */
 
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { units as unitsTable, payments as paymentsTable, expenses as expensesTable, incidents } from '@/lib/db/schema';
+import { eq, and, gte, lt, ne } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { computeOccupancyRate } from '@/lib/finance/kpis';
 import { KpiGrid, type KpiTileData } from '@/components/executive-brief/KpiGrid';
 import { AgentCard } from '@/components/executive-brief/AgentCard';
@@ -49,7 +52,7 @@ function currentPeriodBounds(): { start: string; end: string } {
 function priorPeriodBounds(): { start: string; end: string } {
   const now = new Date();
   let year = now.getFullYear();
-  let month = now.getMonth(); // 0-indexed → previous month is month
+  let month = now.getMonth(); // 0-indexed → previous month
   if (month === 0) {
     month = 12;
     year -= 1;
@@ -67,51 +70,43 @@ interface PeriodKPIs {
 }
 
 async function fetchPeriodKPIs(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
   bounds: { start: string; end: string }
 ): Promise<PeriodKPIs> {
   const { start, end } = bounds;
 
-  const [
-    { data: units },
-    { data: payments },
-    { data: expenses },
-    { data: incidents },
-    { data: statements },
-  ] = await Promise.all([
-    supabase.from('units').select('id, status'),
-    supabase
-      .from('payments')
-      .select('amount, paid_at')
-      .eq('status', 'approved')
-      .gte('paid_at', start)
-      .lt('paid_at', end),
-    supabase
-      .from('expenses')
-      .select('amount')
-      .gte('incurred_on', start)
-      .lt('incurred_on', end),
-    supabase
-      .from('incidents')
-      .select('id, status')
-      .neq('status', 'solved'),
-    supabase.from('tenant_statement').select('is_overdue, balance'),
+  const [unitRows, paymentRows, expenseRows, incidentRows, statementResult] = await Promise.all([
+    db.select({ id: unitsTable.id, status: unitsTable.status }).from(unitsTable).where(eq(unitsTable.orgId, orgId)),
+    db
+      .select({ amount: paymentsTable.amount })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.orgId, orgId), eq(paymentsTable.status, 'approved'), gte(paymentsTable.paidAt, start), lt(paymentsTable.paidAt, end))),
+    db
+      .select({ amount: expensesTable.amount })
+      .from(expensesTable)
+      .where(and(eq(expensesTable.orgId, orgId), gte(expensesTable.incurredOn, start), lt(expensesTable.incurredOn, end))),
+    db
+      .select({ id: incidents.id, status: incidents.status })
+      .from(incidents)
+      .where(and(eq(incidents.orgId, orgId), ne(incidents.status, 'solved'))),
+    // tenant_statement is a PG VIEW — use raw SQL
+    db.execute(sql`SELECT is_overdue, balance FROM tenant_statement WHERE org_id = ${orgId}`),
   ]);
 
-  const totalUnits = (units ?? []).length;
-  const occupiedUnits = (units ?? []).filter((u: { status: string }) => u.status === 'occupied').length;
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const occupancyRate = computeOccupancyRate(occupiedUnits, totalUnits);
 
-  const grossIncome = (payments ?? []).reduce((s: number, p: { amount: number }) => s + (p.amount ?? 0), 0);
-  const totalExpenses = (expenses ?? []).reduce((s: number, e: { amount: number }) => s + (e.amount ?? 0), 0);
+  const grossIncome = paymentRows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const trueNetProfitMTD = Math.round((grossIncome - totalExpenses) * 100) / 100;
 
-  const activeIncidents = (incidents ?? []).length;
+  const activeIncidents = incidentRows.length;
 
-  // Past due balance = sum of negative balances on overdue tenant statements
-  const pastDueBalance = (statements ?? [])
-    .filter((s: { is_overdue: boolean }) => s.is_overdue)
-    .reduce((sum: number, s: { balance: number | null }) => sum + Math.abs(s.balance ?? 0), 0);
+  const statements = (statementResult as unknown as Array<{ is_overdue: boolean; balance: string }>);
+  const pastDueBalance = statements
+    .filter((s) => s.is_overdue)
+    .reduce((sum, s) => sum + Math.abs(Number(s.balance ?? 0)), 0);
 
   return {
     occupancyRate,
@@ -135,18 +130,14 @@ function computeDelta(current: number, prior: number): number | null {
 // ---------------------------------------------------------------------------
 
 export default async function ExecutiveBriefPage() {
-  try {
-    await requireAdmin();
-  } catch {
-    redirect('/login');
-  }
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
   const t = await getTranslations('executiveBrief');
 
   const [currentKPIs, priorKPIs] = await Promise.all([
-    fetchPeriodKPIs(supabase, currentPeriodBounds()),
-    fetchPeriodKPIs(supabase, priorPeriodBounds()),
+    fetchPeriodKPIs(ctx.orgId, currentPeriodBounds()),
+    fetchPeriodKPIs(ctx.orgId, priorPeriodBounds()),
   ]);
 
   const deltaSuffix = t('tiles.deltaSuffix');
@@ -181,7 +172,7 @@ export default async function ExecutiveBriefPage() {
       value: `$${currentKPIs.pastDueBalance.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       rawValue: currentKPIs.pastDueBalance,
       delta: computeDelta(currentKPIs.pastDueBalance, priorKPIs.pastDueBalance),
-      positiveIsGood: false, // higher past-due = worse
+      positiveIsGood: false,
       sub: t('tiles.pastDueSub'),
       deltaSuffix,
       noPriorData,
@@ -192,7 +183,7 @@ export default async function ExecutiveBriefPage() {
       value: String(currentKPIs.activeIncidents),
       rawValue: currentKPIs.activeIncidents,
       delta: computeDelta(currentKPIs.activeIncidents, priorKPIs.activeIncidents),
-      positiveIsGood: false, // higher incidents = worse
+      positiveIsGood: false,
       sub: t('tiles.incidentsSub'),
       deltaSuffix,
       noPriorData,
@@ -204,17 +195,12 @@ export default async function ExecutiveBriefPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Executive Brief</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {t('subtitle')}
-        </p>
+        <p className="text-sm text-slate-500 mt-1">{t('subtitle')}</p>
       </div>
 
       {/* KPI Summary tiles — AC12 */}
       <section aria-labelledby="kpi-section-title">
-        <h2
-          id="kpi-section-title"
-          className="text-base font-semibold text-slate-700 mb-3"
-        >
+        <h2 id="kpi-section-title" className="text-base font-semibold text-slate-700 mb-3">
           {t('kpiSection')}
         </h2>
         <KpiGrid tiles={tiles} />
@@ -222,10 +208,7 @@ export default async function ExecutiveBriefPage() {
 
       {/* Agent cards — AC14 */}
       <section aria-labelledby="agents-section-title">
-        <h2
-          id="agents-section-title"
-          className="text-base font-semibold text-slate-700 mb-3"
-        >
+        <h2 id="agents-section-title" className="text-base font-semibold text-slate-700 mb-3">
           {t('agentsSection')}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="agent-cards-grid">
@@ -238,20 +221,8 @@ export default async function ExecutiveBriefPage() {
             title={t('agents.marketRate.title')}
             description={t('agents.marketRate.description')}
             icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
             }
             status="coming_soon"
@@ -263,20 +234,8 @@ export default async function ExecutiveBriefPage() {
             title={t('agents.pnlDelta.title')}
             description={t('agents.pnlDelta.description')}
             icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-                <polyline points="16 7 22 7 22 13" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
               </svg>
             }
             status="coming_soon"
@@ -288,21 +247,8 @@ export default async function ExecutiveBriefPage() {
             title={t('agents.customAgent.title')}
             description={t('agents.customAgent.description')}
             icon={
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="16" />
-                <line x1="8" y1="12" x2="16" y2="12" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" />
               </svg>
             }
             status="coming_soon"
@@ -312,10 +258,7 @@ export default async function ExecutiveBriefPage() {
 
       {/* Narrative section — from W7 (AC13) */}
       <section aria-labelledby="narrative-section-title">
-        <h2
-          id="narrative-section-title"
-          className="text-base font-semibold text-slate-700 mb-3"
-        >
+        <h2 id="narrative-section-title" className="text-base font-semibold text-slate-700 mb-3">
           {t('narrativeSection')}
         </h2>
         <NarrativeSection />

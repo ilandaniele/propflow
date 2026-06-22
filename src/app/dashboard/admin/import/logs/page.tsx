@@ -1,7 +1,10 @@
-﻿import { redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { csvImports } from '@/lib/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,29 +25,13 @@ function ImportTypeLabel({ type, labels }: { type: string; labels: Record<string
   return <span>{labels[type] ?? type}</span>;
 }
 
-interface LogRow {
-  id: string;
-  import_type: string;
-  original_filename: string;
-  period: string;
-  status: string;
-  row_count: number;
-  failed_count: number;
-  committed_at: string | null;
-  created_at: string;
-  created_by: string;
-}
-
 export default async function ImportLogsPage({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string; status?: string }>;
 }) {
-  try {
-    await requireAdmin();
-  } catch {
-    redirect('/login');
-  }
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
   const t = await getTranslations('importLogs');
 
@@ -61,30 +48,47 @@ export default async function ImportLogsPage({
     failed:    t('status.failed'),
   };
 
-  const params = await searchParams;
-  const page   = Math.max(0, parseInt(params.page ?? '0', 10));
-  const limit  = 20;
-  const from   = page * limit;
-  const to     = from + limit - 1;
+  const params      = await searchParams;
+  const page        = Math.max(0, parseInt(params.page ?? '0', 10));
+  const limit       = 20;
   const statusFilter = params.status ?? '';
 
-  const supabase = await createClient();
-  let query = supabase
-    .from('csv_imports')
-    .select('id, import_type, original_filename, period, status, row_count, failed_count, committed_at, created_at, created_by', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, to);
+  // Count query
+  const countResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(csvImports)
+    .where(
+      statusFilter
+        ? and(eq(csvImports.orgId, ctx.orgId), eq(csvImports.status, statusFilter))
+        : eq(csvImports.orgId, ctx.orgId)
+    );
+  const total = countResult[0]?.count ?? 0;
 
-  if (statusFilter) {
-    query = query.eq('status', statusFilter);
-  }
+  // Data query with pagination
+  const rows = await db
+    .select({
+      id:               csvImports.id,
+      importType:       csvImports.importType,
+      originalFilename: csvImports.originalFilename,
+      period:           csvImports.period,
+      status:           csvImports.status,
+      rowCount:         csvImports.rowCount,
+      failedCount:      csvImports.failedCount,
+      committedAt:      csvImports.committedAt,
+      createdAt:        csvImports.createdAt,
+    })
+    .from(csvImports)
+    .where(
+      statusFilter
+        ? and(eq(csvImports.orgId, ctx.orgId), eq(csvImports.status, statusFilter))
+        : eq(csvImports.orgId, ctx.orgId)
+    )
+    .orderBy(desc(csvImports.createdAt))
+    .limit(limit)
+    .offset(page * limit);
 
-  const { data, count, error } = await query;
-
-  const rows: LogRow[] = data ?? [];
-  const total   = count ?? 0;
   const hasPrev = page > 0;
-  const hasNext = from + limit < total;
+  const hasNext = page * limit + limit < total;
 
   return (
     <div className="space-y-4">
@@ -104,12 +108,6 @@ export default async function ImportLogsPage({
         </select>
         <span className="text-sm text-slate-400 ml-auto">{t('totalCount', { count: total })}</span>
       </form>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700" role="alert">
-          {t('loadError')}
-        </div>
-      )}
 
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden" data-testid="import-logs-table">
         <table className="w-full text-sm">
@@ -135,25 +133,25 @@ export default async function ImportLogsPage({
             {rows.map((row) => (
               <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                 <td className="px-4 py-3 text-slate-700">
-                  <ImportTypeLabel type={row.import_type} labels={typeLabels} />
+                  <ImportTypeLabel type={row.importType} labels={typeLabels} />
                 </td>
-                <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={row.original_filename}>
-                  {row.original_filename}
+                <td className="px-4 py-3 text-slate-600 max-w-xs truncate" title={row.originalFilename}>
+                  {row.originalFilename}
                 </td>
                 <td className="px-4 py-3 text-slate-600 font-mono text-xs">{row.period}</td>
                 <td className="px-4 py-3">
                   <StatusBadge status={row.status} labels={statusLabels} />
                 </td>
-                <td className="px-4 py-3 text-right text-slate-700 font-medium">{row.row_count ?? '—'}</td>
+                <td className="px-4 py-3 text-right text-slate-700 font-medium">{row.rowCount ?? '—'}</td>
                 <td className="px-4 py-3 text-right">
-                  {(row.failed_count ?? 0) > 0 ? (
-                    <span className="text-red-600 font-medium">{row.failed_count}</span>
+                  {(row.failedCount ?? 0) > 0 ? (
+                    <span className="text-red-600 font-medium">{row.failedCount}</span>
                   ) : (
                     <span className="text-slate-400">0</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
-                  {new Date(row.created_at).toLocaleDateString(undefined, {
+                  {new Date(row.createdAt).toLocaleDateString(undefined, {
                     day: '2-digit', month: 'short', year: 'numeric',
                     hour: '2-digit', minute: '2-digit',
                   })}

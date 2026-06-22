@@ -1,21 +1,21 @@
-﻿import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { expenseCategories } from '@/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
 import { CreateExpenseCategoryForm } from './CreateExpenseCategoryForm';
-import type { ExpenseCategory } from '@/types';
 
 export default async function ExpenseCategoriesPage() {
   const ctx = await requireAdmin();
-  const supabase = await createClient();
   const t = await getTranslations('expenseCategories');
 
-  const { data: categories } = await supabase
-    .from('expense_categories')
-    .select('*')
-    .eq('org_id', ctx.orgId)
-    .order('name', { ascending: true });
+  const categories = await db
+    .select({ id: expenseCategories.id, name: expenseCategories.name, color: expenseCategories.color })
+    .from(expenseCategories)
+    .where(eq(expenseCategories.orgId, ctx.orgId))
+    .orderBy(asc(expenseCategories.name));
 
   return (
     <div className="p-6 space-y-6">
@@ -26,14 +26,14 @@ export default async function ExpenseCategoriesPage() {
         <CreateExpenseCategoryForm />
       </Card>
 
-      {(categories ?? []).length === 0 ? (
+      {categories.length === 0 ? (
         <EmptyState
           title={t('emptyTitle')}
           description={t('emptyDesc')}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {(categories as ExpenseCategory[]).map((cat) => (
+          {categories.map((cat) => (
             <div
               key={cat.id}
               className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-white"

@@ -1372,7 +1372,7 @@
     "emptyAction": "Adicionar propriedade",
     "diagnosticTitle": "Alguns dados não estão carregando corretamente.",
     "diagnosticCheck": "Verifique:",
-    "diagnosticCause": "Possíveis causas: credenciais do Supabase no deploy (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY), migrações pendentes, ou perfil sem organização atribuída.",
+    "diagnosticCause": "Possíveis causas: DATABASE_URL ausente ou erro de conexão com o Fly Postgres, migrações do Drizzle pendentes, ou perfil sem organização atribuída.",
     "kpis": {
       "occupancy": "Ocupação",
       "occupancySub": "{occupied} / {total} unidades",

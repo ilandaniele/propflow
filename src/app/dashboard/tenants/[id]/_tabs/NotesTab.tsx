@@ -1,5 +1,7 @@
-﻿import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { internalNotes } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { NotesTabClient } from './NotesTabClient';
 
@@ -19,17 +21,25 @@ export async function NotesTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
-
-  const { data } = await supabase
-    .from('internal_notes')
-    .select('id, content, created_by, created_at')
-    .eq('tenant_id', tenantId)
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
+  const rows = await db
+    .select({
+      id:        internalNotes.id,
+      content:   internalNotes.content,
+      createdBy: internalNotes.createdBy,
+      createdAt: internalNotes.createdAt,
+    })
+    .from(internalNotes)
+    .where(and(eq(internalNotes.tenantId, tenantId), eq(internalNotes.orgId, ctx.orgId)))
+    .orderBy(desc(internalNotes.createdAt))
     .limit(50);
 
-  const notes = data ?? [];
+  // Map to snake_case shape expected by NotesTabClient (legacy prop contract)
+  const notes = rows.map((n) => ({
+    id:         n.id,
+    content:    n.content,
+    created_by: n.createdBy,
+    created_at: n.createdAt ? String(n.createdAt) : null,
+  }));
 
-  return <NotesTabClient notes={notes} tenantId={tenantId} />;
+  return <NotesTabClient notes={notes as never} tenantId={tenantId} />;
 }

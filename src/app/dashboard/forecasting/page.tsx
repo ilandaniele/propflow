@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { units as unitsTable, payments as paymentsTable, expenses as expensesTable, contracts } from '@/lib/db/schema';
+import { eq, and, gte, lte } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { computeOccupancy, computeTrueNetProfit } from '@/lib/finance/kpis';
@@ -13,39 +15,54 @@ export default async function ForecastingPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
   const t = await getTranslations('forecasting');
 
   const now = new Date();
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-  const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1).toISOString();
-  const lastMonthEndStr = lastMonthEnd.toISOString();
+  const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1).toISOString().slice(0, 10);
+  const lastMonthEndStr = lastMonthEnd.toISOString().slice(0, 10);
 
-  const [unitsRes, paymentsRes, expensesRes, contractsRes] = await Promise.all([
-    supabase.from('units').select('id, status, monthly_rent_default').eq('org_id', ctx.orgId),
-    supabase.from('payments').select('amount, paid_at').eq('org_id', ctx.orgId).eq('status', 'approved').gte('paid_at', lastMonthStart).lte('paid_at', lastMonthEndStr),
-    supabase.from('expenses').select('amount').eq('org_id', ctx.orgId).gte('incurred_on', lastMonthStart).lte('incurred_on', lastMonthEndStr),
-    supabase.from('contracts').select('unit_id, monthly_rent, status').eq('org_id', ctx.orgId).eq('status', 'active'),
+  const [unitRows, paymentRows, expenseRows, contractRows] = await Promise.all([
+    db
+      .select({ id: unitsTable.id, status: unitsTable.status, monthlyRentDefault: unitsTable.monthlyRentDefault })
+      .from(unitsTable)
+      .where(eq(unitsTable.orgId, ctx.orgId)),
+    db
+      .select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt })
+      .from(paymentsTable)
+      .where(and(
+        eq(paymentsTable.orgId, ctx.orgId),
+        eq(paymentsTable.status, 'approved'),
+        gte(paymentsTable.paidAt, lastMonthStart),
+        lte(paymentsTable.paidAt, lastMonthEndStr),
+      )),
+    db
+      .select({ amount: expensesTable.amount })
+      .from(expensesTable)
+      .where(and(
+        eq(expensesTable.orgId, ctx.orgId),
+        gte(expensesTable.incurredOn, lastMonthStart),
+        lte(expensesTable.incurredOn, lastMonthEndStr),
+      )),
+    db
+      .select({ unitId: contracts.unitId, monthlyRent: contracts.monthlyRent, status: contracts.status })
+      .from(contracts)
+      .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
   ]);
 
-  const units = unitsRes.data ?? [];
-  const payments = paymentsRes.data ?? [];
-  const expenses = expensesRes.data ?? [];
-  const activeContracts = contractsRes.data ?? [];
-
-  const totalUnits = units.length;
-  const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const baseOccupancyRate = totalUnits > 0 ? occupiedUnits / totalUnits : 0;
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
 
-  const totalIncome = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
-  const netProfitKpi = computeTrueNetProfit(totalIncome, totalExpenses);
+  const totalIncome   = paymentRows.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+  const totalExpenses = expenseRows.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
+  const netProfitKpi  = computeTrueNetProfit(totalIncome, totalExpenses);
 
   const monthlyRevenueAtFull =
-    activeContracts.length > 0
-      ? activeContracts.reduce((sum, c) => sum + Number(c.monthly_rent ?? 0), 0)
-      : units.reduce((sum, u) => sum + Number(u.monthly_rent_default ?? 0), 0);
+    contractRows.length > 0
+      ? contractRows.reduce((sum, c) => sum + Number(c.monthlyRent ?? 0), 0)
+      : unitRows.reduce((sum, u) => sum + Number(u.monthlyRentDefault ?? 0), 0);
 
   const formatCurrency = (n: number) =>
     'S/ ' + Math.abs(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -84,8 +101,8 @@ export default async function ForecastingPage() {
           </p>
           <p className="text-2xl font-bold text-slate-800">{formatCurrency(monthlyRevenueAtFull)}</p>
           <p className="text-xs text-slate-400">
-            {activeContracts.length > 0
-              ? t('fromActiveContracts', { count: activeContracts.length })
+            {contractRows.length > 0
+              ? t('fromActiveContracts', { count: contractRows.length })
               : t('fromDefaultRents')}
           </p>
         </article>
@@ -96,9 +113,7 @@ export default async function ForecastingPage() {
           <CardTitle>{t('simulatorTitle')}</CardTitle>
         </CardHeader>
         {totalUnits === 0 ? (
-          <p className="text-sm text-slate-400 py-4">
-            {t('addUnitsPrompt')}
-          </p>
+          <p className="text-sm text-slate-400 py-4">{t('addUnitsPrompt')}</p>
         ) : (
           <SensitivitySlider
             baseNetProfit={netProfitKpi.value}

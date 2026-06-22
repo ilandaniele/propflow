@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { getSignedUrl } from '@/lib/storage/index';
 import { Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
 
@@ -24,15 +24,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.storage
-    .from('tenant-avatars')
-    .createSignedUrl(path, 3600);
-
-  if (error || !data?.signedUrl) {
-    log.error('[tenant-avatar] signed URL failed', { code: error?.message });
+  // Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
+  try {
+    const signedUrl = await getSignedUrl('tenant-avatars', path, 3600);
+    return NextResponse.json({ signedUrl });
+  } catch (err) {
+    log.error('[tenant-avatar] signed URL failed', { error: String(err).slice(0, 100) });
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
-
-  return NextResponse.json({ signedUrl: data.signedUrl });
 }

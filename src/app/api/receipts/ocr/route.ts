@@ -3,7 +3,10 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { receiptUploads } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { getSignedUrl } from '@/lib/storage/index';
 import { requireUser } from '@/lib/auth/guards';
 import { Errors } from '@/lib/errors';
 import { ocrRateLimit } from '@/lib/ratelimit';
@@ -14,7 +17,7 @@ import { log } from '@/lib/log';
 const OCR_TIMEOUT_MS = 25_000; // 25s — Vercel function timeout is 60s
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // Auth guard (manual, like /api/incident-photo)
+  // Auth guard
   let ctx;
   try { ctx = await requireUser(); } catch {
     return NextResponse.json(Errors.UNAUTHORIZED(), { status: 401 });
@@ -36,43 +39,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.VALIDATION_ERROR(parsed.error.flatten()), { status: 400 });
   }
 
-  const supabase = await createClient();
+  // Load the receipt row — must belong to this org (AC8: orgId isolation) — Drizzle (AC1)
+  const rows = await db
+    .select({ id: receiptUploads.id, filePath: receiptUploads.filePath, ocrStatus: receiptUploads.ocrStatus })
+    .from(receiptUploads)
+    .where(and(eq(receiptUploads.id, parsed.data.receipt_id), eq(receiptUploads.orgId, ctx.orgId)))
+    .limit(1);
 
-  // Load the receipt row — must belong to this org
-  const { data: receipt } = await supabase
-    .from('receipt_uploads')
-    .select('id, file_path, ocr_status, org_id')
-    .eq('id', parsed.data.receipt_id)
-    .eq('org_id', ctx.orgId)
-    .single();
-
+  const receipt = rows[0];
   if (!receipt) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
   // Only re-run OCR on pending/failed; skip already extracted/matched
-  if (receipt.ocr_status === 'extracted' || receipt.ocr_status === 'matched') {
+  if (receipt.ocrStatus === 'extracted' || receipt.ocrStatus === 'matched') {
     return NextResponse.json({ status: 'already_extracted' });
   }
 
-  // Mark as processing
-  await supabase
-    .from('receipt_uploads')
-    .update({ ocr_status: 'processing', updated_at: new Date().toISOString() })
-    .eq('id', receipt.id);
+  // Mark as processing — Drizzle (AC1)
+  await db
+    .update(receiptUploads)
+    .set({ ocrStatus: 'processing', updatedAt: new Date() })
+    .where(eq(receiptUploads.id, receipt.id));
 
   try {
-    // Get a short-TTL signed URL to the stored image
-    const { data: urlData } = await supabase.storage
-      .from('receipts')
-      .createSignedUrl(receipt.file_path, 60); // 60-second TTL for the OCR call
-
-    if (!urlData?.signedUrl) {
-      throw new Error('Could not get signed URL for receipt');
-    }
+    // Get a short-TTL signed URL to the stored image — Tigris storage lib (AC1)
+    const signedUrl = await getSignedUrl('receipts', receipt.filePath, 60); // 60-second TTL for OCR call
 
     // Fetch the image for Claude
-    const imageRes = await fetch(urlData.signedUrl);
+    const imageRes = await fetch(signedUrl);
     if (!imageRes.ok) throw new Error('Could not fetch receipt image');
 
     const imageBuffer = await imageRes.arrayBuffer();
@@ -85,11 +80,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Only image types supported by Claude vision; skip PDF (return partial)
     if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(mimeType)) {
-      await supabase.from('receipt_uploads').update({
-        ocr_status: 'failed',
-        ocr_error: 'PDF OCR not supported at this time',
-        updated_at: new Date().toISOString(),
-      }).eq('id', receipt.id);
+      await db
+        .update(receiptUploads)
+        .set({ ocrStatus: 'failed', ocrError: 'PDF OCR not supported at this time', updatedAt: new Date() })
+        .where(eq(receiptUploads.id, receipt.id));
       return NextResponse.json({ status: 'failed', reason: 'unsupported_type' });
     }
 
@@ -138,15 +132,19 @@ Do not include any other text. If a field cannot be determined, use null.`,
 
     const extracted = OcrExtractedSchema.safeParse(extractedRaw);
 
-    await supabase.from('receipt_uploads').update({
-      ocr_status: 'extracted',
-      extracted_amount: extracted.success ? (extracted.data.amount ?? null) : null,
-      extracted_date: extracted.success ? (extracted.data.date ?? null) : null,
-      extracted_vendor: extracted.success ? (extracted.data.vendor ?? null) : null,
-      confidence: extracted.success ? (extracted.data.confidence ?? null) : null,
-      ocr_error: null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', receipt.id);
+    // Update with OCR results — Drizzle (AC1)
+    await db
+      .update(receiptUploads)
+      .set({
+        ocrStatus: 'extracted',
+        extractedAmount: extracted.success ? (extracted.data.amount?.toString() ?? null) : null,
+        extractedDate: extracted.success ? (extracted.data.date ?? null) : null,
+        extractedVendor: extracted.success ? (extracted.data.vendor ?? null) : null,
+        confidence: extracted.success ? (extracted.data.confidence?.toString() ?? null) : null,
+        ocrError: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(receiptUploads.id, receipt.id));
 
     log.info('[ocr] extraction complete', { receiptId: receipt.id });
     return NextResponse.json({ status: 'extracted' });
@@ -156,11 +154,10 @@ Do not include any other text. If a field cannot be determined, use null.`,
     const msg = e instanceof Error ? e.message : 'unknown';
     log.error('[ocr] extraction failed', { receiptId: receipt.id, error: msg });
 
-    await supabase.from('receipt_uploads').update({
-      ocr_status: 'failed',
-      ocr_error: 'Extraction failed. Please try again.',
-      updated_at: new Date().toISOString(),
-    }).eq('id', receipt.id);
+    await db
+      .update(receiptUploads)
+      .set({ ocrStatus: 'failed', ocrError: 'Extraction failed. Please try again.', updatedAt: new Date() })
+      .where(eq(receiptUploads.id, receipt.id));
 
     return NextResponse.json({ status: 'failed' });
   }

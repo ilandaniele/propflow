@@ -1,0 +1,117 @@
+# .github/workflows/cron-dispatch.yml
+#
+# WHY GitHub Actions instead of Fly scheduled machines:
+# Fly.io scheduled machines (fly machine run --schedule) only support coarse
+# intervals: hourly / daily / weekly / monthly — with NO time-of-day control.
+# That makes it impossible to hit 08:00 UTC vs 04:00 UTC daily from fly.toml.
+# This workflow replicates the four Vercel cron jobs with exact schedules and
+# replaces vercel.json entirely.  Each job POSTs to the live app with the
+# CRON_SECRET bearer token already used by all /api/cron/* handlers.
+#
+# Required GitHub settings:
+#   vars.APP_URL    — https://propflow-app.fly.dev  (repo variable, not a secret)
+#   secrets.CRON_SECRET — same value as the Fly secret CRON_SECRET
+
+name: Cron dispatch
+
+on:
+  schedule:
+    - cron: '0 4 * * *'    # airtable-sync    — 04:00 UTC daily
+    - cron: '0 7 * * 1'    # weekly-summary   — 07:00 UTC Monday
+    - cron: '0 8 * * *'    # reminders        — 08:00 UTC daily
+    - cron: '0 9 * * *'    # task-reminders   — 09:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Which cron to run manually'
+        required: true
+        type: choice
+        options:
+          - airtable-sync
+          - weekly-summary
+          - reminders
+          - task-reminders
+
+permissions:
+  contents: read
+
+jobs:
+  # ── 04:00 UTC daily ─────────────────────────────────────────────────────────
+  airtable-sync:
+    name: 'Cron: airtable-sync (04:00 UTC)'
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'airtable-sync') ||
+      (github.event_name == 'schedule' && startsWith(github.event.schedule, '0 4'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: POST /api/cron/airtable-sync
+        run: |
+          STATUS=$(curl -fsS -o /tmp/body.json -w "%{http_code}" \
+            -X POST "${{ vars.APP_URL }}/api/cron/airtable-sync" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300)
+          echo "HTTP $STATUS"
+          cat /tmp/body.json || true
+          [ "$STATUS" = "200" ] || exit 1
+
+  # ── 07:00 UTC Monday ────────────────────────────────────────────────────────
+  weekly-summary:
+    name: 'Cron: weekly-summary (07:00 UTC Mon)'
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'weekly-summary') ||
+      (github.event_name == 'schedule' && startsWith(github.event.schedule, '0 7'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: POST /api/cron/weekly-summary
+        run: |
+          STATUS=$(curl -fsS -o /tmp/body.json -w "%{http_code}" \
+            -X POST "${{ vars.APP_URL }}/api/cron/weekly-summary" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 90)
+          echo "HTTP $STATUS"
+          cat /tmp/body.json || true
+          [ "$STATUS" = "200" ] || exit 1
+
+  # ── 08:00 UTC daily ─────────────────────────────────────────────────────────
+  reminders:
+    name: 'Cron: reminders (08:00 UTC)'
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'reminders') ||
+      (github.event_name == 'schedule' && startsWith(github.event.schedule, '0 8'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: POST /api/cron/reminders
+        run: |
+          STATUS=$(curl -fsS -o /tmp/body.json -w "%{http_code}" \
+            -X POST "${{ vars.APP_URL }}/api/cron/reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 90)
+          echo "HTTP $STATUS"
+          cat /tmp/body.json || true
+          [ "$STATUS" = "200" ] || exit 1
+
+  # ── 09:00 UTC daily ─────────────────────────────────────────────────────────
+  task-reminders:
+    name: 'Cron: task-reminders (09:00 UTC)'
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'task-reminders') ||
+      (github.event_name == 'schedule' && startsWith(github.event.schedule, '0 9'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: POST /api/cron/task-reminders
+        run: |
+          STATUS=$(curl -fsS -o /tmp/body.json -w "%{http_code}" \
+            -X POST "${{ vars.APP_URL }}/api/cron/task-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 90)
+          echo "HTTP $STATUS"
+          cat /tmp/body.json || true
+          [ "$STATUS" = "200" ] || exit 1
