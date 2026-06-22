@@ -6,9 +6,14 @@
  * - Aggregates only: occupancy %, overdue count, open incidents, income trend
  * - No tools, no mutations (LLM08)
  * - User input is passed as a structured user message turn, never into the system prompt (LLM01)
+ *
+ * Migrated from Supabase client to Drizzle ORM (W6).
  */
 
-import { SupabaseClient } from '@supabase/supabase-js';
+import { db } from '@/lib/db';
+import { organizations, units, payments, expenses, incidents } from '@/lib/db/schema';
+import { eq, and, gte, neq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 export interface OrgContext {
   orgName: string;
@@ -24,48 +29,53 @@ export interface OrgContext {
 
 /**
  * Build org-scoped context from aggregates.
- * All queries are RLS-scoped — uses the anon client with the authenticated session.
  * Returns aggregates only; no individual tenant names, emails, or row-level PII.
  */
-export async function buildOrgContext(supabase: SupabaseClient, orgId: string): Promise<OrgContext> {
+export async function buildOrgContext(orgId: string): Promise<OrgContext> {
   const thisMonthStart = new Date();
   thisMonthStart.setDate(1);
   thisMonthStart.setHours(0, 0, 0, 0);
   const thisMonthStr = thisMonthStart.toISOString().slice(0, 10);
 
-  const [
-    { data: org },
-    { data: units },
-    { data: payments },
-    { data: expenses },
-    { data: incidents },
-  ] = await Promise.all([
-    supabase.from('organizations').select('name').eq('id', orgId).single(),
-    supabase.from('units').select('id, status').eq('org_id', orgId),
-    supabase.from('payments').select('amount, paid_at').eq('org_id', orgId).eq('status', 'approved').gte('paid_at', thisMonthStr),
-    supabase.from('expenses').select('amount').eq('org_id', orgId).gte('incurred_on', thisMonthStr),
-    supabase.from('incidents').select('id, status').eq('org_id', orgId).neq('status', 'solved'),
+  const [orgRows, unitRows, paymentRows, expenseRows, incidentRows] = await Promise.all([
+    db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).limit(1),
+    db.select({ id: units.id, status: units.status }).from(units).where(eq(units.orgId, orgId)),
+    db.select({ amount: payments.amount }).from(payments).where(and(
+      eq(payments.orgId, orgId),
+      eq(payments.status, 'approved'),
+      gte(payments.paidAt, thisMonthStr),
+    )),
+    db.select({ amount: expenses.amount }).from(expenses).where(and(
+      eq(expenses.orgId, orgId),
+      gte(expenses.incurredOn, thisMonthStr),
+    )),
+    db.select({ id: incidents.id }).from(incidents).where(and(
+      eq(incidents.orgId, orgId),
+      neq(incidents.status, 'solved'),
+    )),
   ]);
 
-  const totalUnits = (units ?? []).length;
-  const occupiedUnits = (units ?? []).filter((u: { status: string }) => u.status === 'occupied').length;
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
   // Overdue: use tenant_statement view (aggregates, no raw PII)
-  const { data: statements } = await supabase.from('tenant_statement').select('is_overdue');
-  const overdueTenantsCount = (statements ?? []).filter((s: { is_overdue: boolean }) => s.is_overdue).length;
+  const stmtRows = await db.execute(
+    sql`SELECT is_overdue FROM tenant_statement WHERE org_id = ${orgId}`
+  ) as unknown as Array<{ is_overdue: boolean }>;
+  const overdueTenantsCount = stmtRows.filter((s) => s.is_overdue).length;
 
-  const totalApprovedIncomeThisMonth = (payments ?? []).reduce((s: number, p: { amount: number }) => s + (p.amount ?? 0), 0);
-  const totalExpensesThisMonth = (expenses ?? []).reduce((s: number, e: { amount: number }) => s + (e.amount ?? 0), 0);
+  const totalApprovedIncomeThisMonth = paymentRows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const totalExpensesThisMonth = expenseRows.reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const netThisMonth = totalApprovedIncomeThisMonth - totalExpensesThisMonth;
 
   return {
-    orgName: org?.name ?? 'your organization',
+    orgName: orgRows[0]?.name ?? 'your organization',
     totalUnits,
     occupiedUnits,
     occupancyRate,
     overdueTenantsCount,
-    openIncidentsCount: (incidents ?? []).length,
+    openIncidentsCount: incidentRows.length,
     totalApprovedIncomeThisMonth,
     totalExpensesThisMonth,
     netThisMonth,

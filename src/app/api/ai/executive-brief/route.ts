@@ -29,9 +29,10 @@ import { serverEnv } from '@/lib/env';
 import { sanitizeForLLM } from '@/lib/ai/sanitize';
 import { checkAndIncrementBudget, recordActualUsage, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
-// TODO(W6): fetchKPIs uses tenant_statement view + tables not in Drizzle schema;
-// replace createClient() with db once view is mapped or replaced with Drizzle aggregates.
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { units, payments, expenses, incidents } from '@/lib/db/schema';
+import { eq, and, gte, lt, neq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // Zod validation — LLM01: no raw user input concatenated into system prompt
@@ -65,58 +66,55 @@ interface ExecutiveBriefKPIs {
 }
 
 // ---------------------------------------------------------------------------
-// Aggregate KPI query
-// TODO(W6): tenant_statement is a DB view not yet mapped in Drizzle schema.
-// Migrate fetchKPIs to Drizzle once the view is replaced with a proper table
-// or a drizzle-orm pgView definition is added.
+// Aggregate KPI query — Drizzle ORM + raw SQL for tenant_statement view (W6)
 // ---------------------------------------------------------------------------
 
 async function fetchKPIs(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
   period: string
 ): Promise<ExecutiveBriefKPIs> {
   const periodStart = `${period}-01`;
-  // Last day of month: first day of next month minus 1 ms
   const [year, month] = period.split('-').map(Number);
   const nextMonth = month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, '0')}-01`;
 
-  const [
-    { data: units },
-    { data: payments },
-    { data: expenses },
-    { data: incidents },
-    { data: statements },
-  ] = await Promise.all([
-    supabase.from('units').select('id, status'),
-    supabase
-      .from('payments')
-      .select('amount, paid_at')
-      .eq('status', 'approved')
-      .gte('paid_at', periodStart)
-      .lt('paid_at', nextMonth),
-    supabase
-      .from('expenses')
-      .select('amount')
-      .gte('incurred_on', periodStart)
-      .lt('incurred_on', nextMonth),
-    supabase
-      .from('incidents')
-      .select('id, status')
-      .neq('status', 'solved'),
-    supabase.from('tenant_statement').select('is_overdue, tenant_id'),
+  const [unitRows, paymentRows, expenseRows, incidentRows, stmtRows] = await Promise.all([
+    db.select({ id: units.id, status: units.status }).from(units).where(eq(units.orgId, orgId)),
+    db.select({ amount: payments.amount })
+      .from(payments)
+      .where(and(
+        eq(payments.orgId, orgId),
+        eq(payments.status, 'approved'),
+        gte(payments.paidAt, periodStart),
+        lt(payments.paidAt, nextMonth),
+      )),
+    db.select({ amount: expenses.amount })
+      .from(expenses)
+      .where(and(
+        eq(expenses.orgId, orgId),
+        gte(expenses.incurredOn, periodStart),
+        lt(expenses.incurredOn, nextMonth),
+      )),
+    db.select({ id: incidents.id })
+      .from(incidents)
+      .where(and(eq(incidents.orgId, orgId), neq(incidents.status, 'solved'))),
+    db.execute(
+      sql`SELECT is_overdue, tenant_id FROM tenant_statement WHERE org_id = ${orgId}`
+    ) as Promise<unknown>,
   ]);
 
-  const totalUnits = (units ?? []).length;
-  const occupiedUnits = (units ?? []).filter((u: { status: string }) => u.status === 'occupied').length;
+  const stmts = stmtRows as Array<{ is_overdue: boolean; tenant_id: string | null }>;
+
+  const totalUnits = unitRows.length;
+  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
   const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0;
 
-  const grossIncome = (payments ?? []).reduce((s: number, p: { amount: number }) => s + (p.amount ?? 0), 0);
-  const totalExpenses = (expenses ?? []).reduce((s: number, e: { amount: number }) => s + (e.amount ?? 0), 0);
+  const grossIncome = paymentRows.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const totalExpenses = expenseRows.reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const trueNetProfit = Math.round((grossIncome - totalExpenses) * 100) / 100;
 
-  const openIncidentsCount = (incidents ?? []).length;
-  const overduePaymentsCount = (statements ?? []).filter((s: { is_overdue: boolean }) => s.is_overdue).length;
-  const activeTenantsCount = (statements ?? []).length;
+  const openIncidentsCount = incidentRows.length;
+  const overduePaymentsCount = stmts.filter((s) => s.is_overdue).length;
+  const activeTenantsCount = stmts.length;
 
   return {
     period,
@@ -218,12 +216,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { period } = parsed.data;
 
-  // TODO(W6): replace with db once fetchKPIs is migrated to Drizzle
-  const supabase = await createClient();
-
   try {
-    // Fetch aggregate KPIs (RLS-scoped — no PII columns selected)
-    const kpis = await fetchKPIs(supabase, period);
+    // Fetch aggregate KPIs (org-scoped — no PII columns selected)
+    const kpis = await fetchKPIs(ctx.orgId, period);
 
     // LLM03 / LLM06 / AC31: sanitize before prompt assembly — strips PII keys
     const sanitizedKpiJson = sanitizeForLLM(kpis);

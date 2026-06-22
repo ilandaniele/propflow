@@ -10,8 +10,6 @@ import { Errors } from '@/lib/errors';
 import { aiChatRateLimit } from '@/lib/ratelimit';
 import { assertServerEnv } from '@/lib/env';
 import { AiChatSchema } from '@/lib/schemas/ai';
-// TODO(W6): remove createClient once buildOrgContext is migrated to Drizzle
-import { createClient } from '@/lib/supabase/server';
 import { buildOrgContext, buildSystemPrompt, redactPiiFromUserMessage } from '@/lib/ai/assistant';
 import { checkAndIncrementBudget, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
@@ -61,12 +59,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.VALIDATION_ERROR(parsed.error.flatten()), { status: 400 });
   }
 
-  // TODO(W6): replace with Drizzle once buildOrgContext is migrated
-  const supabase = await createClient();
-
   try {
     // Build org-scoped context (aggregates only — LLM06)
-    const orgCtx = await buildOrgContext(supabase, ctx.orgId);
+    const orgCtx = await buildOrgContext(ctx.orgId);
     const systemPrompt = buildSystemPrompt(orgCtx);
 
     // LLM01: user input as structured user turn, never concatenated into system prompt

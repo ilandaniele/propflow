@@ -10,12 +10,12 @@
  * AC30 (LLM10): checkAndIncrementBudget() is called in every AI route BEFORE
  * the Anthropic API call. Returns false if the org is over the daily limit.
  *
- * Uses createAdminClient() for the upsert to avoid RLS permission issues on the
- * first insert of the day (no row yet) and to allow atomic increment without a
- * race condition between concurrent requests.
+ * Migrated from Supabase admin client to Drizzle ORM (W6).
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { aiTokenBudget } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { log } from '@/lib/log';
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,6 @@ export interface BudgetCheckResult {
 /**
  * Check whether the org has remaining budget for `tokensRequested` tokens.
  * If allowed, increment the counter atomically (upsert on today's date).
- * If the daily row does not exist yet it is created with `tokensRequested`.
  *
  * @param orgId          — The organization UUID.
  * @param tokensRequested — Estimated tokens for this request (input + output).
@@ -58,24 +57,23 @@ export async function checkAndIncrementBudget(
   orgId: string,
   tokensRequested: number,
 ): Promise<BudgetCheckResult> {
-  const adminClient = createAdminClient();
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   // Fetch today's row (if any)
-  const { data: existing, error: fetchError } = await adminClient
-    .from('ai_token_budget')
-    .select('id, tokens_used')
-    .eq('org_id', orgId)
-    .eq('day', today)
-    .maybeSingle();
-
-  if (fetchError) {
-    // Fail-open logging, fail-closed on budget (refuse on error to prevent abuse)
-    log.error('[ai/budget] fetch error', { code: fetchError.code, orgId });
+  let existing: { id: string; tokensUsed: number } | undefined;
+  try {
+    const rows = await db
+      .select({ id: aiTokenBudget.id, tokensUsed: aiTokenBudget.tokensUsed })
+      .from(aiTokenBudget)
+      .where(and(eq(aiTokenBudget.orgId, orgId), eq(aiTokenBudget.day, today)))
+      .limit(1);
+    existing = rows[0];
+  } catch (err) {
+    log.error('[ai/budget] fetch error', { error: (err as Error).message, orgId });
     return { allowed: false, tokensUsedToday: DAILY_TOKEN_BUDGET, tokensRemaining: 0 };
   }
 
-  const tokensUsedToday = existing?.tokens_used ?? 0;
+  const tokensUsedToday = existing?.tokensUsed ?? 0;
   const tokensRemaining = Math.max(0, DAILY_TOKEN_BUDGET - tokensUsedToday);
 
   if (tokensUsedToday + tokensRequested > DAILY_TOKEN_BUDGET) {
@@ -89,21 +87,24 @@ export async function checkAndIncrementBudget(
   }
 
   // Atomic upsert — increment the counter
-  const { error: upsertError } = await adminClient
-    .from('ai_token_budget')
-    .upsert(
-      {
-        org_id:      orgId,
-        day:         today,
-        tokens_used: tokensUsedToday + tokensRequested,
-        updated_at:  new Date().toISOString(),
-      },
-      { onConflict: 'org_id,day' },
-    );
-
-  if (upsertError) {
-    log.error('[ai/budget] upsert error', { code: upsertError.code, orgId });
-    // Fail-closed: if we can't record usage, deny the request
+  try {
+    await db
+      .insert(aiTokenBudget)
+      .values({
+        orgId,
+        day: today,
+        tokensUsed: tokensRequested,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [aiTokenBudget.orgId, aiTokenBudget.day],
+        set: {
+          tokensUsed: tokensUsedToday + tokensRequested,
+          updatedAt: new Date(),
+        },
+      });
+  } catch (err) {
+    log.error('[ai/budget] upsert error', { error: (err as Error).message, orgId });
     return { allowed: false, tokensUsedToday, tokensRemaining };
   }
 
@@ -124,10 +125,6 @@ export async function checkAndIncrementBudget(
 /**
  * Update the token counter with the actual usage reported by the API response.
  * Called after a successful Anthropic call to replace the estimate with truth.
- *
- * @param orgId        — The organization UUID.
- * @param actualTokens — Actual input + output tokens from the API response.
- * @param estimatedTokens — The tokens we pre-reserved in checkAndIncrementBudget.
  */
 export async function recordActualUsage(
   orgId: string,
@@ -135,27 +132,24 @@ export async function recordActualUsage(
   estimatedTokens: number,
 ): Promise<void> {
   const delta = actualTokens - estimatedTokens;
-  if (delta === 0) return; // nothing to adjust
+  if (delta === 0) return;
 
-  const adminClient = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: existing } = await adminClient
-    .from('ai_token_budget')
-    .select('tokens_used')
-    .eq('org_id', orgId)
-    .eq('day', today)
-    .maybeSingle();
+  const rows = await db
+    .select({ tokensUsed: aiTokenBudget.tokensUsed })
+    .from(aiTokenBudget)
+    .where(and(eq(aiTokenBudget.orgId, orgId), eq(aiTokenBudget.day, today)))
+    .limit(1);
 
-  if (!existing) return; // row was removed or date rolled over — ignore
+  if (!rows[0]) return; // row was removed or date rolled over
 
-  const newTotal = Math.max(0, (existing.tokens_used as number) + delta);
+  const newTotal = Math.max(0, rows[0].tokensUsed + delta);
 
-  await adminClient
-    .from('ai_token_budget')
-    .update({ tokens_used: newTotal, updated_at: new Date().toISOString() })
-    .eq('org_id', orgId)
-    .eq('day', today);
+  await db
+    .update(aiTokenBudget)
+    .set({ tokensUsed: newTotal, updatedAt: new Date() })
+    .where(and(eq(aiTokenBudget.orgId, orgId), eq(aiTokenBudget.day, today)));
 }
 
 // ---------------------------------------------------------------------------
@@ -171,21 +165,19 @@ export interface BudgetStatus {
 }
 
 /**
- * Return today's budget status for the given org (admin-scoped read).
+ * Return today's budget status for the given org (read-only).
  * Returns zeroed status if no row exists yet (first request of the day).
  */
 export async function getBudgetStatus(orgId: string): Promise<BudgetStatus> {
-  const adminClient = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data } = await adminClient
-    .from('ai_token_budget')
-    .select('tokens_used')
-    .eq('org_id', orgId)
-    .eq('day', today)
-    .maybeSingle();
+  const rows = await db
+    .select({ tokensUsed: aiTokenBudget.tokensUsed })
+    .from(aiTokenBudget)
+    .where(and(eq(aiTokenBudget.orgId, orgId), eq(aiTokenBudget.day, today)))
+    .limit(1);
 
-  const tokensUsed = (data?.tokens_used as number | null) ?? 0;
+  const tokensUsed = rows[0]?.tokensUsed ?? 0;
   const percentUsed =
     DAILY_TOKEN_BUDGET > 0
       ? Math.min(100, Math.round((tokensUsed / DAILY_TOKEN_BUDGET) * 100))

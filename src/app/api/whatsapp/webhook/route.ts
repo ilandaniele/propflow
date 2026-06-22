@@ -16,8 +16,6 @@ import { organizations } from '@/lib/db/schema';
 import { webhookRateLimit } from '@/lib/ratelimit';
 import { validateHmacSignature } from '@/lib/whatsapp/signature';
 import { InboundWebhookSchema } from '@/lib/schemas/whatsapp';
-// TODO(W6): remove createAdminClient once whatsapp/db lib functions are migrated to Drizzle
-import { createAdminClient } from '@/lib/supabase/admin';
 import {
   upsertConversation,
   insertMessage,
@@ -101,15 +99,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const orgId = orgRows[0].id;
 
-  // TODO(W6): replace adminClient with db once whatsapp/db lib functions are migrated to Drizzle
-  const adminClient = createAdminClient();
-
   // Find tenant by phone (PII: do not log phone)
-  const tenant = await findTenantByPhone(adminClient, orgId, from);
+  const tenant = await findTenantByPhone(orgId, from);
 
   // Upsert conversation
   const conversationId = await upsertConversation({
-    adminClient,
     orgId,
     externalPhone: from,
     tenantId: tenant?.id ?? null,
@@ -121,7 +115,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Insert message (idempotent on provider_message_id)
   const messageId = await insertMessage({
-    adminClient,
     orgId,
     conversationId,
     direction: 'inbound',
@@ -140,7 +133,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Update conversation activity
-  await updateConversationActivity(adminClient, conversationId, true);
+  await updateConversationActivity(conversationId, true);
 
   // Emit events (fire-and-forget)
   if (type === 'text') {

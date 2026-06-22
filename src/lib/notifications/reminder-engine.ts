@@ -2,17 +2,32 @@
  * Reminder engine — IC-D1
  *
  * Pure logic: evaluates lease-renewal + payment-due reminders.
- * Called from POST /api/cron/reminders with a service-role client.
+ * Called from POST /api/cron/reminders.
  * Constraints:
  *   - Must complete < 60s for an org with thousands of active charges/contracts
  *   - Paginates evaluation query (page size ≤ 200 per batch)
  *   - Deduplicates via existing `reminders` rows to prevent double-send
  *   - On email failure: logs + marks reminder as failed; cron retries next run (A10)
- *   - Lease-renewal window: 30 days before end_date (defaulted per spec open question)
- *   - Payment-due window: due_date and 3 days before (defaulted per spec open question)
+ *   - Lease-renewal window: 30 days before end_date
+ *   - Payment-due window: due_date and 3 days before
+ *
+ * Migrated from Supabase admin client to Drizzle ORM (W6).
  */
 
-import { SupabaseClient } from '@supabase/supabase-js';
+import { db } from '@/lib/db';
+import {
+  organizations,
+  contracts,
+  tenants,
+  units,
+  properties,
+  charges,
+  reminders,
+  notificationInbox,
+  tenantTasks,
+} from '@/lib/db/schema';
+import { eq, and, gte, lte, inArray, lt } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { sendEmail, buildReminderEmail } from './email';
 import { log } from '@/lib/log';
 import { buildWhatsAppTemplate } from '@/lib/whatsapp/templates';
@@ -34,29 +49,26 @@ export interface ReminderRunResult {
   durationMs: number;
 }
 
-export interface ReminderEngineContext {
-  adminClient: SupabaseClient; // service-role, bypasses RLS
-  siteUrl: string;
-}
-
 /**
  * Run the reminder engine for all organizations.
  * Returns per-org summary for the cron response.
  */
-export async function runReminderEngine(ctx: ReminderEngineContext): Promise<ReminderRunResult[]> {
+export async function runReminderEngine(siteUrl: string): Promise<ReminderRunResult[]> {
   const start = Date.now();
 
-  // Get all active orgs
-  const { data: orgs } = await ctx.adminClient.from('organizations').select('id').limit(200);
-  if (!orgs || orgs.length === 0) return [];
+  const orgRows = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .limit(200);
+
+  if (!orgRows || orgRows.length === 0) return [];
 
   const results: ReminderRunResult[] = [];
 
-  for (const org of orgs) {
-    const result = await processOrg(org.id, ctx, start);
+  for (const org of orgRows) {
+    const result = await processOrg(org.id, siteUrl, start);
     results.push(result);
 
-    // Safety: abort if we're close to the 60s limit
     if (Date.now() - start > 50_000) {
       log.warn('[reminder-engine] approaching 60s limit, stopping early');
       break;
@@ -68,7 +80,7 @@ export async function runReminderEngine(ctx: ReminderEngineContext): Promise<Rem
 
 async function processOrg(
   orgId: string,
-  ctx: ReminderEngineContext,
+  siteUrl: string,
   globalStart: number
 ): Promise<ReminderRunResult> {
   const start = Date.now();
@@ -84,196 +96,287 @@ async function processOrg(
   // ── Lease-renewal reminders ────────────────────────────────────────────────
   let contractOffset = 0;
   while (true) {
-    const { data: contracts } = await ctx.adminClient
-      .from('contracts')
-      .select(`
-        id, end_date,
-        tenant:tenants(id, full_name, email, profile_id),
-        unit:units(label, property:properties(name))
-      `)
-      .eq('org_id', orgId)
-      .eq('status', 'active')
-      .gte('end_date', today)
-      .lte('end_date', renewalCutoff)
-      .order('end_date', { ascending: true })
-      .range(contractOffset, contractOffset + PAGE_SIZE - 1);
+    const contractRows = await db
+      .select({
+        id:      contracts.id,
+        endDate: contracts.endDate,
+        tenantId: contracts.tenantId,
+        unitId:   contracts.unitId,
+      })
+      .from(contracts)
+      .where(and(
+        eq(contracts.orgId, orgId),
+        eq(contracts.status, 'active'),
+        gte(contracts.endDate, today),
+        lte(contracts.endDate, renewalCutoff),
+      ))
+      .orderBy(contracts.endDate)
+      .limit(PAGE_SIZE)
+      .offset(contractOffset);
 
-    if (!contracts || contracts.length === 0) break;
-    contractOffset += contracts.length;
-    contractsProcessed += contracts.length;
+    if (!contractRows || contractRows.length === 0) break;
+    contractOffset += contractRows.length;
+    contractsProcessed += contractRows.length;
 
-    for (const contract of contracts) {
-      const tenant = contract.tenant as unknown as { id: string; full_name: string | null; email: string | null; profile_id: string | null } | null;
+    // Fetch tenant details for these contracts
+    const tenantIds = contractRows.map((c) => c.tenantId).filter(Boolean) as string[];
+    const unitIds = contractRows.map((c) => c.unitId).filter(Boolean) as string[];
+
+    const tenantMap = new Map<string, { fullName: string | null; email: string | null; profileId: string | null }>();
+    if (tenantIds.length > 0) {
+      const tenantRows = await db
+        .select({ id: tenants.id, fullName: tenants.fullName, email: tenants.email, profileId: tenants.profileId })
+        .from(tenants)
+        .where(and(eq(tenants.orgId, orgId), inArray(tenants.id, tenantIds)));
+      for (const t of tenantRows) tenantMap.set(t.id, { fullName: t.fullName, email: t.email, profileId: t.profileId });
+    }
+
+    const unitLabelMap = new Map<string, string>();
+    if (unitIds.length > 0) {
+      const unitRows = await db
+        .select({ id: units.id, label: units.label })
+        .from(units)
+        .where(inArray(units.id, unitIds));
+      for (const u of unitRows) unitLabelMap.set(u.id, u.label ?? u.id);
+    }
+
+    for (const contract of contractRows) {
+      const tenant = tenantMap.get(contract.tenantId ?? '');
       if (!tenant?.email) continue;
 
-      // Dedup: check if a lease_renewal reminder for this contract was already sent today
-      const { data: existing } = await ctx.adminClient
-        .from('reminders')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('type', 'lease_renewal')
-        .eq('target_type', 'contract')
-        .eq('target_id', contract.id)
-        .eq('scheduled_for', today)
-        .in('status', ['sent', 'scheduled'])
+      // Dedup check
+      const existing = await db
+        .select({ id: reminders.id })
+        .from(reminders)
+        .where(and(
+          eq(reminders.orgId, orgId),
+          eq(reminders.type, 'lease_renewal'),
+          eq(reminders.targetType, 'contract'),
+          eq(reminders.targetId, contract.id),
+          eq(reminders.scheduledFor, today),
+          inArray(reminders.status, ['sent', 'scheduled']),
+        ))
         .limit(1);
 
-      if (existing && existing.length > 0) continue; // already handled
+      if (existing.length > 0) continue;
 
-      const daysLeft = daysBetween(today, contract.end_date);
-      const message = `Your lease for ${(contract as {unit?: {label?: string}}).unit?.label ?? 'your unit'} expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} (${contract.end_date}). Please contact your landlord to discuss renewal.`;
+      const daysLeft = daysBetween(today, contract.endDate ?? today);
+      const unitLabel = unitLabelMap.get(contract.unitId ?? '') ?? 'your unit';
+      const message = `Your lease for ${unitLabel} expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} (${contract.endDate}). Please contact your landlord to discuss renewal.`;
 
       const { subject, html } = buildReminderEmail({
-        recipientName: tenant.full_name ?? 'Tenant',
+        recipientName: tenant.fullName ?? 'Tenant',
         type: 'lease_renewal',
         message,
-        siteUrl: ctx.siteUrl,
+        siteUrl,
       });
 
       const emailResult = await sendEmail({ to: tenant.email, subject, html, context: 'lease_renewal' });
 
-      // Insert reminder row (sent or failed)
-      const { data: reminder } = await ctx.adminClient.from('reminders').insert({
-        org_id: orgId,
-        type: 'lease_renewal',
-        target_type: 'contract',
-        target_id: contract.id,
-        channel: 'both',
-        scheduled_for: today,
-        sent_at: emailResult.success ? new Date().toISOString() : null,
-        status: emailResult.success ? 'sent' : 'failed',
-        message_preview: message.slice(0, 200),
-        error: emailResult.success ? null : emailResult.error,
-      }).select('id').single();
+      const [reminder] = await db
+        .insert(reminders)
+        .values({
+          orgId,
+          type: 'lease_renewal',
+          targetType: 'contract',
+          targetId: contract.id,
+          channel: 'both',
+          scheduledFor: today,
+          sentAt: emailResult.success ? new Date() : null,
+          status: emailResult.success ? 'sent' : 'failed',
+          messagePreview: message.slice(0, 200),
+          error: emailResult.success ? null : emailResult.error,
+        })
+        .returning({ id: reminders.id });
 
-      if (reminder && tenant.profile_id) {
-        // Write notification_inbox row
-        await ctx.adminClient.from('notification_inbox').insert({
-          org_id: orgId,
-          profile_id: tenant.profile_id,
+      if (reminder && tenant.profileId) {
+        await db.insert(notificationInbox).values({
+          orgId,
+          profileId: tenant.profileId,
           type: 'lease_renewal',
           title: 'Lease Renewal Reminder',
           body: message.slice(0, 200),
-          related_type: 'contract',
-          related_id: contract.id,
+          relatedType: 'contract',
+          relatedId: contract.id,
         });
       }
 
       if (emailResult.success) { remindersSent++; } else { remindersFailed++; }
     }
 
-    if (contracts.length < PAGE_SIZE) break;
+    if (contractRows.length < PAGE_SIZE) break;
     if (Date.now() - globalStart > 50_000) break;
   }
 
   // ── Payment-due reminders ──────────────────────────────────────────────────
   let chargeOffset = 0;
   while (true) {
-    const { data: charges } = await ctx.adminClient
-      .from('charges')
-      .select(`
-        id, amount, due_date, description,
-        tenant:tenants(id, full_name, email, profile_id)
-      `)
-      .eq('org_id', orgId)
-      .gte('due_date', today)
-      .lte('due_date', paymentCutoff)
-      .order('due_date', { ascending: true })
-      .range(chargeOffset, chargeOffset + PAGE_SIZE - 1);
+    const chargeRows = await db
+      .select({
+        id:          charges.id,
+        amount:      charges.amount,
+        dueDate:     charges.dueDate,
+        description: charges.description,
+        tenantId:    charges.tenantId,
+      })
+      .from(charges)
+      .where(and(
+        eq(charges.orgId, orgId),
+        gte(charges.dueDate, today),
+        lte(charges.dueDate, paymentCutoff),
+      ))
+      .orderBy(charges.dueDate)
+      .limit(PAGE_SIZE)
+      .offset(chargeOffset);
 
-    if (!charges || charges.length === 0) break;
-    chargeOffset += charges.length;
-    chargesProcessed += charges.length;
+    if (!chargeRows || chargeRows.length === 0) break;
+    chargeOffset += chargeRows.length;
+    chargesProcessed += chargeRows.length;
 
-    for (const charge of charges) {
-      const tenant = charge.tenant as unknown as { id: string; full_name: string | null; email: string | null; profile_id: string | null } | null;
+    const tenantIds2 = chargeRows.map((c) => c.tenantId).filter(Boolean) as string[];
+    const tenantMap2 = new Map<string, { fullName: string | null; email: string | null; profileId: string | null }>();
+    if (tenantIds2.length > 0) {
+      const tenantRows2 = await db
+        .select({ id: tenants.id, fullName: tenants.fullName, email: tenants.email, profileId: tenants.profileId })
+        .from(tenants)
+        .where(and(eq(tenants.orgId, orgId), inArray(tenants.id, tenantIds2)));
+      for (const t of tenantRows2) tenantMap2.set(t.id, { fullName: t.fullName, email: t.email, profileId: t.profileId });
+    }
+
+    for (const charge of chargeRows) {
+      const tenant = tenantMap2.get(charge.tenantId ?? '');
       if (!tenant?.email) continue;
 
-      const { data: existing } = await ctx.adminClient
-        .from('reminders')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('type', 'payment_due')
-        .eq('target_type', 'charge')
-        .eq('target_id', charge.id)
-        .eq('scheduled_for', today)
-        .in('status', ['sent', 'scheduled'])
+      const existing = await db
+        .select({ id: reminders.id })
+        .from(reminders)
+        .where(and(
+          eq(reminders.orgId, orgId),
+          eq(reminders.type, 'payment_due'),
+          eq(reminders.targetType, 'charge'),
+          eq(reminders.targetId, charge.id),
+          eq(reminders.scheduledFor, today),
+          inArray(reminders.status, ['sent', 'scheduled']),
+        ))
         .limit(1);
 
-      if (existing && existing.length > 0) continue;
+      if (existing.length > 0) continue;
 
-      const message = `A payment of $${charge.amount} is due on ${charge.due_date}${charge.description ? ` (${charge.description})` : ''}. Please log in to your portal to make your payment.`;
+      const message = `A payment of $${charge.amount} is due on ${charge.dueDate}${charge.description ? ` (${charge.description})` : ''}. Please log in to your portal to make your payment.`;
 
       const { subject, html } = buildReminderEmail({
-        recipientName: tenant.full_name ?? 'Tenant',
+        recipientName: tenant.fullName ?? 'Tenant',
         type: 'payment_due',
         message,
-        siteUrl: ctx.siteUrl,
+        siteUrl,
       });
 
       const emailResult = await sendEmail({ to: tenant.email, subject, html, context: 'payment_due' });
 
-      const { data: reminder } = await ctx.adminClient.from('reminders').insert({
-        org_id: orgId,
-        type: 'payment_due',
-        target_type: 'charge',
-        target_id: charge.id,
-        channel: 'both',
-        scheduled_for: today,
-        sent_at: emailResult.success ? new Date().toISOString() : null,
-        status: emailResult.success ? 'sent' : 'failed',
-        message_preview: message.slice(0, 200),
-        error: emailResult.success ? null : emailResult.error,
-      }).select('id').single();
+      const [reminder] = await db
+        .insert(reminders)
+        .values({
+          orgId,
+          type: 'payment_due',
+          targetType: 'charge',
+          targetId: charge.id,
+          channel: 'both',
+          scheduledFor: today,
+          sentAt: emailResult.success ? new Date() : null,
+          status: emailResult.success ? 'sent' : 'failed',
+          messagePreview: message.slice(0, 200),
+          error: emailResult.success ? null : emailResult.error,
+        })
+        .returning({ id: reminders.id });
 
-      if (reminder && tenant.profile_id) {
-        await ctx.adminClient.from('notification_inbox').insert({
-          org_id: orgId,
-          profile_id: tenant.profile_id,
+      if (reminder && tenant.profileId) {
+        await db.insert(notificationInbox).values({
+          orgId,
+          profileId: tenant.profileId,
           type: 'payment_due',
           title: 'Payment Due Reminder',
           body: message.slice(0, 200),
-          related_type: 'charge',
-          related_id: charge.id,
+          relatedType: 'charge',
+          relatedId: charge.id,
         });
       }
 
       if (emailResult.success) { remindersSent++; } else { remindersFailed++; }
     }
 
-    if (charges.length < PAGE_SIZE) break;
+    if (chargeRows.length < PAGE_SIZE) break;
     if (Date.now() - globalStart > 50_000) break;
   }
 
   // ── Task reminders & expiry ────────────────────────────────────────────────
   let taskOffset = 0;
   while (true) {
-    const { data: tasks } = await ctx.adminClient
-      .from('tenant_tasks')
-      .select(`
-        id, title, task_type, due_at, status,
-        tenant:tenants(id, full_name, email, profile_id, preferred_language, whatsapp_phone, whatsapp_opt_in)
-      `)
-      .eq('org_id', orgId)
-      .in('status', ['pending', 'in_progress'])
-      .order('due_at', { ascending: true })
-      .range(taskOffset, taskOffset + PAGE_SIZE - 1);
+    const taskRows = await db
+      .select({
+        id:       tenantTasks.id,
+        title:    tenantTasks.title,
+        taskType: tenantTasks.taskType,
+        dueAt:    tenantTasks.dueAt,
+        status:   tenantTasks.status,
+        tenantId: tenantTasks.tenantId,
+      })
+      .from(tenantTasks)
+      .where(and(
+        eq(tenantTasks.orgId, orgId),
+        inArray(tenantTasks.status, ['pending', 'in_progress']),
+      ))
+      .orderBy(tenantTasks.dueAt)
+      .limit(PAGE_SIZE)
+      .offset(taskOffset);
 
-    if (!tasks || tasks.length === 0) break;
-    taskOffset += tasks.length;
+    if (!taskRows || taskRows.length === 0) break;
+    taskOffset += taskRows.length;
+
+    const taskTenantIds = taskRows.map((t) => t.tenantId).filter(Boolean) as string[];
+    const taskTenantMap = new Map<string, {
+      id: string; fullName: string | null; email: string | null; profileId: string | null;
+      preferredLanguage: string | null; whatsappPhone: string | null; whatsappOptIn: boolean;
+    }>();
+    if (taskTenantIds.length > 0) {
+      const taskTenantRows = await db
+        .select({
+          id: tenants.id,
+          fullName: tenants.fullName,
+          email: tenants.email,
+          profileId: tenants.profileId,
+          preferredLanguage: tenants.preferredLanguage,
+          whatsappPhone: tenants.whatsappPhone,
+          whatsappOptIn: tenants.whatsappOptIn,
+        })
+        .from(tenants)
+        .where(and(eq(tenants.orgId, orgId), inArray(tenants.id, taskTenantIds)));
+      for (const t of taskTenantRows) {
+        taskTenantMap.set(t.id, {
+          id: t.id,
+          fullName: t.fullName,
+          email: t.email,
+          profileId: t.profileId,
+          preferredLanguage: t.preferredLanguage,
+          whatsappPhone: t.whatsappPhone,
+          whatsappOptIn: t.whatsappOptIn ?? false,
+        });
+      }
+    }
 
     const now = new Date().toISOString();
 
-    for (const task of tasks) {
-      const tenant = task.tenant as unknown as { id: string; full_name: string | null; email: string | null; profile_id: string | null; preferred_language: string | null; whatsapp_phone: string | null; whatsapp_opt_in: boolean | null } | null;
+    for (const task of taskRows) {
+      const tenant = taskTenantMap.get(task.tenantId ?? '');
       if (!tenant) continue;
 
+      const dueAt = task.dueAt ? (task.dueAt instanceof Date ? task.dueAt : new Date(task.dueAt)) : null;
+
       // Check if task is expired
-      if (task.due_at < now && task.status === 'pending') {
-        await ctx.adminClient
-          .from('tenant_tasks')
-          .update({ status: 'expired', updated_at: now })
-          .eq('id', task.id);
+      if (dueAt && dueAt.toISOString() < now && task.status === 'pending') {
+        await db
+          .update(tenantTasks)
+          .set({ status: 'expired', updatedAt: new Date() })
+          .where(eq(tenantTasks.id, task.id));
 
         emit('task.expired', {
           orgId,
@@ -284,25 +387,26 @@ async function processOrg(
         continue;
       }
 
-      // Check if reminder should be sent (due within 24h and not yet reminded)
-      const dueInHours = (new Date(task.due_at).getTime() - Date.now()) / (60 * 60 * 1000);
+      if (!dueAt) continue;
+      const dueInHours = (dueAt.getTime() - Date.now()) / (60 * 60 * 1000);
       if (dueInHours > 0 && dueInHours <= TASK_REMINDER_HOURS) {
-        // Dedup: check if reminder already sent today
-        const { data: existing } = await ctx.adminClient
-          .from('reminders')
-          .select('id')
-          .eq('org_id', orgId)
-          .eq('type', 'task_reminder')
-          .eq('target_type', 'tenant_task')
-          .eq('target_id', task.id)
-          .eq('scheduled_for', today)
-          .in('status', ['sent', 'scheduled'])
+        const existing = await db
+          .select({ id: reminders.id })
+          .from(reminders)
+          .where(and(
+            eq(reminders.orgId, orgId),
+            eq(reminders.type, 'task_reminder'),
+            eq(reminders.targetType, 'tenant_task'),
+            eq(reminders.targetId, task.id),
+            eq(reminders.scheduledFor, today),
+            inArray(reminders.status, ['sent', 'scheduled']),
+          ))
           .limit(1);
 
-        if (existing && existing.length > 0) continue;
+        if (existing.length > 0) continue;
 
-        const locale = tenant.preferred_language ?? 'es';
-        const dueDate = new Date(task.due_at).toLocaleDateString();
+        const locale = tenant.preferredLanguage ?? 'es';
+        const dueDate = dueAt.toLocaleDateString();
         const body = buildWhatsAppTemplate('taskReminder', locale, {
           title: task.title,
           date: dueDate,
@@ -310,26 +414,22 @@ async function processOrg(
 
         let reminderStatus: 'sent' | 'failed' = 'failed';
 
-        // Send WhatsApp if tenant has phone + opt_in
-        if (tenant.whatsapp_phone && tenant.whatsapp_opt_in) {
+        if (tenant.whatsappPhone && tenant.whatsappOptIn) {
           const provider = getWhatsAppProvider();
           const sendResult = await provider.sendMessage(orgId, {
-            to: tenant.whatsapp_phone,
+            to: tenant.whatsappPhone,
             body,
           });
 
           if (sendResult.success && sendResult.providerMessageId) {
-            // Upsert conversation + insert message
             const convId = await upsertConversation({
-              adminClient: ctx.adminClient,
               orgId,
-              externalPhone: tenant.whatsapp_phone,
+              externalPhone: tenant.whatsappPhone,
               tenantId: tenant.id,
             }).catch(() => null);
 
             if (convId) {
               await insertMessage({
-                adminClient: ctx.adminClient,
                 orgId,
                 conversationId: convId,
                 direction: 'outbound',
@@ -342,17 +442,16 @@ async function processOrg(
           }
         }
 
-        // Insert reminders row for dedup
-        await ctx.adminClient.from('reminders').insert({
-          org_id: orgId,
+        await db.insert(reminders).values({
+          orgId,
           type: 'task_reminder',
-          target_type: 'tenant_task',
-          target_id: task.id,
+          targetType: 'tenant_task',
+          targetId: task.id,
           channel: 'whatsapp',
-          scheduled_for: today,
-          sent_at: reminderStatus === 'sent' ? now : null,
+          scheduledFor: today,
+          sentAt: reminderStatus === 'sent' ? new Date() : null,
           status: reminderStatus,
-          message_preview: body.slice(0, 200),
+          messagePreview: body.slice(0, 200),
         });
 
         if (reminderStatus === 'sent') {
@@ -363,7 +462,7 @@ async function processOrg(
       }
     }
 
-    if (tasks.length < PAGE_SIZE) break;
+    if (taskRows.length < PAGE_SIZE) break;
     if (Date.now() - globalStart > 50_000) break;
   }
 

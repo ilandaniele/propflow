@@ -3,9 +3,6 @@ export const runtime = 'nodejs';
 
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-// TODO(W6): runReminderEngine still expects a SupabaseClient; update lib in W6.
-// For now we pass createAdminClient so the cron keeps functioning until W6 lands.
-import { createAdminClient } from '@/lib/supabase/admin';
 import { runReminderEngine } from '@/lib/notifications/reminder-engine';
 import { assertServerEnv, env } from '@/lib/env';
 import { log } from '@/lib/log';
@@ -14,12 +11,11 @@ import { log } from '@/lib/log';
  * POST /api/cron/reminders
  * Called by Fly scheduled machine (replaces Vercel Cron).
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare)
- * No user session — uses service-role client (admin client).
+ * No user session — uses Drizzle ORM directly (W6 migration complete).
  * Idempotent: dedup via reminders table.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Constant-time secret comparison (prevent timing attacks).
-  // timingSafeEqual requires equal-length buffers — length check must precede the call.
   const authHeader = request.headers.get('authorization') ?? '';
   const cronSecret = assertServerEnv('CRON_SECRET', 'cron reminders');
   const expected = Buffer.from(`Bearer ${cronSecret}`, 'utf8');
@@ -31,11 +27,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // TODO(W6): replace createAdminClient() with db once runReminderEngine is migrated to Drizzle.
-    const adminClient = createAdminClient();
     const siteUrl = env.NEXT_PUBLIC_SITE_URL;
-
-    const results = await runReminderEngine({ adminClient, siteUrl });
+    const results = await runReminderEngine(siteUrl);
 
     const totalSent = results.reduce((s, r) => s + r.remindersSent, 0);
     const totalFailed = results.reduce((s, r) => s + r.remindersFailed, 0);

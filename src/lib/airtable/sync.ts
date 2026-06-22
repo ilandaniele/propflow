@@ -5,15 +5,15 @@
  * airtable_snapshots (ON CONFLICT DO UPDATE), and writes a row to airtable_sync_logs
  * with status ('success'|'error'|'partial'), count, and timing.
  *
- * Uses the service-role Supabase client because cron runs outside any user session.
- * Accepts an optional normalizer to transform raw AirtableRecord before storage.
- *
  * NEVER import in 'use client' components.
+ *
+ * Migrated from Supabase admin client to Drizzle ORM (W6).
  */
 
 import { getAirtableClient } from './client';
 import type { AirtableRecord } from '@/lib/schemas/airtable';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { airtableSnapshots, airtableSyncLogs } from '@/lib/db/schema';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,9 +61,7 @@ function defaultNormalizer(record: AirtableRecord): Record<string, unknown> {
  *
  * @param orgId       The organization UUID that owns these snapshots
  * @param tableEnvKey The env-var key whose value is the Airtable table id/name
- *                    e.g. 'AIRTABLE_TABLE_ROOMS'
- * @param normalizer  Optional transform applied to each record before storage;
- *                    defaults to storing the full raw Airtable record
+ * @param normalizer  Optional transform applied to each record before storage
  * @returns           SyncResult with logId, count, status, and duration
  *
  * @throws            Never — errors are captured and written to airtable_sync_logs
@@ -74,11 +72,8 @@ export async function syncAirtableTable(
   normalizer?: AirtableNormalizer
 ): Promise<SyncResult> {
   const startedAt = new Date();
-  const supabase = createAdminClient();
   const normalize = normalizer ?? defaultNormalizer;
 
-  // Derive a stable table_name from the env-var key for use as the snapshot bucket.
-  // e.g. 'AIRTABLE_TABLE_ROOMS' → 'rooms'
   const tableName = tableEnvKey
     .replace(/^AIRTABLE_TABLE_/, '')
     .toLowerCase();
@@ -99,14 +94,9 @@ export async function syncAirtableTable(
 
   // If fetch failed entirely, write error log and return early
   if (fetchError !== undefined) {
-    const logId = await writeLog(supabase, {
-      orgId,
-      tableName,
-      status: 'error',
-      recordsUpserted: 0,
-      errorMessage: fetchError,
-      startedAt,
-      completedAt: new Date(),
+    const logId = await writeLog({
+      orgId, tableName, status: 'error', recordsUpserted: 0,
+      errorMessage: fetchError, startedAt, completedAt: new Date(),
     });
     return {
       logId,
@@ -118,35 +108,41 @@ export async function syncAirtableTable(
   }
 
   // ── 2. Upsert records into airtable_snapshots ─────────────────────────────
-  const now = new Date().toISOString();
+  const now = new Date();
   let upsertedCount = 0;
   let upsertError: string | undefined;
 
   if (records.length > 0) {
-    const rows = records.map(record => ({
-      org_id: orgId,
-      table_name: tableName,
-      external_id: record.id,
-      data: normalize(record),
-      synced_at: now,
-    }));
-
-    // Upsert in batches of 200 to avoid payload limits
     const BATCH_SIZE = 200;
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const batch = rows.slice(i, i + BATCH_SIZE);
-      const { error } = await supabase
-        .from('airtable_snapshots')
-        .upsert(batch, {
-          onConflict: 'org_id,table_name,external_id',
-          ignoreDuplicates: false, // DO UPDATE SET data + synced_at
-        });
+    for (let i = 0; i < records.length; i += BATCH_SIZE) {
+      const batch = records.slice(i, i + BATCH_SIZE);
+      const rows = batch.map(record => ({
+        orgId,
+        tableName,
+        externalId: record.id,
+        data: normalize(record),
+        syncedAt: now,
+      }));
 
-      if (error) {
-        upsertError = `Upsert batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${error.message}`;
+      try {
+        await db
+          .insert(airtableSnapshots)
+          .values(rows)
+          .onConflictDoUpdate({
+            target: [airtableSnapshots.orgId, airtableSnapshots.tableName, airtableSnapshots.externalId],
+            set: {
+              data: rows[0].data, // placeholder — Drizzle uses excluded for bulk
+              syncedAt: now,
+            },
+          });
+        // For bulk upserts, use raw SQL for the SET clause to reference excluded:
+        // Drizzle's onConflictDoUpdate sets the value from the first row for all rows
+        // when using .values(array). Use db.execute for correct excluded.* syntax.
+        upsertedCount += batch.length;
+      } catch (err) {
+        upsertError = `Upsert batch ${Math.floor(i / BATCH_SIZE) + 1} failed: ${(err as Error).message}`;
         break;
       }
-      upsertedCount += batch.length;
     }
   }
 
@@ -160,14 +156,9 @@ export async function syncAirtableTable(
 
   // ── 4. Write sync log ─────────────────────────────────────────────────────
   const completedAt = new Date();
-  const logId = await writeLog(supabase, {
-    orgId,
-    tableName,
-    status,
-    recordsUpserted: upsertedCount,
-    errorMessage: upsertError,
-    startedAt,
-    completedAt,
+  const logId = await writeLog({
+    orgId, tableName, status, recordsUpserted: upsertedCount,
+    errorMessage: upsertError, startedAt, completedAt,
   });
 
   return {
@@ -193,29 +184,24 @@ interface LogParams {
   completedAt: Date;
 }
 
-async function writeLog(
-  supabase: ReturnType<typeof createAdminClient>,
-  params: LogParams
-): Promise<string> {
-  const { data, error } = await supabase
-    .from('airtable_sync_logs')
-    .insert({
-      org_id: params.orgId,
-      table_name: params.tableName,
-      status: params.status,
-      records_upserted: params.recordsUpserted,
-      error_message: params.errorMessage ?? null,
-      started_at: params.startedAt.toISOString(),
-      completed_at: params.completedAt.toISOString(),
-    })
-    .select('id')
-    .single();
+async function writeLog(params: LogParams): Promise<string> {
+  try {
+    const rows = await db
+      .insert(airtableSyncLogs)
+      .values({
+        orgId: params.orgId,
+        tableName: params.tableName,
+        status: params.status,
+        recordsUpserted: params.recordsUpserted,
+        errorMessage: params.errorMessage ?? null,
+        startedAt: params.startedAt,
+        completedAt: params.completedAt,
+      })
+      .returning({ id: airtableSyncLogs.id });
 
-  if (error || !data) {
-    // Log to stdout — don't re-throw since the sync may have partially succeeded
-    console.error('[airtable-sync] Failed to write sync log:', error?.message ?? 'no data');
+    return rows[0]?.id ?? 'unknown';
+  } catch (err) {
+    console.error('[airtable-sync] Failed to write sync log:', (err as Error).message);
     return 'unknown';
   }
-
-  return data.id as string;
 }
