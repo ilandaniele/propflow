@@ -51,7 +51,7 @@ export default async function DashboardPage() {
     additionalChargeRows,
     accountStatementRows,
     feedbackRows,
-    // Entity health checks — inlined (W6: checkEntityHealth lib depends on SupabaseClient)
+    // Entity health checks — inlined (faster than calling checkEntityHealth per entity)
     tenantCount,
     propertyCount,
     paymentCount,

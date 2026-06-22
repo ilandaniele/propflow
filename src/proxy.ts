@@ -23,9 +23,8 @@ export async function proxy(request: NextRequest) {
       : []),
   ].join('; ');
 
-  // Public routes — skip Supabase session check entirely (no auth needed, no env-var
-  // dependency). This prevents a 500 when NEXT_PUBLIC_SUPABASE_URL resolves to a
-  // placeholder in CI (Lighthouse job) or when env vars are absent on cold-start.
+  // Public routes — skip auth check entirely (no auth needed).
+  // These routes either have no auth requirement or handle their own auth guard in-page.
   //
   // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding.
   // These routes either have no auth requirement or handle their own auth guard in-page.

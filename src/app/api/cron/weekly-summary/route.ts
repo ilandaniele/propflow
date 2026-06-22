@@ -65,7 +65,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       for (const property of orgProperties) {
         try {
-          // TODO(W6): buildWeeklySummary needs Drizzle migration — still uses SupabaseClient.
+          // buildWeeklySummary — migrated to Drizzle in W6.
           const summary = await buildWeeklySummary(org.id, property.id);
 
           // Attempt insert — UNIQUE(property_id, iso_week) prevents duplicate sends.

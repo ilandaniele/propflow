@@ -5,8 +5,6 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
   [build.args]
     NEXT_PUBLIC_SITE_URL = "https://propflow-app.fly.dev"
-    NEXT_PUBLIC_SUPABASE_URL = "https://bizjsejbrhcvhntziuae.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpempzZWpicmhjdmhudHppdWFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNzA4MTYsImV4cCI6MjA5NTY0NjgxNn0.Z0K8ClmGYHzVLP82UmT7vWZaFr3auZ-81tNCOioXurY"
     NEXT_PUBLIC_META_APP_ID = ""
 
 [http_service]
