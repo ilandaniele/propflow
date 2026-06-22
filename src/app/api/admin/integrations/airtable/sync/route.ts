@@ -3,6 +3,9 @@
  *
  * Triggers an on-demand Airtable sync for the admin's org only.
  * Auth: require admin session.
+ *
+ * TODO(W6): syncEntityTable still accepts SupabaseClient — adminClient is kept
+ * here until W6 migrates that lib function to Drizzle.
  */
 
 export const dynamic = 'force-dynamic';
@@ -10,13 +13,13 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/guards';
+// TODO(W6): remove createAdminClient once syncEntityTable uses Drizzle
 import { createAdminClient } from '@/lib/supabase/admin';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
 
 const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
-  // FK parents first
   { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',    entity: 'properties' },
   { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',   entity: 'responsables' },
   { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',     entity: 'units' },
@@ -25,7 +28,6 @@ const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = 
   { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',     entity: 'tenants' },
   { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',      entity: 'contracts' },
   { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',          entity: 'payments' },
-  // New tables (contracts + tenants must sync first)
   { tableEnvKey: 'AIRTABLE_TABLE_ADICIONALES',    entity: 'additional_charges' },
   { tableEnvKey: 'AIRTABLE_TABLE_EECC',           entity: 'account_statements' },
   { tableEnvKey: 'AIRTABLE_TABLE_IMPUESTOS',      entity: 'tax_receipts' },
@@ -51,6 +53,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // TODO(W6): replace adminClient with db once syncEntityTable is migrated to Drizzle.
   const adminClient = createAdminClient();
   const orgId = ctx.orgId;
 
@@ -81,7 +84,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
 
     results.push({
       entity: result.entity,
-      count: result.count,
+      count:  result.count,
       skippedLinks: result.skippedLinks,
       status: result.status,
       errorMessage: result.errorMessage,

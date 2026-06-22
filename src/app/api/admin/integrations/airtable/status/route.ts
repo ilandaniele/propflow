@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenants, airtableSyncLogs } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
@@ -33,9 +35,9 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const pat       = process.env['AIRTABLE_PAT'];
-  const baseId    = process.env['AIRTABLE_BASE_ID'];
-  const baseName  = process.env['AIRTABLE_BASE_NAME'] ?? null;
+  const pat      = process.env['AIRTABLE_PAT'];
+  const baseId   = process.env['AIRTABLE_BASE_ID'];
+  const baseName = process.env['AIRTABLE_BASE_NAME'] ?? null;
 
   // Ping Airtable connectivity using any configured table
   let connectivity: { connected: boolean; latency_ms: number | null; error?: string } = {
@@ -78,13 +80,11 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     connectivity = { connected: false, latency_ms: null, error: 'AIRTABLE_PAT or AIRTABLE_BASE_ID not set' };
   }
 
-  const admin = createAdminClient();
-
-  // Tenant sync stats by sync_status
-  const { data: syncStatsRaw } = await admin
-    .from('tenants')
-    .select('sync_status')
-    .eq('org_id', ctx.orgId);
+  // Tenant sync stats by sync_status — Drizzle (AC1, AC8: org scoped)
+  const syncStatsRaw = await db
+    .select({ syncStatus: tenants.syncStatus })
+    .from(tenants)
+    .where(eq(tenants.orgId, ctx.orgId));
 
   const syncStats: Record<string, number> = {
     synced: 0,
@@ -92,17 +92,25 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     failed: 0,
     needs_review: 0,
   };
-  for (const row of (syncStatsRaw ?? []) as Array<{ sync_status: string | null }>) {
-    const s = row.sync_status ?? 'pending';
+  for (const row of syncStatsRaw) {
+    const s = row.syncStatus ?? 'pending';
     syncStats[s] = (syncStats[s] ?? 0) + 1;
   }
 
-  // Recent sync logs
-  const { data: recentLogs } = await admin
-    .from('airtable_sync_logs')
-    .select('id, table_name, status, records_upserted, error_message, started_at, completed_at')
-    .eq('org_id', ctx.orgId)
-    .order('started_at', { ascending: false })
+  // Recent sync logs — Drizzle (AC1, AC8: org scoped)
+  const recentLogs = await db
+    .select({
+      id:              airtableSyncLogs.id,
+      tableName:       airtableSyncLogs.tableName,
+      status:          airtableSyncLogs.status,
+      recordsUpserted: airtableSyncLogs.recordsUpserted,
+      errorMessage:    airtableSyncLogs.errorMessage,
+      startedAt:       airtableSyncLogs.startedAt,
+      completedAt:     airtableSyncLogs.completedAt,
+    })
+    .from(airtableSyncLogs)
+    .where(eq(airtableSyncLogs.orgId, ctx.orgId))
+    .orderBy(desc(airtableSyncLogs.startedAt))
     .limit(5);
 
   // Env var checklist (names only — never return values or PAT)
@@ -112,12 +120,20 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
   }));
 
   return NextResponse.json({
-    base_id:    baseId ? `...${baseId.slice(-6)}` : null,
-    base_name:  baseName,
+    base_id:           baseId ? `...${baseId.slice(-6)}` : null,
+    base_name:         baseName,
     connectivity,
-    tenant_sync_stats:  syncStats,
-    recent_sync_logs:   recentLogs ?? [],
-    env_vars:           envVarStatus,
-    checked_at:         new Date().toISOString(),
+    tenant_sync_stats: syncStats,
+    recent_sync_logs:  recentLogs.map(l => ({
+      id:               l.id,
+      table_name:       l.tableName,
+      status:           l.status,
+      records_upserted: l.recordsUpserted,
+      error_message:    l.errorMessage,
+      started_at:       l.startedAt,
+      completed_at:     l.completedAt,
+    })),
+    env_vars:          envVarStatus,
+    checked_at:        new Date().toISOString(),
   });
 }

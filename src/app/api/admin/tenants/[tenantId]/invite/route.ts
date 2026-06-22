@@ -2,12 +2,10 @@
  * POST /api/admin/tenants/[tenantId]/invite
  *
  * Generates a secure one-time invitation token for a tenant, revokes any prior
- * pending invitation, sets portal_access='invited', and optionally sends an email
- * via Resend. If RESEND_API_KEY is not configured, the invite URL is still returned
- * in the response so the admin can copy and share it manually.
+ * pending invitation, sets portal_access='invited', and optionally sends an email.
  *
  * Security:
- * - requireAdmin: caller must be an admin in the same org as the tenant.
+ * - requireAdmin: caller must be an admin in the same org as the tenant (AC8).
  * - Only sha256 of the raw token is stored; raw token is single-use and never persisted.
  * - expires_at = 7 days from now.
  */
@@ -17,7 +15,9 @@ export const dynamic = 'force-dynamic';
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenants, tenantInvitations, organizations } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { sendEmail } from '@/lib/notifications/email';
 import { log } from '@/lib/log';
 import { sha256 } from '@/lib/crypto/hash';
@@ -30,7 +30,6 @@ function buildInviteEmail(opts: {
   orgName: string;
 }): { subject: string; html: string } {
   const expiryStr = opts.expiresAt.toLocaleDateString('es-PE', { year: 'numeric', month: 'long', day: 'numeric' });
-  // HTML is server-templated; no user-controlled content injected.
   const safeUrl = opts.inviteUrl.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const safeOrg = opts.orgName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   return {
@@ -71,17 +70,16 @@ export async function POST(
   }
 
   const { tenantId } = await params;
-  const admin = createAdminClient();
 
-  // Verify tenant belongs to admin's org and has an email
-  const { data: tenant, error: tenantErr } = await admin
-    .from('tenants')
-    .select('id, org_id, email, first_name, last_name')
-    .eq('id', tenantId)
-    .eq('org_id', ctx.orgId)
-    .single();
+  // Verify tenant belongs to admin's org (AC8: eq orgId) — Drizzle (AC1)
+  const tenantRows = await db
+    .select({ id: tenants.id, orgId: tenants.orgId, email: tenants.email })
+    .from(tenants)
+    .where(and(eq(tenants.id, tenantId), eq(tenants.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (tenantErr || !tenant) {
+  const tenant = tenantRows[0];
+  if (!tenant) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant not found.' } }, { status: 404 });
   }
 
@@ -89,56 +87,53 @@ export async function POST(
     return NextResponse.json({ error: { code: 'NO_EMAIL', message: 'Tenant has no email address. Add one before sending an invitation.' } }, { status: 422 });
   }
 
-  // Revoke any prior pending invitations for this tenant
-  await admin
-    .from('tenant_invitations')
-    .update({ status: 'revoked' })
-    .eq('tenant_id', tenantId)
-    .eq('status', 'pending');
+  // Revoke any prior pending invitations for this tenant — Drizzle (AC1)
+  await db
+    .update(tenantInvitations)
+    .set({ status: 'revoked' })
+    .where(and(eq(tenantInvitations.tenantId, tenantId), eq(tenantInvitations.status, 'pending')));
 
   // Generate token — 32 random bytes (256 bits); only hash stored
-  const rawToken = crypto.randomBytes(32).toString('base64url');
+  const rawToken  = crypto.randomBytes(32).toString('base64url');
   const tokenHash = sha256(rawToken);
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-  const { error: insertErr } = await admin
-    .from('tenant_invitations')
-    .insert({
-      org_id:     ctx.orgId,
-      tenant_id:  tenantId,
+  try {
+    await db.insert(tenantInvitations).values({
+      orgId:      ctx.orgId,
+      tenantId,
       email:      tenant.email.trim().toLowerCase(),
-      token_hash: tokenHash,
-      invited_by: ctx.userId,
+      tokenHash,
+      invitedBy:  ctx.userId,
       status:     'pending',
-      expires_at: expiresAt.toISOString(),
+      expiresAt,
     });
-
-  if (insertErr) {
-    log.error('[invite] failed to insert invitation', { code: insertErr.code });
+  } catch (err) {
+    log.error('[invite] failed to insert invitation', { error: err instanceof Error ? err.message : 'unknown' });
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create invitation.' } }, { status: 500 });
   }
 
-  // Set portal_access='invited'
-  await admin
-    .from('tenants')
-    .update({ portal_access: 'invited' })
-    .eq('id', tenantId);
+  // Set portal_access='invited' — Drizzle (AC1, AC8)
+  await db
+    .update(tenants)
+    .set({ portalAccess: 'invited' })
+    .where(eq(tenants.id, tenantId));
 
-  const siteUrl = process.env['NEXT_PUBLIC_SITE_URL'] ?? 'http://localhost:3000';
+  const siteUrl  = process.env['NEXT_PUBLIC_SITE_URL'] ?? 'http://localhost:3000';
   const inviteUrl = `${siteUrl}/invite/accept?token=${rawToken}`;
 
   // Attempt email — soft-skip if Resend not configured
   let emailSent = false;
   const resendKey = process.env['RESEND_API_KEY'];
   if (resendKey) {
-    // Get org name for email
-    const { data: org } = await admin
-      .from('organizations')
-      .select('name')
-      .eq('id', ctx.orgId)
-      .single();
+    // Get org name for email — Drizzle (AC1)
+    const orgRows = await db
+      .select({ name: organizations.name })
+      .from(organizations)
+      .where(eq(organizations.id, ctx.orgId))
+      .limit(1);
 
-    const { subject, html } = buildInviteEmail({ inviteUrl, expiresAt, orgName: org?.name ?? 'PropFlow' });
+    const { subject, html } = buildInviteEmail({ inviteUrl, expiresAt, orgName: orgRows[0]?.name ?? 'PropFlow' });
     const result = await sendEmail({
       to: tenant.email,
       subject,
