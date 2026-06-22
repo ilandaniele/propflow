@@ -1,19 +1,12 @@
 /**
  * POST /api/cron/airtable-sync
- * Daily 4:00 UTC cron — syncs all configured Airtable tables into:
- *   1. airtable_snapshots (raw JSON — existing behavior, AC10)
- *   2. main domain tables: properties, tenants, contracts, payments (new)
+ * Fly scheduled machine (replaces Vercel Cron) — syncs all configured Airtable tables.
  *
- * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC1).
- * Uses service-role Supabase client via syncAirtableTable / syncEntityTable
- * (cron runs outside any user session).
+ * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
  *
- * Sync order for entities: properties → tenants → contracts → payments (IC4).
- * Per-entity failure is isolated — others continue (AC6, IC5).
- * Missing table env var → entity skipped, no log row written (AC7).
- *
- * Response: 200 JSON summary with snapshotResults + entityResults.
- *           500 only when ALL entity syncs fail.
+ * TODO(W6): syncAirtableTable and syncEntityTable still accept SupabaseClient.
+ * The adminClient is kept here only to pass to those lib functions until W6 migrates them
+ * to Drizzle. The org-list query has been migrated to Drizzle already.
  */
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +14,9 @@ export const runtime = 'nodejs';
 
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { organizations } from '@/lib/db/schema';
+// TODO(W6): remove createAdminClient once syncAirtableTable + syncEntityTable use Drizzle
 import { createAdminClient } from '@/lib/supabase/admin';
 import { syncAirtableTable } from '@/lib/airtable/sync';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
@@ -40,15 +36,6 @@ const SYNC_TARGETS: Array<{ tableEnvKey: string; entity: string }> = [
 
 /**
  * Entity sync targets — ordered properties→responsables→units→service_payments→tenants→contracts→payments.
- *
- * Sync order rationale:
- *   1. properties         — no FK deps; populates propertiesMap
- *   2. responsables       — no FK deps; populates responsablesMap (needed by tenants)
- *   3. units              — needs propertiesMap; populates unitsMap (needed by tenants)
- *   4. service_payments   — needs propertiesMap (for property_id FK); single table in new schema
- *   5. tenants            — needs propertiesMap + unitsMap + responsablesMap
- *   6. contracts          — needs tenantsMap
- *   7. payments           — needs contractsMap + contract→tenant lookup
  */
 const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
   { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',      entity: 'properties' },
@@ -66,7 +53,7 @@ const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = 
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // ── Auth: constant-time CRON_SECRET comparison (AC1) ─────────────────────
+  // ── Auth: constant-time CRON_SECRET comparison ────────────────────────────
   const authHeader = request.headers.get('authorization') ?? '';
   const cronSecret = process.env.CRON_SECRET;
 
@@ -89,26 +76,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Determine which orgs to sync ─────────────────────────────────────────
-  const adminClient = createAdminClient();
-  const { data: orgs, error: orgsError } = await adminClient
-    .from('organizations')
-    .select('id');
-
-  if (orgsError) {
-    console.error('[cron/airtable-sync] Failed to fetch orgs:', orgsError.message);
+  // ── Determine which orgs to sync — Drizzle query (AC1) ───────────────────
+  let orgIds: string[];
+  try {
+    const rows = await db.select({ id: organizations.id }).from(organizations);
+    orgIds = rows.map(r => r.id);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unknown';
+    console.error('[cron/airtable-sync] Failed to fetch orgs:', msg);
     return NextResponse.json(
       { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch organizations' } },
       { status: 500 }
     );
   }
 
-  const orgIds = (orgs ?? []).map((o: { id: string }) => o.id);
-
   if (orgIds.length === 0) {
     console.info('[cron/airtable-sync] No organizations found — nothing to sync');
     return NextResponse.json({ status: 'ok', snapshotResults: [], entityResults: [] });
   }
+
+  // TODO(W6): adminClient is kept only because syncAirtableTable + syncEntityTable
+  // still accept SupabaseClient. Remove after W6 migrates those lib functions.
+  const adminClient = createAdminClient();
 
   // ── Phase 1: Legacy snapshot sync (rooms/performance/kpis — AC10) ────────
   const snapshotResults: Array<{
@@ -171,7 +160,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }> = [];
 
   // Build the Airtable client once — it validates PAT/BASE_ID on construction.
-  // If Airtable is not configured at all, skip entity sync entirely.
   let airtableClient;
   try {
     airtableClient = getAirtableClient();
@@ -187,20 +175,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   for (const orgId of orgIds) {
-    // idMaps persists across entity steps within a single org run (IC4 link resolution)
     const idMaps: Partial<Record<EntityName, IdMap>> = {};
 
     for (const { tableEnvKey, entity } of ENTITY_SYNC_TARGETS) {
-      // AC7: skip when env var is absent
       const tableId = resolveEntityTableEnvKey(tableEnvKey);
       if (!tableId) {
         console.info(`[cron/airtable-sync] ${tableEnvKey} not set — skipping ${entity}`);
-        // Populate empty idMap so downstream entities don't fail on a missing entry
         idMaps[entity] = new Map();
         continue;
       }
 
-      // AC6: syncEntityTable catches its own errors and returns status='error'
       const result = await syncEntityTable(
         orgId,
         entity,
@@ -235,7 +219,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const entityTotal        = entityResults.length;
   const allEntityFailed    = entityTotal > 0 && entityErrorCount === entityTotal;
 
-  // IC5: 500 only when ALL entity syncs fail
   const httpStatus = allEntityFailed ? 500 : 200;
   const overallStatus =
     allEntityFailed

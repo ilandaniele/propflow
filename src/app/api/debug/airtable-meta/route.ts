@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth/guards';
 
 // Temporary diagnostic endpoint — delete after getting table names
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // AC6 / W4: requireAdmin guard added (previously unguarded)
+  try {
+    await requireAdmin();
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const pat = process.env.AIRTABLE_PAT;
   const baseId = process.env.AIRTABLE_BASE_ID;
   if (!pat || !baseId) {
