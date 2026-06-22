@@ -11,61 +11,75 @@ import { NextRequest } from 'next/server';
 
 // ── Mock state ─────────────────────────────────────────────────────────────────
 
-// Note: these must be plain strings (not referenced in vi.mock factories — factories are hoisted)
-const ORG_ID   = 'org-test-uuid-001';
-const USER_ID  = 'user-test-uuid-001';
-const LOG_ID   = 'log-test-uuid-001';
-
-// Simple in-memory payment store to simulate upsert idempotency
-const paymentStore: Record<string, { id: string; external_payment_id: string; amount: number }> = {};
-let upsertCallCount = 0;
+let executeWithExtIdCallCount = 0;
+let executeWithoutExtIdCallCount = 0;
 
 vi.mock('@/lib/auth/guards', () => ({
   requireAdmin: vi.fn().mockResolvedValue({ userId: 'user-test-uuid-001', orgId: 'org-test-uuid-001', role: 'admin', profile: {} }),
 }));
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn().mockReturnValue({
-    from: vi.fn((table: string) => {
-      if (table === 'tenants') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              in: vi.fn(async () => ({ data: [{ id: 'tenant-001', email: 'tenant@test.com' }] })),
-            })),
-          })),
-        };
-      }
+// ---------------------------------------------------------------------------
+// Mock @/lib/db — Drizzle
+// ---------------------------------------------------------------------------
 
-      if (table === 'import_logs') {
-        return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: { id: 'log-test-uuid-001' }, error: null })),
-            })),
-          })),
-          update: vi.fn(() => ({
-            eq: vi.fn(async () => ({ error: null })),
-          })),
-        };
+vi.mock('@/lib/db', () => {
+  function extractFromSqlChunks(chunks: unknown[]): { text: string } {
+    let text = '';
+    for (const chunk of chunks) {
+      if (chunk && typeof chunk === 'object' && !Array.isArray(chunk) && 'queryChunks' in (chunk as object)) {
+        const nested = extractFromSqlChunks((chunk as { queryChunks: unknown[] }).queryChunks);
+        text += nested.text;
+      } else if (chunk && typeof chunk === 'object' && !Array.isArray(chunk) && 'value' in (chunk as object)) {
+        const val = (chunk as { value: unknown[] }).value;
+        if (Array.isArray(val)) text += val.join('');
+      } else {
+        text += '?';
       }
+    }
+    return { text };
+  }
 
-      if (table === 'payments') {
-        return {
-          upsert: vi.fn((payload: { external_payment_id: string; amount: number }) => {
-            upsertCallCount++;
-            const key = `org-test-uuid-001::${payload.external_payment_id}`;
-            const isNew = !(key in paymentStore);
-            paymentStore[key] = { id: `pay-${upsertCallCount}`, external_payment_id: payload.external_payment_id, amount: payload.amount };
-            return Promise.resolve({ error: null, data: [paymentStore[key]], isNew });
-          }),
-          insert: vi.fn(() => Promise.resolve({ error: null })),
-        };
-      }
+  return {
+    db: {
+      select: vi.fn(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn(async () => [{ id: 'tenant-001', email: 'tenant@test.com' }]),
+      })),
 
-      return { select: vi.fn(), insert: vi.fn(), update: vi.fn(), upsert: vi.fn() };
-    }),
-  }),
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          returning: vi.fn(async () => [{ id: 'log-test-uuid-001' }]),
+          onConflictDoNothing: vi.fn(async () => []),
+        })),
+      })),
+
+      execute: vi.fn(async (sqlObj: unknown) => {
+        if (!sqlObj || typeof sqlObj !== 'object' || !('queryChunks' in (sqlObj as object))) return [];
+        const { text } = extractFromSqlChunks((sqlObj as { queryChunks: unknown[] }).queryChunks);
+        if (text.includes('ON CONFLICT')) {
+          executeWithExtIdCallCount++;
+        } else {
+          executeWithoutExtIdCallCount++;
+        }
+        return [];
+      }),
+
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => []),
+        })),
+      })),
+    },
+  };
+});
+
+vi.mock('@/lib/log', () => ({
+  log: {
+    info:  vi.fn(),
+    warn:  vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
 }));
 
 function buildCsvFile(rows: string[]): File {
@@ -88,11 +102,8 @@ import { POST } from '@/app/api/admin/payments/import/route';
 describe('POST /api/admin/payments/import — idempotency', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset the in-memory store
-    for (const key of Object.keys(paymentStore)) {
-      delete paymentStore[key];
-    }
-    upsertCallCount = 0;
+    executeWithExtIdCallCount = 0;
+    executeWithoutExtIdCallCount = 0;
   });
 
   it('first import creates 1 record (rows_created=1 style result)', async () => {
@@ -103,8 +114,7 @@ describe('POST /api/admin/payments/import — idempotency', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json() as { created: number; updated: number };
-    // With external_payment_id, the route uses upsert which counts as "updated" in this implementation
-    // Verify at least one operation was performed
+    // With external_payment_id, the route uses ON CONFLICT DO UPDATE → counts as updated
     expect(body.created + body.updated).toBeGreaterThanOrEqual(1);
   });
 
@@ -121,16 +131,12 @@ describe('POST /api/admin/payments/import — idempotency', () => {
 
     expect(res2.status).toBe(200);
     const body = await res2.json() as { created: number; updated: number };
-    // On second call with same external_payment_id, upsert is called again (updated path)
-    // DB constraint (org_id, external_payment_id) prevents duplicate rows
     expect(body.created + body.updated).toBeGreaterThanOrEqual(1);
 
-    // The upsert was called on both imports (2 total calls)
-    expect(upsertCallCount).toBe(2);
-
-    // The in-memory store still has exactly 1 record for this external_payment_id
-    const storeKeys = Object.keys(paymentStore).filter(k => k.includes('PAY-001'));
-    expect(storeKeys).toHaveLength(1);
+    // The ON CONFLICT path was called twice (once per import)
+    expect(executeWithExtIdCallCount).toBe(2);
+    // The plain insert path (no ON CONFLICT) was NOT called
+    expect(executeWithoutExtIdCallCount).toBe(0);
   });
 
   it('import without external_payment_id uses insert (not upsert)', async () => {
@@ -141,8 +147,8 @@ describe('POST /api/admin/payments/import — idempotency', () => {
     const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json() as { created: number; updated: number };
-    // Without external_payment_id, route uses insert → counts as created
+    // Without external_payment_id, route uses plain INSERT → counts as created
     expect(body.created).toBe(1);
-    expect(upsertCallCount).toBe(0); // upsert not called
+    expect(executeWithExtIdCallCount).toBe(0); // ON CONFLICT path not called
   });
 });

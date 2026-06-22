@@ -43,7 +43,14 @@
     "today": "Hoje",
     "yesterday": "Ontem",
     "overdue": "Vencido",
-    "add": "Adicionar"
+    "add": "Adicionar",
+    "addButton": "Adicionar",
+    "newFormTitle": "Novo formulário",
+    "fieldName": "Nome",
+    "fieldAddress": "Endereço",
+    "fieldCity": "Cidade",
+    "fieldCountry": "País",
+    "createButton": "Criar"
   },
   "navigation": {
     "dashboard": "Painel",
@@ -1443,7 +1450,10 @@
   "community": {
     "pinned": "Fixado",
     "unpin": "Desafixar",
-    "pin": "Fixar"
+    "pin": "Fixar",
+    "title": "Comunidade",
+    "emptyTitle": "Sem anúncios",
+    "emptyDesc": "Nenhum anúncio foi publicado para sua comunidade ainda."
   },
   "leads": {
     "title": "Leads CRM",
@@ -1908,7 +1918,12 @@
     "titlePlaceholder": "ex.: Limpar filtro do banheiro",
     "descriptionLabel": "Descrição",
     "dueDateLabel": "Data limite",
-    "createdOk": "Tarefa criada com sucesso."
+    "createdOk": "Tarefa criada com sucesso.",
+    "creating": "Criando...",
+    "createTask": "Criar Tarefa",
+    "backToTasks": "← Voltar para Tarefas",
+    "newTask": "Nova Tarefa",
+    "newTaskSubtitle": "Crie e atribua uma tarefa a um inquilino."
   },
   "utilities": {
     "title": "Pagamentos de Serviços",

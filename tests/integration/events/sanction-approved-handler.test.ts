@@ -4,24 +4,24 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock admin client
-const mockInsert = vi.fn().mockResolvedValue({ data: null, error: null });
-const mockSelect = vi.fn().mockReturnValue({
-  eq: () => ({ single: async () => ({ data: { profile_id: 'profile-1', full_name: 'Test Tenant' }, error: null }) }),
-});
-const mockSanctionSelect = vi.fn().mockReturnValue({
-  eq: () => ({ single: async () => ({ data: { title: 'Noise fine', amount: 50 }, error: null }) }),
-});
+// ---------------------------------------------------------------------------
+// Mock: @/lib/db (Drizzle)
+// ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: () => ({
-    from: (table: string) => {
-      if (table === 'tenants') return { select: mockSelect };
-      if (table === 'sanctions') return { select: mockSanctionSelect };
-      if (table === 'notification_inbox') return { insert: mockInsert };
-      return { select: () => ({ eq: () => ({ single: async () => ({ data: null }) }) }) };
-    },
-  }),
+const mockInsert = vi.fn();
+const mockSelectLimit = vi.fn();
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: mockSelectLimit,
+    })),
+    insert: vi.fn(() => ({
+      values: mockInsert,
+    })),
+  },
 }));
 
 import { handleSanctionApproved } from '@/lib/events/handlers/sanction-approved';
@@ -29,18 +29,20 @@ import { handleSanctionApproved } from '@/lib/events/handlers/sanction-approved'
 describe('handleSanctionApproved', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: tenant + sanction rows returned
+    mockSelectLimit
+      .mockResolvedValueOnce([{ profileId: 'profile-1', fullName: 'Test Tenant' }])  // tenants query
+      .mockResolvedValueOnce([{ title: 'Noise fine', amount: 50 }]);                  // sanctions query
+    mockInsert.mockResolvedValue([]);
   });
 
   it('sends notification when sanction has chargeId', async () => {
-    await handleSanctionApproved(
-      {
-        orgId: 'org-1',
-        sanctionId: 'sanction-1',
-        tenantId: 'tenant-1',
-        chargeId: 'charge-1',
-      },
-      'test-key'
-    );
+    await handleSanctionApproved({
+      orgId: 'org-1',
+      sanctionId: 'sanction-1',
+      tenantId: 'tenant-1',
+      chargeId: 'charge-1',
+    });
 
     expect(mockInsert).toHaveBeenCalledOnce();
     const insertArg = mockInsert.mock.calls[0][0];
@@ -48,15 +50,12 @@ describe('handleSanctionApproved', () => {
   });
 
   it('does nothing when chargeId is null (warning sanction)', async () => {
-    await handleSanctionApproved(
-      {
-        orgId: 'org-1',
-        sanctionId: 'sanction-2',
-        tenantId: 'tenant-1',
-        chargeId: null,
-      },
-      'test-key'
-    );
+    await handleSanctionApproved({
+      orgId: 'org-1',
+      sanctionId: 'sanction-2',
+      tenantId: 'tenant-1',
+      chargeId: null,
+    });
 
     expect(mockInsert).not.toHaveBeenCalled();
   });

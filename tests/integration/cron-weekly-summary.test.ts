@@ -2,7 +2,7 @@
  * Integration tests for POST /api/cron/weekly-summary (fan-out refactor).
  *
  * Mocks:
- * - createAdminClient() — returns a configurable Supabase stub
+ * - @/lib/db — returns configurable Drizzle stubs
  * - getWhatsAppProvider() — returns a stub with a sendMessage spy
  * - buildWeeklySummary() — returns a fixed summary payload
  *
@@ -24,8 +24,8 @@ import { NextRequest } from 'next/server';
 
 const sendMessageSpy = vi.fn();
 
-// Configurable per-test admin profiles
-let mockAdmins: Array<{ id: string; whatsapp_phone: string | null }> = [];
+// Configurable per-test admin profiles (camelCase — Drizzle returns camelCase)
+let mockAdmins: Array<{ id: string; whatsappPhone: string | null }> = [];
 let insertShouldFail = false;
 let insertErrorCode  = '';
 
@@ -42,44 +42,70 @@ vi.mock('@/lib/whatsapp/weekly-summary', () => ({
   }),
 }));
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: () => ({
-    from: (table: string) => {
-      if (table === 'organizations') {
-        return {
-          select: () => ({ data: [{ id: 'org-1', name: 'Test Org' }], error: null }),
-        };
-      }
-      if (table === 'properties') {
-        return {
-          select: () => ({
-            eq: () => ({ data: [{ id: 'prop-1', name: 'Test Property' }], error: null }),
+// ---------------------------------------------------------------------------
+// Mock @/lib/db — Drizzle
+// ---------------------------------------------------------------------------
+
+vi.mock('@/lib/db', () => {
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return '';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+  }
+
+  return {
+    db: {
+      select: vi.fn(() => {
+        let tableName = '';
+        const chain = {
+          from: vi.fn((tableRef: unknown) => {
+            tableName = getTableName(tableRef);
+            return chain;
           }),
+          where: vi.fn().mockReturnThis(),
+          then: (resolve: (v: unknown[]) => void) => {
+            // Promise.all pattern — called without .limit()
+            if (tableName === 'organizations') resolve([{ id: 'org-1', name: 'Test Org' }]);
+            else if (tableName === 'properties') resolve([{ id: 'prop-1', name: 'Test Property' }]);
+            else if (tableName === 'profiles') resolve(mockAdmins);
+            else resolve([]);
+          },
+          // Some queries use await on the chain directly
+          [Symbol.toStringTag]: 'Promise',
         };
-      }
-      if (table === 'property_weekly_summaries') {
-        return {
-          insert: () => ({
-            error: insertShouldFail
-              ? { code: insertErrorCode, message: 'insert failed' }
-              : null,
-          }),
-        };
-      }
-      if (table === 'profiles') {
-        return {
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                not: () => ({ data: mockAdmins, error: null }),
-              }),
-            }),
-          }),
-        };
-      }
-      return { select: () => ({ data: [], error: null }) };
+        // Make chain itself awaitable via .then
+        (chain as unknown as Promise<unknown[]>).then = chain.then as never;
+        return chain;
+      }),
+
+      insert: vi.fn(() => ({
+        values: vi.fn(async () => {
+          if (insertShouldFail) {
+            const err = new Error('insert failed') as Error & { code: string };
+            err.code = insertErrorCode;
+            throw err;
+          }
+          return [];
+        }),
+      })),
+
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => []),
+        })),
+      })),
     },
-  }),
+  };
+});
+
+vi.mock('@/lib/log', () => ({
+  log: {
+    info:  vi.fn(),
+    warn:  vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -114,9 +140,9 @@ describe('POST /api/cron/weekly-summary — fan-out', () => {
 
   it('3 admins with phones → sendMessage called 3 times, route returns 200', async () => {
     mockAdmins = [
-      { id: 'admin-1', whatsapp_phone: '+5491155555551' },
-      { id: 'admin-2', whatsapp_phone: '+5491155555552' },
-      { id: 'admin-3', whatsapp_phone: '+5491155555553' },
+      { id: 'admin-1', whatsappPhone: '+5491155555551' },
+      { id: 'admin-2', whatsappPhone: '+5491155555552' },
+      { id: 'admin-3', whatsappPhone: '+5491155555553' },
     ];
     sendMessageSpy.mockResolvedValue({ success: true });
 
@@ -134,17 +160,15 @@ describe('POST /api/cron/weekly-summary — fan-out', () => {
 
   it('each sendMessage call targets a different admin phone', async () => {
     const phones = ['+5491155555551', '+5491155555552', '+5491155555553'];
-    mockAdmins = phones.map((p, i) => ({ id: `admin-${i + 1}`, whatsapp_phone: p }));
+    mockAdmins = phones.map((p, i) => ({ id: `admin-${i + 1}`, whatsappPhone: p }));
     sendMessageSpy.mockResolvedValue({ success: true });
 
     const { POST } = await import('@/app/api/cron/weekly-summary/route');
     await POST(makeRequest());
 
-    const calledPhones = sendMessageSpy.mock.calls.map(([, msg]) => msg.to);
-    // Strip leading '+' — MetaProvider normalises phones
+    const calledPhones = sendMessageSpy.mock.calls.map(([, msg]) => (msg as { to: string }).to);
     for (const phone of phones) {
       const normalised = phone.startsWith('+') ? phone.slice(1) : phone;
-      // We check either format depending on provider internals
       const found = calledPhones.some(
         (p: string) => p === phone || p === normalised
       );
@@ -169,9 +193,9 @@ describe('POST /api/cron/weekly-summary — fan-out', () => {
 
   it('3 admins, admin #2 send fails → 2 succeed, 1 fails, route returns 200', async () => {
     mockAdmins = [
-      { id: 'admin-1', whatsapp_phone: '+5491155555551' },
-      { id: 'admin-2', whatsapp_phone: '+5491155555552' },
-      { id: 'admin-3', whatsapp_phone: '+5491155555553' },
+      { id: 'admin-1', whatsappPhone: '+5491155555551' },
+      { id: 'admin-2', whatsappPhone: '+5491155555552' },
+      { id: 'admin-3', whatsappPhone: '+5491155555553' },
     ];
     sendMessageSpy
       .mockResolvedValueOnce({ success: true })
@@ -215,9 +239,9 @@ describe('POST /api/cron/weekly-summary — fan-out', () => {
 
   it('all 3 sends fail → summariesInserted=1 (idempotency row preserved even when all sends fail)', async () => {
     mockAdmins = [
-      { id: 'admin-1', whatsapp_phone: '+5491155555551' },
-      { id: 'admin-2', whatsapp_phone: '+5491155555552' },
-      { id: 'admin-3', whatsapp_phone: '+5491155555553' },
+      { id: 'admin-1', whatsappPhone: '+5491155555551' },
+      { id: 'admin-2', whatsappPhone: '+5491155555552' },
+      { id: 'admin-3', whatsappPhone: '+5491155555553' },
     ];
     sendMessageSpy.mockRejectedValue(new Error('provider down'));
 
@@ -232,7 +256,7 @@ describe('POST /api/cron/weekly-summary — fan-out', () => {
   });
 
   it('duplicate iso_week row (23505) → skips sends, still returns 200', async () => {
-    mockAdmins = [{ id: 'admin-1', whatsapp_phone: '+5491155555551' }];
+    mockAdmins = [{ id: 'admin-1', whatsappPhone: '+5491155555551' }];
     insertShouldFail = true;
     insertErrorCode  = '23505';  // UNIQUE violation
 

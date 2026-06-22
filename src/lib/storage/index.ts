@@ -84,13 +84,16 @@ const BUCKET_ENV_MAP: Record<string, string> = {
 };
 
 function resolveBucket(logicalName: string): string {
+  // 1. Per-bucket TIGRIS_BUCKET_* env var (highest priority)
   const envKey = BUCKET_ENV_MAP[logicalName];
   if (envKey) {
     const envVal = process.env[envKey];
     if (envVal) return envVal;
   }
-  // Fall back to logical name (dev convenience; log a warning)
-  console.warn(`[storage] TIGRIS_BUCKET env var not set for logical bucket "${logicalName}" (key: ${envKey ?? 'unknown'}). Using logical name as bucket name.`);
+  // 2. Single STORAGE_BUCKET env var (Fly.io existing deployment uses one bucket for all objects)
+  const storageBucket = process.env.STORAGE_BUCKET;
+  if (storageBucket) return storageBucket;
+  // 3. Fall back to logical name (local dev with a single catch-all bucket)
   return logicalName;
 }
 
@@ -99,14 +102,15 @@ function resolveBucket(logicalName: string): string {
 // ---------------------------------------------------------------------------
 
 function buildS3Client(): S3Client {
-  const endpoint = process.env.TIGRIS_ENDPOINT;
-  const region   = process.env.AWS_REGION ?? 'auto';
-  const accessKeyId     = process.env.TIGRIS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.TIGRIS_SECRET_ACCESS_KEY;
+  // Accept both TIGRIS_* (new) and STORAGE_* (existing Fly deployment) env var names
+  const endpoint      = process.env.TIGRIS_ENDPOINT      ?? process.env.STORAGE_ENDPOINT;
+  const region        = process.env.AWS_REGION            ?? process.env.STORAGE_REGION ?? 'auto';
+  const accessKeyId   = process.env.TIGRIS_ACCESS_KEY_ID  ?? process.env.STORAGE_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.TIGRIS_SECRET_ACCESS_KEY ?? process.env.STORAGE_SECRET_ACCESS_KEY;
 
   if (!endpoint || !accessKeyId || !secretAccessKey) {
     throw new Error(
-      '[storage] Missing required Tigris env vars: TIGRIS_ENDPOINT, TIGRIS_ACCESS_KEY_ID, TIGRIS_SECRET_ACCESS_KEY'
+      '[storage] Missing storage credentials. Set STORAGE_ENDPOINT + STORAGE_ACCESS_KEY_ID + STORAGE_SECRET_ACCESS_KEY (or TIGRIS_* equivalents).'
     );
   }
 

@@ -131,162 +131,108 @@ vi.mock('@/lib/auth/guards', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Supabase query builder mock factory
+// Mock: @/lib/db
 // ---------------------------------------------------------------------------
 
-/**
- * Creates a chainable mock that resolves with a fixed result.
- * The `then` callback is the Promise resolution — it's what lets `await` work.
- */
-function makeQueryBuilder(result: unknown) {
-  const p = Promise.resolve(result);
-  const builder: Record<string, unknown> = {
-    select: vi.fn(() => builder),
-    insert: vi.fn(() => builder),
-    update: vi.fn(() => builder),
-    delete: vi.fn(() => builder),
-    eq: vi.fn(() => builder),
-    neq: vi.fn(() => builder),
-    order: vi.fn(() => builder),
-    limit: vi.fn(() => builder),
-    single: vi.fn(() => p),
-    then: p.then.bind(p),
-    catch: p.catch.bind(p),
-    finally: p.finally.bind(p),
-  };
-  return builder;
-}
+const mockDbSelect = vi.fn();
+const mockDbInsert = vi.fn();
+const mockDbUpdate = vi.fn();
+const mockDbDelete = vi.fn();
 
-// ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/server
-// ---------------------------------------------------------------------------
-
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => buildSupabaseMock())})),
-  createAdminServerClient: vi.fn(async () => buildSupabaseMock()),
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: (...args: unknown[]) => mockDbSelect(...args),
+    insert: (...args: unknown[]) => mockDbInsert(...args),
+    update: (...args: unknown[]) => mockDbUpdate(...args),
+    delete: (...args: unknown[]) => mockDbDelete(...args),
+  },
 }));
 
-function buildSupabaseMock() {
-  return {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: mockState.userId } },
-        error: null,
-      }),
+function setupDbMocks() {
+  // select — returns different results based on what's in scope
+  // We use a unified select chain; the caller picks up context from .from()
+  let currentSelectTable = '';
+  const selectChain = {
+    from: vi.fn((tableRef: unknown) => {
+      // Identify table by its Drizzle Symbol
+      const syms = tableRef ? Object.getOwnPropertySymbols(tableRef as object) : [];
+      const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+      currentSelectTable = nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+      return selectChain;
+    }),
+    where: vi.fn(() => selectChain),
+    orderBy: vi.fn(() => selectChain),
+    innerJoin: vi.fn(() => selectChain),
+    limit: vi.fn(async () => {
+      if (currentSelectTable === 'units') {
+        if (!mockState.unitExists) return [];
+        return [{ id: UNIT_ID_U1, orgId: mockState.orgId }];
+      }
+      if (currentSelectTable === 'unit_images') {
+        if (mockState.imageRow) {
+          const r = mockState.imageRow as Record<string, unknown>;
+          // Normalize snake_case DB fixture to camelCase Drizzle output
+          return [{
+            id:          r['id'],
+            orgId:       r['orgId']        ?? r['org_id'],
+            unitId:      r['unitId']       ?? r['unit_id'],
+            storagePath: r['storagePath']  ?? r['storage_path'],
+            isCover:     r['isCover']      ?? r['is_cover'],
+          }];
+        }
+        return [];
+      }
+      return [];
+    }),
+    // For count queries (db.select({ count: count() }).from(...).where())
+    // These resolve to an array with a count property
+    then: (resolve: (v: unknown[]) => void) => {
+      if (currentSelectTable === 'unit_images') {
+        resolve([{ count: mockState.imageCount }]);
+      } else {
+        resolve([]);
+      }
     },
-    from: vi.fn((table: string) => {
-      // Build a smart chainable mock based on table and current state
-      const proxy = buildTableProxy(table);
-      return proxy;
+  };
+  mockDbSelect.mockReturnValue(selectChain);
+
+  // insert
+  const insertChain = {
+    values: vi.fn(async (_vals: unknown) => {
+      if (mockState.insertError) throw new Error(mockState.insertError);
+      return [{ id: 'new-image-uuid' }];
+    }),
+    returning: vi.fn(async () => {
+      if (mockState.insertError) throw new Error(mockState.insertError);
+      return [{ id: 'new-image-uuid' }];
     }),
   };
-}
-
-function buildTableProxy(table: string) {
-  // Track the chain of calls to resolve appropriately
-  const calls: Array<{ method: string; args: unknown[] }> = [];
-  let isSingle = false;
-  let isHead = false;
-  let isInsert = false;
-  let isDelete = false;
-  let isUpdate = false;
-
-  const builder: Record<string, unknown> = {};
-
-  builder.select = vi.fn((_cols: string, opts?: { count?: string; head?: boolean }) => {
-    calls.push({ method: 'select', args: [_cols, opts] });
-    if (opts?.head) isHead = true;
-    return builder;
-  });
-
-  builder.insert = vi.fn(() => {
-    isInsert = true;
-    calls.push({ method: 'insert', args: [] });
-    return {
-      select: vi.fn(() => ({
-        single: vi.fn(() =>
-          Promise.resolve(
-            mockState.insertError
-              ? { data: null, error: { code: mockState.insertError } }
-              : { data: { id: 'new-image-uuid' }, error: null }
-          )
-        ),
-      })),
-    };
-  });
-
-  builder.update = vi.fn(() => {
-    isUpdate = true;
-    calls.push({ method: 'update', args: [] });
-    return builder;
-  });
-
-  builder.delete = vi.fn(() => {
-    isDelete = true;
-    calls.push({ method: 'delete', args: [] });
-    return builder;
-  });
-
-  builder.eq = vi.fn(() => {
-    calls.push({ method: 'eq', args: [] });
-    return builder;
-  });
-
-  builder.neq = vi.fn(() => builder);
-  builder.order = vi.fn(() => builder);
-  builder.limit = vi.fn(() => builder);
-
-  builder.single = vi.fn(() => {
-    isSingle = true;
-    if (table === 'units') {
-      return Promise.resolve(
-        mockState.unitExists
-          ? { data: { id: UNIT_ID_U1, org_id: mockState.orgId }, error: null }
-          : { data: null, error: null }
-      );
-    }
-    if (table === 'unit_images') {
-      return Promise.resolve(
-        mockState.imageRow
-          ? { data: mockState.imageRow, error: null }
-          : { data: null, error: null }
-      );
-    }
-    return Promise.resolve({ data: null, error: null });
-  });
-
-  // Promise resolution for non-single queries (count, list, update, delete)
-  const thenable = {
-    then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
-      let res: unknown;
-
-      if (table === 'unit_images' && isHead) {
-        // Count query
-        res = { data: null, count: mockState.imageCount, error: null };
-      } else if (table === 'unit_images' && isUpdate) {
-        res = { data: null, error: null };
-      } else if (table === 'unit_images' && isDelete) {
-        res = { data: null, error: null };
-      } else if (table === 'unit_images' && !isInsert && !isSingle) {
-        // List query (getUnitImages*)
-        res = { data: [], error: null, count: null };
-      } else if (isUpdate || isDelete) {
-        res = { data: null, error: null };
-      } else {
-        res = { data: [], error: null, count: mockState.imageCount };
-      }
-
-      return Promise.resolve(res).then(resolve, reject);
-    },
-    catch: (reject: (e: unknown) => unknown) => Promise.resolve().catch(reject),
-    finally: (cb: () => void) => Promise.resolve().finally(cb),
+  // values() returns object with returning()
+  const insertChainWithReturning = {
+    values: vi.fn(() => ({
+      returning: vi.fn(async () => {
+        if (mockState.insertError) throw new Error(mockState.insertError);
+        return [{ id: 'new-image-uuid' }];
+      }),
+    })),
   };
+  mockDbInsert.mockReturnValue(insertChainWithReturning);
 
-  // Merge thenable into builder for await-ability
-  Object.assign(builder, thenable);
+  // update
+  const updateChain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn(async () => []),
+  };
+  mockDbUpdate.mockReturnValue(updateChain);
 
-  return builder;
+  // delete
+  const deleteChain = {
+    where: vi.fn(async () => []),
+  };
+  mockDbDelete.mockReturnValue(deleteChain);
 }
+
+// (storage capture arrays are declared below in the storage mock section)
 
 // ---------------------------------------------------------------------------
 // Mock: @/lib/storage/index
@@ -398,6 +344,7 @@ beforeEach(() => {
   rateLimitCallCount = 0;
   rateLimitMax = 9999;
   vi.clearAllMocks();
+  setupDbMocks();
 });
 
 // ── AC1: Admin upload happy path ─────────────────────────────────────────────

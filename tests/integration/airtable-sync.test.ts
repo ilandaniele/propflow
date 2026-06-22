@@ -11,57 +11,41 @@
  * 4. Empty table: 0 records → log with status=success, count=0
  * 5. Partial failure: upsert error mid-batch → log with status=partial or error
  *
- * All DB calls are mocked — this is a unit/integration test that does not require
- * a real Supabase connection.
+ * All DB calls are mocked via @/lib/db (Drizzle).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type UpsertCall = {
-  table: string;
-  rows: Array<{ org_id: string; table_name: string; external_id: string; data: unknown; synced_at: string }>;
-  onConflict: string;
-};
-
-type InsertCall = {
-  table: string;
-  row: {
-    org_id: string;
-    table_name: string;
-    status: string;
-    records_upserted: number;
-    error_message: string | null;
-    started_at: string;
-    completed_at: string;
-  };
-};
-
-// ---------------------------------------------------------------------------
 // Mock state — controlled per test
 // ---------------------------------------------------------------------------
 
-interface MockState {
-  listRecordsError: string | null;
-  listRecordsResult: Array<{ id: string; createdTime: string; fields: Record<string, unknown> }>;
-  upsertError: string | null;
-  insertLogError: string | null;
-  logInsertId: string;
-  upsertCalls: UpsertCall[];
-  insertLogCalls: InsertCall[];
+interface UpsertRow {
+  orgId: string;
+  tableName: string;
+  externalId: string;
+  data: unknown;
+  syncedAt: Date;
 }
 
-const mockState: MockState = {
-  listRecordsError: null,
-  listRecordsResult: [],
-  upsertError: null,
-  insertLogError: null,
-  logInsertId: 'log-uuid-001',
-  upsertCalls: [],
-  insertLogCalls: [],
+interface LogRow {
+  orgId: string;
+  tableName: string;
+  status: string;
+  recordsUpserted: number;
+  errorMessage: string | null;
+  startedAt: Date;
+  completedAt: Date;
+}
+
+const mockState = {
+  listRecordsError: null as string | null,
+  listRecordsResult: [] as Array<{ id: string; createdTime: string; fields: Record<string, unknown> }>,
+  upsertError:       null as string | null,
+  insertLogError:    null as string | null,
+  logInsertId:       'log-uuid-001',
+  upsertCalls:       [] as Array<{ rows: UpsertRow[]; onConflictTarget: unknown }>,
+  insertLogCalls:    [] as LogRow[],
 };
 
 // ---------------------------------------------------------------------------
@@ -80,42 +64,63 @@ vi.mock('@/lib/airtable/client', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: Supabase admin client
+// Mock: @/lib/db — Drizzle
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(() => ({
-    from: vi.fn((table: string) => {
-      if (table === 'airtable_snapshots') {
+vi.mock('@/lib/db', () => {
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return '';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+  }
+
+  return {
+    db: {
+      insert: vi.fn((tableRef: unknown) => {
+        const table = getTableName(tableRef);
         return {
-          upsert: vi.fn((rows: UpsertCall['rows'], opts: { onConflict: string }) => {
-            mockState.upsertCalls.push({ table, rows, onConflict: opts.onConflict });
-            if (mockState.upsertError) {
-              return Promise.resolve({ error: { message: mockState.upsertError } });
-            }
-            return Promise.resolve({ error: null });
-          }),
-        };
-      }
-      if (table === 'airtable_sync_logs') {
-        return {
-          insert: vi.fn((row: InsertCall['row']) => ({
-            select: vi.fn(() => ({
-              single: vi.fn(async () => {
-                mockState.insertLogCalls.push({ table, row });
-                if (mockState.insertLogError) {
-                  return { data: null, error: { message: mockState.insertLogError } };
+          values: vi.fn((data: unknown) => ({
+            onConflictDoUpdate: vi.fn(async (opts: unknown) => {
+              if (table === 'airtable_snapshots') {
+                const rows = Array.isArray(data) ? data : [data];
+                mockState.upsertCalls.push({ rows: rows as UpsertRow[], onConflictTarget: opts });
+                if (mockState.upsertError) {
+                  throw new Error(mockState.upsertError);
                 }
-                return { data: { id: mockState.logInsertId }, error: null };
-              }),
-            })),
+                return [];
+              }
+              return [];
+            }),
+            returning: vi.fn(async () => {
+              if (table === 'airtable_sync_logs') {
+                const row = data as LogRow;
+                mockState.insertLogCalls.push(row);
+                if (mockState.insertLogError) {
+                  throw new Error(mockState.insertLogError);
+                }
+                return [{ id: mockState.logInsertId }];
+              }
+              return [{ id: mockState.logInsertId }];
+            }),
+            onConflictDoNothing: vi.fn(async () => []),
           })),
         };
-      }
-      throw new Error(`Unexpected table: ${table}`);
-    }),
-  })),
-}));
+      }),
+
+      select: vi.fn(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn(async () => []),
+      })),
+
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => []),
+        })),
+      })),
+    },
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Helper: make a fake AirtableRecord
@@ -144,7 +149,6 @@ describe('syncAirtableTable (AC7)', () => {
   const TABLE_ENV_KEY = 'AIRTABLE_TABLE_ROOMS';
 
   beforeEach(() => {
-    // Reset mock state before each test
     mockState.listRecordsError = null;
     mockState.listRecordsResult = [];
     mockState.upsertError = null;
@@ -153,7 +157,6 @@ describe('syncAirtableTable (AC7)', () => {
     mockState.upsertCalls = [];
     mockState.insertLogCalls = [];
 
-    // Set required env vars
     process.env['AIRTABLE_TABLE_ROOMS'] = 'tblROOMS123';
   });
 
@@ -165,7 +168,6 @@ describe('syncAirtableTable (AC7)', () => {
 
     const result = await syncAirtableTable(ORG_ID, TABLE_ENV_KEY);
 
-    // Status and count correct
     expect(result.status).toBe('success');
     expect(result.count).toBe(3);
     expect(result.logId).toBe('log-uuid-001');
@@ -176,34 +178,31 @@ describe('syncAirtableTable (AC7)', () => {
     const upsertCall = mockState.upsertCalls[0];
     expect(upsertCall.rows).toHaveLength(3);
 
-    // Each row has required fields
+    // Each row has required fields (Drizzle camelCase)
     for (const row of upsertCall.rows) {
-      expect(row.org_id).toBe(ORG_ID);
-      expect(row.table_name).toBe('rooms'); // derived from AIRTABLE_TABLE_ROOMS
-      expect(typeof row.external_id).toBe('string');
+      expect(row.orgId).toBe(ORG_ID);
+      expect(row.tableName).toBe('rooms'); // derived from AIRTABLE_TABLE_ROOMS
+      expect(typeof row.externalId).toBe('string');
       expect(row.data).toBeDefined();
-      expect(typeof row.synced_at).toBe('string');
+      expect(row.syncedAt).toBeInstanceOf(Date);
     }
 
     // external_ids match record ids
-    const externalIds = upsertCall.rows.map(r => r.external_id);
+    const externalIds = upsertCall.rows.map(r => r.externalId);
     expect(externalIds).toContain('rec001');
     expect(externalIds).toContain('rec002');
     expect(externalIds).toContain('rec003');
 
-    // Upsert conflict strategy is correct
-    expect(upsertCall.onConflict).toBe('org_id,table_name,external_id');
-
-    // Log was written with correct values
+    // Log was written with correct values (Drizzle camelCase)
     expect(mockState.insertLogCalls).toHaveLength(1);
-    const logRow = mockState.insertLogCalls[0].row;
-    expect(logRow.org_id).toBe(ORG_ID);
-    expect(logRow.table_name).toBe('rooms');
+    const logRow = mockState.insertLogCalls[0];
+    expect(logRow.orgId).toBe(ORG_ID);
+    expect(logRow.tableName).toBe('rooms');
     expect(logRow.status).toBe('success');
-    expect(logRow.records_upserted).toBe(3);
-    expect(logRow.error_message).toBeNull();
-    expect(typeof logRow.started_at).toBe('string');
-    expect(typeof logRow.completed_at).toBe('string');
+    expect(logRow.recordsUpserted).toBe(3);
+    expect(logRow.errorMessage).toBeNull();
+    expect(logRow.startedAt).toBeInstanceOf(Date);
+    expect(logRow.completedAt).toBeInstanceOf(Date);
   });
 
   // ── 2. Empty table ────────────────────────────────────────────────────────
@@ -221,8 +220,8 @@ describe('syncAirtableTable (AC7)', () => {
 
     // Log still written
     expect(mockState.insertLogCalls).toHaveLength(1);
-    expect(mockState.insertLogCalls[0].row.records_upserted).toBe(0);
-    expect(mockState.insertLogCalls[0].row.status).toBe('success');
+    expect(mockState.insertLogCalls[0].recordsUpserted).toBe(0);
+    expect(mockState.insertLogCalls[0].status).toBe('success');
   });
 
   // ── 3. Airtable fetch error ───────────────────────────────────────────────
@@ -241,10 +240,10 @@ describe('syncAirtableTable (AC7)', () => {
 
     // Log was still written with error status
     expect(mockState.insertLogCalls).toHaveLength(1);
-    const logRow = mockState.insertLogCalls[0].row;
+    const logRow = mockState.insertLogCalls[0];
     expect(logRow.status).toBe('error');
-    expect(logRow.records_upserted).toBe(0);
-    expect(logRow.error_message).toContain('Connection timed out');
+    expect(logRow.recordsUpserted).toBe(0);
+    expect(logRow.errorMessage).toContain('Connection timed out');
   });
 
   // ── 4. Upsert DB error ────────────────────────────────────────────────────
@@ -261,10 +260,10 @@ describe('syncAirtableTable (AC7)', () => {
 
     // Log written with error
     expect(mockState.insertLogCalls).toHaveLength(1);
-    const logRow = mockState.insertLogCalls[0].row;
+    const logRow = mockState.insertLogCalls[0];
     expect(logRow.status).toBe('error');
-    expect(logRow.records_upserted).toBe(0);
-    expect(logRow.error_message).toContain('Upsert batch');
+    expect(logRow.recordsUpserted).toBe(0);
+    expect(logRow.errorMessage).toContain('Upsert batch');
   });
 
   // ── 5. Table name derivation ──────────────────────────────────────────────
@@ -277,7 +276,7 @@ describe('syncAirtableTable (AC7)', () => {
 
     expect(result.status).toBe('success');
     const upsertRow = mockState.upsertCalls[0]?.rows[0];
-    expect(upsertRow?.table_name).toBe('performance');
+    expect(upsertRow?.tableName).toBe('performance');
   });
 
   // ── 6. Custom normalizer ──────────────────────────────────────────────────

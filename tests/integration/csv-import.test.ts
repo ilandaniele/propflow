@@ -84,78 +84,87 @@ vi.mock('@/lib/ratelimit', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: createClient (Supabase)
+// Mock: @/lib/db
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
-    from: vi.fn((table: string) => {
-      return {
-        insert: vi.fn((data: unknown) => {
-          mockState.dbCalls.push({ table})),
-  createAdminServerClient: vi.fn(async () => ({
-    from: vi.fn((table: string) => {
-      return {
-        insert: vi.fn((data: unknown) => {
-          mockState.dbCalls.push({ table, operation: 'insert', data });
+vi.mock('@/lib/db', () => {
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return '';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+  }
 
-          if (table === 'csv_imports') {
-            return {
-              select: vi.fn(() => ({
-                single: vi.fn(async () => {
-                  if (mockState.insertedImportError) {
-                    return { data: null, error: mockState.insertedImportError };
-                  }
-                  return { data: mockState.insertedImport, error: null };
-                }),
-              })),
+  return {
+    db: {
+      insert: (tableRef: unknown) => {
+        const table = getTableName(tableRef);
+        return {
+          values: (data: unknown) => {
+            mockState.dbCalls.push({ table, operation: 'insert', data });
+            const shouldThrowRows = table === 'import_rows' && !!mockState.insertRowsError;
+            const shouldThrowInsert = !!mockState.insertedImportError;
+            // Thenable: supports both `.returning()` chain and direct `await`
+            const chain = {
+              returning: vi.fn(async () => {
+                if (shouldThrowInsert) throw new Error(String(mockState.insertedImportError!.code ?? 'DB error'));
+                if (table === 'csv_imports') return [mockState.insertedImport ?? { id: 'import-id-001' }];
+                return [];
+              }),
+              // Make the chain itself awaitable (for `await db.insert(x).values(y)`)
+              then: (resolve: (v: unknown[]) => void, reject: (e: Error) => void) => {
+                if (shouldThrowRows) return reject(new Error('insert_rows_error'));
+                if (shouldThrowInsert) return reject(new Error(String(mockState.insertedImportError!.code ?? 'DB error')));
+                resolve([]);
+              },
             };
-          }
+            return chain;
+          },
+          onConflictDoNothing: vi.fn().mockReturnThis(),
+        };
+      },
 
-          if (table === 'import_rows') {
-            return Promise.resolve({
-              error: mockState.insertRowsError,
-            });
-          }
-
-          return { select: vi.fn(() => ({ single: vi.fn(async () => ({ data: null, error: null })) })) };
-        }),
-
-        select: vi.fn(() => ({
-          eq: vi.fn((_col: string, _val: unknown) => ({
-            single: vi.fn(async () => {
-              if (table === 'csv_imports') {
-                if (mockState.fetchImportError) {
-                  return { data: null, error: mockState.fetchImportError };
-                }
-                return { data: mockState.fetchImportResult, error: null };
-              }
-              return { data: null, error: null };
-            }),
-          })),
-          order: vi.fn(() => ({
-            range: vi.fn(() => ({
-              then: vi.fn(),
-            })),
-          })),
-        })),
-
-        update: vi.fn((_data: unknown) => ({
-          eq: vi.fn((_col: string, _val: unknown) => {
-            mockState.dbCalls.push({ table, operation: 'update', data: _data });
-            return Promise.resolve({ error: mockState.updateImportError });
+      select: () => {
+        const chain = {
+          from: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          limit: vi.fn(async () => {
+            if (mockState.fetchImportError) return [];
+            if (mockState.fetchImportResult) {
+              const r = mockState.fetchImportResult;
+              return [{
+                id: r.id,
+                orgId: r.org_id,
+                status: r.status,
+                importType: r.import_type,
+                originalFilename: r.original_filename,
+                period: r.period,
+                rowCount: r.row_count,
+                failedCount: r.failed_count,
+                errorSummary: r.error_summary,
+              }];
+            }
+            return [];
           }),
-        })),
+        };
+        return chain;
+      },
 
-        upsert: vi.fn((data: unknown) => ({
-          select: vi.fn(() => ({
-            single: vi.fn(async () => ({ data: { id: 'mapping-uuid-001', ...data }, error: null })),
-          })),
-        })),
-      };
-    }),
-  })),
-}));
+      update: (tableRef: unknown) => {
+        const table = getTableName(tableRef);
+        return {
+          set: (data: unknown) => ({
+            where: vi.fn(async () => {
+              mockState.dbCalls.push({ table, operation: 'update', data });
+              if (mockState.updateImportError) throw new Error('update_error');
+              return [];
+            }),
+          }),
+        };
+      },
+    },
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -379,6 +388,7 @@ describe('commitCsvImport (AC18)', () => {
       import_type: 'monthly_billed',
     };
     mockState.fetchImportError   = null;
+    mockState.insertedImportError = null;
     mockState.insertRowsError    = null;
     mockState.updateImportError  = null;
     mockState.dbCalls            = [];
@@ -414,7 +424,7 @@ describe('commitCsvImport (AC18)', () => {
     const updateCall = mockState.dbCalls.find(c => c.table === 'csv_imports' && c.operation === 'update');
     expect(updateCall).toBeDefined();
     expect((updateCall!.data as { status: string }).status).toBe('committed');
-    expect((updateCall!.data as { committed_at: string }).committed_at).toBeDefined();
+    expect((updateCall!.data as { committedAt: Date }).committedAt).toBeDefined();
   });
 
   it('AC18: inserts import_rows for each data row', async () => {

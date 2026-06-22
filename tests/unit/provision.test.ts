@@ -1,56 +1,86 @@
 /**
- * Unit tests for src/lib/auth/provision.ts
+ * Unit tests for src/lib/auth/provision.ts (Drizzle version).
  *
  * Tests: slug generation, provisioning happy path, rollback-on-profile-failure,
- * idempotency when profile already exists. Admin client is fully mocked.
+ * idempotency when profile already exists. @/lib/db is fully mocked.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// ─── Shared mock state — use objects/closures to avoid vi.mock() hoisting issues ──
+// ─── Shared mock state ─────────────────────────────────────────────────────────
+
 const mockState = {
-  orgInsertResult: { data: { id: 'org-123', slug: 'test-org' }, error: null } as {
-    data: { id: string; slug: string } | null;
-    error: { code: string; message: string } | null;
-  },
-  profileInsertResult: { error: null } as { error: { code: string; message: string } | null },
-  orgDeleteResult: { error: null } as { error: null },
-  profileSelectResult: { data: null, error: null } as {
-    data: { org_id: string; role: string } | null;
-    error: null;
-  },
+  orgInsertRows:     [{ id: 'org-123', slug: 'test-org' }] as Array<{ id: string; slug: string }>,
+  orgInsertError:    null as Error | null,
+  profileInsertRows: [{ id: 'user-abc' }] as Array<{ id: string }>,
+  profileInsertError:null as Error | null,
+  deleteError:       null as Error | null,
+  // For getExistingProfile / query.profiles.findFirst
+  existingProfile:   null as { orgId: string; role: string } | null,
 };
 
-// Mock the admin client module — must mock BEFORE importing provision.ts
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn().mockImplementation(() => ({
-    from: vi.fn().mockImplementation((table: string) => {
-      if (table === 'organizations') {
+// ─── Mock @/lib/db ─────────────────────────────────────────────────────────────
+
+vi.mock('@/lib/db', () => {
+  return {
+    db: {
+      insert: vi.fn((tableRef: unknown) => {
+        // Determine table by Drizzle symbol
+        let table = '';
+        if (tableRef && typeof tableRef === 'object') {
+          const syms = Object.getOwnPropertySymbols(tableRef as object);
+          const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+          if (nameSym) table = String((tableRef as Record<symbol, unknown>)[nameSym]);
+        }
         return {
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue(mockState.orgInsertResult),
+          values: vi.fn(() => ({
+            returning: vi.fn(async () => {
+              if (table === 'organizations') {
+                if (mockState.orgInsertError) throw mockState.orgInsertError;
+                return mockState.orgInsertRows;
+              }
+              if (table === 'profiles') {
+                if (mockState.profileInsertError) throw mockState.profileInsertError;
+                return mockState.profileInsertRows;
+              }
+              return [];
             }),
-          }),
-          delete: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue(mockState.orgDeleteResult),
-          }),
+            onConflictDoNothing: vi.fn(() => ({
+              returning: vi.fn(async () => {
+                if (mockState.profileInsertError) throw mockState.profileInsertError;
+                return mockState.profileInsertRows;
+              }),
+            })),
+          })),
         };
-      }
-      if (table === 'profiles') {
-        return {
-          insert: vi.fn().mockResolvedValue(mockState.profileInsertResult),
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              maybeSingle: vi.fn().mockResolvedValue(mockState.profileSelectResult),
-            }),
-          }),
-        };
-      }
-      return {};
-    }),
-  })),
-}));
+      }),
+
+      delete: vi.fn(() => ({
+        where: vi.fn(async () => {
+          if (mockState.deleteError) throw mockState.deleteError;
+          return [];
+        }),
+      })),
+
+      select: vi.fn(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn(async () => []),
+      })),
+
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => []),
+        })),
+      })),
+
+      query: {
+        profiles: {
+          findFirst: vi.fn(async () => mockState.existingProfile),
+        },
+      },
+    },
+  };
+});
 
 vi.mock('@/lib/env', () => ({
   assertServerEnv: vi.fn().mockReturnValue('fake-service-role-key'),
@@ -64,8 +94,8 @@ vi.mock('@/lib/env', () => ({
 
 vi.mock('@/lib/log', () => ({
   log: {
-    info: vi.fn(),
-    warn: vi.fn(),
+    info:  vi.fn(),
+    warn:  vi.fn(),
     error: vi.fn(),
     debug: vi.fn(),
     authSuccess: vi.fn(),
@@ -120,11 +150,12 @@ describe('generateUniqueSlug', () => {
 
 describe('provisionOrgAndProfile', () => {
   beforeEach(() => {
-    // Reset to success defaults
-    mockState.orgInsertResult = { data: { id: 'org-123', slug: 'test-org' }, error: null };
-    mockState.profileInsertResult = { error: null };
-    mockState.orgDeleteResult = { error: null };
-    mockState.profileSelectResult = { data: null, error: null };
+    mockState.orgInsertRows     = [{ id: 'org-123', slug: 'test-org' }];
+    mockState.orgInsertError    = null;
+    mockState.profileInsertRows = [{ id: 'user-abc' }];
+    mockState.profileInsertError = null;
+    mockState.deleteError       = null;
+    mockState.existingProfile   = null;
     vi.clearAllMocks();
   });
 
@@ -133,7 +164,7 @@ describe('provisionOrgAndProfile', () => {
       'user-abc',
       'user@example.com',
       'Test Org',
-      'Test User'
+      'Test User',
     );
 
     expect(result.role).toBe('admin');
@@ -141,23 +172,28 @@ describe('provisionOrgAndProfile', () => {
     expect(result.profileId).toBe('user-abc');
   });
 
-  it('throws PROVISION_FAILED when org insert fails', async () => {
-    mockState.orgInsertResult = {
-      data: null,
-      error: { code: '23505', message: 'unique violation' },
-    };
+  it('throws PROVISION_FAILED:org:no_rows when org insert returns empty array', async () => {
+    mockState.orgInsertRows = [];
 
     await expect(
-      provisionOrgAndProfile('user-abc', 'user@example.com', 'Test Org')
-    ).rejects.toThrow('PROVISION_FAILED:org:23505');
+      provisionOrgAndProfile('user-abc', 'user@example.com', 'Test Org'),
+    ).rejects.toThrow('PROVISION_FAILED:org:no_rows');
   });
 
-  it('rolls back org and throws PROVISION_FAILED when profile insert fails', async () => {
-    mockState.orgInsertResult = { data: { id: 'org-xyz', slug: 'test-org' }, error: null };
-    mockState.profileInsertResult = { error: { code: '23503', message: 'fk violation' } };
+  it('throws when org insert throws a DB error', async () => {
+    mockState.orgInsertError = new Error('unique constraint violation');
 
     await expect(
-      provisionOrgAndProfile('user-abc', 'user@example.com', 'Test Org')
+      provisionOrgAndProfile('user-abc', 'user@example.com', 'Test Org'),
+    ).rejects.toThrow('unique constraint violation');
+  });
+
+  it('rolls back org and throws PROVISION_FAILED:profile when profile insert fails', async () => {
+    mockState.orgInsertRows    = [{ id: 'org-xyz', slug: 'test-org' }];
+    mockState.profileInsertError = new Error('fk violation');
+
+    await expect(
+      provisionOrgAndProfile('user-abc', 'user@example.com', 'Test Org'),
     ).rejects.toThrow(/PROVISION_FAILED:profile/);
   });
 

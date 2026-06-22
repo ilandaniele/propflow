@@ -109,128 +109,98 @@ vi.mock('@/lib/auth/guards', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: Supabase server client
+// Mock: @/lib/db — covers executive-brief data queries + ai/budget
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: vi.fn(async () => {
-        if (mockDb.authError || !mockDb.user) {
-          return { data: { user: null })),
-  createAdminServerClient: vi.fn(async () => ({
-    auth: {
-      getUser: vi.fn(async () => {
-        if (mockDb.authError || !mockDb.user) {
-          return { data: { user: null }, error: new Error('UNAUTHORIZED') };
+vi.mock('@/lib/db', () => {
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return '';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+  }
+
+  const makeSelectChain = (tableName: string) => {
+    const chain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn(async () => {
+        if (tableName === 'profiles') {
+          if (!mockDb.profile) return [];
+          return [{ id: mockDb.profile.id, orgId: mockDb.profile.org_id, role: mockDb.profile.role, userId: mockDb.profile.id }];
         }
-        return { data: { user: mockDb.user }, error: null };
+        if (tableName === 'ai_token_budget') {
+          // Under-budget by default
+          return [{ id: 'budget-row', tokensUsed: 0, date: new Date().toISOString().slice(0, 10), orgId: '' }];
+        }
+        return [];
       }),
+      // Terminal resolve for queries without .limit() — e.g. Promise.all([db.select().from(...).where(...)])
+      then: (resolve: (v: unknown[]) => void) => {
+        if (tableName === 'units') {
+          resolve([{ id: 'u1', status: 'occupied' }, { id: 'u2', status: 'occupied' }, { id: 'u3', status: 'vacant' }]);
+        } else if (tableName === 'payments') {
+          resolve([{ amount: 1500 }, { amount: 2000 }]);
+        } else if (tableName === 'expenses') {
+          resolve([{ amount: 800 }, { amount: 400 }]);
+        } else if (tableName === 'incidents') {
+          resolve([{ id: 'i1', status: 'open' }, { id: 'i2', status: 'open' }]);
+        } else if (tableName === 'ai_token_budget') {
+          resolve([{ id: 'budget-row', tokensUsed: 0 }]);
+        } else {
+          resolve([]);
+        }
+      },
+    };
+    return chain;
+  };
+
+  return {
+    db: {
+      select: (_cols?: unknown) => {
+        // We don't know table yet — from() sets it
+        let tableName = '';
+        const chain = {
+          from: vi.fn((tableRef: unknown) => {
+            tableName = getTableName(tableRef);
+            return makeSelectChain(tableName);
+          }),
+          where: vi.fn().mockReturnThis(),
+        };
+        return chain;
+      },
+      insert: (tableRef: unknown) => {
+        const table = getTableName(tableRef);
+        return {
+          values: vi.fn(() => ({
+            onConflictDoUpdate: vi.fn(async () => []),
+            onConflictDoNothing: vi.fn(async () => []),
+            returning: vi.fn(async () => {
+              if (table === 'ai_token_budget') return [{ id: 'budget-row', tokensUsed: 0 }];
+              return [];
+            }),
+          })),
+        };
+      },
+      update: (tableRef: unknown) => {
+        const table = getTableName(tableRef);
+        void table;
+        return {
+          set: vi.fn(() => ({
+            where: vi.fn(async () => []),
+          })),
+        };
+      },
+      execute: vi.fn(async () => [
+        { is_overdue: false, tenant_id: 't1' },
+        { is_overdue: true, tenant_id: 't2' },
+        { is_overdue: false, tenant_id: 't3' },
+      ]),
+      query: { profiles: { findFirst: vi.fn(async () => null) } },
     },
-    from: vi.fn((table: string) => {
-      if (table === 'profiles') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              single: vi.fn(async () => ({
-                data: mockDb.profile,
-                error: mockDb.profile ? null : { message: 'Not found' },
-              })),
-            })),
-          })),
-        };
-      }
-      // Mock aggregate queries — return safe numeric data only
-      if (table === 'units') {
-        return {
-          select: vi.fn(() =>
-            Promise.resolve({
-              data: [
-                { id: 'u1', status: 'occupied' },
-                { id: 'u2', status: 'occupied' },
-                { id: 'u3', status: 'vacant' },
-              ],
-              error: null,
-            })
-          ),
-        };
-      }
-      if (table === 'payments') {
-        return {
-          select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              gte: vi.fn(() => ({
-                lt: vi.fn(async () => ({
-                  data: [{ amount: 1500, paid_at: '2026-06-10' }, { amount: 2000, paid_at: '2026-06-15' }],
-                  error: null,
-                })),
-              })),
-            })),
-          })),
-        };
-      }
-      if (table === 'expenses') {
-        return {
-          select: vi.fn(() => ({
-            gte: vi.fn(() => ({
-              lt: vi.fn(async () => ({
-                data: [{ amount: 800 }, { amount: 400 }],
-                error: null,
-              })),
-            })),
-          })),
-        };
-      }
-      if (table === 'incidents') {
-        return {
-          select: vi.fn(() => ({
-            neq: vi.fn(async () => ({
-              data: [{ id: 'i1', status: 'open' }, { id: 'i2', status: 'open' }],
-              error: null,
-            })),
-          })),
-        };
-      }
-      if (table === 'tenant_statement') {
-        return {
-          select: vi.fn(async () => ({
-            data: [
-              { is_overdue: false, tenant_id: 't1' },
-              { is_overdue: true, tenant_id: 't2' },
-              { is_overdue: false, tenant_id: 't3' },
-            ],
-            error: null,
-          })),
-        };
-      }
-      // fallback
-      return {
-        select: vi.fn(() => Promise.resolve({ data: [], error: null })),
-      };
-    }),
-  })),
-}));
-
-// ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/admin — budget check calls createAdminClient()
-// Return an under-budget state so existing tests are unaffected.
-// ---------------------------------------------------------------------------
-
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq:     vi.fn().mockReturnThis(),
-      upsert: vi.fn().mockResolvedValue({ error: null }),
-      update: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({
-        // Return 0 tokens used today — always under budget
-        data: { id: 'budget-row', tokens_used: 0 },
-        error: null,
-      }),
-    })),
-  })),
-}));
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Mock: ratelimit — success by default

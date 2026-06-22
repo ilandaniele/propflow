@@ -43,7 +43,14 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "overdue": "Overdue",
-    "add": "Add"
+    "add": "Add",
+    "addButton": "Add",
+    "newFormTitle": "New form",
+    "fieldName": "Name",
+    "fieldAddress": "Address",
+    "fieldCity": "City",
+    "fieldCountry": "Country",
+    "createButton": "Create"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -1443,7 +1450,10 @@
   "community": {
     "pinned": "Pinned",
     "unpin": "Unpin",
-    "pin": "Pin"
+    "pin": "Pin",
+    "title": "Community",
+    "emptyTitle": "No announcements",
+    "emptyDesc": "No announcements have been posted for your community yet."
   },
   "leads": {
     "title": "CRM Leads",
@@ -1908,7 +1918,12 @@
     "titlePlaceholder": "e.g. Clean bathroom filter",
     "descriptionLabel": "Description",
     "dueDateLabel": "Due Date",
-    "createdOk": "Task created successfully."
+    "createdOk": "Task created successfully.",
+    "creating": "Creating...",
+    "createTask": "Create Task",
+    "backToTasks": "← Back to Tasks",
+    "newTask": "New Task",
+    "newTaskSubtitle": "Create and assign a task to a tenant."
   },
   "utilities": {
     "title": "Utility Payments",

@@ -118,72 +118,42 @@ vi.mock('@/lib/auth/guards', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/server
+// Mock: @/lib/db
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => buildSupabaseMock())})),
-  createAdminServerClient: vi.fn(async () => buildSupabaseMock()),
+const mockDbSelect = vi.fn();
+const mockDbUpdate = vi.fn();
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: (...args: unknown[]) => mockDbSelect(...args),
+    update: (...args: unknown[]) => mockDbUpdate(...args),
+  },
 }));
 
-function buildSupabaseMock() {
-  return {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: mockState.userId } },
-        error: null,
-      }),
-    },
-    from: vi.fn((table: string) => buildTableProxy(table)),
+function setupDbSelectChain() {
+  const chain = {
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    limit: vi.fn(async () => {
+      if (mockState.tenantRow === null) return [];
+      return [{ id: mockState.tenantRow.id, photoUrl: mockState.tenantRow.photo_url }];
+    }),
   };
+  mockDbSelect.mockReturnValue(chain);
+  return chain;
 }
 
-function buildTableProxy(table: string) {
-  let isUpdate = false;
-
-  const builder: Record<string, unknown> = {};
-
-  builder.select = vi.fn(() => builder);
-  builder.update = vi.fn(() => { isUpdate = true; return builder; });
-  builder.delete = vi.fn(() => builder);
-  builder.eq    = vi.fn(() => builder);
-  builder.limit = vi.fn(() => builder);
-
-  builder.single = vi.fn(() => {
-    if (table === 'tenants') {
-      if (mockState.tenantRow === null) {
-        return Promise.resolve({ data: null, error: { code: 'PGRST116' } });
-      }
-      if (isUpdate) {
-        return Promise.resolve(
-          mockState.dbUpdateError
-            ? { data: null, error: { code: mockState.dbUpdateError } }
-            : { data: mockState.tenantRow, error: null }
-        );
-      }
-      return Promise.resolve({ data: mockState.tenantRow, error: null });
-    }
-    return Promise.resolve({ data: null, error: null });
-  });
-
-  // Make builder thenable (for awaited queries without .single())
-  const thenableFn = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
-    let res: unknown;
-    if (table === 'tenants' && isUpdate) {
-      res = mockState.dbUpdateError
-        ? { data: null, error: { code: mockState.dbUpdateError } }
-        : { data: null, error: null };
-    } else {
-      res = { data: null, error: null };
-    }
-    return Promise.resolve(res).then(resolve, reject);
+function setupDbUpdateChain() {
+  const chain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn(async () => {
+      if (mockState.dbUpdateError) throw new Error(mockState.dbUpdateError);
+      return [];
+    }),
   };
-
-  builder.then = thenableFn;
-  builder.catch = (rej: (e: unknown) => unknown) => Promise.resolve().catch(rej);
-  builder.finally = (cb: () => void) => Promise.resolve().finally(cb);
-
-  return builder;
+  mockDbUpdate.mockReturnValue(chain);
+  return chain;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +241,8 @@ beforeEach(() => {
   rateLimitCallCount = 0;
   rateLimitMax = 9999;
   vi.clearAllMocks();
+  setupDbSelectChain();
+  setupDbUpdateChain();
 });
 
 // ── AC13: Tenant uploads own avatar (happy path) ─────────────────────────────

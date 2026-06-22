@@ -9,17 +9,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import crypto from 'crypto';
 
-// Mock Supabase admin client
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: () => ({
-    from: () => ({
-      select: () => ({ limit: () => ({ data: [{ id: 'org-1' }] }) }),
-      upsert: () => ({ select: () => ({ single: async () => ({ data: { id: 'conv-1' }, error: null }) }) }),
-      insert: () => ({ select: () => ({ single: async () => ({ data: { id: 'msg-1' }, error: null }) }) }),
-      update: () => ({ eq: () => ({ eq: async () => ({}) }) }),
-    }),
-    rpc: () => ({ maybeSingle: async () => ({}) }),
-  }),
+// Mock @/lib/db — Drizzle
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn(async () => [{ id: 'org-1' }]),
+    })),
+    insert: vi.fn(() => ({ values: vi.fn(async () => [{ id: 'msg-1' }]) })),
+    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => []) })) })),
+  },
 }));
 
 vi.mock('@/lib/whatsapp/classify', () => ({

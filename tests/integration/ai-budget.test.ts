@@ -8,45 +8,59 @@
  *   2. Over limit  → request blocked (AI_BUDGET_EXCEEDED).
  *   3. New day     → counter resets (fresh row for new date).
  *
- * Uses a fully mocked createAdminClient() — no real Supabase instance required.
+ * Uses a fully mocked @/lib/db — no real DB required.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Mock } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// We need to control per-call mock responses for maybeSingle and upsert.
-// The budget function calls:
-//   adminClient.from('ai_token_budget').select('id, tokens_used').eq(...).eq(...).maybySingle()
-// then:
-//   adminClient.from('ai_token_budget').upsert(...)
+// Queue-based db mock
 //
-// Use a queue-based approach: each test pushes the responses it needs.
+// The budget function calls:
+//   db.select().from(aiTokenBudget).where().limit(1)  → fetch today's row
+// then:
+//   db.insert(aiTokenBudget).values().onConflictDoUpdate()  → upsert/increment
+//
+// We use queues to control per-call responses.
 // ---------------------------------------------------------------------------
 
-const maybySingleResponses: Array<{ data: { id: string; tokens_used: number } | null; error: null | { code: string } }> = [];
-const upsertResponses: Array<{ error: null | { code: string } }> = [];
+const selectResponses: Array<{ data: { id: string; tokensUsed: number } | null; error: null | { message: string } }> = [];
+const upsertShouldFail: boolean[] = [];
 
-function createChainableMock() {
-  const chain = {
-    select: vi.fn().mockReturnThis() as unknown as Mock,
-    eq:     vi.fn().mockReturnThis() as unknown as Mock,
-    upsert: vi.fn(async () => upsertResponses.shift() ?? { error: null }) as unknown as Mock,
-    update: vi.fn().mockReturnThis() as unknown as Mock,
-    maybeSingle: vi.fn(async () => maybySingleResponses.shift() ?? { data: null, error: null }) as unknown as Mock,
-  };
-  // make update chainable to eq
-  chain.update.mockReturnValue(chain);
-  chain.eq.mockReturnValue(chain);
-  return chain;
-}
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: () => {
+      const chain = {
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn(async () => {
+          const next = selectResponses.shift();
+          if (!next) return [];
+          if (next.error) throw new Error(next.error.message);
+          if (!next.data) return [];
+          return [next.data];
+        }),
+      };
+      return chain;
+    },
 
-const mockAdminFrom = vi.fn(() => createChainableMock());
+    insert: () => ({
+      values: vi.fn(() => ({
+        onConflictDoUpdate: vi.fn(async () => {
+          const shouldFail = upsertShouldFail.shift();
+          if (shouldFail) throw new Error('DB upsert failed');
+          return [];
+        }),
+        returning: vi.fn(async () => []),
+      })),
+    }),
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(() => ({
-    from: mockAdminFrom,
-  })),
+    update: () => ({
+      set: vi.fn(() => ({
+        where: vi.fn(async () => []),
+      })),
+    }),
+  },
 }));
 
 vi.mock('@/lib/log', () => ({
@@ -69,17 +83,19 @@ import {
 
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
-/** Push a maybSingle response onto the queue */
-function queueMaybeSingle(tokensUsed: number | null, error: null | { code: string } = null) {
-  maybySingleResponses.push({
-    data: tokensUsed !== null ? { id: 'budget-row-id', tokens_used: tokensUsed } : null,
+function queueSelectRow(tokensUsed: number | null, error: null | { message: string } = null) {
+  selectResponses.push({
+    data: tokensUsed !== null ? { id: 'budget-row-id', tokensUsed } : null,
     error,
   });
 }
 
-/** Push an upsert response onto the queue */
-function queueUpsert(error: null | { code: string } = null) {
-  upsertResponses.push({ error });
+function queueUpsertError() {
+  upsertShouldFail.push(true);
+}
+
+function queueUpsertSuccess() {
+  upsertShouldFail.push(false);
 }
 
 // ---------------------------------------------------------------------------
@@ -89,10 +105,8 @@ function queueUpsert(error: null | { code: string } = null) {
 describe('AI token budget enforcement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    maybySingleResponses.length = 0;
-    upsertResponses.length = 0;
-    // Reset the from() factory to return a fresh chain each call
-    mockAdminFrom.mockImplementation(() => createChainableMock());
+    selectResponses.length = 0;
+    upsertShouldFail.length = 0;
   });
 
   // -------------------------------------------------------------------------
@@ -100,9 +114,8 @@ describe('AI token budget enforcement', () => {
   // -------------------------------------------------------------------------
 
   it('allows request when tokens_used is well under the daily limit', async () => {
-    // Org has used 10 000 of 50 000 tokens today
-    queueMaybeSingle(10_000);
-    queueUpsert();
+    queueSelectRow(10_000);
+    queueUpsertSuccess();
 
     const result = await checkAndIncrementBudget(ORG_ID, 500);
 
@@ -112,9 +125,8 @@ describe('AI token budget enforcement', () => {
   });
 
   it('allows request when no row exists yet (first request of the day)', async () => {
-    // No row for today → maybeSingle returns null data
-    queueMaybeSingle(null);
-    queueUpsert();
+    queueSelectRow(null);
+    queueUpsertSuccess();
 
     const result = await checkAndIncrementBudget(ORG_ID, 200);
 
@@ -125,8 +137,8 @@ describe('AI token budget enforcement', () => {
 
   it('allows request when tokens exactly at budget minus request size', async () => {
     // Used 49 500, requesting 500 → total would be 50 000 exactly = still allowed
-    queueMaybeSingle(49_500);
-    queueUpsert();
+    queueSelectRow(49_500);
+    queueUpsertSuccess();
 
     const result = await checkAndIncrementBudget(ORG_ID, 500);
 
@@ -139,7 +151,7 @@ describe('AI token budget enforcement', () => {
 
   it('blocks request when adding tokens would exceed the daily limit', async () => {
     // Used 49 600, requesting 500 → total would be 50 100 > 50 000
-    queueMaybeSingle(49_600);
+    queueSelectRow(49_600);
     // No upsert should happen — blocked before incrementing
 
     const result = await checkAndIncrementBudget(ORG_ID, 500);
@@ -150,8 +162,7 @@ describe('AI token budget enforcement', () => {
   });
 
   it('blocks request when budget is exactly at the limit', async () => {
-    // Already used 50 000 — no more tokens
-    queueMaybeSingle(DAILY_TOKEN_BUDGET);
+    queueSelectRow(DAILY_TOKEN_BUDGET);
 
     const result = await checkAndIncrementBudget(ORG_ID, 1);
 
@@ -159,9 +170,9 @@ describe('AI token budget enforcement', () => {
     expect(result.tokensRemaining).toBe(0);
   });
 
-  it('blocks and returns allowed=false when Supabase fetch errors (fail-closed)', async () => {
+  it('blocks and returns allowed=false when DB fetch errors (fail-closed)', async () => {
     // DB error → fail-closed
-    queueMaybeSingle(null, { code: 'PGRST301' });
+    selectResponses.push({ data: null, error: { message: 'DB connection error' } });
 
     const result = await checkAndIncrementBudget(ORG_ID, 500);
 
@@ -169,9 +180,8 @@ describe('AI token budget enforcement', () => {
   });
 
   it('blocks and returns allowed=false when upsert fails (fail-closed)', async () => {
-    // Fetch succeeds; upsert fails
-    queueMaybeSingle(0);
-    queueUpsert({ code: 'PGRST301' });
+    queueSelectRow(0);
+    queueUpsertError();
 
     const result = await checkAndIncrementBudget(ORG_ID, 500);
 
@@ -183,10 +193,8 @@ describe('AI token budget enforcement', () => {
   // -------------------------------------------------------------------------
 
   it('effectively resets on a new day because a fresh row is created for today', async () => {
-    // The budget function queries by (org_id, day=TODAY). If yesterday's data existed,
-    // today's query returns null (different date key) → tokensUsed = 0 → allowed.
-    queueMaybeSingle(null);
-    queueUpsert();
+    queueSelectRow(null);
+    queueUpsertSuccess();
 
     const result = await checkAndIncrementBudget(ORG_ID, 1000);
 
@@ -195,7 +203,7 @@ describe('AI token budget enforcement', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 4. Constants are within expected range
+  // 4. Constants
   // -------------------------------------------------------------------------
 
   it('DAILY_TOKEN_BUDGET is 50 000 tokens (conservative $5/day ceiling)', () => {
@@ -203,18 +211,16 @@ describe('AI token budget enforcement', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 5. Budget check is orgId-scoped (different orgs are independent)
+  // 5. Budget is orgId-scoped (different orgs are independent)
   // -------------------------------------------------------------------------
 
   it('does not cross-contaminate budgets between different orgs', async () => {
     const ORG_A = '00000000-0000-0000-0000-000000000001';
     const ORG_B = '00000000-0000-0000-0000-000000000002';
 
-    // Org A is at limit
-    queueMaybeSingle(DAILY_TOKEN_BUDGET);
-    // Org B has zero usage
-    queueMaybeSingle(0);
-    queueUpsert();
+    queueSelectRow(DAILY_TOKEN_BUDGET); // Org A at limit
+    queueSelectRow(0);                  // Org B at zero
+    queueUpsertSuccess();               // Org B upsert succeeds
 
     const resultA = await checkAndIncrementBudget(ORG_A, 1);
     const resultB = await checkAndIncrementBudget(ORG_B, 1);
@@ -229,14 +235,17 @@ describe('AI token budget enforcement', () => {
 // ---------------------------------------------------------------------------
 
 describe('AI budget module contract', () => {
+  beforeEach(() => {
+    selectResponses.length = 0;
+    upsertShouldFail.length = 0;
+  });
+
   it('exports checkAndIncrementBudget as an async function', () => {
     expect(typeof checkAndIncrementBudget).toBe('function');
-    // Queue a response so the test doesn't hang
-    queueMaybeSingle(0);
-    queueUpsert();
+    queueSelectRow(0);
+    queueUpsertSuccess();
     const result = checkAndIncrementBudget(ORG_ID, 0);
     expect(result).toBeInstanceOf(Promise);
-    // Drain the promise to avoid test leakage
     return result;
   });
 

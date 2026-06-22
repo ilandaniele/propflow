@@ -108,7 +108,7 @@ describe('dashboard airtable_snapshots query shape (AC4)', () => {
     expect(legacyEntityCall).toBeUndefined();
   });
 
-  it('AC2 — page.tsx uses correct column names: "data, synced_at" (not "payload")', () => {
+  it('AC2 — page.tsx uses correct column names: "data" and "syncedAt" (not "payload")', () => {
     // Option B static analysis: read the actual source file so that reverting the fix
     // in page.tsx will cause this test to fail immediately.
     const fs = require('fs') as typeof import('fs');
@@ -118,16 +118,15 @@ describe('dashboard airtable_snapshots query shape (AC4)', () => {
       'utf-8',
     );
 
-    // Correct column string must be present
-    expect(src).toContain("'data, synced_at'");
+    // Drizzle: selects airtableSnapshots.data and airtableSnapshots.syncedAt
+    expect(src).toContain('airtableSnapshots.data');
+    expect(src).toContain('airtableSnapshots.syncedAt');
 
     // Legacy column name must NOT appear in any airtable_snapshots query
-    // (We check the broader string to avoid false positives from comments or
-    //  variable names in unrelated code.)
     expect(src).not.toMatch(/\.select\(['"`]payload/);
   });
 
-  it('AC2 — page.tsx uses correct filter key: "table_name" (not "entity")', () => {
+  it('AC2 — page.tsx uses correct filter key: "tableName" (not "entity")', () => {
     const fs = require('fs') as typeof import('fs');
     const path = require('path') as typeof import('path');
     const src = fs.readFileSync(
@@ -135,8 +134,8 @@ describe('dashboard airtable_snapshots query shape (AC4)', () => {
       'utf-8',
     );
 
-    // Correct filter key must be present
-    expect(src).toContain("'table_name'");
+    // Drizzle: filters by airtableSnapshots.tableName
+    expect(src).toContain('airtableSnapshots.tableName');
 
     // Legacy filter key must NOT appear as an eq column in an airtable_snapshots context
     expect(src).not.toMatch(/\.eq\(['"`]entity['"`]/);

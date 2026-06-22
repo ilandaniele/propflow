@@ -1,7 +1,7 @@
 /**
  * tests/integration/tenant-csv-import.test.ts
  *
- * Tests for POST /api/admin/tenants/import
+ * Tests for POST /api/admin/tenants/import (Drizzle version).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -15,14 +15,14 @@ const LOG_ID  = 'log-tenants-test-001';
 
 interface TenantRecord {
   id: string;
-  email: string;
-  portal_access?: string;
-  airtable_external_id: string | null;
+  email: string | null;
+  portalAccess?: string;
+  airtableExternalId: string | null;
 }
 
 const state = {
   requireAdminError: false,
-  requireAdminRole: 'admin' as string,
+  // In-memory tenant store keyed by id
   tenants: {} as Record<string, TenantRecord>,
   nextTenantId: 1,
 };
@@ -30,7 +30,6 @@ const state = {
 vi.mock('@/lib/auth/guards', () => ({
   requireAdmin: vi.fn().mockImplementation(async () => {
     if (state.requireAdminError) throw new Error('UNAUTHORIZED');
-    if (state.requireAdminRole !== 'admin') throw new Error('FORBIDDEN');
     return { userId: USER_ID, orgId: ORG_ID, role: 'admin', profile: {} };
   }),
 }));
@@ -42,63 +41,92 @@ vi.mock('@/lib/airtable/write', () => ({
   }),
 }));
 
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn().mockReturnValue({
-    from: vi.fn((table: string) => {
-      if (table === 'tenants') {
+// ---------------------------------------------------------------------------
+// Mock @/lib/db — Drizzle
+// ---------------------------------------------------------------------------
+
+vi.mock('@/lib/db', () => {
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return '';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+  }
+
+  return {
+    db: {
+      select: vi.fn(() => {
+        let tableName = '';
+        const chain = {
+          from: vi.fn((tableRef: unknown) => {
+            tableName = getTableName(tableRef);
+            return chain;
+          }),
+          where: vi.fn(async () => {
+            if (tableName === 'tenants') {
+              // Return existing tenants
+              return Object.values(state.tenants).map(t => ({
+                id: t.id,
+                email: t.email,
+                airtableExternalId: t.airtableExternalId,
+                externalTenantId: null,
+              }));
+            }
+            return [];
+          }),
+        };
+        return chain;
+      }),
+
+      insert: vi.fn((tableRef: unknown) => {
+        const table = getTableName(tableRef);
         return {
-          select: vi.fn((_cols: string) => ({
-            eq: vi.fn((_col: string, _val: string) => ({
-              in: vi.fn(async (_col2: string, emails: string[]) => {
-                const matches = Object.values(state.tenants).filter(t =>
-                  _col2 === 'email' ? emails.includes(t.email) : true
-                );
-                return { data: matches, error: null };
-              }),
-            })),
-          })),
-          insert: vi.fn((payload: Record<string, unknown>) => ({
-            select: vi.fn(() => ({
-              single: vi.fn(async () => {
+          values: vi.fn((payload: unknown) => ({
+            returning: vi.fn(async () => {
+              if (table === 'tenants') {
+                const p = payload as { email?: string | null; portalAccess?: string };
                 const id = `tenant-new-${state.nextTenantId++}`;
                 state.tenants[id] = {
                   id,
-                  email: payload.email as string,
-                  portal_access: payload.portal_access as string,
-                  airtable_external_id: null,
+                  email: p.email ?? null,
+                  portalAccess: p.portalAccess,
+                  airtableExternalId: null,
                 };
-                return { data: { id }, error: null };
-              }),
-            })),
-          })),
-          update: vi.fn((payload: Record<string, unknown>) => ({
-            eq: vi.fn(async (_col: string, id: string) => {
-              if (state.tenants[id]) {
-                Object.assign(state.tenants[id], payload);
+                return [{ id }];
               }
-              return { error: null };
+              if (table === 'import_logs') {
+                return [{ id: LOG_ID }];
+              }
+              return [];
             }),
           })),
         };
-      }
+      }),
 
-      if (table === 'import_logs') {
+      update: vi.fn((tableRef: unknown) => {
+        const table = getTableName(tableRef);
         return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: { id: LOG_ID }, error: null })),
-            })),
-          })),
-          update: vi.fn(() => ({
-            eq: vi.fn(async () => ({ error: null })),
+          set: vi.fn((data: unknown) => ({
+            where: vi.fn(async () => {
+              if (table === 'tenants') {
+                // Update in-memory store (find by checking state)
+                const d = data as Record<string, unknown>;
+                for (const tenant of Object.values(state.tenants)) {
+                  // Apply updates
+                  Object.assign(tenant, d);
+                }
+              }
+              return [];
+            }),
           })),
         };
-      }
+      }),
 
-      return {};
-    }),
-  }),
-}));
+      // Promise.all path — select with then()
+      execute: vi.fn(async () => []),
+    },
+  };
+});
 
 function buildCsvFile(headers: string[], rows: string[][]): File {
   const content = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -122,9 +150,7 @@ describe('POST /api/admin/tenants/import', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.requireAdminError = false;
-    state.requireAdminRole = 'admin';
     state.nextTenantId = 1;
-    // Clear tenants store
     for (const k of Object.keys(state.tenants)) {
       delete state.tenants[k];
     }
@@ -144,7 +170,7 @@ describe('POST /api/admin/tenants/import', () => {
     // Verify portal_access was set on the inserted tenant
     const newTenant = Object.values(state.tenants).find(t => t.email === 'nueva@test.com');
     expect(newTenant).toBeDefined();
-    expect(newTenant?.portal_access).toBe('not_invited');
+    expect(newTenant?.portalAccess).toBe('not_invited');
   });
 
   // ── Same row imported again → updated, not duplicated ───────────────────────
@@ -154,8 +180,8 @@ describe('POST /api/admin/tenants/import', () => {
     state.tenants['tenant-existing-001'] = {
       id: 'tenant-existing-001',
       email: 'existing@test.com',
-      portal_access: 'not_invited',
-      airtable_external_id: null,
+      portalAccess: 'not_invited',
+      airtableExternalId: null,
     };
 
     const file = buildCsvFile(HEADERS, [
@@ -200,7 +226,7 @@ describe('POST /api/admin/tenants/import', () => {
   // ── Non-admin → 401/403 ────────────────────────────────────────────────────
 
   it('returns 401/403 when caller is not an admin', async () => {
-    state.requireAdminError = true; // guard throws for non-admin too
+    state.requireAdminError = true;
     const file = buildCsvFile(HEADERS, [
       ['Ana', 'López', 'ana@test.com', '111222333', 'active'],
     ]);

@@ -1,53 +1,44 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { buildTenantActivityFeed, type ActivityEvent } from '@/lib/tenants/activity-feed';
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 /**
- * Build a minimal Supabase client stub that only needs to answer the
- * whatsapp_messages query (the only remaining DB call inside buildTenantActivityFeed).
+ * Unit tests for buildTenantActivityFeed (Drizzle version).
+ * The function now uses @/lib/db directly — we mock it to avoid real DB connections.
  */
-function makeWhatsAppClient(waMessages: unknown[]) {
-  const createQueryBuilder = (data: unknown[]) => {
-    const builder: Record<string, unknown> = {};
-    const methods = ['select', 'eq', 'order'] as const;
-    for (const method of methods) {
-      builder[method] = vi.fn().mockReturnValue(builder);
-    }
-    builder.limit = vi.fn().mockResolvedValue({ data, error: null });
-    return builder;
-  };
 
-  return {
-    from: vi.fn().mockImplementation((_table: string) => {
-      // Only whatsapp_messages is queried inside buildTenantActivityFeed
-      return createQueryBuilder(waMessages);
-    }),
-  } as unknown as SupabaseClient;
-}
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  buildTenantActivityFeed,
+  type ActivityEvent,
+} from '@/lib/tenants/activity-feed';
 
-function event(
-  id: string,
-  type: ActivityEvent['type'],
-  label: string,
-  createdAt: string,
-  extra: Partial<ActivityEvent> = {}
-): unknown {
-  return { id, type, label, status: 'active', created_at: createdAt, ...extra };
-}
+// ── Mock @/lib/db ─────────────────────────────────────────────────────────────
+
+let mockWaMessages: unknown[] = [];
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        innerJoin: vi.fn(() => ({
+          where: vi.fn(() => ({
+            orderBy: vi.fn(() => ({
+              limit: vi.fn(async () => mockWaMessages),
+            })),
+          })),
+        })),
+      })),
+    })),
+  },
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockWaMessages = [];
 });
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('buildTenantActivityFeed', () => {
   it('returns empty array when no data exists in any table', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [],
@@ -59,9 +50,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('includes payments in the feed', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [{ id: 'pay-1', amount: '500', status: 'approved', created_at: '2026-05-01T10:00:00Z' }],
@@ -74,9 +63,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('includes incidents in the feed', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [],
@@ -89,9 +76,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('includes tasks in the feed', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [],
@@ -104,9 +89,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('includes monetary sanctions with amount detail', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [],
@@ -120,9 +103,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('includes warning sanctions with "Warning" detail', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [],
@@ -135,16 +116,14 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('includes whatsapp messages in the feed', async () => {
-    const client = makeWhatsAppClient([{
+    mockWaMessages = [{
       id: 'msg-1',
       direction: 'inbound',
       classification: 'receipt',
       status: 'received',
-      created_at: '2026-05-05T10:00:00Z',
-      conversation: { tenant_id: 'tenant-1' },
-    }]);
+      createdAt: new Date('2026-05-05T10:00:00Z'),
+    }];
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [],
@@ -159,9 +138,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('sorts events by createdAt descending (newest first)', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [{ id: 'pay-1', amount: '100', status: 'approved', created_at: '2026-05-01T10:00:00Z' }],
@@ -176,7 +153,6 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('caps results at 50 events', async () => {
-    // Create 30 payments + 30 tasks = 60 total → should be capped at 50
     const payments = Array.from({ length: 30 }, (_, i) => ({
       id: `pay-${i}`,
       amount: '100',
@@ -190,9 +166,7 @@ describe('buildTenantActivityFeed', () => {
       created_at: `2026-04-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
     }));
 
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments,
@@ -204,9 +178,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('handles empty arrays gracefully', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [],
@@ -218,9 +190,7 @@ describe('buildTenantActivityFeed', () => {
   });
 
   it('sets id, type, label, createdAt on each event', async () => {
-    const client = makeWhatsAppClient([]);
     const feed = await buildTenantActivityFeed({
-      supabase: client,
       tenantId: 'tenant-1',
       orgId: 'org-1',
       payments: [{ id: 'pay-abc', amount: '750', status: 'pending', created_at: '2026-06-01T08:00:00Z' }],

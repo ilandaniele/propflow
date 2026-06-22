@@ -70,38 +70,20 @@ vi.mock('@/lib/auth/guards', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/server
+// Mock: @/lib/db
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: mockState.userId })),
-  createAdminServerClient: vi.fn(async () => ({
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: mockState.userId } },
-        error: null,
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn(async () => {
+        if (!mockState.tenantUnitId) return [];
+        return [{ unitId: mockState.tenantUnitId }];
       }),
-    },
-    from: vi.fn((table: string) => {
-      const chain: Record<string, unknown> = {};
-      const stub = () => chain;
-      chain.select = vi.fn(stub);
-      chain.eq = vi.fn(stub);
-      chain.single = vi.fn(() => {
-        if (table === 'tenants') {
-          return Promise.resolve({
-            data: mockState.tenantUnitId ? { unit_id: mockState.tenantUnitId } : null,
-            error: null,
-          });
-        }
-        return Promise.resolve({ data: null, error: null });
-      });
-      return chain;
-    }),
-  })),
+    })),
+  },
 }));
 
 // ---------------------------------------------------------------------------

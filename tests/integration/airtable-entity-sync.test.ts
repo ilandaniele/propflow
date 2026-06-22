@@ -121,12 +121,135 @@ function makeSupabaseBuilder(table: string) {
   return builder;
 }
 
-// Mock createAdminClient
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: () => ({
-    from: (table: string) => makeSupabaseBuilder(table),
-  }),
-}));
+// Mock @/lib/db — Drizzle ORM
+vi.mock('@/lib/db', () => {
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return '';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+  }
+
+  // Recursively extract text and params from Drizzle SQL queryChunks
+  function extractFromSqlChunks(chunks: unknown[]): { text: string; params: unknown[] } {
+    let text = '';
+    const params: unknown[] = [];
+    for (const chunk of chunks) {
+      if (chunk && typeof chunk === 'object' && !Array.isArray(chunk) && 'queryChunks' in (chunk as object)) {
+        const nested = extractFromSqlChunks((chunk as { queryChunks: unknown[] }).queryChunks);
+        text += nested.text;
+        params.push(...nested.params);
+      } else if (chunk && typeof chunk === 'object' && !Array.isArray(chunk) && 'value' in (chunk as object)) {
+        const val = (chunk as { value: unknown }).value;
+        if (Array.isArray(val)) text += val.join('');
+      } else {
+        text += '?';
+        params.push(chunk);
+      }
+    }
+    return { text, params };
+  }
+
+  return {
+    db: {
+      select: () => {
+        let tableName = '';
+        const chain = {
+          from: vi.fn((tableRef: unknown) => {
+            tableName = getTableName(tableRef);
+            selectCalls.push({ table: tableName });
+            return chain;
+          }),
+          where: vi.fn().mockReturnThis(),
+          limit: vi.fn(async () => {
+            if (tableName === 'organizations') return orgsSelectResult.map(o => ({ id: o.id }));
+            if (tableName === 'units') return unitsSelectResult.map(u => ({ id: u.id, propertyId: u.property_id, label: u.label }));
+            if (tableName === 'tenants') return []; // existing tenant conflict check
+            if (tableName === 'contracts') return [];
+            return [];
+          }),
+          then: (resolve: (v: unknown[]) => void) => {
+            if (tableName === 'organizations') resolve(orgsSelectResult.map(o => ({ id: o.id })));
+            else if (tableName === 'units') resolve(unitsSelectResult.map(u => ({ id: u.id, propertyId: u.property_id, label: u.label })));
+            else resolve([]);
+          },
+        };
+        return chain;
+      },
+
+      insert: (tableRef: unknown) => {
+        const table = getTableName(tableRef);
+        const chain = {
+          values: vi.fn((rows: unknown) => {
+            const rowsArr = Array.isArray(rows) ? rows : [rows];
+            insertCalls.push({ table, row: rowsArr[0] });
+            // Normalize camelCase keys to snake_case for snapshot assertions
+            const snakeRows = rowsArr.map((r: unknown) => {
+              if (!r || typeof r !== 'object') return r;
+              const obj = r as Record<string, unknown>;
+              return {
+                org_id: obj['orgId'] ?? obj['org_id'],
+                table_name: obj['tableName'] ?? obj['table_name'],
+                external_id: obj['externalId'] ?? obj['external_id'],
+                data: obj['data'],
+                synced_at: obj['syncedAt'] ?? obj['synced_at'],
+              };
+            });
+            return {
+              onConflictDoUpdate: vi.fn(async () => {
+                upsertCalls.push({ table, rows: snakeRows, opts: { onConflict: 'org_id,table_name,external_id' } });
+                return [];
+              }),
+              onConflictDoNothing: vi.fn(async () => []),
+              returning: vi.fn(async () => [{ id: 'log-id-001' }]),
+            };
+          }),
+        };
+        return chain;
+      },
+
+      update: () => ({
+        set: vi.fn(() => ({
+          where: vi.fn(async () => []),
+        })),
+      }),
+
+      execute: vi.fn(async (sqlObj: unknown) => {
+        if (!sqlObj || typeof sqlObj !== 'object' || !('queryChunks' in (sqlObj as object))) return [];
+
+        const { text, params } = extractFromSqlChunks((sqlObj as { queryChunks: unknown[] }).queryChunks);
+
+        // Extract table name: INSERT INTO <table> (col1, col2, ...)
+        const tableMatch = text.match(/INSERT INTO\s+(\w+)\s*\(/i);
+        const table = tableMatch ? tableMatch[1] : 'unknown';
+
+        // Extract column names
+        const colMatch = text.match(/INSERT INTO\s+\w+\s*\(([^)]+)\)/i);
+        const cols = colMatch ? colMatch[1].split(',').map((c: string) => c.trim()) : [];
+
+        // Map param positions to columns
+        const row: Record<string, unknown> = {};
+        cols.forEach((col: string, i: number) => { row[col] = params[i]; });
+
+        upsertCalls.push({
+          table,
+          rows: [row],
+          opts: { onConflict: 'org_id,airtable_external_id', ignoreDuplicates: false },
+        });
+
+        if (table === 'properties' && propiedadesUpsertError) {
+          throw new Error(propiedadesUpsertError.message);
+        }
+        if (table === 'tenants' && residentsUpsertError) {
+          throw new Error(residentsUpsertError.message);
+        }
+        return [];
+      }),
+
+      query: { profiles: { findFirst: vi.fn(async () => null) } },
+    },
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Mock syncAirtableTable (legacy snapshot sync — not under test here)

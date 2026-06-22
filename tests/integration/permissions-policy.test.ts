@@ -2,7 +2,8 @@
  * Integration tests for Permissions-Policy header behaviour in src/proxy.ts.
  *
  * Tests the per-pathname policy selection logic directly by calling proxy()
- * with mocked updateSession returning a user.
+ * with a session cookie (NextAuth v5 — authjs.session-token) to simulate an
+ * authenticated user.
  *
  * Routes tested:
  *   1. /portal/*        → camera=(self), microphone=(), geolocation=()
@@ -17,6 +18,7 @@ import { NextRequest } from 'next/server';
 // Polyfill crypto.randomUUID for test environment
 // ---------------------------------------------------------------------------
 if (!globalThis.crypto?.randomUUID) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { randomUUID } = require('node:crypto');
   Object.defineProperty(globalThis, 'crypto', {
     value: { randomUUID },
@@ -25,75 +27,61 @@ if (!globalThis.crypto?.randomUUID) {
 }
 
 // ---------------------------------------------------------------------------
-// updateSession mock factory — returns either an admin or tenant user.
-// Declared at top-level so it can be overridden per-test via `mockUser`.
-// ---------------------------------------------------------------------------
-let mockUser: { id: string; app_metadata: { role: string } } | null = {
-  id: 'tenant-id',
-  app_metadata: { role: 'tenant' },
-};
-
-vi.mock('@/lib/supabase/middleware', () => ({
-  updateSession: vi.fn(async (_req: unknown) => {
-    const { NextResponse } = require('next/server');
-    return {
-      response: NextResponse.next(),
-      user:     mockUser,
-    };
-  }),
-}));
-
-// ---------------------------------------------------------------------------
 // Helper: call proxy and extract the Permissions-Policy header
+//
+// The proxy (src/proxy.ts) uses NextAuth v5 — it checks for the presence of
+// the `authjs.session-token` cookie to determine if a user is authenticated.
+// We simulate an authenticated session by adding that cookie to the request.
 // ---------------------------------------------------------------------------
-async function getPermissionsPolicy(
-  pathname: string,
-  role: 'admin' | 'tenant' = 'tenant'
-): Promise<string | null> {
-  mockUser = { id: 'test-user', app_metadata: { role } };
+async function getPermissionsPolicy(pathname: string, authenticated = true): Promise<string | null> {
   const { proxy } = await import('@/proxy');
-  const req = new NextRequest(`http://localhost${pathname}`, { method: 'GET' });
+  const url = `http://localhost${pathname}`;
+
+  const headers: Record<string, string> = {};
+  if (authenticated) {
+    // NextAuth v5 uses `authjs.session-token` (HTTP) or `__Secure-authjs.session-token` (HTTPS)
+    headers['cookie'] = 'authjs.session-token=test-token-value';
+  }
+
+  const req = new NextRequest(url, { method: 'GET', headers });
   const res = await proxy(req);
   return res.headers.get('Permissions-Policy');
 }
 
 describe('Permissions-Policy header', () => {
   beforeEach(() => {
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://placeholder.supabase.co';
     vi.clearAllMocks();
   });
 
-  // Portal routes — tenant user → camera=(self)
+  // Portal routes — authenticated user → camera=(self)
   it('/portal/incidents/new → camera=(self), microphone=(), geolocation=()', async () => {
-    const policy = await getPermissionsPolicy('/portal/incidents/new', 'tenant');
+    const policy = await getPermissionsPolicy('/portal/incidents/new');
     expect(policy).toBe('camera=(self), microphone=(), geolocation=()');
   });
 
   it('/portal (root portal path) → camera=(self), microphone=(), geolocation=()', async () => {
-    const policy = await getPermissionsPolicy('/portal', 'tenant');
+    const policy = await getPermissionsPolicy('/portal');
     expect(policy).toBe('camera=(self), microphone=(), geolocation=()');
   });
 
   it('/portal/payments → camera=(self), microphone=(), geolocation=()', async () => {
-    const policy = await getPermissionsPolicy('/portal/payments', 'tenant');
+    const policy = await getPermissionsPolicy('/portal/payments');
     expect(policy).toBe('camera=(self), microphone=(), geolocation=()');
   });
 
-  // Dashboard routes — admin user → camera=()
+  // Dashboard routes — authenticated admin → camera=()
   it('/dashboard/incidents → camera=(), microphone=(), geolocation=()', async () => {
-    const policy = await getPermissionsPolicy('/dashboard/incidents', 'admin');
+    const policy = await getPermissionsPolicy('/dashboard/incidents');
     expect(policy).toBe('camera=(), microphone=(), geolocation=()');
   });
 
   it('/dashboard (root) → camera=(), microphone=(), geolocation=()', async () => {
-    const policy = await getPermissionsPolicy('/dashboard', 'admin');
+    const policy = await getPermissionsPolicy('/dashboard');
     expect(policy).toBe('camera=(), microphone=(), geolocation=()');
   });
 
-  // Public route — unauthenticated
+  // Public route — unauthenticated (no session cookie)
   it('/ (public landing) → camera=(), microphone=(), geolocation=()', async () => {
-    // For a public route with no user, proxy still sets the header before route guard check
-    mockUser = null;
     const { proxy } = await import('@/proxy');
     const req = new NextRequest('http://localhost/', { method: 'GET' });
     const res = await proxy(req);

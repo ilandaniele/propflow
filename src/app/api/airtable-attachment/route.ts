@@ -111,13 +111,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   // 5. Fetch snapshot from DB — org scoped (IDOR: admin can only see their org) — Drizzle (AC1, AC8)
-  const snapshotRows = await db
-    .select({ id: airtableSnapshots.id, orgId: airtableSnapshots.orgId, data: airtableSnapshots.data })
-    .from(airtableSnapshots)
-    .where(and(eq(airtableSnapshots.id, snapshot_id), eq(airtableSnapshots.orgId, ctx.orgId)))
-    .limit(1);
-
-  const snapshot = snapshotRows[0];
+  let snapshot: { id: string; orgId: string; data: unknown } | undefined;
+  try {
+    const snapshotRows = await db
+      .select({ id: airtableSnapshots.id, orgId: airtableSnapshots.orgId, data: airtableSnapshots.data })
+      .from(airtableSnapshots)
+      .where(and(eq(airtableSnapshots.id, snapshot_id), eq(airtableSnapshots.orgId, ctx.orgId)))
+      .limit(1);
+    snapshot = snapshotRows[0];
+  } catch {
+    return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
+  }
   if (!snapshot) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }

@@ -90,156 +90,167 @@ vi.mock('@/auth', () => ({
   }),
 }));
 
-// ── vi.mock: supabase server (legacy — kept for compat) ──────────────────────
+// ── vi.mock: @/lib/db ────────────────────────────────────────────────────────
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn().mockImplementation(async () => ({
-    auth: {
-      getUser: async () => {
-        if (state.sessionError || !state.sessionUser) {
-          return { data: { user: null })),
-  createAdminServerClient: vi.fn().mockImplementation(async () => ({
-    auth: {
-      getUser: async () => {
-        if (state.sessionError || !state.sessionUser) {
-          return { data: { user: null }, error: { message: 'no session' } };
+vi.mock('@/lib/db', () => {
+  // Inline helper — must be inside the factory to avoid vi.mock hoisting issues
+  function getTableName(tableRef: unknown): string {
+    if (!tableRef || typeof tableRef !== 'object') return '';
+    const syms = Object.getOwnPropertySymbols(tableRef as object);
+    const nameSym = syms.find(s => s.toString() === 'Symbol(drizzle:Name)');
+    return nameSym ? String((tableRef as Record<symbol, unknown>)[nameSym]) : '';
+  }
+
+  // Extract a simple string value from a Drizzle SQL condition (recursively walks queryChunks)
+  function extractValueFromCondition(cond: unknown): string | null {
+    if (!cond || typeof cond !== 'object') return null;
+    const obj = cond as Record<string, unknown>;
+    // Drizzle eq() has left/right or queryChunks
+    if (obj['queryChunks'] && Array.isArray(obj['queryChunks'])) {
+      for (const chunk of obj['queryChunks']) {
+        const v = extractValueFromCondition(chunk);
+        if (v) return v;
+      }
+    }
+    if (typeof obj['value'] === 'string') return obj['value'];
+    if (obj['right']) {
+      const v = extractValueFromCondition(obj['right']);
+      if (v) return v;
+    }
+    return null;
+  }
+
+  function makeSelect() {
+    let tableName = '';
+    let whereFilterHash: string | null = null;
+    const chain = {
+      from: vi.fn((tableRef: unknown) => {
+        tableName = getTableName(tableRef);
+        return chain;
+      }),
+      where: vi.fn((cond?: unknown) => {
+        whereFilterHash = extractValueFromCondition(cond);
+        return chain;
+      }),
+      innerJoin: vi.fn(() => chain),
+      orderBy: vi.fn(() => chain),
+      limit: vi.fn(async () => {
+        if (tableName === 'tenant_invitations') {
+          const all = Object.values(state.invitations).map(inv => ({
+            id: inv.id, orgId: inv.org_id, tenantId: inv.tenant_id,
+            email: inv.email, status: inv.status,
+            expiresAt: inv.expires_at, tokenHash: inv.token_hash,
+          }));
+          // If we captured a hash filter, match against tokenHash
+          if (whereFilterHash) {
+            const matched = all.filter(r => r.tokenHash === whereFilterHash);
+            if (matched.length > 0) return matched;
+            return []; // No match → route will return 404
+          }
+          return all;
         }
-        return { data: { user: state.sessionUser }, error: null };
-      },
+        if (tableName === 'tenants') {
+          return Object.values(state.tenants).map(t => ({
+            id: t.id, orgId: t.org_id, email: t.email, profileId: null, photoUrl: null,
+          }));
+        }
+        if (tableName === 'profiles') {
+          return Object.values(state.profiles).map(p => ({
+            id: p.id, orgId: p.org_id, role: p.role, userId: p.id,
+          }));
+        }
+        if (tableName === 'organizations') {
+          return [{ name: 'Propiedades Demo SA' }];
+        }
+        return [];
+      }),
+    };
+    return chain;
+  }
+
+  function makeUpdate(tableRef: unknown) {
+    const tableName = getTableName(tableRef);
+    let setPayload: Record<string, unknown> = {};
+    const chain = {
+      set: vi.fn((payload: Record<string, unknown>) => {
+        setPayload = payload;
+        return chain;
+      }),
+      where: vi.fn(() => {
+        // Apply update to all rows (can't filter by Drizzle condition)
+        if (tableName === 'tenant_invitations') {
+          for (const inv of Object.values(state.invitations)) {
+            if (setPayload['status'] !== undefined) inv.status = String(setPayload['status']);
+            if (setPayload['acceptedAt'] !== undefined) inv.accepted_at = new Date().toISOString();
+          }
+        }
+        if (tableName === 'tenants') {
+          for (const t of Object.values(state.tenants)) {
+            if (setPayload['portalAccess'] !== undefined) t.portal_access = String(setPayload['portalAccess']);
+            if (setPayload['profileId'] !== undefined) t.profile_id = String(setPayload['profileId']);
+          }
+        }
+        // Return a thenable chain that also supports .returning()
+        const whereResult: Record<string, unknown> = {
+          returning: vi.fn(async () => {
+            // Used in accept route: .returning({ id: tenants.id })
+            if (tableName === 'tenants') return Object.values(state.tenants).map(t => ({ id: t.id }));
+            return [];
+          }),
+          then: (resolve: (v: unknown[]) => void) => resolve([]),
+        };
+        return whereResult;
+      }),
+      returning: vi.fn(async () => {
+        // Used in accept route: .returning({ id: tenants.id })
+        return Object.values(state.tenants).map(t => ({ id: t.id }));
+      }),
+    };
+    return chain;
+  }
+
+  function makeInsert(tableRef: unknown) {
+    const tableName = getTableName(tableRef);
+    const chain = {
+      values: vi.fn((vals: Record<string, unknown>) => {
+        if (tableName === 'tenant_invitations') {
+          const id = `inv-${state.nextInviteId++}`;
+          state.invitations[id] = {
+            id,
+            org_id: String(vals['orgId'] ?? ''),
+            tenant_id: String(vals['tenantId'] ?? ''),
+            email: String(vals['email'] ?? ''),
+            token_hash: String(vals['tokenHash'] ?? ''),
+            invited_by: String(vals['invitedBy'] ?? ''),
+            status: String(vals['status'] ?? 'pending'),
+            expires_at: vals['expiresAt'] instanceof Date
+              ? vals['expiresAt'].toISOString()
+              : String(vals['expiresAt'] ?? new Date().toISOString()),
+            accepted_at: null,
+          };
+        }
+        if (tableName === 'profiles') {
+          const p = vals as Record<string, unknown>;
+          const id = String(p['userId'] ?? p['id'] ?? '');
+          if (id) state.profiles[id] = { id, org_id: String(p['orgId'] ?? ''), role: String(p['role'] ?? 'tenant') };
+        }
+        return { returning: vi.fn(async () => []) };
+      }),
+      onConflictDoNothing: vi.fn().mockReturnThis(),
+      returning: vi.fn(async () => []),
+    };
+    return chain;
+  }
+
+  return {
+    db: {
+      select: () => makeSelect(),
+      update: (tableRef: unknown) => makeUpdate(tableRef),
+      insert: (tableRef: unknown) => makeInsert(tableRef),
+      query: { profiles: { findFirst: vi.fn(async () => null) } },
     },
-  })),
-}));
-
-// ── vi.mock: supabase admin (shared by all three routes) ──────────────────────
-
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn().mockReturnValue({
-    from: (table: string) => {
-      // ── tenants ──
-      if (table === 'tenants') {
-        return {
-          select: (_cols: string) => ({
-            eq: (col: string, val: string) => ({
-              eq: (col2: string, val2: string) => ({
-                single: async () => {
-                  const match = Object.values(state.tenants).find(
-                    t => t.id === val && t.org_id === val2
-                  );
-                  return match
-                    ? { data: match, error: null }
-                    : { data: null, error: { code: 'PGRST116' } };
-                },
-              }),
-            }),
-          }),
-          update: (payload: Partial<TenantRow>) => ({
-            eq: (col: string, val: string) => ({
-              eq: async (col2: string, val2: string) => {
-                for (const t of Object.values(state.tenants)) {
-                  if (t.id === val && t.org_id === val2) {
-                    Object.assign(t, payload);
-                  }
-                }
-                return { error: null };
-              },
-              // single .eq (no second eq) — used by invite POST to set portal_access
-              then: async (resolve: (v: { error: null }) => void) => {
-                for (const t of Object.values(state.tenants)) {
-                  if ((col === 'id' && t.id === val) || (col === 'org_id' && t.org_id === val)) {
-                    Object.assign(t, payload);
-                  }
-                }
-                resolve({ error: null });
-              },
-            }),
-          }),
-        };
-      }
-
-      // ── tenant_invitations ──
-      if (table === 'tenant_invitations') {
-        return {
-          select: (_cols: string) => ({
-            eq: (col: string, val: string) => ({
-              single: async () => {
-                const match = Object.values(state.invitations).find(
-                  inv => (col === 'token_hash' ? inv.token_hash === val : inv.id === val)
-                );
-                return match
-                  ? { data: match, error: null }
-                  : { data: null, error: { code: 'PGRST116' } };
-              },
-            }),
-          }),
-          insert: (payload: Omit<InvitationRow, 'id' | 'accepted_at'>) => {
-            const id = `inv-${state.nextInviteId++}`;
-            state.invitations[id] = { ...payload, id, accepted_at: null };
-            return { error: null };
-          },
-          update: (payload: Partial<InvitationRow>) => ({
-            eq: (col: string, val: string) => ({
-              eq: async (col2: string, val2: string) => {
-                for (const inv of Object.values(state.invitations)) {
-                  if ((inv as Record<string, unknown>)[col] === val && (inv as Record<string, unknown>)[col2] === val2) {
-                    Object.assign(inv, payload);
-                  }
-                }
-                return { error: null };
-              },
-              // single .eq — used by accept route
-              then: async (resolve: (v: { error: null }) => void) => {
-                for (const inv of Object.values(state.invitations)) {
-                  if ((inv as Record<string, unknown>)[col] === val) {
-                    Object.assign(inv, payload);
-                  }
-                }
-                resolve({ error: null });
-              },
-            }),
-          }),
-        };
-      }
-
-      // ── profiles ──
-      if (table === 'profiles') {
-        return {
-          select: (_cols: string) => ({
-            eq: (col: string, val: string) => ({
-              single: async () => {
-                const match = Object.values(state.profiles).find(
-                  p => (col === 'id' ? p.id === val : false)
-                );
-                return match
-                  ? { data: match, error: null }
-                  : { data: null, error: { code: 'PGRST116' } };
-              },
-            }),
-          }),
-          insert: (payload: ProfileRow) => ({
-            then: async (resolve: (v: { error: null }) => void) => {
-              state.profiles[payload.id] = payload;
-              resolve({ error: null });
-            },
-            error: null,
-          }),
-        };
-      }
-
-      // ── organizations ──
-      if (table === 'organizations') {
-        return {
-          select: (_cols: string) => ({
-            eq: (_col: string, _val: string) => ({
-              single: async () => ({ data: { name: 'Propiedades Demo SA' }, error: null }),
-            }),
-          }),
-        };
-      }
-
-      return {};
-    },
-  }),
-}));
+  };
+});
 
 // ── vi.mock: email + env + log ────────────────────────────────────────────────
 

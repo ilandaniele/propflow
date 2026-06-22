@@ -1,11 +1,11 @@
-﻿/**
+/**
  * tests/integration/clickable-lists.test.tsx
  *
  * AC2 + AC4 — Integration tests for ClickableRow wiring in tenants and units lists.
  *
  * Strategy: These are Server Components so we cannot use a browser or hook-based
  * rendering. We use renderToStaticMarkup to exercise the full render path with
- * mocked Supabase / auth / next-intl, then assert on the resulting HTML:
+ * mocked db / auth / next-intl, then assert on the resulting HTML:
  *
  *   Tenants list (AC2):
  *     (a) Each tenant row is a <tr> with cursor-pointer (ClickableRow rendered).
@@ -17,11 +17,6 @@
  *   Units list (AC4):
  *     (e) Each unit row is a <tr> with cursor-pointer (ClickableRow rendered).
  *     (f) A "View" button link pointing to /dashboard/units/[id] is present.
- *
- * Note: ClickableRow is a client component ('use client'). renderToStaticMarkup
- * renders it as a server-side HTML snapshot — the onClick/onKeyDown handlers are
- * stripped, but the structural output (tabIndex, role, cursor-pointer class) is
- * verifiable. This is the same trade-off used in unit-detail-page.test.ts.
  */
 
 // @vitest-environment node
@@ -57,7 +52,7 @@ vi.mock('next/link', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock next/headers (required by createClient → cookies())
+// Mock next/headers
 // ---------------------------------------------------------------------------
 
 vi.mock('next/headers', () => ({
@@ -65,7 +60,7 @@ vi.mock('next/headers', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock next-intl/server (used by units/page.tsx)
+// Mock next-intl/server
 // ---------------------------------------------------------------------------
 
 vi.mock('next-intl/server', () => ({
@@ -90,19 +85,53 @@ vi.mock('@/lib/auth/guards', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock @/lib/supabase/server
+// Mock @/lib/db — Drizzle
 // ---------------------------------------------------------------------------
 
-const mockFrom = vi.fn();
+// Holds current return values for select/execute calls
+let mockTenantRows: unknown[] = [];
+let mockUnitRows: unknown[] = [];
+let mockPropertyRows: unknown[] = [];
+let selectCallCount = 0;
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({ from: mockFrom })),
-  createAdminServerClient: vi.fn(async () => ({ from: mockFrom })),
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => {
+      const callIndex = selectCallCount++;
+      const chain = {
+        from: vi.fn().mockReturnThis(),
+        leftJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        orderBy: vi.fn(async () => {
+          // For units page: first call = units, second = properties
+          if (callIndex === 0 && mockUnitRows.length > 0) return mockUnitRows;
+          if (callIndex === 1 && mockPropertyRows.length > 0) return mockPropertyRows;
+          // For tenants page: first call = tenants list
+          return mockTenantRows;
+        }),
+      };
+      return chain;
+    }),
+    execute: vi.fn(async () => {
+      // tenant_statement view — return empty (no overdue tenants needed for these tests)
+      return [];
+    }),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(async () => []),
+        onConflictDoNothing: vi.fn(async () => []),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(async () => []),
+      })),
+    })),
+  },
 }));
 
 // ---------------------------------------------------------------------------
 // Mock UI components that import from client-only libraries
-// (Avatar uses next/image internally — stub it out)
 // ---------------------------------------------------------------------------
 
 vi.mock('@/components/ui/Avatar', () => ({
@@ -110,7 +139,6 @@ vi.mock('@/components/ui/Avatar', () => ({
     React.createElement('span', { 'data-testid': 'avatar' }, name ?? '?'),
 }));
 
-// CreateTenantForm and CreateUnitForm are client components; stub them.
 vi.mock(
   '@/app/dashboard/tenants/CreateTenantForm',
   () => ({ CreateTenantForm: () => React.createElement('div', { 'data-testid': 'create-tenant-form' }) }),
@@ -121,7 +149,6 @@ vi.mock(
   () => ({ CreateUnitForm: () => React.createElement('div', { 'data-testid': 'create-unit-form' }) }),
 );
 
-// TenantsCsvButtons is a client component using useTranslations; stub it.
 vi.mock(
   '@/app/dashboard/tenants/TenantsCsvButtons',
   () => ({ TenantsCsvButtons: () => React.createElement('div', { 'data-testid': 'tenants-csv-buttons' }) }),
@@ -136,67 +163,61 @@ const ORG_A_CTX = { userId: 'user-001', orgId: ORG_A, role: 'admin' as const, pr
 
 const fakeTenants = [
   {
-    id: 'tenant-aaa',
-    org_id: ORG_A,
-    full_name: 'Alice Smith',
-    email: 'alice@example.com',
-    profile_id: 'profile-1',
-    created_at: '2024-01-01T00:00:00Z',
-    units: { label: 'Apt 1A', properties: { name: 'Sunrise Tower' } },
+    id:             'tenant-aaa',
+    orgId:          ORG_A,
+    fullName:       'Alice Smith',
+    email:          'alice@example.com',
+    phone:          null,
+    photoUrl:       null,
+    unitId:         'unit-111',
+    profileId:      'profile-1',
+    documentNumber: null,
+    createdAt:      new Date('2024-01-01'),
+    unitLabel:      'Apt 1A',
+    propertyName:   'Sunrise Tower',
   },
   {
-    id: 'tenant-bbb',
-    org_id: ORG_A,
-    full_name: 'Bob Jones',
-    email: null,
-    profile_id: null,
-    created_at: '2024-02-01T00:00:00Z',
-    units: null,
+    id:             'tenant-bbb',
+    orgId:          ORG_A,
+    fullName:       'Bob Jones',
+    email:          null,
+    phone:          null,
+    photoUrl:       null,
+    unitId:         null,
+    profileId:      null,
+    documentNumber: null,
+    createdAt:      new Date('2024-02-01'),
+    unitLabel:      null,
+    propertyName:   null,
   },
 ];
 
 const fakeUnits = [
   {
-    id: 'unit-111',
-    org_id: ORG_A,
-    label: 'Studio 3',
-    floor: '3',
-    status: 'occupied',
-    toilet_type: 'private',
-    monthly_rent_default: 900,
-    created_at: '2024-01-10T00:00:00Z',
-    properties: { name: 'Harbor View' },
+    id:                   'unit-111',
+    orgId:                ORG_A,
+    label:                'Studio 3',
+    floor:                '3',
+    status:               'occupied',
+    toiletType:           'private',
+    monthlyRentDefault:   900,
+    createdAt:            new Date('2024-01-10'),
+    propertyId:           'prop-001',
+    propertyName:         'Harbor View',
   },
   {
-    id: 'unit-222',
-    org_id: ORG_A,
-    label: 'Penthouse',
-    floor: null,
-    status: 'vacant',
-    toilet_type: 'shared',
-    monthly_rent_default: null,
-    created_at: '2024-03-01T00:00:00Z',
-    properties: { name: 'The Heights' },
+    id:                   'unit-222',
+    orgId:                ORG_A,
+    label:                'Penthouse',
+    floor:                null,
+    status:               'vacant',
+    toiletType:           'shared',
+    monthlyRentDefault:   null,
+    createdAt:            new Date('2024-03-01'),
+    propertyId:           'prop-002',
+    propertyName:         'The Heights',
   },
 ];
-
-// ---------------------------------------------------------------------------
-// Helpers — build the chainable Supabase query mock
-// ---------------------------------------------------------------------------
-
-function makeListChain(rows: unknown[]) {
-  const chain: Record<string, unknown> = {};
-  const methods = ['select', 'eq', 'order'] as const;
-  for (const m of methods) {
-    chain[m] = vi.fn().mockReturnValue(chain);
-  }
-  // list queries resolve as { data, error }
-  chain.then = undefined; // ensure it's not a thenable by itself
-  (chain as Record<string, unknown>)._resolved = Promise.resolve({ data: rows, error: null });
-  // Make the chain awaitable at the end of .order()
-  chain.order = vi.fn().mockResolvedValue({ data: rows, error: null });
-  return chain;
-}
 
 // ---------------------------------------------------------------------------
 // Tests — Tenants list (AC2)
@@ -205,24 +226,21 @@ function makeListChain(rows: unknown[]) {
 describe('Tenants list — ClickableRow wiring (AC2)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    selectCallCount = 0;
+    mockTenantRows = fakeTenants;
+    mockUnitRows = [];
+    mockPropertyRows = [];
     mockRequireAdmin.mockResolvedValue(ORG_A_CTX);
   });
 
   async function renderTenantsPage() {
-    // Import after mocks are in place
     const { default: TenantsPage } = await import('@/app/dashboard/tenants/page');
     const element = await TenantsPage();
     return renderToStaticMarkup(element as React.ReactElement);
   }
 
-  beforeEach(() => {
-    // tenants query
-    mockFrom.mockReturnValue(makeListChain(fakeTenants));
-  });
-
   it('(a) renders tenant rows with cursor-pointer class (ClickableRow active)', async () => {
     const html = await renderTenantsPage();
-    // ClickableRow always applies cursor-pointer to the <tr>
     expect(html).toContain('cursor-pointer');
   });
 
@@ -243,7 +261,6 @@ describe('Tenants list — ClickableRow wiring (AC2)', () => {
 
   it('(d) no absolute-overlay <a> element remains (broken stretched-link removed)', async () => {
     const html = await renderTenantsPage();
-    // The old pattern had class="absolute inset-0 z-10" — must be gone
     expect(html).not.toContain('absolute inset-0');
   });
 
@@ -261,16 +278,11 @@ describe('Tenants list — ClickableRow wiring (AC2)', () => {
 describe('Units list — ClickableRow wiring (AC4)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    selectCallCount = 0;
+    mockTenantRows = [];
+    mockUnitRows = fakeUnits;
+    mockPropertyRows = [{ id: 'prop-001', name: 'Harbor View' }];
     mockRequireAdmin.mockResolvedValue(ORG_A_CTX);
-
-    // units query + properties query (Promise.all of two .order() calls)
-    let callCount = 0;
-    mockFrom.mockImplementation(() => {
-      // First call = units, second = properties
-      return callCount++ === 0
-        ? makeListChain(fakeUnits)
-        : makeListChain([{ id: 'prop-001', name: 'Harbor View' }]);
-    });
   });
 
   async function renderUnitsPage() {

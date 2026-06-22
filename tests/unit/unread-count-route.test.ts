@@ -69,26 +69,17 @@ vi.mock('@/lib/auth/guards', () => ({
   getOrgScopedClient: vi.fn(),
 }));
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
-    from: vi.fn((_table: string) => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          is: vi.fn(async () => ({
-            count: dbState.count})),
-  createAdminServerClient: vi.fn(async () => ({
-    from: vi.fn((_table: string) => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          is: vi.fn(async () => ({
-            count: dbState.count,
-            error: dbState.error,
-          })),
-        })),
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(async () => {
+          if (dbState.error) throw new Error(dbState.error.code);
+          return [{ value: dbState.count ?? 0 }];
+        }),
       })),
     })),
-  })),
-  getSessionFast: vi.fn(),
+  },
 }));
 
 vi.mock('@/lib/ratelimit', () => ({

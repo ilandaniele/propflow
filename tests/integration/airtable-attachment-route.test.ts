@@ -87,41 +87,21 @@ vi.mock('@/lib/auth/guards', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/server
+// Mock: @/lib/db
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
-    auth: {
-      getUser: async () => ({ data: { user: { id: mockState.userId })),
-  createAdminServerClient: vi.fn(async () => ({
-    auth: {
-      getUser: async () => ({ data: { user: { id: mockState.userId } }, error: null }),
-    },
-    from: vi.fn(() => {
-      const chain: Record<string, unknown> = {};
-      const self = () => chain;
-      chain.select = vi.fn(self);
-      chain.eq = vi.fn(self);
-      chain.single = vi.fn(() => {
-        if (mockState.dbError) {
-          return Promise.resolve({ data: null, error: { code: 'PGRST116', message: 'not found' } });
-        }
-        if (!mockState.snapshotData) {
-          return Promise.resolve({ data: null, error: null });
-        }
-        return Promise.resolve({
-          data: {
-            id: 'snapshot-uuid-001',
-            org_id: mockState.orgId,
-            data: mockState.snapshotData,
-          },
-          error: null,
-        });
-      });
-      return chain;
-    }),
-  })),
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn(async () => {
+        if (mockState.dbError) throw new Error('DB error');
+        if (!mockState.snapshotData) return [];
+        return [{ id: 'snapshot-uuid-001', orgId: mockState.orgId, data: mockState.snapshotData }];
+      }),
+    })),
+  },
 }));
 
 // ---------------------------------------------------------------------------

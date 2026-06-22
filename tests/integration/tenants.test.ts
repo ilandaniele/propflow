@@ -1,12 +1,9 @@
-﻿/**
+/**
  * Integration regression tests for tenant Server Actions.
  *
  * Covers:
- *   AC15 — Admin updateTenantAvatar (existing path) regression: confirms the
- *           function is unchanged, still works for a given tenantId, and returns ok.
- *
- * This file may grow with additional tenant action regression tests in future phases.
- * All Supabase calls are mocked — no live DB required.
+ *   AC15 — Admin updateTenantAvatar (existing path) regression.
+ * All DB calls are mocked via @/lib/db — no live DB required.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -19,15 +16,6 @@ const ORG_ACME    = 'aaaaaa00-0000-0000-0000-000000000001';
 const USER_ADMIN  = 'bbbbbb00-0000-0000-0000-000000000001';
 const TENANT_ID_T = 'cccccc00-0000-0000-0000-000000000001';
 const STORAGE_PATH = `${ORG_ACME}/${TENANT_ID_T}/avatar-uuid.jpg`;
-
-// ---------------------------------------------------------------------------
-// Mock: next/cache
-// ---------------------------------------------------------------------------
-
-vi.mock('next/cache', () => ({
-  revalidatePath: vi.fn(),
-  revalidateTag: vi.fn(),
-}));
 
 // ---------------------------------------------------------------------------
 // Mock state
@@ -55,6 +43,15 @@ function resetMockState() {
 }
 
 // ---------------------------------------------------------------------------
+// Mock: next/cache
+// ---------------------------------------------------------------------------
+
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock: @/lib/auth/guards
 // ---------------------------------------------------------------------------
 
@@ -80,89 +77,34 @@ vi.mock('@/lib/auth/guards', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/server
+// Mock: @/lib/db
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => buildSupabaseMock())})),
-  createAdminServerClient: vi.fn(async () => buildSupabaseMock()),
+const mockUpdate = vi.fn();
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    update: (...args: unknown[]) => mockUpdate(...args),
+  },
 }));
 
-function buildSupabaseMock() {
-  return {
-    auth: {
-      getUser: async () => ({
-        data: { user: { id: mockState.userId } },
-        error: null,
-      }),
-    },
-    from: vi.fn((table: string) => buildTableProxy(table)),
+function setupUpdateSuccess() {
+  const chain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue([]),
   };
+  mockUpdate.mockReturnValue(chain);
+  return chain;
 }
 
-function buildTableProxy(table: string) {
-  let isUpdate = false;
-
-  const builder: Record<string, unknown> = {};
-
-  builder.select = vi.fn(() => builder);
-  builder.update = vi.fn(() => { isUpdate = true; return builder; });
-  builder.delete = vi.fn(() => builder);
-  builder.eq    = vi.fn(() => builder);
-  builder.limit = vi.fn(() => builder);
-  builder.single = vi.fn(() => Promise.resolve({ data: null, error: null }));
-
-  const thenableFn = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => {
-    let res: unknown;
-    if (table === 'tenants' && isUpdate) {
-      res = mockState.dbUpdateError
-        ? { data: null, error: { code: mockState.dbUpdateError } }
-        : { data: null, error: null };
-    } else {
-      res = { data: null, error: null };
-    }
-    return Promise.resolve(res).then(resolve, reject);
+function setupUpdateError() {
+  const chain = {
+    set: vi.fn().mockReturnThis(),
+    where: vi.fn().mockRejectedValue(new Error('DB error')),
   };
-
-  builder.then = thenableFn;
-  builder.catch = (rej: (e: unknown) => unknown) => Promise.resolve().catch(rej);
-  builder.finally = (cb: () => void) => Promise.resolve().finally(cb);
-
-  return builder;
+  mockUpdate.mockReturnValue(chain);
+  return chain;
 }
-
-// ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/admin  (not used by updateTenantAvatar but required by file)
-// ---------------------------------------------------------------------------
-
-vi.mock('@/lib/supabase/admin', () => ({
-  createAdminClient: vi.fn(() => ({
-    auth: { admin: { listUsers: vi.fn(async () => ({ data: { users: [] }, error: null })) } },
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      in: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-      single: vi.fn(async () => ({ data: null, error: null })),
-      insert: vi.fn(async () => ({ data: null, error: null })),
-      update: vi.fn().mockReturnThis(),
-    })),
-  })),
-}));
-
-// ---------------------------------------------------------------------------
-// Mock: @/lib/storage/index  (updateTenantAvatar doesn't use it, but the module
-// imports it now — provide a no-op to avoid import errors)
-// ---------------------------------------------------------------------------
-
-vi.mock('@/lib/storage/index', async (importOriginal) => {
-  const actual = await importOriginal() as Record<string, unknown>;
-  return {
-    ...actual,
-    uploadImage: vi.fn(async (_bucket: string, path: string) => ({ path })),
-    deleteImage: vi.fn(async () => {}),
-  };
-});
 
 // ---------------------------------------------------------------------------
 // Mock: @/lib/ratelimit
@@ -171,6 +113,13 @@ vi.mock('@/lib/storage/index', async (importOriginal) => {
 vi.mock('@/lib/ratelimit', () => ({
   mutationRateLimit: vi.fn(() => ({ success: true, retryAfterMs: 0 })),
   actionRateLimit: vi.fn(() => ({ success: true, retryAfterMs: 0 })),
+}));
+
+vi.mock('@/lib/log', () => ({
+  log: {
+    info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+    adminAction: vi.fn(), authSuccess: vi.fn(), authFailure: vi.fn(),
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -197,6 +146,7 @@ function makeAvatarFormData(tenantId: string, photoUrl: string): FormData {
 beforeEach(() => {
   resetMockState();
   vi.clearAllMocks();
+  setupUpdateSuccess();
 });
 
 // ── AC15: Admin updateTenantAvatar regression ─────────────────────────────────
@@ -208,9 +158,9 @@ describe('AC15 — updateTenantAvatar (existing admin path) regression', () => {
   });
 
   it('updates the tenants row (no error)', async () => {
-    // Ensure the DB update mock was called (proxy trackable via no dbUpdateError)
     const result = await updateTenantAvatar({}, makeAvatarFormData(TENANT_ID_T, STORAGE_PATH));
     expect(result.error).toBeUndefined();
+    expect(mockUpdate).toHaveBeenCalled();
   });
 
   it('returns UNAUTHORIZED when called by a non-admin', async () => {
@@ -230,7 +180,6 @@ describe('AC15 — updateTenantAvatar (existing admin path) regression', () => {
   it('returns VALIDATION_ERROR when photo_url is missing', async () => {
     const fd = new FormData();
     fd.set('tenant_id', TENANT_ID_T);
-    // photo_url not set
     const result = await updateTenantAvatar({}, fd);
     expect(result.error?.code).toBe('VALIDATION_ERROR');
   });
@@ -244,13 +193,13 @@ describe('AC15 — updateTenantAvatar (existing admin path) regression', () => {
   });
 
   it('returns INTERNAL_ERROR when DB update fails', async () => {
-    mockState.dbUpdateError = '42P01'; // simulated DB error
+    setupUpdateError();
     const result = await updateTenantAvatar({}, makeAvatarFormData(TENANT_ID_T, STORAGE_PATH));
     expect(result.error?.code).toBe('INTERNAL_ERROR');
   });
 
-  it('accepts a photo_url that is a Supabase signed URL (≤ 500 chars)', async () => {
-    const signedUrl = `https://abcd.supabase.co/storage/v1/object/sign/tenant-avatars/${STORAGE_PATH}?token=abc`;
+  it('accepts a photo_url that is a storage signed URL (≤ 500 chars)', async () => {
+    const signedUrl = `https://fly.storage.tigris.dev/tenant-avatars/${STORAGE_PATH}?token=abc`;
     const result = await updateTenantAvatar({}, makeAvatarFormData(TENANT_ID_T, signedUrl));
     expect(result.error).toBeUndefined();
   });
