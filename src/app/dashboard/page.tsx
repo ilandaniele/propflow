@@ -16,7 +16,7 @@ import {
   properties,
   contracts,
 } from '@/lib/db/schema';
-import { eq, and, gte, neq, desc, sql } from 'drizzle-orm';
+import { eq, and, gte, ne, desc, sql } from 'drizzle-orm';
 import { Card } from '@/components/ui/Card';
 import {
   computeOccupancyRate,
@@ -61,7 +61,7 @@ export default async function DashboardPage() {
     db.select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, status: paymentsTable.status })
       .from(paymentsTable).where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'))),
     db.select({ id: incidentsTable.id, status: incidentsTable.status })
-      .from(incidentsTable).where(and(eq(incidentsTable.orgId, ctx.orgId), neq(incidentsTable.status, 'solved'))),
+      .from(incidentsTable).where(and(eq(incidentsTable.orgId, ctx.orgId), ne(incidentsTable.status, 'solved'))),
     db.execute(sql`SELECT is_overdue, total_charged, total_paid, balance FROM tenant_statement WHERE org_id = ${ctx.orgId}`),
     db.select({ amount: expensesTable.amount, incurredOn: expensesTable.incurredOn })
       .from(expensesTable).where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, startOfMonth))),
@@ -94,7 +94,7 @@ export default async function DashboardPage() {
     .filter(([, count]) => count === 0)
     .map(([entity]) => ({ entity, count: 0, error: null }));
 
-  const statements = (statementResult.rows ?? []) as Array<{ is_overdue: boolean; total_charged: string; total_paid: string; balance: string }>;
+  const statements = (statementResult as unknown as Array<{ is_overdue: boolean; total_charged: string; total_paid: string; balance: string }>);
 
   // Operational KPIs
   const totalUnits = unitRows.length;

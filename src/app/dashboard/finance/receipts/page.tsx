@@ -26,6 +26,13 @@ export default async function OcrReceiptsPage() {
       .limit(50),
   ]);
 
+  const pendingPaymentsForClient = pendingPayments.map((p) => ({
+    id:        p.id,
+    amount:    Number(p.amount),
+    paid_at:   p.paidAt ? String(p.paidAt) : '',
+    reference: p.reference,
+  }));
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -42,7 +49,7 @@ export default async function OcrReceiptsPage() {
       ) : (
         <OcrReceiptsClient
           receipts={receipts as unknown as ReceiptUpload[]}
-          pendingPayments={pendingPayments}
+          pendingPayments={pendingPaymentsForClient}
         />
       )}
     </div>

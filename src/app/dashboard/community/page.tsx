@@ -10,7 +10,7 @@ export default async function AdminCommunityPage() {
   const ctx = await requireAdmin();
   const t = await getTranslations('community');
 
-  const posts = await db
+  const rawPosts = await db
     .select({
       id:        communityPosts.id,
       title:     communityPosts.title,
@@ -24,6 +24,16 @@ export default async function AdminCommunityPage() {
     .where(eq(communityPosts.orgId, ctx.orgId))
     .orderBy(desc(communityPosts.pinned), desc(communityPosts.createdAt))
     .limit(50);
+
+  const posts = rawPosts.map((p) => ({
+    id:         p.id,
+    title:      p.title,
+    body:       p.body,
+    category:   p.category,
+    pinned:     p.pinned,
+    author_id:  p.authorId,
+    created_at: p.createdAt ? String(p.createdAt) : '',
+  }));
 
   return (
     <div className="p-6 space-y-6">

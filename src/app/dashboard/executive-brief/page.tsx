@@ -18,7 +18,7 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { units as unitsTable, payments as paymentsTable, expenses as expensesTable, incidents } from '@/lib/db/schema';
-import { eq, and, gte, lt, neq } from 'drizzle-orm';
+import { eq, and, gte, lt, ne } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { computeOccupancyRate } from '@/lib/finance/kpis';
 import { KpiGrid, type KpiTileData } from '@/components/executive-brief/KpiGrid';
@@ -88,7 +88,7 @@ async function fetchPeriodKPIs(
     db
       .select({ id: incidents.id, status: incidents.status })
       .from(incidents)
-      .where(and(eq(incidents.orgId, orgId), neq(incidents.status, 'solved'))),
+      .where(and(eq(incidents.orgId, orgId), ne(incidents.status, 'solved'))),
     // tenant_statement is a PG VIEW — use raw SQL
     db.execute(sql`SELECT is_overdue, balance FROM tenant_statement WHERE org_id = ${orgId}`),
   ]);
@@ -103,7 +103,7 @@ async function fetchPeriodKPIs(
 
   const activeIncidents = incidentRows.length;
 
-  const statements = (statementResult.rows ?? []) as Array<{ is_overdue: boolean; balance: string }>;
+  const statements = (statementResult as unknown as Array<{ is_overdue: boolean; balance: string }>);
   const pastDueBalance = statements
     .filter((s) => s.is_overdue)
     .reduce((sum, s) => sum + Math.abs(Number(s.balance ?? 0)), 0);

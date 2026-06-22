@@ -69,12 +69,12 @@ export async function PaymentsTab({ tenantId }: Props) {
     getTranslations('payments'),
   ]);
 
-  const statement = (statementResult.rows?.[0] ?? null) as {
+  const statement = ((statementResult as unknown as Array<{
     total_charges: string;
     total_approved_payments: string;
     balance: string;
     is_overdue: boolean;
-  } | null;
+  }>)?.[0] ?? null);
 
   return (
     <div className="p-4 space-y-6">

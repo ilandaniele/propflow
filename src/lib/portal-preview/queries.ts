@@ -243,7 +243,7 @@ export async function getPortalPreviewRecentPayments(
 
     return rows.map((r) => ({
       id:      r.id,
-      amount:  r.amount,
+      amount:  Number(r.amount),
       paid_at: r.paidAt ? String(r.paidAt) : null,
       status:  r.status,
       method:  r.method,

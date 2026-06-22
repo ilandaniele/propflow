@@ -116,7 +116,13 @@ export default async function TenantDetailPage({ params }: Props) {
       .limit(1),
   ]);
 
-  const statement    = (statementResult.rows?.[0] ?? null) as Record<string, unknown> | null;
+  const _stmtRaw     = ((statementResult as unknown as Array<{ balance: string; is_overdue: boolean; total_charges: string; total_approved_payments: string }>)?.[0] ?? null);
+  const statement    = _stmtRaw ? {
+    balance:                 Number(_stmtRaw.balance),
+    is_overdue:              Boolean(_stmtRaw.is_overdue),
+    total_charges:           Number(_stmtRaw.total_charges),
+    total_approved_payments: Number(_stmtRaw.total_approved_payments),
+  } : null;
   const incidentsArr = incidentRows;
   const tasksArr     = taskRows;
   const sanctionsArr = sanctionRows;
@@ -201,11 +207,7 @@ export default async function TenantDetailPage({ params }: Props) {
           activeIncidentsCount={activeIncidentsCount}
           pendingTasksCount={pendingTasksCount}
           lastWhatsAppMessage={lastWaMessage ? {
-            id: lastWaMessage.id,
-            direction: lastWaMessage.direction,
             body: lastWaMessage.body,
-            classification: lastWaMessage.classification,
-            status: lastWaMessage.status,
             created_at: String(lastWaMessage.createdAt),
           } : null}
           tenantId={id}

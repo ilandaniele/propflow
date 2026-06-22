@@ -56,12 +56,12 @@ export async function PortalHomeSection({ tenant }: Props) {
     ]);
 
   const contract = activeContractRows[0] ?? null;
-  const statementRes = (statementResult.rows?.[0] ?? null) as {
+  const statementRes = ((statementResult as unknown as Array<{
     total_charges: string;
     total_approved_payments: string;
     balance: string;
     is_overdue: boolean;
-  } | null;
+  }>)?.[0] ?? null);
 
   // Visitor count for last 30 days — derived in-memory from already-fetched rows
   const now = new Date();

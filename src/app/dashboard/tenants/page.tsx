@@ -49,7 +49,7 @@ export default async function TenantsPage() {
     db.execute(sql`SELECT tenant_id, total_charged, total_paid, is_overdue, org_id FROM tenant_statement WHERE org_id = ${ctx.orgId}`),
   ]);
 
-  const stmtRows = (statements.rows ?? []) as Array<{ tenant_id: string; total_charged: string; total_paid: string; is_overdue: boolean }>;
+  const stmtRows = (statements as unknown as Array<{ tenant_id: string; total_charged: string; total_paid: string; is_overdue: boolean }>);
 
   const overdueAmounts: number[] = stmtRows
     .filter((s) => s.is_overdue)

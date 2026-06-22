@@ -98,8 +98,8 @@ export default async function FinancePage() {
       .limit(500),
   ]);
 
-  const incomeRows: IncomeRow[] = allPayments.map((p) => ({ amount: p.amount, paid_at: p.paidAt }));
-  const expenseRows: ExpenseRow[] = allExpenses.map((e) => ({ amount: e.amount, incurred_on: e.incurredOn, property_id: e.propertyId }));
+  const incomeRows: IncomeRow[] = allPayments.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt ? String(p.paidAt) : '' }));
+  const expenseRows: ExpenseRow[] = allExpenses.map((e) => ({ amount: Number(e.amount), incurred_on: e.incurredOn ? String(e.incurredOn) : '', property_id: e.propertyId ?? null }));
 
   type RawExp = { amount: unknown; categoryName: string | null };
   const toExpenseWithCat = (rows: RawExp[]): ExpenseWithCategory[] =>
