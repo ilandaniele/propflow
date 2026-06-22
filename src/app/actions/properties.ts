@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { properties, units } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { CreatePropertySchema, UpdatePropertySchema, CreateUnitSchema, UpdateUnitSchema } from '@/lib/schemas/property';
@@ -18,14 +20,13 @@ export async function createProperty(
   const parsed = CreatePropertySchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('properties').insert({
-    ...parsed.data,
-    org_id: ctx.orgId,
-  });
-
-  if (error) {
-    log.error('[createProperty] db error', { code: error.code });
+  try {
+    await db.insert(properties).values({
+      ...parsed.data,
+      orgId: ctx.orgId,
+    });
+  } catch (e) {
+    log.error('[createProperty] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -45,15 +46,14 @@ export async function updateProperty(
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
   const { id, ...updates } = parsed.data;
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('properties')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('org_id', ctx.orgId); // RLS also enforces this
 
-  if (error) {
-    log.error('[updateProperty] db error', { code: error.code });
+  try {
+    await db
+      .update(properties)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(properties.id, id), eq(properties.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[updateProperty] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -72,15 +72,14 @@ export async function createUnit(
   const parsed = CreateUnitSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('units').insert({
-    ...parsed.data,
-    org_id: ctx.orgId,
-    floor: parsed.data.floor || null,
-  });
-
-  if (error) {
-    log.error('[createUnit] db error', { code: error.code });
+  try {
+    await db.insert(units).values({
+      ...parsed.data,
+      orgId: ctx.orgId,
+      floor: parsed.data.floor || null,
+    });
+  } catch (e) {
+    log.error('[createUnit] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -100,15 +99,14 @@ export async function updateUnit(
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
   const { id, ...updates } = parsed.data;
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('units')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('org_id', ctx.orgId);
 
-  if (error) {
-    log.error('[updateUnit] db error', { code: error.code });
+  try {
+    await db
+      .update(units)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(units.id, id), eq(units.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[updateUnit] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 

@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
+import { db } from '@/lib/db';
+import { profiles } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { requireUser } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
@@ -35,21 +37,20 @@ export async function updateMyPreferredLanguage(
 
   const { language } = parsed.data;
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ preferred_language: language })
-    .eq('id', ctx.userId);
-
-  if (error) {
-    log.error('[updateMyPreferredLanguage] db error', { code: error.code });
+  try {
+    await db
+      .update(profiles)
+      .set({ preferredLanguage: language })
+      .where(eq(profiles.id, ctx.userId));
+  } catch (e) {
+    log.error('[updateMyPreferredLanguage] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
   // Set locale cookie so next-intl picks it up immediately
   const store = await cookies();
   store.set(LOCALE_COOKIE, language, {
-    httpOnly: false, // must be readable by JS for immediate UI update
+    httpOnly: false,
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 365, // 1 year
     path: '/',

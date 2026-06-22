@@ -1,7 +1,18 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import {
+  announcements,
+  cleaningTasks,
+  crmLeads,
+  reminders,
+  notificationInbox,
+  profiles,
+  tenants,
+  units,
+} from '@/lib/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
@@ -33,20 +44,19 @@ export async function createAnnouncement(
   const parsed = AnnouncementSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('announcements').insert({
-    org_id: ctx.orgId,
-    created_by: ctx.userId,
-    title: parsed.data.title,
-    body: parsed.data.body,
-    audience: parsed.data.audience,
-    property_id: parsed.data.property_id ?? null,
-    unit_id: parsed.data.unit_id ?? null,
-    expires_at: parsed.data.expires_at ?? null,
-  });
-
-  if (error) {
-    log.error('[createAnnouncement] db error', { code: error.code });
+  try {
+    await db.insert(announcements).values({
+      orgId: ctx.orgId,
+      createdBy: ctx.userId,
+      title: parsed.data.title,
+      body: parsed.data.body,
+      audience: parsed.data.audience,
+      propertyId: parsed.data.property_id ?? null,
+      unitId: parsed.data.unit_id ?? null,
+      expiresAt: parsed.data.expires_at ? new Date(parsed.data.expires_at) : null,
+    });
+  } catch (e) {
+    log.error('[createAnnouncement] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -68,68 +78,81 @@ export async function publishAnnouncement(
   const parsed = PublishAnnouncementSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify ownership
-  const { data: ann } = await supabase
-    .from('announcements').select('id, title, body, audience, property_id, unit_id')
-    .eq('id', parsed.data.id).eq('org_id', ctx.orgId).single();
-  if (!ann) return Errors.NOT_FOUND();
+  const annRows = await db
+    .select({ id: announcements.id, title: announcements.title, body: announcements.body, audience: announcements.audience, propertyId: announcements.propertyId, unitId: announcements.unitId })
+    .from(announcements)
+    .where(and(eq(announcements.id, parsed.data.id), eq(announcements.orgId, ctx.orgId)))
+    .limit(1);
 
-  const now = new Date().toISOString();
-  await supabase.from('announcements').update({ published_at: now, updated_at: now }).eq('id', parsed.data.id);
+  if (!annRows[0]) return Errors.NOT_FOUND();
+  const ann = annRows[0];
+
+  const now = new Date();
+  await db
+    .update(announcements)
+    .set({ publishedAt: now, updatedAt: now })
+    .where(and(eq(announcements.id, parsed.data.id), eq(announcements.orgId, ctx.orgId)));
 
   // Fan-out notification_inbox rows to targeted tenants (IC-D2)
   try {
-    let targetProfiles: { id: string }[] = [];
+    let targetProfileIds: string[] = [];
 
     if (ann.audience === 'all') {
-      const { data: profiles } = await supabase
-        .from('profiles').select('id').eq('org_id', ctx.orgId).eq('role', 'tenant');
-      targetProfiles = profiles ?? [];
-    } else if (ann.audience === 'property' && ann.property_id) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('org_id', ctx.orgId)
-        .eq('role', 'tenant')
-        .in('id', (
-          await supabase
-            .from('tenants')
-            .select('profile_id')
-            .eq('org_id', ctx.orgId)
-            .in('unit_id', (
-              await supabase.from('units').select('id').eq('property_id', ann.property_id).eq('org_id', ctx.orgId)
-            ).data?.map((u: { id: string }) => u.id) ?? [])
-        ).data?.map((t: { profile_id: string | null }) => t.profile_id).filter(Boolean) ?? []);
-      targetProfiles = profiles ?? [];
-    } else if (ann.audience === 'unit' && ann.unit_id) {
-      const { data: tenants } = await supabase
-        .from('tenants').select('profile_id').eq('unit_id', ann.unit_id).eq('org_id', ctx.orgId);
-      const profileIds = (tenants ?? []).map((t: { profile_id: string | null }) => t.profile_id).filter(Boolean) as string[];
-      if (profileIds.length > 0) {
-        const { data: profiles } = await supabase.from('profiles').select('id').in('id', profileIds);
-        targetProfiles = profiles ?? [];
+      const profileRows = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(and(eq(profiles.orgId, ctx.orgId), eq(profiles.role, 'tenant')));
+      targetProfileIds = profileRows.map(p => p.id);
+    } else if (ann.audience === 'property' && ann.propertyId) {
+      // Get units in the property
+      const unitRows = await db
+        .select({ id: units.id })
+        .from(units)
+        .where(and(eq(units.propertyId, ann.propertyId), eq(units.orgId, ctx.orgId)));
+
+      const unitIds = unitRows.map(u => u.id);
+      if (unitIds.length > 0) {
+        // Get tenants in those units
+        const tenantRows = await db
+          .select({ profileId: tenants.profileId })
+          .from(tenants)
+          .where(and(inArray(tenants.unitId, unitIds), eq(tenants.orgId, ctx.orgId)));
+
+        const profileIds = tenantRows.map(t => t.profileId).filter(Boolean) as string[];
+        if (profileIds.length > 0) {
+          const profileRows = await db
+            .select({ id: profiles.id })
+            .from(profiles)
+            .where(inArray(profiles.id, profileIds));
+          targetProfileIds = profileRows.map(p => p.id);
+        }
       }
+    } else if (ann.audience === 'unit' && ann.unitId) {
+      const tenantRows = await db
+        .select({ profileId: tenants.profileId })
+        .from(tenants)
+        .where(and(eq(tenants.unitId, ann.unitId), eq(tenants.orgId, ctx.orgId)));
+
+      targetProfileIds = tenantRows.map(t => t.profileId).filter(Boolean) as string[];
     }
 
     // Insert inbox rows (cap at 200 for inline fan-out)
-    const batch = targetProfiles.slice(0, 200);
+    const batch = targetProfileIds.slice(0, 200);
     if (batch.length > 0) {
-      await supabase.from('notification_inbox').insert(
-        batch.map(p => ({
-          org_id: ctx.orgId,
-          profile_id: p.id,
+      await db.insert(notificationInbox).values(
+        batch.map(profileId => ({
+          orgId: ctx.orgId,
+          profileId,
           type: 'announcement',
           title: ann.title,
           body: ann.body.slice(0, 200),
-          related_type: 'announcement',
-          related_id: parsed.data.id,
+          relatedType: 'announcement',
+          relatedId: parsed.data.id,
         }))
       );
     }
   } catch (e) {
-    // Non-fatal: notification fan-out failure doesn't block the publish
     log.warn('[publishAnnouncement] inbox fan-out error', { error: e instanceof Error ? e.message : 'unknown' });
   }
 
@@ -154,18 +177,17 @@ export async function createCleaningTask(
   const parsed = CleaningTaskSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('cleaning_tasks').insert({
-    org_id: ctx.orgId,
-    unit_id: parsed.data.unit_id ?? null,
-    assigned_to: parsed.data.assigned_to ?? null,
-    title: parsed.data.title,
-    scheduled_date: parsed.data.scheduled_date,
-    notes: parsed.data.notes ?? null,
-  });
-
-  if (error) {
-    log.error('[createCleaningTask] db error', { code: error.code });
+  try {
+    await db.insert(cleaningTasks).values({
+      orgId: ctx.orgId,
+      unitId: parsed.data.unit_id ?? null,
+      assignedTo: parsed.data.assigned_to ?? null,
+      title: parsed.data.title,
+      scheduledDate: parsed.data.scheduled_date,
+      notes: parsed.data.notes ?? null,
+    });
+  } catch (e) {
+    log.error('[createCleaningTask] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -186,22 +208,24 @@ export async function updateCleaningTask(
   const parsed = UpdateCleaningTaskSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from('cleaning_tasks').select('id').eq('id', parsed.data.id).eq('org_id', ctx.orgId).single();
-  if (!existing) return Errors.NOT_FOUND();
+  const existing = await db
+    .select({ id: cleaningTasks.id })
+    .from(cleaningTasks)
+    .where(and(eq(cleaningTasks.id, parsed.data.id), eq(cleaningTasks.orgId, ctx.orgId)))
+    .limit(1);
+
+  if (!existing[0]) return Errors.NOT_FOUND();
 
   const { id, ...updates } = parsed.data;
-  const completedAt = updates.status === 'done' ? new Date().toISOString() : null;
+  const completedAt = updates.status === 'done' ? new Date() : null;
 
-  const { error } = await supabase.from('cleaning_tasks').update({
-    ...updates,
-    completed_at: completedAt,
-    updated_at: new Date().toISOString(),
-  }).eq('id', id).eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[updateCleaningTask] db error', { code: error.code });
+  try {
+    await db
+      .update(cleaningTasks)
+      .set({ ...updates, completedAt, updatedAt: new Date() })
+      .where(and(eq(cleaningTasks.id, id), eq(cleaningTasks.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[updateCleaningTask] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -224,15 +248,19 @@ export async function createLead(
   const parsed = LeadSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('crm_leads').insert({
-    org_id: ctx.orgId,
-    ...parsed.data,
-    email: parsed.data.email || null,
-  });
-
-  if (error) {
-    log.error('[createLead] db error', { code: error.code });
+  try {
+    await db.insert(crmLeads).values({
+      orgId: ctx.orgId,
+      fullName: parsed.data.full_name,
+      email: parsed.data.email || null,
+      phone: parsed.data.phone ?? null,
+      propertyInterest: parsed.data.property_interest ?? null,
+      source: parsed.data.source ?? null,
+      status: parsed.data.status ?? 'new',
+      notes: parsed.data.notes ?? null,
+    });
+  } catch (e) {
+    log.error('[createLead] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -253,20 +281,23 @@ export async function updateLead(
   const parsed = UpdateLeadSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from('crm_leads').select('id').eq('id', parsed.data.id).eq('org_id', ctx.orgId).single();
-  if (!existing) return Errors.NOT_FOUND();
+  const existing = await db
+    .select({ id: crmLeads.id })
+    .from(crmLeads)
+    .where(and(eq(crmLeads.id, parsed.data.id), eq(crmLeads.orgId, ctx.orgId)))
+    .limit(1);
+
+  if (!existing[0]) return Errors.NOT_FOUND();
 
   const { id, ...updates } = parsed.data;
-  const { error } = await supabase.from('crm_leads').update({
-    ...updates,
-    email: (updates as { email?: string | null }).email || null,
-    updated_at: new Date().toISOString(),
-  }).eq('id', id).eq('org_id', ctx.orgId);
 
-  if (error) {
-    log.error('[updateLead] db error', { code: error.code });
+  try {
+    await db
+      .update(crmLeads)
+      .set({ ...updates, email: (updates as { email?: string | null }).email || null, updatedAt: new Date() })
+      .where(and(eq(crmLeads.id, id), eq(crmLeads.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[updateLead] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -289,20 +320,19 @@ export async function scheduleReminder(
   const parsed = ScheduleReminderSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('reminders').insert({
-    org_id: ctx.orgId,
-    type: parsed.data.type,
-    target_type: parsed.data.target_type,
-    target_id: parsed.data.target_id,
-    channel: parsed.data.channel,
-    scheduled_for: parsed.data.scheduled_for,
-    message_preview: parsed.data.message_preview ?? null,
-    status: 'scheduled',
-  });
-
-  if (error) {
-    log.error('[scheduleReminder] db error', { code: error.code });
+  try {
+    await db.insert(reminders).values({
+      orgId: ctx.orgId,
+      type: parsed.data.type,
+      targetType: parsed.data.target_type,
+      targetId: parsed.data.target_id,
+      channel: parsed.data.channel,
+      scheduledFor: parsed.data.scheduled_for,
+      messagePreview: parsed.data.message_preview ?? null,
+      status: 'scheduled',
+    });
+  } catch (e) {
+    log.error('[scheduleReminder] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -325,18 +355,18 @@ export async function markNotificationRead(
   const parsed = MarkNotificationReadSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
-  // Owner-scoped: profile_id = auth.uid() enforced by RLS + explicit check
-  const { error } = await supabase
-    .from('notification_inbox')
-    .update({ read_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', parsed.data.notification_id)
-    .eq('profile_id', ctx.userId)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[markNotificationRead] db error', { code: error.code });
+  try {
+    // Owner-scoped: profileId = ctx.userId + orgId enforced
+    await db
+      .update(notificationInbox)
+      .set({ readAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(notificationInbox.id, parsed.data.notification_id),
+        eq(notificationInbox.profileId, ctx.userId),
+        eq(notificationInbox.orgId, ctx.orgId),
+      ));
+  } catch (e) {
+    log.error('[markNotificationRead] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 

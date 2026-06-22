@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { contracts, tenants, payments, charges } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { RecordPaymentSchema, ApprovePaymentSchema, CreateChargeSchema } from '@/lib/schemas/payment';
@@ -18,45 +20,42 @@ export async function recordPayment(
   const parsed = RecordPaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify the contract belongs to this user's org
-  const { data: contract } = await supabase
-    .from('contracts')
-    .select('id, tenant_id, org_id')
-    .eq('id', parsed.data.contract_id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const contractRows = await db
+    .select({ id: contracts.id, tenantId: contracts.tenantId })
+    .from(contracts)
+    .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!contract) return Errors.NOT_FOUND();
+  if (!contractRows[0]) return Errors.NOT_FOUND();
+  const contract = contractRows[0];
 
   // If the caller is a tenant, verify it's their own contract
   if (ctx.role === 'tenant') {
-    const { data: tenantRow } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('profile_id', ctx.userId)
-      .eq('org_id', ctx.orgId)
-      .single();
+    const tenantRows = await db
+      .select({ id: tenants.id })
+      .from(tenants)
+      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+      .limit(1);
 
-    if (!tenantRow || contract.tenant_id !== tenantRow.id) {
+    if (!tenantRows[0] || contract.tenantId !== tenantRows[0].id) {
       return Errors.FORBIDDEN();
     }
   }
 
-  const { error } = await supabase.from('payments').insert({
-    org_id: ctx.orgId,
-    contract_id: parsed.data.contract_id,
-    tenant_id: contract.tenant_id,
-    amount: parsed.data.amount,
-    paid_at: parsed.data.paid_at,
-    method: parsed.data.method,
-    reference: parsed.data.reference || null,
-    status: 'pending',
-  });
-
-  if (error) {
-    log.error('[recordPayment] db error', { code: error.code });
+  try {
+    await db.insert(payments).values({
+      orgId: ctx.orgId,
+      contractId: parsed.data.contract_id,
+      tenantId: contract.tenantId,
+      amount: parsed.data.amount,
+      paidAt: parsed.data.paid_at,
+      method: parsed.data.method,
+      reference: parsed.data.reference || null,
+      status: 'pending',
+    });
+  } catch (e) {
+    log.error('[recordPayment] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -71,39 +70,34 @@ export async function approvePayment(
 ): Promise<ActionResult> {
   let ctx;
   try { ctx = await requireAdmin(); } catch {
-    // Could be FORBIDDEN (tenant trying to approve) or UNAUTHORIZED
     return Errors.FORBIDDEN();
   }
 
   const parsed = ApprovePaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify payment belongs to this org
-  const { data: payment } = await supabase
-    .from('payments')
-    .select('id, status, org_id')
-    .eq('id', parsed.data.payment_id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const paymentRows = await db
+    .select({ id: payments.id, status: payments.status })
+    .from(payments)
+    .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!payment) return Errors.NOT_FOUND();
-  if (payment.status === 'approved') return Errors.CONFLICT('Payment is already approved');
+  if (!paymentRows[0]) return Errors.NOT_FOUND();
+  if (paymentRows[0].status === 'approved') return Errors.CONFLICT('Payment is already approved');
 
-  const { error } = await supabase
-    .from('payments')
-    .update({
-      status: 'approved',
-      approved_by: ctx.userId,
-      approved_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', parsed.data.payment_id)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[approvePayment] db error', { code: error.code });
+  try {
+    await db
+      .update(payments)
+      .set({
+        status: 'approved',
+        approvedBy: ctx.userId,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[approvePayment] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -122,33 +116,28 @@ export async function createCharge(
   const parsed = CreateChargeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify contract belongs to this org
-  const { data: contract } = await supabase
-    .from('contracts')
-    .select('id, tenant_id')
-    .eq('id', parsed.data.contract_id)
-    .eq('org_id', ctx.orgId)
-    .single();
+  const contractRows = await db
+    .select({ id: contracts.id, tenantId: contracts.tenantId })
+    .from(contracts)
+    .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
+    .limit(1);
 
-  if (!contract) return Errors.NOT_FOUND();
+  if (!contractRows[0]) return Errors.NOT_FOUND();
 
   // B5: Always derive tenant_id from the fetched contract server-side.
-  // The client-supplied tenant_id is ignored to prevent admin assigning a charge
-  // to an arbitrary tenant within the org (data integrity / attribution correctness).
-  const { error } = await supabase.from('charges').insert({
-    org_id: ctx.orgId,
-    contract_id: parsed.data.contract_id,
-    tenant_id: contract.tenant_id,
-    amount: parsed.data.amount,
-    description: parsed.data.description,
-    period: parsed.data.period || null,
-    due_date: parsed.data.due_date || null,
-  });
-
-  if (error) {
-    log.error('[createCharge] db error', { code: error.code });
+  try {
+    await db.insert(charges).values({
+      orgId: ctx.orgId,
+      contractId: parsed.data.contract_id,
+      tenantId: contractRows[0].tenantId,
+      amount: parsed.data.amount,
+      description: parsed.data.description,
+      period: parsed.data.period || null,
+      dueDate: parsed.data.due_date || null,
+    });
+  } catch (e) {
+    log.error('[createCharge] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 

@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { expenseCategories, expenses, receiptUploads, payments, properties, units } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { uploadFile } from '@/lib/storage';
 import { Errors, ok } from '@/lib/errors';
@@ -28,16 +30,16 @@ export async function createExpenseCategory(
   const parsed = CreateExpenseCategorySchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('expense_categories').insert({
-    org_id: ctx.orgId,
-    name: parsed.data.name,
-    color: parsed.data.color ?? null,
-  });
-
-  if (error) {
-    if (error.code === '23505') return Errors.CONFLICT('Category name already exists');
-    log.error('[createExpenseCategory] db error', { code: error.code });
+  try {
+    await db.insert(expenseCategories).values({
+      orgId: ctx.orgId,
+      name: parsed.data.name,
+      color: parsed.data.color ?? null,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('unique') || msg.includes('23505')) return Errors.CONFLICT('Category name already exists');
+    log.error('[createExpenseCategory] db error', { code: msg });
     return Errors.INTERNAL();
   }
 
@@ -60,32 +62,36 @@ export async function createExpense(
   const parsed = CreateExpenseSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
-  // Validate property/unit belong to org (if provided)
+  // Validate property/unit/category belong to org (if provided)
   if (parsed.data.property_id) {
-    const { data: prop } = await supabase
-      .from('properties').select('id').eq('id', parsed.data.property_id).eq('org_id', ctx.orgId).single();
-    if (!prop) return Errors.NOT_FOUND();
+    const rows = await db.select({ id: properties.id }).from(properties)
+      .where(and(eq(properties.id, parsed.data.property_id), eq(properties.orgId, ctx.orgId))).limit(1);
+    if (!rows[0]) return Errors.NOT_FOUND();
   }
   if (parsed.data.unit_id) {
-    const { data: unit } = await supabase
-      .from('units').select('id').eq('id', parsed.data.unit_id).eq('org_id', ctx.orgId).single();
-    if (!unit) return Errors.NOT_FOUND();
+    const rows = await db.select({ id: units.id }).from(units)
+      .where(and(eq(units.id, parsed.data.unit_id), eq(units.orgId, ctx.orgId))).limit(1);
+    if (!rows[0]) return Errors.NOT_FOUND();
   }
   if (parsed.data.category_id) {
-    const { data: cat } = await supabase
-      .from('expense_categories').select('id').eq('id', parsed.data.category_id).eq('org_id', ctx.orgId).single();
-    if (!cat) return Errors.NOT_FOUND();
+    const rows = await db.select({ id: expenseCategories.id }).from(expenseCategories)
+      .where(and(eq(expenseCategories.id, parsed.data.category_id), eq(expenseCategories.orgId, ctx.orgId))).limit(1);
+    if (!rows[0]) return Errors.NOT_FOUND();
   }
 
-  const { error } = await supabase.from('expenses').insert({
-    org_id: ctx.orgId,
-    ...parsed.data,
-  });
-
-  if (error) {
-    log.error('[createExpense] db error', { code: error.code });
+  try {
+    await db.insert(expenses).values({
+      orgId: ctx.orgId,
+      propertyId: parsed.data.property_id ?? null,
+      unitId: parsed.data.unit_id ?? null,
+      categoryId: parsed.data.category_id ?? null,
+      amount: parsed.data.amount,
+      description: parsed.data.description,
+      incurredOn: parsed.data.incurred_on,
+      receiptPath: parsed.data.receipt_path ?? null,
+    });
+  } catch (e) {
+    log.error('[createExpense] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -107,19 +113,19 @@ export async function updateExpense(
   const parsed = UpdateExpenseSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify expense belongs to org
-  const { data: existing } = await supabase
-    .from('expenses').select('id').eq('id', parsed.data.id).eq('org_id', ctx.orgId).single();
-  if (!existing) return Errors.NOT_FOUND();
+  const existing = await db.select({ id: expenses.id }).from(expenses)
+    .where(and(eq(expenses.id, parsed.data.id), eq(expenses.orgId, ctx.orgId))).limit(1);
+  if (!existing[0]) return Errors.NOT_FOUND();
 
   const { id, ...updates } = parsed.data;
-  const { error } = await supabase
-    .from('expenses').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[updateExpense] db error', { code: error.code });
+  try {
+    await db
+      .update(expenses)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(expenses.id, id), eq(expenses.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[updateExpense] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
@@ -131,7 +137,6 @@ export async function uploadReceipt(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult<{ receiptId: string; filePath: string }>> {
-  // Both admin and tenant can upload receipts
   let ctx;
   try { ctx = await requireUser(); } catch { return Errors.UNAUTHORIZED(); }
 
@@ -151,9 +156,6 @@ export async function uploadReceipt(
     return Errors.VALIDATION_ERROR({ formErrors: ['File must be ≤ 5 MB'], fieldErrors: {} });
   }
 
-  const supabase = await createClient();
-
-  // Generate org-scoped path
   const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
   const uuid = crypto.randomUUID();
   const filePath = `${ctx.orgId}/uploads/${uuid}.${ext}`;
@@ -171,27 +173,29 @@ export async function uploadReceipt(
     return Errors.INTERNAL();
   }
 
-  // Insert receipt_uploads row
-  const { data: receiptRow, error: insertError } = await supabase
-    .from('receipt_uploads')
-    .insert({
-      org_id: ctx.orgId,
-      uploaded_by: ctx.userId,
-      file_path: filePath,
-      ocr_status: 'pending',
-    })
-    .select('id')
-    .single();
+  let receiptId: string;
+  try {
+    const rows = await db
+      .insert(receiptUploads)
+      .values({
+        orgId: ctx.orgId,
+        uploadedBy: ctx.userId,
+        filePath,
+        ocrStatus: 'pending',
+      })
+      .returning({ id: receiptUploads.id });
 
-  if (insertError || !receiptRow) {
-    log.error('[uploadReceipt] insert error', { code: insertError?.code });
+    if (!rows[0]) throw new Error('No row returned');
+    receiptId = rows[0].id;
+  } catch (e) {
+    log.error('[uploadReceipt] insert error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
-  log.info('[uploadReceipt] receipt uploaded', { userId: ctx.userId, receiptId: receiptRow.id });
+  log.info('[uploadReceipt] receipt uploaded', { userId: ctx.userId, receiptId });
   revalidatePath('/dashboard/finance/receipts');
   revalidatePath('/portal/payments');
-  return ok({ receiptId: receiptRow.id, filePath });
+  return ok({ receiptId, filePath });
 }
 
 export async function matchReceiptToPayment(
@@ -207,33 +211,31 @@ export async function matchReceiptToPayment(
   const parsed = MatchReceiptSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const supabase = await createClient();
-
   // Verify both rows belong to this org
-  const [receiptRes, paymentRes] = await Promise.all([
-    supabase.from('receipt_uploads').select('id, ocr_status').eq('id', parsed.data.receipt_id).eq('org_id', ctx.orgId).single(),
-    supabase.from('payments').select('id').eq('id', parsed.data.payment_id).eq('org_id', ctx.orgId).single(),
+  const [receiptRows, paymentRows] = await Promise.all([
+    db.select({ id: receiptUploads.id }).from(receiptUploads)
+      .where(and(eq(receiptUploads.id, parsed.data.receipt_id), eq(receiptUploads.orgId, ctx.orgId))).limit(1),
+    db.select({ id: payments.id }).from(payments)
+      .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId))).limit(1),
   ]);
 
-  if (!receiptRes.data) return Errors.NOT_FOUND();
-  if (!paymentRes.data) return Errors.NOT_FOUND();
+  if (!receiptRows[0]) return Errors.NOT_FOUND();
+  if (!paymentRows[0]) return Errors.NOT_FOUND();
 
-  const { error } = await supabase
-    .from('receipt_uploads')
-    .update({
-      payment_id: parsed.data.payment_id,
-      ocr_status: 'matched',
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', parsed.data.receipt_id)
-    .eq('org_id', ctx.orgId);
-
-  if (error) {
-    log.error('[matchReceiptToPayment] db error', { code: error.code });
+  try {
+    await db
+      .update(receiptUploads)
+      .set({
+        paymentId: parsed.data.payment_id,
+        ocrStatus: 'matched',
+        updatedAt: new Date(),
+      })
+      .where(and(eq(receiptUploads.id, parsed.data.receipt_id), eq(receiptUploads.orgId, ctx.orgId)));
+  } catch (e) {
+    log.error('[matchReceiptToPayment] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
-  // NOTE: matching is metadata only — no mutation of payment.status
   log.adminAction(ctx.userId, 'match_receipt', 'receipt_upload', parsed.data.receipt_id);
   revalidatePath('/dashboard/finance/receipts');
   return ok(undefined);
