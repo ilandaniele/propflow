@@ -1,9 +1,11 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { units as unitsTable, properties } from '@/lib/db/schema';
+import { eq, and, desc, asc } from 'drizzle-orm';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill } from '@/components/ui/Badge';
@@ -25,15 +27,31 @@ export default async function UnitsPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [t, supabase] = await Promise.all([getTranslations('units'), createClient()]);
-
-  const [unitsRes, propertiesRes] = await Promise.all([
-    supabase.from('units').select('*, properties(name)').eq('org_id', ctx.orgId).order('created_at', { ascending: false }),
-    supabase.from('properties').select('id, name').eq('org_id', ctx.orgId),
+  const [units, propertyRows, t] = await Promise.all([
+    db
+      .select({
+        id:                 unitsTable.id,
+        label:              unitsTable.label,
+        floor:              unitsTable.floor,
+        status:             unitsTable.status,
+        toiletType:         unitsTable.toiletType,
+        areaM2:             unitsTable.areaM2,
+        monthlyRentDefault: unitsTable.monthlyRentDefault,
+        createdAt:          unitsTable.createdAt,
+        propertyId:         unitsTable.propertyId,
+        propertyName:       properties.name,
+      })
+      .from(unitsTable)
+      .leftJoin(properties, and(eq(properties.id, unitsTable.propertyId), eq(properties.orgId, ctx.orgId)))
+      .where(eq(unitsTable.orgId, ctx.orgId))
+      .orderBy(desc(unitsTable.createdAt)),
+    db
+      .select({ id: properties.id, name: properties.name })
+      .from(properties)
+      .where(eq(properties.orgId, ctx.orgId))
+      .orderBy(asc(properties.name)),
+    getTranslations('units'),
   ]);
-
-  const units = unitsRes.data ?? [];
-  const properties = propertiesRes.data ?? [];
 
   const totalUnits = units.length;
   const occupiedUnits = units.filter((u) => u.status === 'occupied').length;
@@ -41,13 +59,11 @@ export default async function UnitsPage() {
   const maintenanceUnits = units.filter((u) => u.status === 'maintenance').length;
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
 
-  // Area analytics from Airtable-synced area_m2
-  const withArea = units.filter((u) => u.area_m2 != null && Number(u.area_m2) > 0);
+  const withArea = units.filter((u) => u.areaM2 != null && Number(u.areaM2) > 0);
   const avgArea = withArea.length > 0
-    ? (withArea.reduce((s, u) => s + Number(u.area_m2), 0) / withArea.length).toFixed(1)
+    ? (withArea.reduce((s, u) => s + Number(u.areaM2), 0) / withArea.length).toFixed(1)
     : null;
 
-  // Status breakdown: all statuses present
   const statusCounts: Record<string, number> = {};
   for (const u of units) {
     const s = u.status ?? 'unknown';
@@ -61,7 +77,7 @@ export default async function UnitsPage() {
           <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{units.length} total</p>
         </div>
-        <CreateUnitForm properties={properties} />
+        <CreateUnitForm properties={propertyRows} />
       </div>
 
       {totalUnits > 0 && (
@@ -91,7 +107,6 @@ export default async function UnitsPage() {
             </article>
           </div>
 
-          {/* Area + status breakdown */}
           {(avgArea !== null || Object.keys(statusCounts).length > 1) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {avgArea !== null && (
@@ -143,40 +158,37 @@ export default async function UnitsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {units.map((unit) => {
-                const property = unit.properties as { name: string } | null;
-                return (
-                  <ClickableRow key={unit.id} href={`/dashboard/units/${unit.id}`}>
-                    <td className="px-5 py-4">
-                      <p className="font-medium text-slate-900 text-sm">{unit.label}</p>
-                      <div className="flex gap-2">
-                        {unit.floor && <p className="text-xs text-slate-400">{t('list.floor')} {unit.floor}</p>}
-                        {unit.area_m2 && <p className="text-xs text-slate-400">{Number(unit.area_m2).toFixed(0)} m²</p>}
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{property?.name ?? '—'}</td>
-                    <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
-                      {unit.monthly_rent_default ? `S/ ${Number(unit.monthly_rent_default).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : '—'}
-                    </td>
-                    <td className="px-5 py-4 text-sm hidden lg:table-cell">
-                      <ToiletTypeBadge
-                        value={unit.toilet_type}
-                        label={
-                          unit.toilet_type === 'private' ? t('toiletType.private')
-                          : unit.toilet_type === 'shared' ? t('toiletType.shared')
-                          : t('toiletType.none')
-                        }
-                      />
-                    </td>
-                    <td className="px-5 py-4"><StatusPill status={unit.status} /></td>
-                    <td className="px-5 py-4 text-right">
-                      <Link href={`/dashboard/units/${unit.id}`}>
-                        <Button variant="ghost" size="sm">{t('list.view')}</Button>
-                      </Link>
-                    </td>
-                  </ClickableRow>
-                );
-              })}
+              {units.map((unit) => (
+                <ClickableRow key={unit.id} href={`/dashboard/units/${unit.id}`}>
+                  <td className="px-5 py-4">
+                    <p className="font-medium text-slate-900 text-sm">{unit.label}</p>
+                    <div className="flex gap-2">
+                      {unit.floor && <p className="text-xs text-slate-400">{t('list.floor')} {unit.floor}</p>}
+                      {unit.areaM2 && <p className="text-xs text-slate-400">{Number(unit.areaM2).toFixed(0)} m²</p>}
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{unit.propertyName ?? '—'}</td>
+                  <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell">
+                    {unit.monthlyRentDefault ? `S/ ${Number(unit.monthlyRentDefault).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : '—'}
+                  </td>
+                  <td className="px-5 py-4 text-sm hidden lg:table-cell">
+                    <ToiletTypeBadge
+                      value={unit.toiletType}
+                      label={
+                        unit.toiletType === 'private' ? t('toiletType.private')
+                        : unit.toiletType === 'shared' ? t('toiletType.shared')
+                        : t('toiletType.none')
+                      }
+                    />
+                  </td>
+                  <td className="px-5 py-4"><StatusPill status={unit.status} /></td>
+                  <td className="px-5 py-4 text-right">
+                    <Link href={`/dashboard/units/${unit.id}`}>
+                      <Button variant="ghost" size="sm">{t('list.view')}</Button>
+                    </Link>
+                  </td>
+                </ClickableRow>
+              ))}
             </tbody>
           </table>
         </div>

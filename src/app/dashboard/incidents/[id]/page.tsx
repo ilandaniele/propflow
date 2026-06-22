@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { incidents, incidentComments, profiles, tenants } from '@/lib/db/schema';
+import { eq, and, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
@@ -18,21 +20,81 @@ export default async function IncidentDetailPage({ params }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
   const t = await getTranslations('incidentDetail');
 
-  const [incidentRes, commentsRes, adminsRes] = await Promise.all([
-    supabase.from('incidents').select('*, profiles!incidents_created_by_fkey(full_name), tenants(full_name)').eq('id', id).eq('org_id', ctx.orgId).single(),
-    supabase.from('incident_comments').select('*, profiles!incident_comments_author_id_fkey(full_name)').eq('incident_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: true }),
-    supabase.from('profiles').select('id, full_name').eq('org_id', ctx.orgId).eq('role', 'admin'),
+  // Alias profiles twice — once for createdBy, once for assignedTo
+  const createdByProfiles = profiles;
+
+  const [incidentRows, commentRows, adminRows] = await Promise.all([
+    db
+      .select({
+        id:          incidents.id,
+        orgId:       incidents.orgId,
+        title:       incidents.title,
+        description: incidents.description,
+        category:    incidents.category,
+        priority:    incidents.priority,
+        status:      incidents.status,
+        tenantId:    incidents.tenantId,
+        unitId:      incidents.unitId,
+        propertyId:  incidents.propertyId,
+        createdBy:   incidents.createdBy,
+        assignedTo:  incidents.assignedTo,
+        resolvedAt:  incidents.resolvedAt,
+        cost:        incidents.cost,
+        createdAt:   incidents.createdAt,
+        updatedAt:   incidents.updatedAt,
+        photoPath:   incidents.photoPath,
+        creatorName: createdByProfiles.fullName,
+      })
+      .from(incidents)
+      .leftJoin(createdByProfiles, eq(createdByProfiles.id, incidents.createdBy))
+      .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId))),
+    db
+      .select({
+        id:         incidentComments.id,
+        body:       incidentComments.body,
+        createdAt:  incidentComments.createdAt,
+        authorId:   incidentComments.authorId,
+        authorName: profiles.fullName,
+      })
+      .from(incidentComments)
+      .leftJoin(profiles, eq(profiles.id, incidentComments.authorId))
+      .where(and(eq(incidentComments.incidentId, id), eq(incidentComments.orgId, ctx.orgId)))
+      .orderBy(asc(incidentComments.createdAt)),
+    db
+      .select({ id: profiles.id, fullName: profiles.fullName })
+      .from(profiles)
+      .where(and(eq(profiles.orgId, ctx.orgId), eq(profiles.role, 'admin'))),
   ]);
 
-  if (!incidentRes.data) notFound();
+  if (!incidentRows.length) notFound();
+  const incident = incidentRows[0];
 
-  const incident = incidentRes.data;
-  const comments = commentsRes.data ?? [];
-  const admins = adminsRes.data ?? [];
-  const createdBy = incident.profiles as { full_name: string | null } | null;
+  // Shape to legacy snake_case Incident type for UpdateIncidentForm
+  const incidentForForm = {
+    id:          incident.id,
+    org_id:      incident.orgId,
+    title:       incident.title,
+    description: incident.description,
+    category:    incident.category,
+    priority:    incident.priority,
+    status:      incident.status,
+    tenant_id:   incident.tenantId,
+    unit_id:     incident.unitId,
+    property_id: incident.propertyId,
+    created_by:  incident.createdBy,
+    assigned_to: incident.assignedTo,
+    resolved_at: incident.resolvedAt ? String(incident.resolvedAt) : null,
+    cost:        incident.cost,
+    created_at:  incident.createdAt ? String(incident.createdAt) : '',
+    updated_at:  incident.updatedAt ? String(incident.updatedAt) : '',
+    photo_path:  incident.photoPath,
+    airtable_external_id: null,
+    airtable_synced_at: null,
+  };
+
+  const adminsForForm = adminRows.map((a) => ({ id: a.id, full_name: a.fullName ?? null }));
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -44,8 +106,8 @@ export default async function IncidentDetailPage({ params }: Props) {
         </div>
         <h1 className="text-2xl font-bold text-slate-900">{incident.title}</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {t('reportedBy')} {createdBy?.full_name ?? t('unknown')} {t('on')} {new Date(incident.created_at).toLocaleDateString()}
-          {incident.resolved_at && ` · ${t('resolved')} ${new Date(incident.resolved_at).toLocaleDateString()}`}
+          {t('reportedBy')} {incident.creatorName ?? t('unknown')} {t('on')} {incident.createdAt ? new Date(incident.createdAt).toLocaleDateString() : '—'}
+          {incident.resolvedAt && ` · ${t('resolved')} ${new Date(incident.resolvedAt).toLocaleDateString()}`}
         </p>
       </div>
 
@@ -59,25 +121,22 @@ export default async function IncidentDetailPage({ params }: Props) {
           {/* Timeline / Comments */}
           <Card>
             <CardHeader><CardTitle>{t('cardTimeline')}</CardTitle></CardHeader>
-            {comments.length === 0 ? (
+            {commentRows.length === 0 ? (
               <p className="text-sm text-slate-400">{t('noComments')}</p>
             ) : (
               <div className="space-y-4">
-                {comments.map((comment) => {
-                  const author = comment.profiles as { full_name: string | null } | null;
-                  return (
-                    <div key={comment.id} className="flex gap-3">
-                      <Avatar name={author?.full_name} size="sm" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm font-medium text-slate-900">{author?.full_name ?? t('unknown')}</p>
-                          <p className="text-xs text-slate-400">{new Date(comment.created_at).toLocaleString()}</p>
-                        </div>
-                        <p className="text-sm text-slate-700">{comment.body}</p>
+                {commentRows.map((comment) => (
+                  <div key={comment.id} className="flex gap-3">
+                    <Avatar name={comment.authorName ?? undefined} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-sm font-medium text-slate-900">{comment.authorName ?? t('unknown')}</p>
+                        <p className="text-xs text-slate-400">{comment.createdAt ? new Date(comment.createdAt).toLocaleString() : '—'}</p>
                       </div>
+                      <p className="text-sm text-slate-700">{comment.body}</p>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
             <div className="mt-4 pt-4 border-t border-slate-100">
@@ -89,7 +148,7 @@ export default async function IncidentDetailPage({ params }: Props) {
         <div className="space-y-4">
           <Card>
             <CardHeader><CardTitle>{t('cardManage')}</CardTitle></CardHeader>
-            <UpdateIncidentForm incident={incident} admins={admins} />
+            <UpdateIncidentForm incident={incidentForForm as never} admins={adminsForForm} />
           </Card>
         </div>
       </div>
