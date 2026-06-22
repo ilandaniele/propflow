@@ -1,6 +1,6 @@
-import type { Metadata } from 'next';
+﻿import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';

@@ -1,9 +1,9 @@
-import { Suspense } from 'react';
+﻿import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';

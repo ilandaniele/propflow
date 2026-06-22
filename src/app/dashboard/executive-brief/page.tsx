@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Executive Brief page — /dashboard/executive-brief (AC12, AC14)
  *
  * Server Component. Fetches:
@@ -16,7 +16,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { computeOccupancyRate } from '@/lib/finance/kpis';
 import { KpiGrid, type KpiTileData } from '@/components/executive-brief/KpiGrid';
 import { AgentCard } from '@/components/executive-brief/AgentCard';

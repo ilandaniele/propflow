@@ -2,6 +2,14 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { cache } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { createAdminClient } from './admin';
+
+/**
+ * Service-role Supabase client for dashboard Server Components.
+ * Bypasses RLS — only call after requireAdmin() has authenticated the request.
+ * Cached per request so repeated calls within one render pass are free.
+ */
+export const createAdminServerClient = cache(async () => createAdminClient());
 
 // We don't pass the Database generic here to avoid strict type mismatches
 // between our hand-written types and the supabase-js internal types.

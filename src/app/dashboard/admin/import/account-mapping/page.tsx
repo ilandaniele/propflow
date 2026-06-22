@@ -1,4 +1,4 @@
-/**
+﻿/**
  * /dashboard/admin/import/account-mapping
  *
  * Account Mapping (AC20):
@@ -9,7 +9,7 @@
 
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { getTranslations } from 'next-intl/server';
 import { AccountMappingForm } from './AccountMappingForm';
 

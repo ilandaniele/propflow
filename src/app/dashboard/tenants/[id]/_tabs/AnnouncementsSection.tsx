@@ -1,5 +1,5 @@
-import { getTranslations } from 'next-intl/server';
-import { createClient } from '@/lib/supabase/server';
+﻿import { getTranslations } from 'next-intl/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';

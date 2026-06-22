@@ -1,5 +1,5 @@
-import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+﻿import { requireAdmin } from '@/lib/auth/guards';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OcrReceiptsClient } from './OcrReceiptsClient';

@@ -1,5 +1,5 @@
-import { requireAdmin } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+﻿import { requireAdmin } from '@/lib/auth/guards';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { computePnL, buildCashFlow, computePnLByMonth } from '@/lib/finance/reports';
 import {
   computeTrueNetProfit,

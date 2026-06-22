@@ -1,6 +1,6 @@
-import type { Metadata } from 'next';
+﻿import type { Metadata } from 'next';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';

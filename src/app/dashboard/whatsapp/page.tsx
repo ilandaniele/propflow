@@ -1,7 +1,7 @@
-import type { Metadata } from 'next';
+﻿import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/Badge';

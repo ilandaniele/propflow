@@ -1,7 +1,7 @@
-import { Suspense } from 'react';
+﻿import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { getTranslations } from 'next-intl/server';
 import { buildTenantActivityFeed } from '@/lib/tenants/activity-feed';
