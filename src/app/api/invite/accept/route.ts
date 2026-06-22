@@ -3,21 +3,10 @@
  *
  * Accepts a tenant invitation token. Requires an authenticated session.
  *
- * Flow:
- * 1. Hash the incoming token, look up the invitation.
- * 2. Reject if not pending or past expires_at (mark expired).
- * 3. Verify session user's email (normalized) matches invitation email → 403 if mismatch.
- * 4. Create profile row if none exists (role='tenant', org_id from invitation).
- * 5. Link: tenants.profile_id = user.id, portal_access='active'.
- * 6. Mark invitation accepted.
- *
- * CRITICAL: this links the auth user to the EXISTING tenant record.
- * Never creates a duplicate tenant row.
- *
  * Security:
  * - Token is hashed before DB lookup; raw token never hits the DB.
  * - Email comparison is normalized (trim + toLowerCase) on both sides.
- * - Admin client used only after session validation.
+ * - User identity from session (NextAuth), never from request body.
  */
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +14,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/auth';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { db } from '@/lib/db';
+import { tenantInvitations, profiles, tenants } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { log } from '@/lib/log';
 import { sha256 } from '@/lib/crypto/hash';
 
@@ -45,33 +36,41 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: { code: 'VALIDATION_ERROR', message: 'token is required.' } }, { status: 400 });
   }
 
-  // 2. Require authenticated session
+  // 2. Require authenticated session (NextAuth — never trust client user IDs)
   const session = await auth();
   const user = session?.user;
   if (!user?.id || !user.email) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'You must be signed in to accept an invitation.' } }, { status: 401 });
   }
 
-  const admin = createAdminClient();
   const tokenHash = sha256(parsed.data.token);
 
-  // 3. Look up invitation
-  const { data: invitation, error: inviteErr } = await admin
-    .from('tenant_invitations')
-    .select('id, org_id, tenant_id, email, status, expires_at')
-    .eq('token_hash', tokenHash)
-    .single();
+  // 3. Look up invitation — Drizzle (AC1)
+  const invitations = await db
+    .select({
+      id:        tenantInvitations.id,
+      orgId:     tenantInvitations.orgId,
+      tenantId:  tenantInvitations.tenantId,
+      email:     tenantInvitations.email,
+      status:    tenantInvitations.status,
+      expiresAt: tenantInvitations.expiresAt,
+    })
+    .from(tenantInvitations)
+    .where(eq(tenantInvitations.tokenHash, tokenHash))
+    .limit(1);
 
-  if (inviteErr || !invitation) {
+  const invitation = invitations[0];
+
+  if (!invitation) {
     return NextResponse.json({ error: { code: 'INVALID_TOKEN', message: 'Invitation not found or already used.' } }, { status: 404 });
   }
 
   // Mark expired if past expiry
-  if (invitation.status === 'pending' && new Date(invitation.expires_at) < new Date()) {
-    await admin
-      .from('tenant_invitations')
-      .update({ status: 'expired' })
-      .eq('id', invitation.id);
+  if (invitation.status === 'pending' && new Date(invitation.expiresAt) < new Date()) {
+    await db
+      .update(tenantInvitations)
+      .set({ status: 'expired' })
+      .where(eq(tenantInvitations.id, invitation.id));
     return NextResponse.json({ error: { code: 'TOKEN_EXPIRED', message: 'This invitation has expired. Ask your administrator to resend it.' } }, { status: 410 });
   }
 
@@ -91,51 +90,50 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       error: {
         code: 'EMAIL_MISMATCH',
-        message: `This invitation was sent to a different email address. Please sign in with the account that matches the invitation.`,
+        message: 'This invitation was sent to a different email address. Please sign in with the account that matches the invitation.',
       },
     }, { status: 403 });
   }
 
-  // 5. Create profile if none exists (role='tenant')
-  const { data: existingProfile } = await admin
-    .from('profiles')
-    .select('id, org_id, role')
-    .eq('id', user.id)
-    .single();
+  // 5. Create profile if none exists (role='tenant') — Drizzle (AC1)
+  const existingProfiles = await db
+    .select({ id: profiles.id, orgId: profiles.orgId, role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.userId, user.id))
+    .limit(1);
 
-  if (!existingProfile) {
-    const { error: profileErr } = await admin
-      .from('profiles')
-      .insert({
-        id:     user.id,
-        org_id: invitation.org_id,
+  if (existingProfiles.length === 0) {
+    try {
+      await db.insert(profiles).values({
+        userId: user.id,
+        orgId:  invitation.orgId,
         role:   'tenant',
       });
-    if (profileErr) {
-      log.error('[invite/accept] failed to create profile', { code: profileErr.code });
+    } catch (err) {
+      log.error('[invite/accept] failed to create profile', { error: err instanceof Error ? err.message : 'unknown' });
       return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to set up your account.' } }, { status: 500 });
     }
   }
   // If profile already exists in same org, just continue (link tenant below)
 
-  // 6. Link tenant record to auth user
-  const { error: linkErr } = await admin
-    .from('tenants')
-    .update({ profile_id: user.id, portal_access: 'active' })
-    .eq('id', invitation.tenant_id)
-    .eq('org_id', invitation.org_id);
+  // 6. Link tenant record to auth user — Drizzle (AC1, AC8: org_id scoped)
+  const updated = await db
+    .update(tenants)
+    .set({ profileId: user.id, portalAccess: 'active' })
+    .where(and(eq(tenants.id, invitation.tenantId), eq(tenants.orgId, invitation.orgId)))
+    .returning({ id: tenants.id });
 
-  if (linkErr) {
-    log.error('[invite/accept] failed to link tenant', { code: linkErr.code });
+  if (updated.length === 0) {
+    log.error('[invite/accept] failed to link tenant', { tenantId: invitation.tenantId });
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to activate your portal access.' } }, { status: 500 });
   }
 
-  // 7. Mark invitation accepted
-  await admin
-    .from('tenant_invitations')
-    .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-    .eq('id', invitation.id);
+  // 7. Mark invitation accepted — Drizzle
+  await db
+    .update(tenantInvitations)
+    .set({ status: 'accepted', acceptedAt: new Date() })
+    .where(eq(tenantInvitations.id, invitation.id));
 
-  log.info('[invite/accept] accepted', { tenantId: invitation.tenant_id });
+  log.info('[invite/accept] accepted', { tenantId: invitation.tenantId });
   return NextResponse.json({ accepted: true, redirectTo: '/portal' });
 }

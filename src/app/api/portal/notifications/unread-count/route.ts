@@ -4,17 +4,8 @@
  * Returns the number of unread notification_inbox rows for the authenticated
  * tenant (rows where read_at IS NULL).
  *
- * Auth: requireTenant() → getCachedUser() → getUser() — full JWT revalidation.
- * This is intentional: the notification count is not a layout cosmetic — it is
- * fetched client-side by NotificationBadge after the layout has already
- * streamed. Defense-in-depth is preserved (spec IC4).
- *
- * Rate limited: 100 requests / 60s / userId via checkRateLimit.
- *
- * Response 200: { "count": number }
- * Response 401: { "error": { "code": "UNAUTHENTICATED", "message": "Login required" } }
- * Response 403: { "error": { "code": "FORBIDDEN", "message": "Tenant role required" } }
- * Response 500: { "error": { "code": "INTERNAL", "message": "Failed to load notifications" } }
+ * Auth: requireTenant() → full JWT revalidation (defense-in-depth).
+ * Rate limited: 100 requests / 60s / userId.
  */
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +13,9 @@ export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth/guards';
-import { createClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { notificationInbox } from '@/lib/db/schema';
+import { eq, and, isNull, count as sqlCount } from 'drizzle-orm';
 import { checkRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 
@@ -30,7 +23,7 @@ const RATE_LIMIT_MAX = 100;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
 export async function GET(): Promise<NextResponse> {
-  // 1. Authenticate — full JWT revalidation via getUser() (defense-in-depth)
+  // 1. Authenticate — full JWT revalidation via requireTenant()
   let ctx;
   try {
     ctx = await requireTenant();
@@ -61,21 +54,26 @@ export async function GET(): Promise<NextResponse> {
     );
   }
 
-  // 3. Query notification_inbox — RLS ensures tenant sees only their own rows
-  const supabase = await createClient();
-  const { count, error } = await supabase
-    .from('notification_inbox')
-    .select('*', { count: 'exact', head: true })
-    .eq('profile_id', ctx.userId)
-    .is('read_at', null);
+  // 3. Count unread notifications — Drizzle (AC1, AC8: profile_id + org_id isolation)
+  try {
+    const rows = await db
+      .select({ value: sqlCount() })
+      .from(notificationInbox)
+      .where(
+        and(
+          eq(notificationInbox.profileId, ctx.userId),
+          eq(notificationInbox.orgId, ctx.orgId),
+          isNull(notificationInbox.readAt)
+        )
+      );
 
-  if (error) {
-    log.error('[unread-count] notification_inbox query failed', { code: error.code });
+    const count = Number(rows[0]?.value ?? 0);
+    return NextResponse.json({ count });
+  } catch (err) {
+    log.error('[unread-count] notification_inbox query failed', { error: err instanceof Error ? err.message : 'unknown' });
     return NextResponse.json(
       { error: { code: 'INTERNAL', message: 'Failed to load notifications' } },
       { status: 500 }
     );
   }
-
-  return NextResponse.json({ count: count ?? 0 });
 }
