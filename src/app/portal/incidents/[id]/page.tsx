@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
 import { requireTenant } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { incidents, incidentComments, profiles } from '@/lib/db/schema';
+import { eq, and, asc } from 'drizzle-orm';
 import { Card } from '@/components/ui/Card';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
@@ -17,17 +19,36 @@ export default async function PortalIncidentDetailPage({ params }: Props) {
   let ctx;
   try { ctx = await requireTenant(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
-
-  const [incidentRes, commentsRes] = await Promise.all([
-    supabase.from('incidents').select('*').eq('id', id).eq('org_id', ctx.orgId).single(),
-    supabase.from('incident_comments').select('*, profiles!incident_comments_author_id_fkey(full_name)').eq('incident_id', id).eq('org_id', ctx.orgId).order('created_at', { ascending: true }),
+  const [incidentRows, commentRows] = await Promise.all([
+    db
+      .select({
+        id:          incidents.id,
+        title:       incidents.title,
+        description: incidents.description,
+        category:    incidents.category,
+        priority:    incidents.priority,
+        status:      incidents.status,
+        createdAt:   incidents.createdAt,
+        resolvedAt:  incidents.resolvedAt,
+      })
+      .from(incidents)
+      .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)))
+      .limit(1),
+    db
+      .select({
+        id:         incidentComments.id,
+        body:       incidentComments.body,
+        createdAt:  incidentComments.createdAt,
+        authorName: profiles.fullName,
+      })
+      .from(incidentComments)
+      .leftJoin(profiles, eq(profiles.id, incidentComments.authorId))
+      .where(and(eq(incidentComments.incidentId, id), eq(incidentComments.orgId, ctx.orgId)))
+      .orderBy(asc(incidentComments.createdAt)),
   ]);
 
-  if (!incidentRes.data) notFound();
-
-  const incident = incidentRes.data;
-  const comments = commentsRes.data ?? [];
+  if (!incidentRows.length) notFound();
+  const incident = incidentRows[0];
 
   return (
     <div className="space-y-5">
@@ -42,9 +63,9 @@ export default async function PortalIncidentDetailPage({ params }: Props) {
       <div>
         <h1 className="text-xl font-bold text-slate-900">{incident.title}</h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Reported {new Date(incident.created_at).toLocaleDateString()} ·
+          Reported {incident.createdAt ? new Date(incident.createdAt).toLocaleDateString() : '—'} ·
           <span className="capitalize ml-1">{incident.category}</span>
-          {incident.resolved_at && ` · Resolved ${new Date(incident.resolved_at).toLocaleDateString()}`}
+          {incident.resolvedAt && ` · Resolved ${new Date(incident.resolvedAt).toLocaleDateString()}`}
         </p>
       </div>
 
@@ -55,25 +76,24 @@ export default async function PortalIncidentDetailPage({ params }: Props) {
       {/* Comments */}
       <Card>
         <h2 className="text-sm font-semibold text-slate-900 mb-4">Updates & Comments</h2>
-        {comments.length === 0 ? (
+        {commentRows.length === 0 ? (
           <p className="text-sm text-slate-400 mb-4">No updates yet. Your property manager will respond here.</p>
         ) : (
           <div className="space-y-4 mb-4">
-            {comments.map((comment) => {
-              const author = comment.profiles as { full_name: string | null } | null;
-              return (
-                <div key={comment.id} className="flex gap-3">
-                  <Avatar name={author?.full_name} size="sm" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <p className="text-xs font-medium text-slate-900">{author?.full_name ?? 'Team'}</p>
-                      <p className="text-xs text-slate-400">{new Date(comment.created_at).toLocaleString()}</p>
-                    </div>
-                    <p className="text-sm text-slate-700">{comment.body}</p>
+            {commentRows.map((comment) => (
+              <div key={comment.id} className="flex gap-3">
+                <Avatar name={comment.authorName ?? undefined} size="sm" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-xs font-medium text-slate-900">{comment.authorName ?? 'Team'}</p>
+                    <p className="text-xs text-slate-400">
+                      {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : '—'}
+                    </p>
                   </div>
+                  <p className="text-sm text-slate-700">{comment.body}</p>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
         <PortalCommentForm incidentId={incident.id} />

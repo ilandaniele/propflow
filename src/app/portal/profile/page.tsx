@@ -2,8 +2,11 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
 import { getTranslations } from 'next-intl/server';
-import { createClient } from '@/lib/supabase/server';
 import { requireTenant } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { tenants } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { getSignedUrl } from '@/lib/storage';
 import { Card } from '@/components/ui/Card';
 import { AvatarUploader } from '@/components/images/AvatarUploader';
 
@@ -15,8 +18,8 @@ export const metadata: Metadata = { title: 'My Profile' };
  * Data flow:
  * 1. requireTenant() — verifies JWT + tenant role (defense-in-depth over middleware).
  * 2. Fetch tenant row for display info + current photo_url.
- * 3. If photo_url exists, generate a signed URL via the /api/tenant-avatar endpoint.
- *    We call it server-side to avoid exposing the raw storage path to the client.
+ * 3. If photoUrl exists, generate a signed URL via Tigris S3 getSignedUrl().
+ *    We resolve server-side to avoid exposing the raw storage path to the client.
  * 4. Pass signed URL to AvatarUploader (client component) — it handles upload/delete
  *    via Server Actions which re-enforce auth + IDOR.
  */
@@ -27,40 +30,44 @@ export default async function PortalProfilePage() {
   const locale = await getLocale();
   const t = await getTranslations({ locale, namespace: 'tenants' });
 
-  const supabase = await createClient();
+  const tenantRows = await db
+    .select({
+      id:       tenants.id,
+      fullName: tenants.fullName,
+      email:    tenants.email,
+      phone:    tenants.phone,
+      photoUrl: tenants.photoUrl,
+    })
+    .from(tenants)
+    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+    .limit(1);
 
-  const { data: tenantRow } = await supabase
-    .from('tenants')
-    .select('id, full_name, email, phone, photo_url')
-    .eq('profile_id', ctx.userId)
-    .eq('org_id', ctx.orgId)
-    .single();
-
-  if (!tenantRow) {
+  if (!tenantRows.length) {
     redirect('/portal');
   }
 
+  const tenantRow = tenantRows[0];
+
   // Resolve signed URL for the avatar (server-side to keep storage path off the client)
   let signedAvatarUrl: string | null = null;
-  if (tenantRow.photo_url) {
-    const { data, error } = await supabase.storage
-      .from('tenant-avatars')
-      .createSignedUrl(tenantRow.photo_url, 3600);
-    if (!error && data?.signedUrl) {
-      signedAvatarUrl = data.signedUrl;
+  if (tenantRow.photoUrl) {
+    try {
+      signedAvatarUrl = await getSignedUrl('tenant-avatars', tenantRow.photoUrl, 3600);
+    } catch {
+      // Non-fatal — avatar just won't show if signing fails
     }
   }
 
-  const displayName = tenantRow.full_name ?? ctx.profile.full_name ?? 'Tenant';
+  const displayName = tenantRow.fullName ?? ctx.profile.full_name ?? 'Tenant';
 
   const avatarLabels = {
     changePhoto: t('avatar.changePhoto'),
     removePhoto: t('avatar.removePhoto'),
-    uploadHint: t('avatar.uploadHint'),
+    uploadHint:  t('avatar.uploadHint'),
     invalidMime: t('photo.invalidMime'),
     fileTooLarge: t('photo.fileTooLarge'),
-    uploadError: t('photo.uploadError'),
-    removeError: t('photo.removeError'),
+    uploadError:  t('photo.uploadError'),
+    removeError:  t('photo.removeError'),
   };
 
   return (
