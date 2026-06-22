@@ -1,5 +1,14 @@
-﻿import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import {
+  payments as paymentsTable,
+  expenses as expensesTable,
+  expenseCategories,
+  units,
+  contracts,
+  charges,
+} from '@/lib/db/schema';
+import { eq, gte, lt, and, desc } from 'drizzle-orm';
 import { computePnL, buildCashFlow, computePnLByMonth } from '@/lib/finance/reports';
 import {
   computeTrueNetProfit,
@@ -21,308 +30,150 @@ import type { ExpenseWithCategory } from '@/lib/finance/kpis';
 
 export default async function FinancePage() {
   const ctx = await requireAdmin();
-  const supabase = await createClient();
   const t = await getTranslations('finance');
 
-  // ── Date ranges ──────────────────────────────────────────────────────────
   const now = new Date();
-  const currentMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const cm1 = String(now.getMonth() + 1).padStart(2, '0');
+  const currentMonthStart = `${now.getFullYear()}-${cm1}-01`;
   const priorMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const priorMonthStart = `${priorMonthDate.getFullYear()}-${String(priorMonthDate.getMonth() + 1).padStart(2, '0')}-01`;
-
-  // ── Income (approved payments) ────────────────────────────────────────────
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('amount, paid_at, contract_id')
-    .eq('org_id', ctx.orgId)
-    .eq('status', 'approved')
-    .order('paid_at', { ascending: false })
-    .limit(500);
-
-  // Current month income
-  const { data: currentPayments } = await supabase
-    .from('payments')
-    .select('amount')
-    .eq('org_id', ctx.orgId)
-    .eq('status', 'approved')
-    .gte('paid_at', currentMonthStart)
-    .limit(500);
-
-  // Prior month income
-  const { data: priorPayments } = await supabase
-    .from('payments')
-    .select('amount')
-    .eq('org_id', ctx.orgId)
-    .eq('status', 'approved')
-    .gte('paid_at', priorMonthStart)
-    .lt('paid_at', currentMonthStart)
-    .limit(500);
-
-  // ── Expenses (with category name joined) ─────────────────────────────────
-  const { data: expenses } = await supabase
-    .from('expenses')
-    .select('amount, incurred_on, property_id, expense_categories(name)')
-    .eq('org_id', ctx.orgId)
-    .order('incurred_on', { ascending: false })
-    .limit(500);
-
-  // Current month expenses
-  const { data: currentExpenses } = await supabase
-    .from('expenses')
-    .select('amount, expense_categories(name)')
-    .eq('org_id', ctx.orgId)
-    .gte('incurred_on', currentMonthStart)
-    .limit(500);
-
-  // Prior month expenses
-  const { data: priorExpenses } = await supabase
-    .from('expenses')
-    .select('amount, expense_categories(name)')
-    .eq('org_id', ctx.orgId)
-    .gte('incurred_on', priorMonthStart)
-    .lt('incurred_on', currentMonthStart)
-    .limit(500);
-
-  // ── Occupancy ─────────────────────────────────────────────────────────────
-  const { count: totalUnits } = await supabase
-    .from('units')
-    .select('id', { count: 'exact', head: true })
-    .eq('org_id', ctx.orgId);
-
-  const { count: occupiedUnits } = await supabase
-    .from('contracts')
-    .select('unit_id', { count: 'exact', head: true })
-    .eq('org_id', ctx.orgId)
-    .eq('status', 'active');
-
-  // ── Past Due Balance ──────────────────────────────────────────────────────
+  const pm1 = String(priorMonthDate.getMonth() + 1).padStart(2, '0');
+  const priorMonthStart = `${priorMonthDate.getFullYear()}-${pm1}-01`;
   const today = now.toISOString().slice(0, 10);
-  const { data: overdueCharges } = await supabase
-    .from('charges')
-    .select('amount')
-    .eq('org_id', ctx.orgId)
-    .lt('due_date', today)
-    .eq('status', 'pending')
-    .limit(500);
 
-  // ── Map rows ─────────────────────────────────────────────────────────────
-  const incomeRows: IncomeRow[] = (payments ?? []).map((p) => ({
-    amount: p.amount,
-    paid_at: p.paid_at,
-  }));
+  const [
+    allPayments,
+    currentPayments,
+    priorPayments,
+    allExpenses,
+    currentExpenses,
+    priorExpenses,
+    totalUnitsRows,
+    occupiedContracts,
+    overdueCharges,
+  ] = await Promise.all([
+    db
+      .select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, contractId: paymentsTable.contractId })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved')))
+      .orderBy(desc(paymentsTable.paidAt))
+      .limit(500),
+    db
+      .select({ amount: paymentsTable.amount })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'), gte(paymentsTable.paidAt, currentMonthStart)))
+      .limit(500),
+    db
+      .select({ amount: paymentsTable.amount })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'), gte(paymentsTable.paidAt, priorMonthStart), lt(paymentsTable.paidAt, currentMonthStart)))
+      .limit(500),
+    db
+      .select({ amount: expensesTable.amount, incurredOn: expensesTable.incurredOn, propertyId: expensesTable.propertyId, categoryName: expenseCategories.name })
+      .from(expensesTable)
+      .leftJoin(expenseCategories, eq(expenseCategories.id, expensesTable.categoryId))
+      .where(eq(expensesTable.orgId, ctx.orgId))
+      .orderBy(desc(expensesTable.incurredOn))
+      .limit(500),
+    db
+      .select({ amount: expensesTable.amount, categoryName: expenseCategories.name })
+      .from(expensesTable)
+      .leftJoin(expenseCategories, eq(expenseCategories.id, expensesTable.categoryId))
+      .where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, currentMonthStart)))
+      .limit(500),
+    db
+      .select({ amount: expensesTable.amount, categoryName: expenseCategories.name })
+      .from(expensesTable)
+      .leftJoin(expenseCategories, eq(expenseCategories.id, expensesTable.categoryId))
+      .where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, priorMonthStart), lt(expensesTable.incurredOn, currentMonthStart)))
+      .limit(500),
+    db.select({ id: units.id }).from(units).where(eq(units.orgId, ctx.orgId)),
+    db
+      .select({ unitId: contracts.unitId })
+      .from(contracts)
+      .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
+    db
+      .select({ amount: charges.amount })
+      .from(charges)
+      .where(and(eq(charges.orgId, ctx.orgId), lt(charges.dueDate, today)))
+      .limit(500),
+  ]);
 
-  const expenseRows: ExpenseRow[] = (expenses ?? []).map((e) => ({
-    amount: e.amount,
-    incurred_on: e.incurred_on,
-    property_id: e.property_id,
-  }));
+  const incomeRows: IncomeRow[] = allPayments.map((p) => ({ amount: p.amount, paid_at: p.paidAt }));
+  const expenseRows: ExpenseRow[] = allExpenses.map((e) => ({ amount: e.amount, incurred_on: e.incurredOn, property_id: e.propertyId }));
 
-  // Supabase join returns expense_categories as an object (many-to-one) or array.
-  // We cast via unknown to handle the generated type mismatch.
-  const mapWithCategory = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join returns expense_categories as object or array; no generic type resolves this mixed shape
-    rows: any[] | null
-  ): ExpenseWithCategory[] =>
-    (rows ?? []).map((e) => {
-      // Supabase may return the FK join as object or first element of array
-      const cat = Array.isArray(e.expense_categories)
-        ? (e.expense_categories[0] as { name: string } | undefined)
-        : (e.expense_categories as { name: string } | null | undefined);
-      return {
-        amount: e.amount as number,
-        category_name: cat?.name ?? null,
-      };
-    });
+  type RawExp = { amount: unknown; categoryName: string | null };
+  const toExpenseWithCat = (rows: RawExp[]): ExpenseWithCategory[] =>
+    rows.map((e) => ({ amount: Number(e.amount), category_name: e.categoryName ?? null }));
 
-  const currentExpensesWithCat = mapWithCategory(currentExpenses);
-  const priorExpensesWithCat = mapWithCategory(priorExpenses);
+  const currentExpensesWithCat = toExpenseWithCat(currentExpenses as unknown as RawExp[]);
+  const priorExpensesWithCat   = toExpenseWithCat(priorExpenses as unknown as RawExp[]);
 
-  const currentIncome = (currentPayments ?? []).reduce((s, p) => s + p.amount, 0);
-  const priorIncome = (priorPayments ?? []).reduce((s, p) => s + p.amount, 0);
+  const currentIncome   = currentPayments.reduce((s, p) => s + Number(p.amount), 0);
+  const priorIncome     = priorPayments.reduce((s, p) => s + Number(p.amount), 0);
   const currentExpTotal = currentExpensesWithCat.reduce((s, e) => s + e.amount, 0);
-  const priorExpTotal = priorExpensesWithCat.reduce((s, e) => s + e.amount, 0);
+  const priorExpTotal   = priorExpensesWithCat.reduce((s, e) => s + e.amount, 0);
+  const overdueAmounts  = overdueCharges.map((c) => Number(c.amount));
 
-  const overdueAmounts = (overdueCharges ?? []).map((c) => c.amount);
+  const trueNetProfit = computeTrueNetProfit(currentIncome, currentExpTotal, priorIncome, priorExpTotal);
+  const turnCost    = computeTurnCost(currentExpensesWithCat, priorExpensesWithCat.filter((e) => e.category_name === 'turn_costs').reduce((s, e) => s + e.amount, 0));
+  const capEx       = computeCapEx(currentExpensesWithCat, priorExpensesWithCat.filter((e) => e.category_name === 'capex').reduce((s, e) => s + e.amount, 0));
+  const debtService = computeDebtService(currentExpensesWithCat, priorExpensesWithCat.filter((e) => e.category_name === 'debt_service').reduce((s, e) => s + e.amount, 0));
+  const platformFees = computePlatformFees(currentExpensesWithCat, priorExpensesWithCat.filter((e) => e.category_name === 'platform_fees').reduce((s, e) => s + e.amount, 0));
+  const occupancy = computeOccupancy(occupiedContracts.length, totalUnitsRows.length);
+  const pastDue   = computePastDueBalance(overdueAmounts);
 
-  // ── KPI computations ─────────────────────────────────────────────────────
-  const trueNetProfit = computeTrueNetProfit(
-    currentIncome, currentExpTotal,
-    priorIncome, priorExpTotal
-  );
-  const turnCost = computeTurnCost(
-    currentExpensesWithCat,
-    priorExpensesWithCat.filter((e) => e.category_name === 'turn_costs').reduce((s, e) => s + e.amount, 0)
-  );
-  const capEx = computeCapEx(
-    currentExpensesWithCat,
-    priorExpensesWithCat.filter((e) => e.category_name === 'capex').reduce((s, e) => s + e.amount, 0)
-  );
-  const debtService = computeDebtService(
-    currentExpensesWithCat,
-    priorExpensesWithCat.filter((e) => e.category_name === 'debt_service').reduce((s, e) => s + e.amount, 0)
-  );
-  const platformFees = computePlatformFees(
-    currentExpensesWithCat,
-    priorExpensesWithCat.filter((e) => e.category_name === 'platform_fees').reduce((s, e) => s + e.amount, 0)
-  );
-  const occupancy = computeOccupancy(
-    occupiedUnits ?? 0, totalUnits ?? 0
-  );
-  const pastDue = computePastDueBalance(overdueAmounts);
-
-  // ── 12-month trend ────────────────────────────────────────────────────────
   const trendData = computePnLByMonth(incomeRows, expenseRows, 12);
-
-  // ── Legacy P&L report ─────────────────────────────────────────────────────
-  const pnl = computePnL(incomeRows, expenseRows);
-  const cashFlow = buildCashFlow(incomeRows, expenseRows).slice(-20).reverse();
+  const pnl       = computePnL(incomeRows, expenseRows);
+  const cashFlow  = buildCashFlow(incomeRows, expenseRows).slice(-20).reverse();
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
         <div className="flex gap-2 flex-wrap">
-          <Link href="/dashboard/finance/rooms" className="text-sm text-brand-600 hover:underline">
-            {t('roomProfitability')}
-          </Link>
-          <Link href="/dashboard/finance/receipts" className="text-sm text-brand-600 hover:underline ml-4">
-            {t('ocrReceipts')}
-          </Link>
-          <Link href="/dashboard/finance/expenses/categories" className="text-sm text-brand-600 hover:underline ml-4">
-            {t('categories')}
-          </Link>
+          <Link href="/dashboard/finance/rooms" className="text-sm text-brand-600 hover:underline">{t('roomProfitability')}</Link>
+          <Link href="/dashboard/finance/receipts" className="text-sm text-brand-600 hover:underline ml-4">{t('ocrReceipts')}</Link>
+          <Link href="/dashboard/finance/expenses/categories" className="text-sm text-brand-600 hover:underline ml-4">{t('categories')}</Link>
         </div>
       </div>
 
-      {/* ── AC22: New KPI tiles row ────────────────────────────────────────── */}
       <div data-testid="finance-kpi-tiles">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-          {t('kpiTitle')}
-        </p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{t('kpiTitle')}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-          <KpiTile
-            label={t('kpis.trueNetProfit')}
-            value={trueNetProfit.formatted}
-            rawValue={trueNetProfit.value}
-            delta={trueNetProfit.delta}
-            positiveIsGood={true}
-            testId="kpi-true-net-profit"
-            deltaSuffix={t('kpis.deltaSuffix')}
-            noPriorData={t('kpis.noPriorData')}
-          />
-          <KpiTile
-            label={t('kpis.turnCost')}
-            value={turnCost.formatted}
-            rawValue={turnCost.value}
-            delta={turnCost.delta}
-            positiveIsGood={false}
-            testId="kpi-turn-cost"
-            deltaSuffix={t('kpis.deltaSuffix')}
-            noPriorData={t('kpis.noPriorData')}
-          />
-          <KpiTile
-            label={t('kpis.capEx')}
-            value={capEx.formatted}
-            rawValue={capEx.value}
-            delta={capEx.delta}
-            positiveIsGood={false}
-            testId="kpi-capex"
-            deltaSuffix={t('kpis.deltaSuffix')}
-            noPriorData={t('kpis.noPriorData')}
-          />
-          <KpiTile
-            label={t('kpis.debtService')}
-            value={debtService.formatted}
-            rawValue={debtService.value}
-            delta={debtService.delta}
-            positiveIsGood={false}
-            testId="kpi-debt-service"
-            deltaSuffix={t('kpis.deltaSuffix')}
-            noPriorData={t('kpis.noPriorData')}
-          />
-          <KpiTile
-            label={t('kpis.platformFees')}
-            value={platformFees.formatted}
-            rawValue={platformFees.value}
-            delta={platformFees.delta}
-            positiveIsGood={false}
-            testId="kpi-platform-fees"
-            deltaSuffix={t('kpis.deltaSuffix')}
-            noPriorData={t('kpis.noPriorData')}
-          />
-          <KpiTile
-            label={t('kpis.occupancy')}
-            value={occupancy.formatted}
-            rawValue={occupancy.value}
-            delta={occupancy.delta}
-            positiveIsGood={true}
-            testId="kpi-occupancy"
-            deltaSuffix={t('kpis.deltaSuffix')}
-            noPriorData={t('kpis.noPriorData')}
-          />
-          <KpiTile
-            label={t('kpis.pastDue')}
-            value={pastDue.formatted}
-            rawValue={pastDue.value}
-            delta={pastDue.delta}
-            positiveIsGood={false}
-            testId="kpi-past-due"
-            deltaSuffix={t('kpis.deltaSuffix')}
-            noPriorData={t('kpis.noPriorData')}
-          />
+          <KpiTile label={t('kpis.trueNetProfit')} value={trueNetProfit.formatted} rawValue={trueNetProfit.value} delta={trueNetProfit.delta} positiveIsGood={true} testId="kpi-true-net-profit" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
+          <KpiTile label={t('kpis.turnCost')} value={turnCost.formatted} rawValue={turnCost.value} delta={turnCost.delta} positiveIsGood={false} testId="kpi-turn-cost" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
+          <KpiTile label={t('kpis.capEx')} value={capEx.formatted} rawValue={capEx.value} delta={capEx.delta} positiveIsGood={false} testId="kpi-capex" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
+          <KpiTile label={t('kpis.debtService')} value={debtService.formatted} rawValue={debtService.value} delta={debtService.delta} positiveIsGood={false} testId="kpi-debt-service" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
+          <KpiTile label={t('kpis.platformFees')} value={platformFees.formatted} rawValue={platformFees.value} delta={platformFees.delta} positiveIsGood={false} testId="kpi-platform-fees" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
+          <KpiTile label={t('kpis.occupancy')} value={occupancy.formatted} rawValue={occupancy.value} delta={occupancy.delta} positiveIsGood={true} testId="kpi-occupancy" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
+          <KpiTile label={t('kpis.pastDue')} value={pastDue.formatted} rawValue={pastDue.value} delta={pastDue.delta} positiveIsGood={false} testId="kpi-past-due" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
         </div>
       </div>
 
-      {/* ── AC24: 12-month Trend Chart ─────────────────────────────────────── */}
       <Card padding="md">
-        <CardHeader>
-          <CardTitle>{t('trend.cardTitle')}</CardTitle>
-        </CardHeader>
-        <TrendChart
-          data={trendData}
-          labels={{
-            revenue: t('trend.revenue'),
-            expenses: t('trend.expenses'),
-            netProfit: t('trend.netProfit'),
-            title: t('trend.title'),
-            noData: t('trend.noData'),
-          }}
-        />
+        <CardHeader><CardTitle>{t('trend.cardTitle')}</CardTitle></CardHeader>
+        <TrendChart data={trendData} labels={{ revenue: t('trend.revenue'), expenses: t('trend.expenses'), netProfit: t('trend.netProfit'), title: t('trend.title'), noData: t('trend.noData') }} />
       </Card>
 
-      {/* Legacy: Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card padding="md">
           <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('totalIncome')}</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">
-            ${pnl.totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </p>
+          <p className="mt-1 text-2xl font-bold text-green-600">S/ {pnl.totalIncome.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
         </Card>
         <Card padding="md">
           <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('totalExpenses')}</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">
-            ${pnl.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </p>
+          <p className="mt-1 text-2xl font-bold text-red-600">S/ {pnl.totalExpenses.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
         </Card>
         <Card padding="md">
           <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('netIncome')}</p>
-          <p className={`mt-1 text-2xl font-bold ${pnl.netIncome >= 0 ? 'text-slate-900' : 'text-red-600'}`}>
-            ${pnl.netIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </p>
+          <p className={`mt-1 text-2xl font-bold ${pnl.netIncome >= 0 ? 'text-slate-900' : 'text-red-600'}`}>S/ {pnl.netIncome.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
         </Card>
       </div>
 
-      {/* P&L by Month */}
       <Card padding="md">
-        <CardHeader>
-          <CardTitle>{t('pnlByMonth')}</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>{t('pnlByMonth')}</CardTitle></CardHeader>
         {pnl.byMonth.length === 0 ? (
-          <EmptyState
-            title={t('noData')}
-            description={t('noDataDesc')}
-          />
+          <EmptyState title={t('noData')} description={t('noDataDesc')} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -338,11 +189,9 @@ export default async function FinancePage() {
                 {pnl.byMonth.map((row) => (
                   <tr key={row.month} className="border-b border-slate-50 hover:bg-slate-50">
                     <td className="py-2 text-slate-700">{row.month}</td>
-                    <td className="py-2 text-right text-green-600">${row.income.toFixed(2)}</td>
-                    <td className="py-2 text-right text-red-500">${row.expenses.toFixed(2)}</td>
-                    <td className={`py-2 text-right font-medium ${row.net >= 0 ? 'text-slate-900' : 'text-red-600'}`}>
-                      ${row.net.toFixed(2)}
-                    </td>
+                    <td className="py-2 text-right text-green-600">S/ {row.income.toFixed(2)}</td>
+                    <td className="py-2 text-right text-red-500">S/ {row.expenses.toFixed(2)}</td>
+                    <td className={`py-2 text-right font-medium ${row.net >= 0 ? 'text-slate-900' : 'text-red-600'}`}>S/ {row.net.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -351,11 +200,8 @@ export default async function FinancePage() {
         )}
       </Card>
 
-      {/* Cash Flow Timeline */}
       <Card padding="md">
-        <CardHeader>
-          <CardTitle>{t('recentCashFlow')}</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>{t('recentCashFlow')}</CardTitle></CardHeader>
         {cashFlow.length === 0 ? (
           <EmptyState title={t('noTransactions')} description={t('noTransactionsDesc')} />
         ) : (
@@ -363,15 +209,12 @@ export default async function FinancePage() {
             {cashFlow.map((entry, i) => (
               <div key={i} className="flex items-center justify-between py-1.5 border-b border-slate-50 last:border-0">
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`w-2 h-2 rounded-full ${entry.type === 'income' ? 'bg-green-500' : 'bg-red-400'}`}
-                    aria-hidden="true"
-                  />
+                  <span className={`w-2 h-2 rounded-full ${entry.type === 'income' ? 'bg-green-500' : 'bg-red-400'}`} aria-hidden="true" />
                   <span className="text-sm text-slate-700">{entry.date}</span>
                   <span className="text-xs text-slate-500">{entry.label}</span>
                 </div>
                 <span className={`text-sm font-medium ${entry.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
-                  {entry.type === 'income' ? '+' : '-'}${entry.amount.toFixed(2)}
+                  {entry.type === 'income' ? '+' : '-'}S/ {entry.amount.toFixed(2)}
                 </span>
               </div>
             ))}
@@ -379,20 +222,9 @@ export default async function FinancePage() {
         )}
       </Card>
 
-      {/* Quick links */}
       <div className="flex gap-3 flex-wrap">
-        <Link
-          href="/dashboard/finance/rooms"
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
-        >
-          {t('viewRoomProfitability')}
-        </Link>
-        <Link
-          href="/dashboard/finance/receipts"
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-        >
-          {t('viewOcrReceipts')}
-        </Link>
+        <Link href="/dashboard/finance/rooms" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors">{t('viewRoomProfitability')}</Link>
+        <Link href="/dashboard/finance/receipts" className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">{t('viewOcrReceipts')}</Link>
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
-﻿import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { receiptUploads, payments as paymentsTable } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OcrReceiptsClient } from './OcrReceiptsClient';
@@ -7,24 +9,22 @@ import type { ReceiptUpload } from '@/types';
 
 export default async function OcrReceiptsPage() {
   const ctx = await requireAdmin();
-  const supabase = await createClient();
   const t = await getTranslations('ocrReceipts');
 
-  const { data: receipts } = await supabase
-    .from('receipt_uploads')
-    .select('*')
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  // Fetch pending payments for match picker
-  const { data: pendingPayments } = await supabase
-    .from('payments')
-    .select('id, amount, paid_at, reference')
-    .eq('org_id', ctx.orgId)
-    .eq('status', 'pending')
-    .order('paid_at', { ascending: false })
-    .limit(50);
+  const [receipts, pendingPayments] = await Promise.all([
+    db
+      .select()
+      .from(receiptUploads)
+      .where(eq(receiptUploads.orgId, ctx.orgId))
+      .orderBy(desc(receiptUploads.createdAt))
+      .limit(50),
+    db
+      .select({ id: paymentsTable.id, amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, reference: paymentsTable.reference })
+      .from(paymentsTable)
+      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'pending')))
+      .orderBy(desc(paymentsTable.paidAt))
+      .limit(50),
+  ]);
 
   return (
     <div className="p-6 space-y-6">
@@ -34,15 +34,15 @@ export default async function OcrReceiptsPage() {
         <p className="mt-0.5 text-xs text-amber-600">{t('aiWarning')}</p>
       </div>
 
-      {(receipts ?? []).length === 0 ? (
+      {receipts.length === 0 ? (
         <EmptyState
           title={t('emptyTitle')}
           description={t('emptyDesc')}
         />
       ) : (
         <OcrReceiptsClient
-          receipts={(receipts ?? []) as ReceiptUpload[]}
-          pendingPayments={pendingPayments ?? []}
+          receipts={receipts as unknown as ReceiptUpload[]}
+          pendingPayments={pendingPayments}
         />
       )}
     </div>

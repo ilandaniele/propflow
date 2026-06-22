@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { additionalCharges, contracts, tenants } from '@/lib/db/schema';
+import { eq, desc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -12,35 +14,42 @@ export default async function AdditionalChargesPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('additionalCharges')]);
+  const t = await getTranslations('additionalCharges');
 
-  const { data: charges } = await supabase
-    .from('additional_charges')
-    .select('*, contracts(id, tenants(full_name))')
-    .eq('org_id', ctx.orgId)
-    .order('anio', { ascending: false })
-    .order('mes', { ascending: false })
+  const rows = await db
+    .select({
+      id:          additionalCharges.id,
+      contractId:  additionalCharges.contractId,
+      mes:         additionalCharges.mes,
+      anio:        additionalCharges.anio,
+      amount:      additionalCharges.amount,
+      description: additionalCharges.description,
+      numero:      additionalCharges.numero,
+      tenantFullName: tenants.fullName,
+    })
+    .from(additionalCharges)
+    .leftJoin(contracts, and(eq(contracts.id, additionalCharges.contractId), eq(contracts.orgId, ctx.orgId)))
+    .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
+    .where(eq(additionalCharges.orgId, ctx.orgId))
+    .orderBy(desc(additionalCharges.anio), desc(additionalCharges.mes))
     .limit(200);
 
-  const rows = charges ?? [];
-  const totalAmount = rows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+  const totalAmount = rows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
 
   // By concept/description breakdown
   const byDescription: Record<string, number> = {};
   for (const r of rows) {
     const key = r.description ?? t('kpi.noDescription');
-    byDescription[key] = (byDescription[key] ?? 0) + (r.amount ?? 0);
+    byDescription[key] = (byDescription[key] ?? 0) + Number(r.amount ?? 0);
   }
-  const topConcepts = Object.entries(byDescription)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 6);
+  const topConcepts = Object.entries(byDescription).sort(([, a], [, b]) => b - a).slice(0, 6);
 
   // By month (last 6 months that have data)
   const byMonth: Record<string, number> = {};
   for (const r of rows) {
     if (r.mes && r.anio) {
       const key = `${r.anio}-${String(r.mes).padStart(2, '0')}`;
-      byMonth[key] = (byMonth[key] ?? 0) + (r.amount ?? 0);
+      byMonth[key] = (byMonth[key] ?? 0) + Number(r.amount ?? 0);
     }
   }
   const monthKeys = Object.keys(byMonth).sort().slice(-6);
@@ -49,11 +58,10 @@ export default async function AdditionalChargesPage() {
   // By tenant
   const byTenant: Record<string, { name: string; total: number }> = {};
   for (const r of rows) {
-    const contract = r.contracts as { tenants: { full_name: string } | null } | null;
-    const name = contract?.tenants?.full_name ?? t('kpi.unknown');
-    const id = (r as Record<string, unknown>).contract_id as string ?? name;
+    const name = r.tenantFullName ?? t('kpi.unknown');
+    const id   = r.contractId ?? name;
     if (!byTenant[id]) byTenant[id] = { name, total: 0 };
-    byTenant[id].total += (r.amount ?? 0);
+    byTenant[id].total += Number(r.amount ?? 0);
   }
   const topTenants = Object.values(byTenant).sort((a, b) => b.total - a.total).slice(0, 5);
 
@@ -147,15 +155,13 @@ export default async function AdditionalChargesPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((charge) => {
-                const contract = charge.contracts as { tenants: { full_name: string } | null } | null;
-                const tenantName = contract?.tenants?.full_name ?? '—';
                 const period = charge.mes && charge.anio ? `${charge.mes} ${charge.anio}` : '—';
                 return (
                   <tr key={charge.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{tenantName}</td>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{charge.tenantFullName ?? '—'}</td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{period}</td>
                     <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                      S/ {(charge.amount ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                      S/ {Number(charge.amount ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden md:table-cell max-w-xs truncate">
                       {charge.description ?? '—'}
