@@ -1,5 +1,7 @@
-﻿import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { pricingTables } from '@/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -8,14 +10,13 @@ import type { PricingTable, PricingTier } from '@/types';
 
 export default async function PricingPage() {
   const ctx = await requireAdmin();
-  const supabase = await createClient();
   const t = await getTranslations('pricingTables');
 
-  const { data: tables } = await supabase
-    .from('pricing_tables')
-    .select('*')
-    .eq('org_id', ctx.orgId)
-    .order('property_type', { ascending: true });
+  const tables = await db
+    .select()
+    .from(pricingTables)
+    .where(eq(pricingTables.orgId, ctx.orgId))
+    .orderBy(asc(pricingTables.propertyType));
 
   return (
     <div className="p-6 space-y-6">
@@ -29,11 +30,11 @@ export default async function PricingPage() {
         <PricingTableForm />
       </Card>
 
-      {(tables ?? []).length === 0 ? (
+      {tables.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
       ) : (
         <div className="space-y-4">
-          {(tables as PricingTable[]).map((table) => {
+          {(tables as unknown as PricingTable[]).map((table) => {
             const tiers = (table.tiers as PricingTier[]) ?? [];
             return (
               <Card key={table.id} padding="md">

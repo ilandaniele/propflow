@@ -1,7 +1,9 @@
-﻿import type { Metadata } from 'next';
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { responsables, tenants } from '@/lib/db/schema';
+import { eq, asc, isNotNull } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -12,27 +14,37 @@ export default async function ResponsablesPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('responsables')]);
-
-  const { data: rows } = await supabase
-    .from('responsables')
-    .select('id, full_name, dni, phone, email, employment, company, job_title, industry, photo_url, airtable_synced_at')
-    .eq('org_id', ctx.orgId)
-    .order('full_name');
-
-  const responsables = rows ?? [];
+  const [rows, t] = await Promise.all([
+    db
+      .select({
+        id:               responsables.id,
+        fullName:         responsables.fullName,
+        dni:              responsables.dni,
+        phone:            responsables.phone,
+        email:            responsables.email,
+        employment:       responsables.employment,
+        company:          responsables.company,
+        jobTitle:         responsables.jobTitle,
+        industry:         responsables.industry,
+        photoUrl:         responsables.photoUrl,
+        airtableSyncedAt: responsables.airtableSyncedAt,
+      })
+      .from(responsables)
+      .where(eq(responsables.orgId, ctx.orgId))
+      .orderBy(asc(responsables.fullName)),
+    getTranslations('responsables'),
+  ]);
 
   // Count tenants linked per responsable
-  const { data: links } = await supabase
-    .from('tenants')
-    .select('responsable_id')
-    .eq('org_id', ctx.orgId)
-    .not('responsable_id', 'is', null);
+  const links = await db
+    .select({ responsableId: tenants.responsableId })
+    .from(tenants)
+    .where(eq(tenants.orgId, ctx.orgId));
 
   const tenantsByResponsable: Record<string, number> = {};
-  for (const row of links ?? []) {
-    if (row.responsable_id) {
-      tenantsByResponsable[row.responsable_id] = (tenantsByResponsable[row.responsable_id] ?? 0) + 1;
+  for (const row of links) {
+    if (row.responsableId) {
+      tenantsByResponsable[row.responsableId] = (tenantsByResponsable[row.responsableId] ?? 0) + 1;
     }
   }
 
@@ -40,10 +52,10 @@ export default async function ResponsablesPage() {
     <div className="space-y-6 max-w-5xl">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
-        <p className="text-sm text-slate-500 mt-1">{t('subtitle', { count: responsables.length })}</p>
+        <p className="text-sm text-slate-500 mt-1">{t('subtitle', { count: rows.length })}</p>
       </div>
 
-      {responsables.length === 0 ? (
+      {rows.length === 0 ? (
         <Card>
           <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
         </Card>
@@ -60,16 +72,14 @@ export default async function ResponsablesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {responsables.map((r) => {
+              {rows.map((r) => {
                 const tenantCount = tenantsByResponsable[r.id] ?? 0;
                 return (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-5 py-4">
                       <div>
-                        <p className="text-sm font-medium text-slate-900">{r.full_name ?? '—'}</p>
-                        {r.dni && (
-                          <p className="text-xs text-slate-400">DNI: {r.dni}</p>
-                        )}
+                        <p className="text-sm font-medium text-slate-900">{r.fullName ?? '—'}</p>
+                        {r.dni && <p className="text-xs text-slate-400">DNI: {r.dni}</p>}
                       </div>
                     </td>
                     <td className="px-5 py-4 hidden sm:table-cell">
@@ -84,7 +94,7 @@ export default async function ResponsablesPage() {
                     <td className="px-5 py-4 hidden lg:table-cell">
                       <div>
                         <p className="text-sm text-slate-700">{r.company ?? '—'}</p>
-                        {r.job_title && <p className="text-xs text-slate-400">{r.job_title}</p>}
+                        {r.jobTitle && <p className="text-xs text-slate-400">{r.jobTitle}</p>}
                         {r.industry && <p className="text-xs text-slate-400">{r.industry}</p>}
                       </div>
                     </td>
@@ -105,9 +115,7 @@ export default async function ResponsablesPage() {
         </div>
       )}
 
-      <p className="text-xs text-slate-400">
-        {t('syncNote')}
-      </p>
+      <p className="text-xs text-slate-400">{t('syncNote')}</p>
     </div>
   );
 }

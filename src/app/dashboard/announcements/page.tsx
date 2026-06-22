@@ -1,5 +1,7 @@
-﻿import { requireAdmin } from '@/lib/auth/guards';
-import { createAdminServerClient as createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { announcements } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
@@ -8,14 +10,21 @@ import { AnnouncementForm } from './AnnouncementForm';
 
 export default async function AnnouncementsPage() {
   const ctx = await requireAdmin();
-  const supabase = await createClient();
   const t = await getTranslations('announcements');
 
-  const { data: announcements } = await supabase
-    .from('announcements')
-    .select('id, title, body, audience, published_at, expires_at, created_at')
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
+  const rows = await db
+    .select({
+      id:          announcements.id,
+      title:       announcements.title,
+      body:        announcements.body,
+      audience:    announcements.audience,
+      publishedAt: announcements.publishedAt,
+      expiresAt:   announcements.expiresAt,
+      createdAt:   announcements.createdAt,
+    })
+    .from(announcements)
+    .where(eq(announcements.orgId, ctx.orgId))
+    .orderBy(desc(announcements.createdAt))
     .limit(50);
 
   return (
@@ -27,11 +36,11 @@ export default async function AnnouncementsPage() {
         <AnnouncementForm />
       </Card>
 
-      {(announcements ?? []).length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
       ) : (
         <div className="space-y-3">
-          {(announcements ?? []).map((ann) => (
+          {rows.map((ann) => (
             <Card key={ann.id} padding="md">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex-1 min-w-0">
@@ -39,12 +48,12 @@ export default async function AnnouncementsPage() {
                   <p className="text-sm text-slate-600 mt-1 line-clamp-2">{ann.body}</p>
                   <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                     <span>{t('audience')}: {ann.audience}</span>
-                    {ann.expires_at && <span>{t('expires')}: {new Date(ann.expires_at).toLocaleDateString()}</span>}
+                    {ann.expiresAt && <span>{t('expires')}: {new Date(ann.expiresAt).toLocaleDateString()}</span>}
                   </div>
                 </div>
-                <StatusPill status={ann.published_at ? 'published' : 'draft'} />
+                <StatusPill status={ann.publishedAt ? 'published' : 'draft'} />
               </div>
-              {!ann.published_at && (
+              {!ann.publishedAt && (
                 <form className="mt-3" action={async (formData) => {
                   'use server';
                   const { publishAnnouncement } = await import('@/app/actions/ops');
