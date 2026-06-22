@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
+import { uploadFile } from '@/lib/storage';
 import { Errors, ok } from '@/lib/errors';
 import {
   CreateIncidentSchema,
@@ -100,16 +101,16 @@ export async function createIncident(
     const ext = photoFile.name.split('.').pop() ?? 'jpg';
     const storagePath = `${ctx.orgId}/${newIncident.id}/${randomUUID()}.${ext}`;
 
-    const photoBuffer = await photoFile.arrayBuffer();
-    const { error: uploadError } = await supabase.storage
-      .from('incident-photos')
-      .upload(storagePath, photoBuffer, {
-        contentType: photoFile.type,
-        upsert: false,
-      });
+    const photoBuffer = Buffer.from(await photoFile.arrayBuffer());
+    let uploadError: string | undefined;
+    try {
+      await uploadFile('incident-photos', storagePath, photoBuffer, photoFile.type, false);
+    } catch (err) {
+      uploadError = err instanceof Error ? err.message : String(err);
+    }
 
     if (uploadError) {
-      log.error('[createIncident] photo upload error', { code: uploadError.message });
+      log.error('[createIncident] photo upload error', { code: uploadError });
       // Incident row already created — clean up or leave without photo.
       // We leave the row intact (it is valid without a photo) but do not fail silently.
       // Returning INTERNAL here would leave an orphaned row; instead, return partial success

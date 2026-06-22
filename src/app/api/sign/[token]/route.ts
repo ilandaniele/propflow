@@ -4,6 +4,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Errors } from '@/lib/errors';
+import { uploadFile } from '@/lib/storage';
 import { SignSubmitSchema } from '@/lib/schemas/contractDoc';
 import { signatureRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
@@ -137,12 +138,10 @@ export async function POST(
   const imageBytes = Buffer.from(base64Data, 'base64');
   const signaturePath = `${sigReq.org_id}/${sigReq.contract_id}/signature.png`;
 
-  const { error: uploadError } = await admin.storage
-    .from('contracts')
-    .upload(signaturePath, imageBytes, { contentType: 'image/png', upsert: true });
-
-  if (uploadError) {
-    log.error('[sign] signature image upload error', { error: uploadError.message });
+  try {
+    await uploadFile('contracts', signaturePath, imageBytes, 'image/png', true);
+  } catch (err) {
+    log.error('[sign] signature image upload error', { error: err instanceof Error ? err.message : String(err) });
     return NextResponse.json(Errors.INTERNAL(), { status: 500 });
   }
 

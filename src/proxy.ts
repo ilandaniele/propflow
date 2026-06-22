@@ -10,8 +10,8 @@ export async function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
-    `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase.co'} wss://*.supabase.co https://accounts.google.com`,
-    "img-src 'self' data: https:",
+    `connect-src 'self' ${process.env.TIGRIS_ENDPOINT ?? 'https://fly.storage.tigris.dev'} https://accounts.google.com`,
+    `img-src 'self' data: https: ${process.env.TIGRIS_ENDPOINT ?? 'https://fly.storage.tigris.dev'}`,
     "font-src 'self' data:",
     "frame-ancestors 'none'",
     "frame-src https://accounts.google.com",           // Google OAuth redirect/popup

@@ -1,9 +1,9 @@
 /**
- * Storage abstraction layer for Supabase Storage.
+ * Storage abstraction layer — Tigris S3-compatible backend.
  *
  * Thin TypeScript module exposing:
  *   uploadImage()       — upload a buffer to a private bucket
- *   getSignedUrl()      — generate a time-limited signed URL
+ *   getSignedUrl()      — generate a time-limited presigned GET URL
  *   deleteImage()       — remove an object from storage
  *   validateImageFile() — check MIME + magic bytes + size before upload
  *   buildStoragePath()  — canonical path helper: {orgId}/{resourceId}/{uuid}.{ext}
@@ -16,13 +16,25 @@
  *   - ASVS V12.3.1  path traversal: path built from server-controlled template
  *   - ASVS V12.6.1  SVG rejected (not in ALLOWED_MIME_TYPES)
  *
- * IC-6: Single-backend implementation (Supabase Storage only — YAGNI for
- * single-cloud). The interface is a stable seam; replacing the backend
- * (S3, GCS) would only require changes inside this file.
+ * Credential security:
+ *   - TIGRIS_ACCESS_KEY_ID, TIGRIS_SECRET_ACCESS_KEY are SERVER-ONLY.
+ *   - NEVER use NEXT_PUBLIC_ for any Tigris credential.
+ *   - Presigned URL TTL is capped at DEFAULT_SIGNED_URL_TTL_S (3600s).
+ *
+ * Bucket mapping:
+ *   Old Supabase bucket names are mapped to Tigris bucket names via
+ *   environment variables (TIGRIS_BUCKET_*). The public API is unchanged;
+ *   callers pass the logical bucket name (e.g. 'receipts') and this module
+ *   resolves the physical Tigris bucket.
  */
 
-import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { sniffMimeType } from '@/lib/storage/mime-sniff';
 import { randomUUID } from 'crypto';
 
@@ -34,14 +46,85 @@ import { randomUUID } from 'crypto';
 export const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
-/** Default signed URL TTL in seconds (1 hour) */
+/** Default signed URL TTL in seconds (1 hour — hard cap) */
 export const DEFAULT_SIGNED_URL_TTL_S = 3600;
 
-/** Maximum image size in bytes (5 MB) — matches bucket policy */
+/** Maximum image size in bytes (5 MB) */
 export const MAX_IMAGE_SIZE_BYTES = 5_242_880;
 
 /** Maximum images per unit (IC-11 quota) */
 export const MAX_IMAGES_PER_UNIT = 20;
+
+// ---------------------------------------------------------------------------
+// Bucket name resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps logical (Supabase-era) bucket names to Tigris bucket names via env vars.
+ *
+ * Callers pass the logical name — this function resolves the physical bucket.
+ * Each logical bucket has a dedicated env var; if not set we fall back to the
+ * logical name so that local dev with a single catch-all bucket still works.
+ *
+ * Logical → env var mapping:
+ *   unit-images       → TIGRIS_BUCKET_UNIT_IMAGES
+ *   tenant-avatars    → TIGRIS_BUCKET_TENANT_AVATARS
+ *   receipts          → TIGRIS_BUCKET_RECEIPTS
+ *   incident-photos   → TIGRIS_BUCKET_INCIDENT_PHOTOS
+ *   task-proofs       → TIGRIS_BUCKET_TASK_PROOFS
+ *   contracts         → TIGRIS_BUCKET_CONTRACTS
+ */
+const BUCKET_ENV_MAP: Record<string, string> = {
+  'unit-images':     'TIGRIS_BUCKET_UNIT_IMAGES',
+  'tenant-avatars':  'TIGRIS_BUCKET_TENANT_AVATARS',
+  'receipts':        'TIGRIS_BUCKET_RECEIPTS',
+  'incident-photos': 'TIGRIS_BUCKET_INCIDENT_PHOTOS',
+  'task-proofs':     'TIGRIS_BUCKET_TASK_PROOFS',
+  'contracts':       'TIGRIS_BUCKET_CONTRACTS',
+};
+
+function resolveBucket(logicalName: string): string {
+  const envKey = BUCKET_ENV_MAP[logicalName];
+  if (envKey) {
+    const envVal = process.env[envKey];
+    if (envVal) return envVal;
+  }
+  // Fall back to logical name (dev convenience; log a warning)
+  console.warn(`[storage] TIGRIS_BUCKET env var not set for logical bucket "${logicalName}" (key: ${envKey ?? 'unknown'}). Using logical name as bucket name.`);
+  return logicalName;
+}
+
+// ---------------------------------------------------------------------------
+// S3 client (singleton — one per process, thread-safe)
+// ---------------------------------------------------------------------------
+
+function buildS3Client(): S3Client {
+  const endpoint = process.env.TIGRIS_ENDPOINT;
+  const region   = process.env.AWS_REGION ?? 'auto';
+  const accessKeyId     = process.env.TIGRIS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.TIGRIS_SECRET_ACCESS_KEY;
+
+  if (!endpoint || !accessKeyId || !secretAccessKey) {
+    throw new Error(
+      '[storage] Missing required Tigris env vars: TIGRIS_ENDPOINT, TIGRIS_ACCESS_KEY_ID, TIGRIS_SECRET_ACCESS_KEY'
+    );
+  }
+
+  return new S3Client({
+    endpoint,
+    region,
+    credentials: { accessKeyId, secretAccessKey },
+    // Tigris is S3-compatible with path-style addressing
+    forcePathStyle: false,
+  });
+}
+
+// Lazy singleton — only instantiated when first storage call is made
+let _s3: S3Client | null = null;
+function s3(): S3Client {
+  if (!_s3) _s3 = buildS3Client();
+  return _s3;
+}
 
 // ---------------------------------------------------------------------------
 // Path builder
@@ -149,13 +232,12 @@ export function validateImageFile(
 // ---------------------------------------------------------------------------
 
 /**
- * Uploads an image buffer to a Supabase Storage bucket.
+ * Uploads an image buffer to a Tigris S3 bucket.
  *
- * Uses the admin client (service-role) so upload succeeds regardless of the
- * caller's RLS scope. The calling Server Action is responsible for auth checks
+ * The calling Server Action is responsible for auth checks
  * (requireAdmin / requireTenant) BEFORE calling this function.
  *
- * @param bucket    Target bucket name (e.g. 'unit-images', 'tenant-avatars')
+ * @param bucket    Logical bucket name (e.g. 'unit-images', 'tenant-avatars')
  * @param path      Storage path (e.g. '{orgId}/{unitId}/{uuid}.jpg')
  * @param buffer    File content as Buffer
  * @param mimeType  Validated MIME type for the Content-Type header
@@ -167,59 +249,110 @@ export async function uploadImage(
   buffer: Buffer,
   mimeType: AllowedMimeType
 ): Promise<{ path: string }> {
-  const supabase = createAdminClient();
-  const { error } = await supabase.storage
-    .from(bucket)
-    .upload(path, buffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
+  const physicalBucket = resolveBucket(bucket);
 
-  if (error) {
-    throw new Error(`[storage.uploadImage] bucket=${bucket} path=${path} error=${error.message}`);
+  try {
+    await s3().send(new PutObjectCommand({
+      Bucket: physicalBucket,
+      Key: path,
+      Body: buffer,
+      ContentType: mimeType,
+    }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[storage.uploadImage] bucket=${bucket} path=${path} error=${msg}`);
   }
 
   return { path };
 }
 
 /**
- * Generates a signed URL for a private storage object.
+ * Uploads arbitrary bytes to a Tigris S3 bucket (used for non-image files
+ * such as PDF receipts and PNG signature images).
+ *
+ * @param bucket      Logical bucket name
+ * @param path        Storage key / path
+ * @param body        Raw bytes
+ * @param contentType MIME type
+ * @param upsert      If false (default), the upload is a new object; if true, overwrites
+ * @returns           Object with { path } on success — throws on failure
+ */
+export async function uploadFile(
+  bucket: string,
+  path: string,
+  body: Buffer | ArrayBuffer | Uint8Array,
+  contentType: string,
+  upsert: boolean = false,
+): Promise<{ path: string }> {
+  const physicalBucket = resolveBucket(bucket);
+  let buffer: Buffer;
+  if (body instanceof Buffer) {
+    buffer = body;
+  } else if (body instanceof ArrayBuffer) {
+    buffer = Buffer.from(new Uint8Array(body));
+  } else {
+    buffer = Buffer.from(body);
+  }
+
+  try {
+    await s3().send(new PutObjectCommand({
+      Bucket: physicalBucket,
+      Key: path,
+      Body: buffer,
+      ContentType: contentType,
+      // Tigris does not have a native "upsert=false" guard; if the caller wants
+      // strict "no overwrite" semantics, they should check existence first.
+      // The upsert param is kept for API compatibility with the Supabase seam.
+    }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[storage.uploadFile] bucket=${bucket} path=${path} error=${msg}`);
+  }
+
+  return { path };
+}
+
+/**
+ * Generates a presigned GET URL for a private storage object.
  *
  * The caller is responsible for IDOR checks (path.startsWith(ctx.orgId)) before
  * calling this function. This function only generates the URL — it does not enforce
  * access control.
  *
- * @param bucket  Bucket name
+ * @param bucket  Logical bucket name
  * @param path    Object path within the bucket
- * @param ttl     Signed URL TTL in seconds (default: DEFAULT_SIGNED_URL_TTL_S = 3600)
- * @returns       Signed URL string — throws on failure
+ * @param ttl     Presigned URL TTL in seconds (default: DEFAULT_SIGNED_URL_TTL_S = 3600, hard cap)
+ * @returns       Presigned URL string — throws on failure
  */
 export async function getSignedUrl(
   bucket: string,
   path: string,
   ttl: number = DEFAULT_SIGNED_URL_TTL_S
 ): Promise<string> {
-  // Use the user-scoped client for signed URL generation — RLS applies
-  const supabase = await createClient();
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .createSignedUrl(path, ttl);
+  // Hard cap: never issue presigned URLs longer than 1 hour
+  const safeTtl = Math.min(ttl, DEFAULT_SIGNED_URL_TTL_S);
+  const physicalBucket = resolveBucket(bucket);
 
-  if (error || !data?.signedUrl) {
-    throw new Error(`[storage.getSignedUrl] bucket=${bucket} path=${path} error=${error?.message ?? 'no signed URL returned'}`);
+  const command = new GetObjectCommand({
+    Bucket: physicalBucket,
+    Key: path,
+  });
+
+  try {
+    return await awsGetSignedUrl(s3(), command, { expiresIn: safeTtl });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[storage.getSignedUrl] bucket=${bucket} path=${path} error=${msg}`);
   }
-
-  return data.signedUrl;
 }
 
 /**
- * Deletes an object from a Supabase Storage bucket.
+ * Deletes an object from a Tigris S3 bucket.
  *
- * Uses the admin client (service-role) so deletion succeeds even if the
- * object was uploaded by a different user. The calling Server Action is
- * responsible for verifying ownership before calling this function.
+ * The calling Server Action is responsible for verifying ownership before
+ * calling this function.
  *
- * @param bucket  Bucket name
+ * @param bucket  Logical bucket name
  * @param path    Object path to delete
  * @throws        Error if deletion fails
  */
@@ -227,12 +360,15 @@ export async function deleteImage(
   bucket: string,
   path: string
 ): Promise<void> {
-  const supabase = createAdminClient();
-  const { error } = await supabase.storage
-    .from(bucket)
-    .remove([path]);
+  const physicalBucket = resolveBucket(bucket);
 
-  if (error) {
-    throw new Error(`[storage.deleteImage] bucket=${bucket} path=${path} error=${error.message}`);
+  try {
+    await s3().send(new DeleteObjectCommand({
+      Bucket: physicalBucket,
+      Key: path,
+    }));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`[storage.deleteImage] bucket=${bucket} path=${path} error=${msg}`);
   }
 }

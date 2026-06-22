@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
+import { uploadFile } from '@/lib/storage';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
@@ -157,12 +158,16 @@ export async function uploadReceipt(
   const uuid = crypto.randomUUID();
   const filePath = `${ctx.orgId}/uploads/${uuid}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
-    .from('receipts')
-    .upload(filePath, file, { contentType: file.type, upsert: false });
+  let uploadErr: string | undefined;
+  try {
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    await uploadFile('receipts', filePath, fileBuffer, file.type, false);
+  } catch (err) {
+    uploadErr = err instanceof Error ? err.message : String(err);
+  }
 
-  if (uploadError) {
-    log.error('[uploadReceipt] storage error', { code: uploadError.message });
+  if (uploadErr) {
+    log.error('[uploadReceipt] storage error', { code: uploadErr });
     return Errors.INTERNAL();
   }
 
