@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tests/integration/csv-import.test.ts
  *
  * Integration tests for src/app/actions/imports.ts
@@ -89,6 +89,11 @@ vi.mock('@/lib/ratelimit', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    from: vi.fn((table: string) => {
+      return {
+        insert: vi.fn((data: unknown) => {
+          mockState.dbCalls.push({ table})),
+  createAdminServerClient: vi.fn(async () => ({
     from: vi.fn((table: string) => {
       return {
         insert: vi.fn((data: unknown) => {

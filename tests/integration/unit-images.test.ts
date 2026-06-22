@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Integration tests for unit image Server Actions.
  *
  * All Supabase and storage calls are mocked — no live DB or bucket required.
@@ -162,7 +162,8 @@ function makeQueryBuilder(result: unknown) {
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => buildSupabaseMock()),
+  createClient: vi.fn(async () => buildSupabaseMock())})),
+  createAdminServerClient: vi.fn(async () => buildSupabaseMock()),
 }));
 
 function buildSupabaseMock() {

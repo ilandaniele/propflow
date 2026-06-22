@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests: portal layout fast-auth path (W3 — AC4)
  *
  * Covers:
@@ -91,6 +91,13 @@ vi.mock('@/lib/supabase/server', () => ({
   getSessionFast: () => mockGetSessionFast(),
   // createClient is present so the import resolves — layout should NOT call it
   createClient: vi.fn(async () => ({
+    from: vi.fn((table: string) => {
+      fromCallTables.push(table);
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            is: vi.fn(async () => ({ count: 0})),
+  createAdminServerClient: vi.fn(async () => ({
     from: vi.fn((table: string) => {
       fromCallTables.push(table);
       return {

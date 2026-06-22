@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests: dashboard layout fast-auth path (W2 — AC3)
  *
  * Covers:
@@ -86,7 +86,8 @@ const mockGetOrgNameFast = vi.fn(async (_orgId: string) => mockState.orgName);
 
 vi.mock('@/lib/supabase/server', () => ({
   getSessionFast: () => mockGetSessionFast(),
-  createClient: vi.fn(),
+  createClient: vi.fn()})),
+  createAdminServerClient: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/guards', () => ({

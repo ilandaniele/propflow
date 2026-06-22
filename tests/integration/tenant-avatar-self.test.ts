@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Integration tests for tenant self-service avatar actions.
  *
  * All Supabase and storage calls are mocked — no live DB or bucket required.
@@ -122,7 +122,8 @@ vi.mock('@/lib/auth/guards', () => ({
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => buildSupabaseMock()),
+  createClient: vi.fn(async () => buildSupabaseMock())})),
+  createAdminServerClient: vi.fn(async () => buildSupabaseMock()),
 }));
 
 function buildSupabaseMock() {

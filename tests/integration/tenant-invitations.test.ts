@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tests/integration/tenant-invitations.test.ts
  *
  * Tests for the tenant invitation flow:
@@ -94,6 +94,11 @@ vi.mock('@/auth', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockImplementation(async () => ({
+    auth: {
+      getUser: async () => {
+        if (state.sessionError || !state.sessionUser) {
+          return { data: { user: null })),
+  createAdminServerClient: vi.fn().mockImplementation(async () => ({
     auth: {
       getUser: async () => {
         if (state.sessionError || !state.sessionUser) {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Integration regression tests for tenant Server Actions.
  *
  * Covers:
@@ -84,7 +84,8 @@ vi.mock('@/lib/auth/guards', () => ({
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => buildSupabaseMock()),
+  createClient: vi.fn(async () => buildSupabaseMock())})),
+  createAdminServerClient: vi.fn(async () => buildSupabaseMock()),
 }));
 
 function buildSupabaseMock() {

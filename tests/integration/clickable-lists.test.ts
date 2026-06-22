@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tests/integration/clickable-lists.test.tsx
  *
  * AC2 + AC4 — Integration tests for ClickableRow wiring in tenants and units lists.
@@ -97,6 +97,7 @@ const mockFrom = vi.fn();
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({ from: mockFrom })),
+  createAdminServerClient: vi.fn(async () => ({ from: mockFrom })),
 }));
 
 // ---------------------------------------------------------------------------

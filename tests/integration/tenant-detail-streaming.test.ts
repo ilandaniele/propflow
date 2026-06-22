@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tests/integration/tenant-detail-streaming.test.ts
  *
  * AC4 — Integration test: Tenant detail page shell paints before slowest tab.
@@ -27,6 +27,8 @@ import { describe, it, expect, vi } from 'vitest';
 // Mock Supabase and auth so imports don't fail in node environment
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: { getUser: vi.fn(async () => ({ data: { user: null })),
+  createAdminServerClient: vi.fn(async () => ({
     auth: { getUser: vi.fn(async () => ({ data: { user: null }, error: null })) },
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),

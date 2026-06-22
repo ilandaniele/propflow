@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Integration tests for GET /api/airtable-attachment Route Handler.
  *
  * All Supabase calls are mocked — no live DB required.
@@ -92,6 +92,9 @@ vi.mock('@/lib/auth/guards', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: {
+      getUser: async () => ({ data: { user: { id: mockState.userId })),
+  createAdminServerClient: vi.fn(async () => ({
     auth: {
       getUser: async () => ({ data: { user: { id: mockState.userId } }, error: null }),
     },

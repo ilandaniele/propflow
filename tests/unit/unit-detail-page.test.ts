@@ -107,6 +107,7 @@ const mockCreateClient = vi.fn();
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: mockCreateClient,
+  createAdminServerClient: mockCreateClient,
 }));
 
 // ---------------------------------------------------------------------------

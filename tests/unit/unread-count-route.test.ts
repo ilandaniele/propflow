@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests: GET /api/portal/notifications/unread-count Route Handler (W3 — AC4)
  *
  * Covers:
@@ -71,6 +71,12 @@ vi.mock('@/lib/auth/guards', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    from: vi.fn((_table: string) => ({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          is: vi.fn(async () => ({
+            count: dbState.count})),
+  createAdminServerClient: vi.fn(async () => ({
     from: vi.fn((_table: string) => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Integration tests for GET /api/unit-image Route Handler.
  *
  * All Supabase and storage calls are mocked — no live DB or bucket required.
@@ -75,6 +75,10 @@ vi.mock('@/lib/auth/guards', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: {
+      getUser: async () => ({
+        data: { user: { id: mockState.userId })),
+  createAdminServerClient: vi.fn(async () => ({
     auth: {
       getUser: async () => ({
         data: { user: { id: mockState.userId } },

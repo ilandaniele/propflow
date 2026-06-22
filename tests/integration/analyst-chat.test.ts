@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tests/integration/analyst-chat.test.ts
  *
  * AC16: Analyst free-form chat routes through /api/ai/chat.
@@ -71,6 +71,10 @@ const mockState: MockState = {
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: {
+      getUser: async () => ({
+        data: { user: mockState.user })),
+  createAdminServerClient: vi.fn(async () => ({
     auth: {
       getUser: async () => ({
         data: { user: mockState.user },

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tests/integration/llm-abuse.test.ts
  *
  * LLM abuse probes for /api/ai/executive-brief (AC13, AC31).
@@ -114,6 +114,11 @@ vi.mock('@/lib/auth/guards', () => ({
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({
+    auth: {
+      getUser: vi.fn(async () => {
+        if (mockDb.authError || !mockDb.user) {
+          return { data: { user: null })),
+  createAdminServerClient: vi.fn(async () => ({
     auth: {
       getUser: vi.fn(async () => {
         if (mockDb.authError || !mockDb.user) {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests for linkTenantPortalAccount and searchAuthUserByEmail Server Actions.
  *
  * Covers:
@@ -64,6 +64,14 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 // User-scoped Supabase client mock (RLS-enforced)
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn().mockResolvedValue({
+    from: vi.fn().mockImplementation((table: string) => {
+      if (table === 'tenants') {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                single: () => spyTenantSelect()})),
+  createAdminServerClient: vi.fn().mockResolvedValue({
     from: vi.fn().mockImplementation((table: string) => {
       if (table === 'tenants') {
         return {
