@@ -1,3 +1,27 @@
+# fly.toml — Fly.io app configuration
+#
+# Required Fly secrets (set via: fly secrets set KEY=value --app propflow-app)
+# These are runtime secrets injected as env vars; they are NOT build args.
+#
+#   DATABASE_URL            — neon/postgres connection string (pooled, port 5432)
+#   AUTH_SECRET             — NextAuth v5 secret (32+ random chars)
+#   AUTH_GOOGLE_ID          — Google OAuth client ID
+#   AUTH_GOOGLE_SECRET      — Google OAuth client secret
+#   CRON_SECRET             — shared bearer token for /api/cron/* routes
+#   RESEND_API_KEY          — Resend email API key
+#   ANTHROPIC_API_KEY       — Anthropic API key (AI features)
+#   AIRTABLE_PAT            — Airtable personal access token
+#   AIRTABLE_BASE_ID        — Airtable base ID (apphwPe2oIkGRSTkb)
+#   TIGRIS_ACCESS_KEY_ID    — Tigris S3-compatible storage access key
+#   TIGRIS_SECRET_ACCESS_KEY — Tigris secret key
+#   TIGRIS_BUCKET_NAME      — Tigris bucket name
+#   TIGRIS_ENDPOINT_URL     — https://fly.storage.tigris.dev
+#
+# Required GitHub Actions settings (for cron-dispatch.yml + ci.yml):
+#   vars.APP_URL            — https://propflow-app.fly.dev  (repo variable)
+#   secrets.CRON_SECRET     — same value as the Fly secret above
+#   secrets.FLY_API_TOKEN   — Fly.io deploy token
+
 app = "propflow-app"
 primary_region = "iad"
 
