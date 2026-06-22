@@ -1,5 +1,7 @@
-﻿import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { whatsappConversations, whatsappMessages } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -19,16 +21,15 @@ export async function WhatsAppTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
   const t = await getTranslations('tenantTabs.whatsappTab');
 
-  const { data: conversation } = await supabase
-    .from('whatsapp_conversations')
-    .select('id, external_phone')
-    .eq('tenant_id', tenantId)
-    .eq('org_id', ctx.orgId)
-    .limit(1)
-    .single();
+  const convRows = await db
+    .select({ id: whatsappConversations.id, externalPhone: whatsappConversations.externalPhone })
+    .from(whatsappConversations)
+    .where(and(eq(whatsappConversations.tenantId, tenantId), eq(whatsappConversations.orgId, ctx.orgId)))
+    .limit(1);
+
+  const conversation = convRows[0] ?? null;
 
   if (!conversation) {
     return (
@@ -42,15 +43,19 @@ export async function WhatsAppTab({ tenantId }: Props) {
     );
   }
 
-  const { data: msgs } = await supabase
-    .from('whatsapp_messages')
-    .select('id, direction, body, classification, status, created_at')
-    .eq('conversation_id', conversation.id)
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
+  const messages = await db
+    .select({
+      id:             whatsappMessages.id,
+      direction:      whatsappMessages.direction,
+      body:           whatsappMessages.body,
+      classification: whatsappMessages.classification,
+      status:         whatsappMessages.status,
+      createdAt:      whatsappMessages.createdAt,
+    })
+    .from(whatsappMessages)
+    .where(and(eq(whatsappMessages.conversationId, conversation.id), eq(whatsappMessages.orgId, ctx.orgId)))
+    .orderBy(desc(whatsappMessages.createdAt))
     .limit(100);
-
-  const messages = msgs ?? [];
 
   return (
     <div className="p-4 space-y-4">
@@ -58,7 +63,7 @@ export async function WhatsAppTab({ tenantId }: Props) {
         <div className="text-sm text-slate-500">
           {t('conversationWith')}{' '}
           <span className="font-medium text-slate-700">
-            {conversation.external_phone.slice(0, 4)}****
+            {conversation.externalPhone.slice(0, 4)}****
           </span>
         </div>
         <Link
@@ -102,7 +107,7 @@ export async function WhatsAppTab({ tenantId }: Props) {
                       m.direction === 'outbound' ? 'text-brand-200' : 'text-slate-400'
                     }`}
                   >
-                    {new Date(m.created_at).toLocaleTimeString()}
+                    {m.createdAt ? new Date(m.createdAt).toLocaleTimeString() : '—'}
                   </p>
                 </div>
               </div>

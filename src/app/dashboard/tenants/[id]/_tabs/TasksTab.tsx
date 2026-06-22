@@ -1,5 +1,7 @@
-﻿import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { tenantTasks } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
@@ -19,17 +21,22 @@ export async function TasksTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([createClient(), getTranslations('tasksTab')]);
-
-  const { data } = await supabase
-    .from('tenant_tasks')
-    .select('id, title, task_type, status, due_at, completed_at, created_at')
-    .eq('tenant_id', tenantId)
-    .eq('org_id', ctx.orgId)
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  const tasks = data ?? [];
+  const [rows, t] = await Promise.all([
+    db
+      .select({
+        id:          tenantTasks.id,
+        title:       tenantTasks.title,
+        taskType:    tenantTasks.taskType,
+        status:      tenantTasks.status,
+        dueAt:       tenantTasks.dueAt,
+        completedAt: tenantTasks.completedAt,
+      })
+      .from(tenantTasks)
+      .where(and(eq(tenantTasks.tenantId, tenantId), eq(tenantTasks.orgId, ctx.orgId)))
+      .orderBy(desc(tenantTasks.createdAt))
+      .limit(50),
+    getTranslations('tasksTab'),
+  ]);
 
   return (
     <div className="p-4">
@@ -43,20 +50,20 @@ export async function TasksTab({ tenantId }: Props) {
         </Link>
       </div>
       <Card>
-        {tasks.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="text-sm text-slate-400">{t('empty')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {tasks.map((task) => (
+            {rows.map((task) => (
               <div key={task.id} className="py-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-slate-900">{task.title}</p>
                   <p className="text-xs text-slate-500">
-                    {task.task_type} · {t('due')} {new Date(task.due_at).toLocaleDateString()}
+                    {task.taskType} · {t('due')} {task.dueAt ? new Date(task.dueAt).toLocaleDateString() : '—'}
                   </p>
-                  {task.completed_at && (
+                  {task.completedAt && (
                     <p className="text-xs text-green-600">
-                      {t('completed')} {new Date(task.completed_at).toLocaleDateString()}
+                      {t('completed')} {new Date(task.completedAt).toLocaleDateString()}
                     </p>
                   )}
                 </div>

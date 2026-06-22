@@ -1,5 +1,8 @@
-﻿import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { payments, charges, paymentReceipts, contracts } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -19,44 +22,59 @@ export async function PaymentsTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [supabase, t] = await Promise.all([
-    createClient(),
+  const [paymentsRows, chargesRows, statementResult, receiptsRows, t] = await Promise.all([
+    db
+      .select({
+        id:        payments.id,
+        amount:    payments.amount,
+        paidAt:    payments.paidAt,
+        method:    payments.method,
+        status:    payments.status,
+        reference: payments.reference,
+      })
+      .from(payments)
+      .where(and(eq(payments.tenantId, tenantId), eq(payments.orgId, ctx.orgId)))
+      .orderBy(desc(payments.paidAt))
+      .limit(50),
+    db
+      .select({
+        id:          charges.id,
+        amount:      charges.amount,
+        description: charges.description,
+        period:      charges.period,
+        dueDate:     charges.dueDate,
+      })
+      .from(charges)
+      .where(and(eq(charges.tenantId, tenantId), eq(charges.orgId, ctx.orgId)))
+      .orderBy(desc(charges.dueDate))
+      .limit(50),
+    // tenant_statement is a PG VIEW — must use raw SQL
+    db.execute(sql`SELECT total_charges, total_approved_payments, balance, is_overdue FROM tenant_statement WHERE tenant_id = ${tenantId} LIMIT 1`),
+    db
+      .select({
+        id:               paymentReceipts.id,
+        source:           paymentReceipts.source,
+        status:           paymentReceipts.status,
+        extractedAmount:  paymentReceipts.extractedAmount,
+        confidence:       paymentReceipts.confidence,
+        createdAt:        paymentReceipts.createdAt,
+        matchedChargeId:  paymentReceipts.matchedChargeId,
+        matchedPaymentId: paymentReceipts.matchedPaymentId,
+        rejectionReason:  paymentReceipts.rejectionReason,
+      })
+      .from(paymentReceipts)
+      .where(and(eq(paymentReceipts.tenantId, tenantId), eq(paymentReceipts.orgId, ctx.orgId)))
+      .orderBy(desc(paymentReceipts.createdAt))
+      .limit(20),
     getTranslations('payments'),
   ]);
 
-  const [paymentsRes, chargesRes, statementRes, receiptsRes] = await Promise.all([
-    supabase
-      .from('payments')
-      .select('id, amount, paid_at, method, status, reference')
-      .eq('tenant_id', tenantId)
-      .eq('org_id', ctx.orgId)
-      .order('paid_at', { ascending: false })
-      .limit(50),
-    supabase
-      .from('charges')
-      .select('id, amount, description, period, due_date')
-      .eq('tenant_id', tenantId)
-      .eq('org_id', ctx.orgId)
-      .order('due_date', { ascending: false })
-      .limit(50),
-    supabase
-      .from('tenant_statement')
-      .select('total_charges, total_approved_payments, balance, is_overdue')
-      .eq('tenant_id', tenantId)
-      .single(),
-    supabase
-      .from('payment_receipts')
-      .select('id, source, status, extracted_amount, confidence, created_at, raw_text, matched_charge_id, matched_payment_id, rejection_reason')
-      .eq('tenant_id', tenantId)
-      .eq('org_id', ctx.orgId)
-      .order('created_at', { ascending: false })
-      .limit(20),
-  ]);
-
-  const payments = paymentsRes.data ?? [];
-  const charges = chargesRes.data ?? [];
-  const statement = statementRes.data ?? null;
-  const receipts = receiptsRes.data ?? [];
+  const statement = (statementResult.rows?.[0] ?? null) as {
+    total_charges: string;
+    total_approved_payments: string;
+    balance: string;
+    is_overdue: boolean;
+  } | null;
 
   return (
     <div className="p-4 space-y-6">
@@ -67,16 +85,16 @@ export async function PaymentsTab({ tenantId }: Props) {
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-500">{t('totalCharged')}</dt>
-              <dd>S/ {statement.total_charges.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</dd>
+              <dd>S/ {Number(statement.total_charges).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-500">{t('totalPaid')}</dt>
-              <dd className="text-green-600">S/ {statement.total_approved_payments.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</dd>
+              <dd className="text-green-600">S/ {Number(statement.total_approved_payments).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</dd>
             </div>
             <div className="flex justify-between border-t pt-2">
               <dt className="font-semibold">{t('balance')}</dt>
-              <dd className={`font-bold ${statement.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {statement.balance < 0 ? '-' : ''}S/ {Math.abs(statement.balance).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+              <dd className={`font-bold ${Number(statement.balance) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {Number(statement.balance) < 0 ? '-' : ''}S/ {Math.abs(Number(statement.balance)).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
               </dd>
             </div>
           </dl>
@@ -86,15 +104,15 @@ export async function PaymentsTab({ tenantId }: Props) {
       {/* Payments */}
       <Card>
         <CardHeader><CardTitle>{t('title')}</CardTitle></CardHeader>
-        {payments.length === 0 ? (
+        {paymentsRows.length === 0 ? (
           <p className="text-sm text-slate-400">{t('list.emptyTitle')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {payments.map((p) => (
+            {paymentsRows.map((p) => (
               <div key={p.id} className="py-3 flex items-center justify-between text-sm">
                 <div>
                   <p className="font-medium text-slate-900">S/ {Number(p.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
-                  <p className="text-xs text-slate-500">{p.paid_at} · {p.method}</p>
+                  <p className="text-xs text-slate-500">{p.paidAt ? String(p.paidAt) : '—'} · {p.method}</p>
                   {p.reference && <p className="text-xs text-slate-400">{p.reference}</p>}
                 </div>
                 <StatusPill status={p.status} />
@@ -107,15 +125,15 @@ export async function PaymentsTab({ tenantId }: Props) {
       {/* Charges */}
       <Card>
         <CardHeader><CardTitle>{t('charges')}</CardTitle></CardHeader>
-        {charges.length === 0 ? (
+        {chargesRows.length === 0 ? (
           <p className="text-sm text-slate-400">{t('list.emptyTitle')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {charges.map((c) => (
+            {chargesRows.map((c) => (
               <div key={c.id} className="py-3 flex items-center justify-between text-sm">
                 <div>
                   <p className="font-medium text-slate-900">{c.description}</p>
-                  <p className="text-xs text-slate-500">{t('period')}: {c.period} · {t('dueDate')}: {c.due_date}</p>
+                  <p className="text-xs text-slate-500">{t('period')}: {c.period ? String(c.period) : '—'} · {t('dueDate')}: {c.dueDate ? String(c.dueDate) : '—'}</p>
                 </div>
                 <span className="font-medium">S/ {Number(c.amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
               </div>
@@ -125,24 +143,23 @@ export async function PaymentsTab({ tenantId }: Props) {
       </Card>
 
       {/* Payment Receipts */}
-      {receipts.length > 0 && (
+      {receiptsRows.length > 0 && (
         <Card>
           <CardHeader><CardTitle>{t('receipts.title')}</CardTitle></CardHeader>
           <div className="divide-y divide-slate-100">
-            {receipts.map((r) => (
+            {receiptsRows.map((r) => (
               <div key={r.id} className="py-3 text-sm">
-                {/* Receipt summary row */}
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium text-slate-900">
-                      {r.extracted_amount ? `S/ ${Number(r.extracted_amount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : t('amount')}
+                      {r.extractedAmount ? `S/ ${Number(r.extractedAmount).toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : t('amount')}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {t('receipts.source')}: {r.source} · {new Date(r.created_at).toLocaleDateString()}
+                      {t('receipts.source')}: {r.source} · {new Date(r.createdAt).toLocaleDateString()}
                     </p>
                     {r.confidence && (
                       <p className="text-xs text-slate-400">
-                        {t('receipts.confidence')}: {(r.confidence * 100).toFixed(0)}%
+                        {t('receipts.confidence')}: {(Number(r.confidence) * 100).toFixed(0)}%
                       </p>
                     )}
                   </div>
@@ -151,41 +168,27 @@ export async function PaymentsTab({ tenantId }: Props) {
                   </Badge>
                 </div>
 
-                {/* OCR detail disclosure — zero JS, SSR-safe */}
                 <details className="mt-2">
                   <summary className="cursor-pointer text-xs text-brand-600 hover:text-brand-800 select-none w-fit">
                     {t('receipts.ocr.viewDetail')}
                   </summary>
                   <dl className="mt-2 space-y-1.5 rounded-md bg-slate-50 p-3 text-xs">
-                    {/* raw_text */}
-                    <div>
-                      <dt className="font-medium text-slate-600">{t('receipts.ocr.rawText')}</dt>
-                      <dd className="mt-0.5 text-slate-800 whitespace-pre-wrap break-words">
-                        {r.raw_text
-                          ? (r.raw_text.length > 300 ? `${r.raw_text.slice(0, 300)}…` : r.raw_text)
-                          : <span className="text-slate-400 italic">{t('receipts.ocr.rawTextPending')}</span>
-                        }
-                      </dd>
-                    </div>
-                    {/* matched_charge_id */}
                     <div>
                       <dt className="font-medium text-slate-600">{t('receipts.ocr.matchedCharge')}</dt>
                       <dd className="mt-0.5 font-mono text-slate-700 break-all">
-                        {r.matched_charge_id ?? <span className="text-slate-400 not-italic font-sans">{t('receipts.ocr.notMatched')}</span>}
+                        {r.matchedChargeId ?? <span className="text-slate-400 not-italic font-sans">{t('receipts.ocr.notMatched')}</span>}
                       </dd>
                     </div>
-                    {/* matched_payment_id */}
                     <div>
                       <dt className="font-medium text-slate-600">{t('receipts.ocr.matchedPayment')}</dt>
                       <dd className="mt-0.5 font-mono text-slate-700 break-all">
-                        {r.matched_payment_id ?? <span className="text-slate-400 not-italic font-sans">{t('receipts.ocr.notMatched')}</span>}
+                        {r.matchedPaymentId ?? <span className="text-slate-400 not-italic font-sans">{t('receipts.ocr.notMatched')}</span>}
                       </dd>
                     </div>
-                    {/* rejection_reason — only rendered when present */}
-                    {r.rejection_reason && (
+                    {r.rejectionReason && (
                       <div>
                         <dt className="font-medium text-red-600">{t('receipts.ocr.rejectionReason')}</dt>
-                        <dd className="mt-0.5 text-red-700">{r.rejection_reason}</dd>
+                        <dd className="mt-0.5 text-red-700">{r.rejectionReason}</dd>
                       </div>
                     )}
                   </dl>

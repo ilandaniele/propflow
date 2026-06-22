@@ -1,5 +1,7 @@
-﻿import { createAdminServerClient as createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { contracts, signatureRequests } from '@/lib/db/schema';
+import { eq, and, inArray, desc, sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -19,41 +21,36 @@ export async function DocumentsTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const supabase = await createClient();
+  // Fetch tenant contract IDs first — signature_requests has no tenant_id column,
+  // it links to tenants via contract_id. Filtering by contract IDs scopes the result
+  // to this tenant and prevents cross-tenant data exposure (B1 fix).
+  const tenantContracts = await db
+    .select({ id: contracts.id })
+    .from(contracts)
+    .where(and(eq(contracts.tenantId, tenantId), eq(contracts.orgId, ctx.orgId)));
 
-  // Fetch contract IDs for this specific tenant first.
-  // signature_requests has no tenant_id column — it links to tenants via
-  // contract_id. Filtering by contract IDs scopes the result to this tenant
-  // and prevents an admin viewing tenant A from seeing requests for other
-  // tenants in the same org (B1 fix).
-  const tenantContractsRes = await supabase
-    .from('contracts')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('org_id', ctx.orgId);
+  const tenantContractIds = tenantContracts.map((c) => c.id);
+  const contractCount = tenantContracts.length;
 
-  const tenantContractIds = (tenantContractsRes.data ?? []).map((c) => c.id);
-
-  const [signatureReqRes, contractsRes] = await Promise.all([
+  const [signatureRows, t] = await Promise.all([
     tenantContractIds.length > 0
-      ? supabase
-          .from('signature_requests')
-          .select('id, signer_email, status, sent_at')
-          .eq('org_id', ctx.orgId)
-          .in('contract_id', tenantContractIds)
-          .order('created_at', { ascending: false })
+      ? db
+          .select({
+            id:          signatureRequests.id,
+            signerEmail: signatureRequests.signerEmail,
+            status:      signatureRequests.status,
+            sentAt:      signatureRequests.sentAt,
+          })
+          .from(signatureRequests)
+          .where(and(
+            eq(signatureRequests.orgId, ctx.orgId),
+            inArray(signatureRequests.contractId, tenantContractIds),
+          ))
+          .orderBy(desc(signatureRequests.createdAt))
           .limit(20)
-      : Promise.resolve({ data: [], error: null }),
-    supabase
-      .from('contracts')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .eq('org_id', ctx.orgId),
+      : Promise.resolve([]),
+    getTranslations('tenantTabs.documentsTab'),
   ]);
-
-  const signatureRequests = signatureReqRes.data ?? [];
-  const contractCount = contractsRes.count ?? 0;
-  const t = await getTranslations('tenantTabs.documentsTab');
 
   return (
     <div className="p-4 space-y-4">
@@ -70,16 +67,16 @@ export async function DocumentsTab({ tenantId }: Props) {
 
       <Card>
         <CardHeader><CardTitle>{t('signatureRequestsTitle')}</CardTitle></CardHeader>
-        {signatureRequests.length === 0 ? (
+        {signatureRows.length === 0 ? (
           <p className="text-sm text-slate-400">{t('noSignatureRequests')}</p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {signatureRequests.map((sr) => (
+            {signatureRows.map((sr) => (
               <div key={sr.id} className="py-3 flex items-center justify-between text-sm">
                 <div>
-                  <p className="font-medium text-slate-900">{sr.signer_email}</p>
+                  <p className="font-medium text-slate-900">{sr.signerEmail}</p>
                   <p className="text-xs text-slate-500">
-                    {t('sentLabel')} {new Date(sr.sent_at).toLocaleDateString()}
+                    {t('sentLabel')} {sr.sentAt ? new Date(sr.sentAt).toLocaleDateString() : '—'}
                   </p>
                 </div>
                 <StatusPill status={sr.status} />
