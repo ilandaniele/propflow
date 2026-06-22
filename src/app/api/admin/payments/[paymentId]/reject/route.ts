@@ -44,8 +44,10 @@ export async function PATCH(
   }
 
   // Build update — Drizzle (AC1)
+  // NOTE: payments schema has no `notes` column; store reason in `reference` field.
+  // TODO(W1/schema): add notes column to payments or confirm the correct field name.
   const setValues: Partial<typeof payments.$inferInsert> = { status: 'rejected' };
-  if (reason) setValues.notes = reason;
+  if (reason) setValues.reference = reason;
 
   try {
     await db

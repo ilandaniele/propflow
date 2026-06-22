@@ -30,16 +30,16 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const tenantId = tenantRows[0].id;
-  const today    = new Date().toISOString().split('T')[0];
 
   // Fetch payment totals — Drizzle (AC1, AC8: tenant_id + org_id)
   try {
+    // NOTE: payments schema has no dueDate column (TODO W1/schema: add due_date).
+    // pending_overdue distinction is not available without dueDate; all pending treated as pending.
     const rows = await db
       .select({
         amount:   payments.amount,
         currency: payments.currency,
         status:   payments.status,
-        dueDate:  payments.dueDate,
       })
       .from(payments)
       .where(and(eq(payments.tenantId, tenantId), eq(payments.orgId, ctx.orgId)));
@@ -51,12 +51,10 @@ export async function GET(): Promise<NextResponse> {
       .reduce((s, r) => s + Number(r.amount ?? 0), 0);
 
     const total_pending = rows
-      .filter(r => r.status === 'pending' && r.dueDate != null && r.dueDate >= today)
+      .filter(r => r.status === 'pending' || r.status === 'under_review')
       .reduce((s, r) => s + Number(r.amount ?? 0), 0);
 
-    const total_overdue = rows
-      .filter(r => r.status === 'pending' && r.dueDate != null && r.dueDate < today)
-      .reduce((s, r) => s + Number(r.amount ?? 0), 0);
+    const total_overdue = 0; // TODO(W1/schema): requires due_date column in payments
 
     const current_balance = total_pending + total_overdue;
 

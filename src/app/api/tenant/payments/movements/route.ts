@@ -44,7 +44,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { status, period, date_from, date_to, page, limit, sort_dir } = parsed.data;
+  const { status, date_from, date_to, page, limit, sort_dir } = parsed.data;
   const offset = (page - 1) * limit;
 
   // Derive tenant_id from session (never from URL params) — AC8
@@ -66,9 +66,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     eq(payments.orgId, ctx.orgId),  // AC8: org isolation
   ];
   if (status)    conditions.push(eq(payments.status, status));
-  if (period)    conditions.push(eq(payments.periodMonth, period));
-  if (date_from) conditions.push(gte(payments.paidAt, new Date(date_from)));
-  if (date_to)   conditions.push(lte(payments.paidAt, new Date(date_to)));
+  // NOTE: payments schema has no periodMonth or dueDate columns.
+  // TODO(W1/schema): add period_month + due_date to payments table, then restore these filters.
+  // if (period)    conditions.push(eq(payments.periodMonth, period));  // schema missing field
+  if (date_from) conditions.push(gte(payments.paidAt, date_from));
+  if (date_to)   conditions.push(lte(payments.paidAt, date_to));
 
   const whereClause = and(...conditions);
 
@@ -81,14 +83,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       amount:        payments.amount,
       currency:      payments.currency,
       paidAt:        payments.paidAt,
-      dueDate:       payments.dueDate,
+      // NOTE: dueDate, periodMonth, notes not in current payments schema (TODO W1/schema)
       status:        payments.status,
       method:        payments.method,
       reference:     payments.reference,
-      periodMonth:   payments.periodMonth,
       movementType:  payments.movementType,
       receiptUrl:    payments.receiptUrl,
-      notes:         payments.notes,
       createdAt:     payments.createdAt,
       updatedAt:     payments.updatedAt,
       propertyName:  properties.name,
@@ -96,8 +96,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     })
     .from(payments)
     .leftJoin(contracts,  eq(payments.contractId, contracts.id))
-    .leftJoin(properties, eq(contracts.propertyId, properties.id))
     .leftJoin(units,      eq(contracts.unitId, units.id))
+    .leftJoin(properties, eq(units.propertyId, properties.id))
     .where(whereClause)
     .orderBy(sortOrder, asc(payments.createdAt));
 
@@ -116,14 +116,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       amount:         row.amount,
       currency:       row.currency,
       paid_at:        row.paidAt,
-      due_date:       row.dueDate,
+      due_date:       null,        // TODO(W1/schema): not in payments schema
       status:         row.status,
       method:         row.method,
       reference:      row.reference,
-      period_month:   row.periodMonth,
+      period_month:   null,        // TODO(W1/schema): not in payments schema
       movement_type:  row.movementType,
       receipt_url:    row.receiptUrl,
-      notes:          row.notes,
+      notes:          null,        // TODO(W1/schema): not in payments schema
       created_at:     row.createdAt,
       updated_at:     row.updatedAt,
       property_name:  row.propertyName ?? null,
