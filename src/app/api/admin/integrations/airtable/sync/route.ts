@@ -15,18 +15,23 @@ import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
 
 const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
-  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',    entity: 'properties' },
-  { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',   entity: 'responsables' },
-  { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',     entity: 'units' },
-  { tableEnvKey: 'AIRTABLE_TABLE_PAGO_SERVICIOS', entity: 'service_payments' },
-  { tableEnvKey: 'AIRTABLE_TABLE_MANTENIMIENTO',  entity: 'incidents' },
-  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',     entity: 'tenants' },
-  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',      entity: 'contracts' },
-  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',          entity: 'payments' },
-  { tableEnvKey: 'AIRTABLE_TABLE_ADICIONALES',    entity: 'additional_charges' },
-  { tableEnvKey: 'AIRTABLE_TABLE_EECC',           entity: 'account_statements' },
-  { tableEnvKey: 'AIRTABLE_TABLE_IMPUESTOS',      entity: 'tax_receipts' },
-  { tableEnvKey: 'AIRTABLE_TABLE_FEEDBACK',       entity: 'tenant_feedback' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',      entity: 'properties' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESPONSABLES',     entity: 'responsables' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PORTAFOLIO',       entity: 'units' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGO_SERVICIOS',   entity: 'service_payments' },
+  { tableEnvKey: 'AIRTABLE_TABLE_MANTENIMIENTO',    entity: 'incidents' },
+  { tableEnvKey: 'AIRTABLE_TABLE_RESIDENTES',       entity: 'tenants' },
+  { tableEnvKey: 'AIRTABLE_TABLE_HISTORIAL',        entity: 'contracts' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PAGOS',            entity: 'payments' },
+  { tableEnvKey: 'AIRTABLE_TABLE_ADICIONALES',      entity: 'additional_charges' },
+  { tableEnvKey: 'AIRTABLE_TABLE_EECC',             entity: 'account_statements' },
+  { tableEnvKey: 'AIRTABLE_TABLE_IMPUESTOS',        entity: 'tax_receipts' },
+  { tableEnvKey: 'AIRTABLE_TABLE_FEEDBACK',         entity: 'tenant_feedback' },
+  { tableEnvKey: 'AIRTABLE_TABLE_PROPIETARIOS',     entity: 'owners' },
+  { tableEnvKey: 'AIRTABLE_TABLE_CUENTAS_DEPOSITO', entity: 'deposit_accounts' },
+  { tableEnvKey: 'AIRTABLE_TABLE_TURNOS_BASURA',    entity: 'trash_schedules' },
+  { tableEnvKey: 'AIRTABLE_TABLE_CUMPL_BASURA',     entity: 'trash_compliance' },
+  { tableEnvKey: 'AIRTABLE_TABLE_AUSENCIAS',        entity: 'absences' },
 ];
 
 export async function POST(_request: NextRequest): Promise<NextResponse> {

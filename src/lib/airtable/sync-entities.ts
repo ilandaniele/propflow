@@ -39,6 +39,11 @@ import { normalizeAdditional } from '@/lib/airtable/normalizers/normalizeAdditio
 import { normalizeEECC } from '@/lib/airtable/normalizers/normalizeEECC';
 import { normalizeTaxReceipt } from '@/lib/airtable/normalizers/normalizeTaxReceipt';
 import { normalizeFeedback } from '@/lib/airtable/normalizers/normalizeFeedback';
+import { normalizeOwner } from '@/lib/airtable/normalizers/normalizeOwner';
+import { normalizeDepositAccount } from '@/lib/airtable/normalizers/normalizeDepositAccount';
+import { normalizeTrashSchedule } from '@/lib/airtable/normalizers/normalizeTrashSchedule';
+import { normalizeTrashCompliance } from '@/lib/airtable/normalizers/normalizeTrashCompliance';
+import { normalizeAbsence } from '@/lib/airtable/normalizers/normalizeAbsence';
 import { getAirtableClient } from '@/lib/airtable/client';
 import { db } from '@/lib/db';
 import {
@@ -67,7 +72,12 @@ export type EntityName =
   | 'additional_charges'
   | 'account_statements'
   | 'tax_receipts'
-  | 'tenant_feedback';
+  | 'tenant_feedback'
+  | 'owners'
+  | 'deposit_accounts'
+  | 'trash_schedules'
+  | 'trash_compliance'
+  | 'absences';
 
 export interface EntitySyncResult {
   entity: EntityName;
@@ -88,6 +98,15 @@ function entityToDbTable(entity: EntityName): string {
   return entity;
 }
 
+/** Tables that store the Airtable record ID in `airtable_id` (not `airtable_external_id`). */
+const AIRTABLE_ID_COL_ENTITIES = new Set<EntityName>([
+  'additional_charges', 'account_statements', 'tax_receipts', 'tenant_feedback',
+]);
+
+function entityAirtableIdCol(entity: EntityName): string {
+  return AIRTABLE_ID_COL_ENTITIES.has(entity) ? 'airtable_id' : 'airtable_external_id';
+}
+
 function entityToSnapshotName(entity: EntityName): string {
   const map: Record<EntityName, string> = {
     properties:         'propiedades',
@@ -102,6 +121,11 @@ function entityToSnapshotName(entity: EntityName): string {
     account_statements: 'eecc',
     tax_receipts:       'impuestos_comprobantes',
     tenant_feedback:    'feedback',
+    owners:             'propietarios',
+    deposit_accounts:   'cuentas_deposito',
+    trash_schedules:    'turnos_basura',
+    trash_compliance:   'cumplimiento_basura',
+    absences:           'ausencias',
   };
   return map[entity];
 }
@@ -242,8 +266,9 @@ export async function syncEntityTable(
 
           // Build the values part of the query using sql tagged template for parameterization
           const valParts = vals.map(v => sql`${v}`);
+          const airtableIdColName = entityAirtableIdCol(entity);
           const setClauses = cols
-            .filter(c => c !== 'id' && c !== 'org_id' && c !== 'airtable_external_id')
+            .filter(c => c !== 'id' && c !== 'org_id' && c !== airtableIdColName)
             .map(c => `${c} = EXCLUDED.${c}`)
             .join(', ');
 
@@ -259,13 +284,20 @@ export async function syncEntityTable(
           );
           const valuesWithClose = sql`${valuesSql})`;
 
+          const conflictColSql = sql.raw(`org_id, ${airtableIdColName}`);
           await db.execute(
-            sql`INSERT INTO ${tablesSql} (${colSql}) VALUES ${valuesWithClose} ON CONFLICT (org_id, airtable_external_id) DO UPDATE SET ${conflictSql}`
+            sql`INSERT INTO ${tablesSql} (${colSql}) VALUES ${valuesWithClose} ON CONFLICT (${conflictColSql}) DO UPDATE SET ${conflictSql}`
           );
         }
         upsertedCount += batch.length;
       } catch (err) {
-        upsertError = `[${entity}] upsert batch ${Math.floor(i / BATCH) + 1} failed: ${(err as Error).message}`;
+        const e = err as Error & { cause?: Error & { code?: string; detail?: string }; code?: string; detail?: string };
+        const pgErr = e.cause ?? e;
+        const pgMsg = (pgErr as Error).message ?? String(pgErr);
+        const pgCode = (pgErr as { code?: string }).code ?? '';
+        const pgDetail = (pgErr as { detail?: string }).detail ?? '';
+        upsertError = `[${entity}] upsert batch ${Math.floor(i / BATCH) + 1} failed: ${pgMsg}${pgCode ? ' [' + pgCode + ']' : ''}${pgDetail ? ' detail: ' + pgDetail : ''}`;
+        console.error(`[sync-entities][${entity}] upsert error:`, pgMsg, pgCode, pgDetail);
         break;
       }
     }
@@ -302,18 +334,23 @@ export async function syncEntityTable(
       if (extIds.length > 0) {
         try {
           const tableSql = sql.raw(dbTable);
+          const airtableCol = entityAirtableIdCol(entity);
+          const airtableColSql = sql.raw(airtableCol);
+          // Use sql.join with individual params to avoid array serialization issues
+          const inClause = sql.join(extIds.map(id => sql`${id}`), sql`, `);
           const freshRows = await db.execute(
-            sql`SELECT id, airtable_external_id FROM ${tableSql} WHERE org_id = ${orgId} AND airtable_external_id = ANY(${extIds})`
-          ) as unknown as Array<{ id: string; airtable_external_id: string }>;
+            sql`SELECT id, ${airtableColSql} AS airtable_key FROM ${tableSql} WHERE org_id = ${orgId} AND ${airtableColSql} IN (${inClause})`
+          ) as unknown as Array<{ id: string; airtable_key: string }>;
 
           if (freshRows) {
             const map: IdMap = new Map();
             for (const row of freshRows) {
-              if (row.airtable_external_id) map.set(row.airtable_external_id, row.id);
+              if (row.airtable_key) map.set(row.airtable_key, row.id);
             }
             idMaps[entity] = map;
           }
-        } catch {
+        } catch (idMapErr) {
+          console.warn(`[sync-entities][${entity}] idMap build failed:`, (idMapErr as Error).message);
           idMaps[entity] = new Map();
         }
       } else {
@@ -387,6 +424,10 @@ function buildRows(
       }
       const row = toDbRow(normalized as unknown as Record<string, unknown>);
       row['property_id'] = propertyId;
+      // postgres.js raw unsafe() can't infer JSONB type — serialize explicitly
+      if (row['monthly_data'] !== null && row['monthly_data'] !== undefined && typeof row['monthly_data'] !== 'string') {
+        row['monthly_data'] = JSON.stringify(row['monthly_data']);
+      }
       domainRows.push(row);
     }
     const snapshotRows: BuiltRows['snapshotRows'] = records.map(record => ({
@@ -554,8 +595,11 @@ function buildDomainRow(
         propertyId = resolved;
       }
 
+      // property_id is NOT NULL — skip units whose property link can't be resolved
+      if (propertyId === null) return { __skip: true };
+
       const row = toDbRow(normalized);
-      if (propertyId !== null) row['property_id'] = propertyId;
+      row['property_id'] = propertyId;
       row['airtable_synced_at'] = new Date().toISOString();
       return row;
     }
@@ -595,16 +639,16 @@ function buildDomainRow(
       }
 
       return {
-        org_id:                orgId,
-        airtable_external_id:  normalized.airtableExternalId,
-        airtable_synced_at:    new Date().toISOString(),
-        contract_id:           contractId,
-        concept_id:            conceptId,
-        mes:                   normalized.mes,
-        anio:                  normalized.anio,
-        amount:                normalized.amount,
-        description:           normalized.description,
-        numero:                normalized.numero,
+        org_id:             orgId,
+        airtable_id:        normalized.airtableExternalId,
+        airtable_synced_at: new Date().toISOString(),
+        contract_id:        contractId,
+        concept_id:         conceptId,
+        mes:                normalized.mes,
+        anio:               normalized.anio,
+        amount:             normalized.amount,
+        description:        normalized.description,
+        numero:             normalized.numero,
       };
     }
 
@@ -619,11 +663,11 @@ function buildDomainRow(
       }
 
       return {
-        org_id:                  orgId,
-        airtable_external_id:    normalized.airtableExternalId,
-        airtable_synced_at:      new Date().toISOString(),
-        contract_id:             contractId,
-        eecc_code:               normalized.eeccCode,
+        org_id:              orgId,
+        airtable_id:         normalized.airtableExternalId,
+        airtable_synced_at:  new Date().toISOString(),
+        contract_id:         contractId,
+        eecc_code:           normalized.eeccCode,
         mes:                     normalized.mes,
         anio:                    normalized.anio,
         issue_date:              normalized.issueDate,
@@ -652,11 +696,11 @@ function buildDomainRow(
       }
 
       return {
-        org_id:                orgId,
-        airtable_external_id:  normalized.airtableExternalId,
-        airtable_synced_at:    new Date().toISOString(),
-        contract_id:           contractId,
-        receipt_code:          normalized.receiptCode,
+        org_id:             orgId,
+        airtable_id:        normalized.airtableExternalId,
+        airtable_synced_at: new Date().toISOString(),
+        contract_id:        contractId,
+        receipt_code:       normalized.receiptCode,
         tipo:                  normalized.tipo,
         numero:                normalized.numero,
         mes:                   normalized.mes,
@@ -682,10 +726,10 @@ function buildDomainRow(
       }
 
       return {
-        org_id:               orgId,
-        airtable_external_id: normalized.airtableExternalId,
-        airtable_synced_at:   new Date().toISOString(),
-        tenant_id:            tenantId,
+        org_id:             orgId,
+        airtable_id:        normalized.airtableExternalId,
+        airtable_synced_at: new Date().toISOString(),
+        tenant_id:          tenantId,
         fecha:                normalized.fecha,
         cleaning_score:       normalized.cleaningScore,
         coexistence_score:    normalized.coexistenceScore,
@@ -696,6 +740,75 @@ function buildDomainRow(
         comment:              normalized.comment,
         worst_experience:     normalized.worstExperience,
       };
+    }
+
+    case 'owners': {
+      return normalizeOwner(record, orgId);
+    }
+
+    case 'deposit_accounts': {
+      return normalizeDepositAccount(record, orgId);
+    }
+
+    case 'trash_schedules': {
+      const normalized = normalizeTrashSchedule(record, orgId);
+
+      let tenantId: string | null = null;
+      const tenantExtId = normalized['_airtable_tenant_ext_id'] as string | null;
+      if (tenantExtId) {
+        tenantId = idMaps.tenants?.get(tenantExtId) ?? null;
+        if (!tenantId) onUnresolved(`trash_schedule ${record.id} → tenant ${tenantExtId} not in idMap`);
+      }
+
+      let unitId: string | null = null;
+      const unitExtId = normalized['_airtable_unit_ext_id'] as string | null;
+      if (unitExtId) {
+        unitId = idMaps.units?.get(unitExtId) ?? null;
+        if (!unitId) onUnresolved(`trash_schedule ${record.id} → unit ${unitExtId} not in idMap`);
+      }
+
+      const row = toDbRow(normalized);
+      row['tenant_id'] = tenantId;
+      row['unit_id'] = unitId;
+      return row;
+    }
+
+    case 'trash_compliance': {
+      const normalized = normalizeTrashCompliance(record, orgId);
+
+      let trashScheduleId: string | null = null;
+      const scheduleExtId = normalized['_airtable_trash_schedule_ext_id'] as string | null;
+      if (scheduleExtId) {
+        trashScheduleId = (idMaps as Record<string, Map<string, string> | undefined>)['trash_schedules']?.get(scheduleExtId) ?? null;
+        if (!trashScheduleId) onUnresolved(`trash_compliance ${record.id} → trash_schedule ${scheduleExtId} not in idMap`);
+      }
+
+      let tenantId: string | null = null;
+      const tenantExtId = normalized['_airtable_tenant_ext_id'] as string | null;
+      if (tenantExtId) {
+        tenantId = idMaps.tenants?.get(tenantExtId) ?? null;
+        if (!tenantId) onUnresolved(`trash_compliance ${record.id} → tenant ${tenantExtId} not in idMap`);
+      }
+
+      const row = toDbRow(normalized);
+      row['trash_schedule_id'] = trashScheduleId;
+      row['tenant_id'] = tenantId;
+      return row;
+    }
+
+    case 'absences': {
+      const normalized = normalizeAbsence(record, orgId);
+
+      let tenantId: string | null = null;
+      const tenantExtId = normalized['_airtable_tenant_ext_id'] as string | null;
+      if (tenantExtId) {
+        tenantId = idMaps.tenants?.get(tenantExtId) ?? null;
+        if (!tenantId) onUnresolved(`absence ${record.id} → tenant ${tenantExtId} not in idMap`);
+      }
+
+      const row = toDbRow(normalized);
+      row['tenant_id'] = tenantId;
+      return row;
     }
   }
 }

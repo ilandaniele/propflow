@@ -1228,6 +1228,126 @@ export const tenantFeedback = pgTable('tenant_feedback', {
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Domain table 53: owners (Propietarios — property owners synced from Airtable)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const owners = pgTable('owners', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableExternalId: text('airtable_external_id'),
+  airtableSyncedAt:   timestamp('airtable_synced_at', { withTimezone: true }),
+  name:               text('name'),
+  dni:                text('dni'),
+  phone:              text('phone'),
+  email:              text('email'),
+  coOwnerName:        text('co_owner_name'),
+  coOwnerDni:         text('co_owner_dni'),
+  coOwnerPhone:       text('co_owner_phone'),
+  coOwnerEmail:       text('co_owner_email'),
+  mancomunacion:      text('mancomunacion'),
+  apoderamiento:      text('apoderamiento'),
+  domicilio:          text('domicilio'),
+  distrito:           text('distrito'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_owners_org').on(t.orgId),
+  airtableUniq: uniqueIndex('owners_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 54: deposit_accounts (Cuentas de deposito — bank accounts for deposits)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const depositAccounts = pgTable('deposit_accounts', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableExternalId: text('airtable_external_id'),
+  airtableSyncedAt:   timestamp('airtable_synced_at', { withTimezone: true }),
+  name:               text('name'),
+  banco:              text('banco'),
+  tipoCuenta:         text('tipo_cuenta'),
+  moneda:             text('moneda'),
+  numeroCuenta:       text('numero_cuenta'),
+  cci:                text('cci'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_deposit_accounts_org').on(t.orgId),
+  airtableUniq: uniqueIndex('deposit_accounts_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 55: trash_schedules (Turnos Basura — assigned trash duty schedules)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const trashSchedules = pgTable('trash_schedules', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableExternalId: text('airtable_external_id'),
+  airtableSyncedAt:   timestamp('airtable_synced_at', { withTimezone: true }),
+  name:               text('name'),
+  tenantId:           uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  unitId:             uuid('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  zona:               text('zona'),
+  dias:               text('dias'),
+  activo:             boolean('activo').notNull().default(true),
+  turnosExtra:        integer('turnos_extra'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_trash_schedules_org').on(t.orgId),
+  airtableUniq: uniqueIndex('trash_schedules_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 56: trash_compliance (Cumplimiento Basura — trash duty compliance records)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const trashCompliance = pgTable('trash_compliance', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableExternalId: text('airtable_external_id'),
+  airtableSyncedAt:   timestamp('airtable_synced_at', { withTimezone: true }),
+  name:               text('name'),
+  trashScheduleId:    uuid('trash_schedule_id').references(() => trashSchedules.id, { onDelete: 'set null' }),
+  tenantId:           uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  fecha:              date('fecha'),
+  estado:             text('estado'),
+  fotoUrl:            text('foto_url'),
+  horaConfirmacion:   timestamp('hora_confirmacion', { withTimezone: true }),
+  hashImagen:         text('hash_imagen'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_trash_compliance_org').on(t.orgId),
+  airtableUniq: uniqueIndex('trash_compliance_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table 57: absences (Ausencias — tenant absence records)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const absences = pgTable('absences', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  airtableExternalId: text('airtable_external_id'),
+  airtableSyncedAt:   timestamp('airtable_synced_at', { withTimezone: true }),
+  name:               text('name'),
+  tenantId:           uuid('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  fechaInicio:        date('fecha_inicio'),
+  fechaFin:           date('fecha_fin'),
+  estado:             text('estado'),
+  registrado:         timestamp('registrado', { withTimezone: true }),
+  motivo:             text('motivo'),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:       index('idx_absences_org').on(t.orgId),
+  airtableUniq: uniqueIndex('absences_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Relations (used by Drizzle query builder — optional but enables join inference)
 // ─────────────────────────────────────────────────────────────────────────────
 
