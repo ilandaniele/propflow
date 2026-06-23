@@ -262,6 +262,10 @@ export function normalizePayment(
       period_month:         periodMonth,
       receipt_url:          extractFirstAttachmentUrl(f[PAYMENT_FIELD.RECEIPT]),
       tenant_name:          toString(f[PAYMENT_FIELD.TENANT_NAME]),
+      previous_balance_applied:      toNumeric(f['Saldo Anterior aplicado (S/)']),
+      previous_addl_balance_applied: toNumeric(f['Saldo Anterior aplicado Adicionales (S/)']),
+      days_overdue:                  (() => { const v = f['Días de atraso']; if (v === null || v === undefined) return null; const n = typeof v === 'number' ? v : parseInt(String(v), 10); return isNaN(n) ? null : n; })(),
+      concept:                       toString(f['Concepto']),
       // Resolved link fields — populated downstream
       contract_id:          null,
       tenant_id:            null,

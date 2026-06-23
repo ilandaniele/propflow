@@ -96,6 +96,10 @@ export function normalizeProperty(
     // (NormalizedProperty marks them optional so they're only written to DB when present)
     ...(f[PROPERTY_FIELD.TOPE_LUZ]  !== undefined ? { tope_luz:  toNumeric(f[PROPERTY_FIELD.TOPE_LUZ]) }  : {}),
     ...(f[PROPERTY_FIELD.TOPE_AGUA] !== undefined ? { tope_agua: toNumeric(f[PROPERTY_FIELD.TOPE_AGUA]) } : {}),
+    folder_id:   toString(f['Folder ID']),
+    gas_type:    toString(f['Tipo de gas']),
+    description: toString(f['Descripcion']),
+    n_pe:        toString(f['N° PE']),
     // Removed from new schema — intentionally not mapped:
     // description, current_residents, codigo_pago_internet
   };

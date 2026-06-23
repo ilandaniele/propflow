@@ -56,6 +56,8 @@ export default async function DashboardPage() {
     propertyCount,
     paymentCount,
     contractCount,
+    contractTypeData,
+    trashComplianceResult,
   ] = await Promise.all([
     db.select({ id: unitsTable.id, status: unitsTable.status }).from(unitsTable).where(eq(unitsTable.orgId, ctx.orgId)),
     db.select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, status: paymentsTable.status })
@@ -80,6 +82,13 @@ export default async function DashboardPage() {
     db.select({ count: sql<number>`count(*)::int` }).from(properties).where(eq(properties.orgId, ctx.orgId)),
     db.select({ count: sql<number>`count(*)::int` }).from(paymentsTable).where(eq(paymentsTable.orgId, ctx.orgId)),
     db.select({ count: sql<number>`count(*)::int` }).from(contracts).where(eq(contracts.orgId, ctx.orgId)),
+    // Contract type breakdown
+    db.select({ contractType: sql<string>`COALESCE(contract_type, 'unknown')`, count: sql<number>`count(*)::int` })
+      .from(contracts)
+      .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active')))
+      .groupBy(sql`contract_type`),
+    // Trash compliance this month
+    db.execute(sql`SELECT estado, COUNT(*)::int as count FROM trash_compliance WHERE org_id = ${ctx.orgId} AND fecha >= ${startOfMonth} GROUP BY estado`),
   ]);
 
   // Entity health — derived from counts
@@ -141,6 +150,9 @@ export default async function DashboardPage() {
     avgFeedback = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : null;
   }
 
+  const contractTypeTotal = contractTypeData.reduce((s, r) => s + r.count, 0);
+  const trashComplianceStats = (trashComplianceResult as unknown as Array<{ estado: string; count: number }>);
+
   const hasData = totalUnits > 0;
 
   return (
@@ -201,6 +213,62 @@ export default async function DashboardPage() {
               <FinKpiCard title={t('kpis.pastDueBalance')} value={pastDueKpi.formatted} rawValue={pastDueKpi.value} sub={t('kpis.pastDueBalanceSub')} positiveIsGood={false} />
               <FinKpiCard title={t('kpis.occupancyFinancial')} value={occupancyKpi.formatted} rawValue={occupancyKpi.value} sub={t('kpis.occupancyFinancialSub', { occupied: occupiedUnits, total: totalUnits })} positiveIsGood />
               <AirtableOccupancyDelta liveRate={liveRate} snapshot={airtableSnapshot} />
+            </div>
+          </div>
+
+          {/* Row 4 — Contract Analytics */}
+          <div>
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Contratos por tipo</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Tipo de contrato (activos)</p>
+                <div className="space-y-2">
+                  {contractTypeData.map(({ contractType, count }) => {
+                    const pct = contractTypeTotal > 0 ? Math.round((count / contractTypeTotal) * 100) : 0;
+                    const colors: Record<string, string> = {
+                      'Nuevo ingreso': 'bg-green-500',
+                      'Renovación': 'bg-blue-500',
+                      'Traslado': 'bg-amber-500',
+                      'Reingreso': 'bg-purple-500',
+                    };
+                    const color = colors[contractType] ?? 'bg-slate-400';
+                    return (
+                      <div key={contractType} className="flex items-center gap-3">
+                        <span className="text-xs text-slate-600 w-28 shrink-0">{contractType}</span>
+                        <div className="flex-1 bg-slate-100 rounded-full h-2">
+                          <div className={`${color} h-2 rounded-full`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-700 w-8 text-right">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </article>
+              <article className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Cumplimiento basura (este mes)</p>
+                <div className="space-y-2">
+                  {trashComplianceStats.map(({ estado, count }) => {
+                    const total = trashComplianceStats.reduce((s, r) => s + r.count, 0);
+                    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                    const colors: Record<string, string> = {
+                      'Cumplido': 'bg-green-500',
+                      'Incumplido': 'bg-red-500',
+                      'Pendiente': 'bg-amber-400',
+                    };
+                    const color = colors[estado] ?? 'bg-slate-400';
+                    return (
+                      <div key={estado} className="flex items-center gap-3">
+                        <span className="text-xs text-slate-600 w-28 shrink-0">{estado ?? '—'}</span>
+                        <div className="flex-1 bg-slate-100 rounded-full h-2">
+                          <div className={`${color} h-2 rounded-full`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-700 w-8 text-right">{count}</span>
+                      </div>
+                    );
+                  })}
+                  {trashComplianceStats.length === 0 && <p className="text-xs text-slate-400">Sin datos este mes</p>}
+                </div>
+              </article>
             </div>
           </div>
 

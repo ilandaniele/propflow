@@ -13,6 +13,18 @@ import type { AirtableRecord } from '@/lib/schemas/airtable';
 // Field name constants (match Airtable column names in the Portafolio table)
 // ---------------------------------------------------------------------------
 
+function toString(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string') return v.trim() || null;
+  return String(v).trim() || null;
+}
+
+function toNumeric(v: unknown): number | null {
+  if (v === null || v === undefined) return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return isNaN(n) ? null : n;
+}
+
 export const PORTAFOLIO_FIELD = {
   LABEL:    'N° Habitación',   // new schema: was "N° de habitación"
   PROPERTY: 'Propiedad',
@@ -86,6 +98,10 @@ export function normalizePortafolio(record: AirtableRecord, orgId: string) {
     toilet_type,
     area_m2,
     status,
+    unit_type:      toString(f['Tipo']),
+    price_6months:  toNumeric(f['Precio 6 meses (S/)']),
+    price_12months: toNumeric(f['Precio 12 meses (S/)']),
+    price_18months: toNumeric(f['Precio 18 meses (S/)']),
     // Link helper — stripped by toDbRow before upsert
     _airtable_property_ext_id: propertyExtId,
   };

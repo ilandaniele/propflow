@@ -44,7 +44,9 @@ export function normalizeTrashCompliance(record: AirtableRecord, orgId: string):
     estado:               toString(f['Estado']),
     foto_url:             fotoUrl,
     hora_confirmacion:    toTimestamp(f['Hora confirmación']),
-    hash_imagen:          toString(f['Hash Imagen']),
+    hash_imagen:           toString(f['Hash Imagen']),
+    registro_tipo:         toString(f['Tipo de registro']),
+    problema_descripcion:  toString(f['Descripción del problema']),
     _airtable_trash_schedule_ext_id,
     _airtable_tenant_ext_id,
   };

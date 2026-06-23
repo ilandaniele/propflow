@@ -119,5 +119,11 @@ export function normalizeTenant(
     result.photo_url = photoDniUrl;
   }
 
+  result.occupation           = toString(f['Ocupación']);
+  result.foto_tiu_url         = extractFirstAttachmentUrl(f['Foto TIU']) ?? null;
+  result.solvency_doc_url     = extractFirstAttachmentUrl(f['Doc. de solvencia']) ?? null;
+  result.acquisition_channels = Array.isArray(f['Canal de captación']) ? (f['Canal de captación'] as string[]).join(', ') : null;
+  result.exit_reason          = toString(f['Motivo de salida']);
+
   return result;
 }
