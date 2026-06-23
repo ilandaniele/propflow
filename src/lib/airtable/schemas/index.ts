@@ -69,6 +69,9 @@ export const NormalizedPropertySchema = z.object({
   // New fields in the new base schema
   tope_luz:              z.number().nullable().optional(),
   tope_agua:             z.number().nullable().optional(),
+  folder_id:             z.string().nullable().optional(),
+  gas_type:              z.string().nullable().optional(),
+  n_pe:                  z.string().nullable().optional(),
 });
 
 export type NormalizedProperty = z.infer<typeof NormalizedPropertySchema>;
@@ -104,6 +107,11 @@ export const NormalizedTenantSchema = z.object({
   // Profile photo URL — mapped from Airtable "Foto de perfil" attachment field
   // Only present if the field exists in Airtable; never clobbers existing photo_url with null
   photo_url:             z.string().nullable().optional(),
+  occupation:            z.string().nullable().optional(),
+  foto_tiu_url:          z.string().nullable().optional(),
+  solvency_doc_url:      z.string().nullable().optional(),
+  acquisition_channels:  z.string().nullable().optional(),
+  exit_reason:           z.string().nullable().optional(),
   // Raw linked-record id — used by link resolver, not written to DB
   _airtable_property_ext_id: z.string().nullable().optional(),
   _airtable_unit_label:      z.string().nullable().optional(),
@@ -168,6 +176,10 @@ export const NormalizedPaymentSchema = z.object({
   phone:                 z.string().nullable().optional(),
   tenant_name:           z.string().nullable().optional(),
   receipt_url:           z.string().nullable().optional(),
+  previous_balance_applied:      NullableNumeric,
+  previous_addl_balance_applied: NullableNumeric,
+  days_overdue:                  z.number().int().nullable().optional(),
+  concept:                       z.string().nullable().optional(),
   // Resolved link fields
   contract_id:           z.string().uuid().nullable().optional(),
   tenant_id:             z.string().uuid().nullable().optional(),
