@@ -56,10 +56,22 @@ export interface ReminderRunResult {
 export async function runReminderEngine(siteUrl: string): Promise<ReminderRunResult[]> {
   const start = Date.now();
 
-  const orgRows = await db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .limit(200);
+  // Fly.io machines resume from suspension with stale TCP connections.
+  // Retry the first DB query up to 3 times with 2s backoff before giving up.
+  let orgRows: Array<{ id: string }> = [];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      orgRows = await db.select({ id: organizations.id }).from(organizations).limit(200);
+      break;
+    } catch (err) {
+      if (attempt < 2) {
+        log.warn('[reminder-engine] DB connection failed, retrying', { attempt, error: (err as Error).message });
+        await new Promise(r => setTimeout(r, 2000));
+      } else {
+        throw err;
+      }
+    }
+  }
 
   if (!orgRows || orgRows.length === 0) return [];
 
