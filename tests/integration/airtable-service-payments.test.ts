@@ -111,13 +111,13 @@ vi.mock('@/lib/db', () => {
         if (isSelectSql(sqlObj)) {
           const table = getSelectTable(sqlObj);
           if (table === 'properties' && !emptyPropertyMap) {
-            return [{ id: 'supabase-prop-uuid-001', airtable_external_id: 'recPROP001' }];
+            return [{ id: 'supabase-prop-uuid-001', airtable_key: 'recPROP001' }];
           }
           if (table === 'service_payments') {
             return [
-              { id: 'supabase-sp-uuid-001', airtable_external_id: 'recPROP001::agua' },
-              { id: 'supabase-sp-uuid-002', airtable_external_id: 'recPROP001::gas' },
-              { id: 'supabase-sp-uuid-003', airtable_external_id: 'recPROP001::luz' },
+              { id: 'supabase-sp-uuid-001', airtable_key: 'recPROP001::agua' },
+              { id: 'supabase-sp-uuid-002', airtable_key: 'recPROP001::gas' },
+              { id: 'supabase-sp-uuid-003', airtable_key: 'recPROP001::luz' },
             ];
           }
           return [];
@@ -315,7 +315,8 @@ describe('airtable-service-payments integration', () => {
     expect(aguaRow).toBeDefined();
     expect(aguaRow!['property_id']).toBe('supabase-prop-uuid-001');
     expect(aguaRow!['monthly_data']).toBeDefined();
-    const aguaMonthly = aguaRow!['monthly_data'] as Record<string, unknown>;
+    // sync-entities.ts JSON.stringifies monthly_data for postgres.js JSONB; parse it back
+    const aguaMonthly = JSON.parse(aguaRow!['monthly_data'] as string) as Record<string, unknown>;
     expect(aguaMonthly['2026-01']).toBeDefined();
     expect((aguaMonthly['2026-01'] as Record<string, unknown>)['amount']).toBe(120);
   });

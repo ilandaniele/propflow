@@ -108,22 +108,22 @@ vi.mock('@/lib/db', () => {
   }
 
   // idMap lookup responses — keyed by table name
-  // These simulate the SELECT id, airtable_external_id results that populate idMaps
-  const idMapData: Record<string, Array<{ id: string; airtable_external_id: string }>> = {
+  // sync-entities.ts SELECTs with "AS airtable_key" alias; mock must match that alias
+  const idMapData: Record<string, Array<{ id: string; airtable_key: string }>> = {
     properties: [
-      { id: 'supabase-prop-uuid-001', airtable_external_id: 'recPROP001' },
+      { id: 'supabase-prop-uuid-001', airtable_key: 'recPROP001' },
     ],
     responsables: [
-      { id: 'supabase-resp-uuid-001', airtable_external_id: 'recRESP001' },
+      { id: 'supabase-resp-uuid-001', airtable_key: 'recRESP001' },
     ],
     units: [
-      { id: 'supabase-unit-uuid-001', airtable_external_id: 'recUNIT001' },
+      { id: 'supabase-unit-uuid-001', airtable_key: 'recUNIT001' },
     ],
     tenants: [
-      { id: 'supabase-ten-uuid-001', airtable_external_id: 'recTENANT001' },
+      { id: 'supabase-ten-uuid-001', airtable_key: 'recTENANT001' },
     ],
     contracts: [
-      { id: 'supabase-contr-uuid-001', airtable_external_id: 'recCONTR001' },
+      { id: 'supabase-contr-uuid-001', airtable_key: 'recCONTR001' },
     ],
   };
 
@@ -471,6 +471,7 @@ describe('Idempotency — AC8', () => {
   beforeEach(resetState);
 
   it('AC8: units upsert executed (ON CONFLICT DO UPDATE — always updates, never ignores)', async () => {
+    airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [makePropiedadRecord()];
     airtableRecordsByKey['AIRTABLE_TABLE_PORTAFOLIO'] = [makePortafolioRecord()];
 
     await callRoute(authHeader());
@@ -495,6 +496,7 @@ describe('airtable_synced_at — AC9', () => {
   beforeEach(resetState);
 
   it('AC9: units upsert payload includes airtable_synced_at', async () => {
+    airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [makePropiedadRecord()];
     airtableRecordsByKey['AIRTABLE_TABLE_PORTAFOLIO'] = [makePortafolioRecord()];
 
     await callRoute(authHeader());
