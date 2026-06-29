@@ -1349,6 +1349,7 @@
     "airtable_unavailable": "Sua conta foi criada, mas não conseguimos sincronizar com o Airtable. O administrador pode concluir a sincronização.",
     "local_created_airtable_failed": "Sua conta foi criada localmente. A sincronização com o Airtable falhou e será tentada novamente.",
     "oauth_failed": "Erro de autenticação com o Google. Tente novamente.",
+    "account_not_created": "Não conseguimos criar nem encontrar sua conta. Se você foi convidado, abra o link do convite; caso contrário, solicite acesso ao administrador.",
     "default": "Erro de autenticação. Tente novamente."
   },
   "invite": {

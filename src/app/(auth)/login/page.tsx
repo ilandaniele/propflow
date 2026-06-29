@@ -10,8 +10,27 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { GoogleSignInButton } from '@/components/ui/GoogleSignInButton';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
-const GOOGLE_CALLBACK_URL = `${SITE_URL}/auth/callback`;
+// Post-OAuth dispatch route (see src/app/auth/callback/page.tsx). Relative so it
+// always matches the current origin — no dependency on NEXT_PUBLIC_SITE_URL being
+// set correctly in the deploy environment.
+const GOOGLE_CALLBACK_URL = '/auth/callback';
+
+// Normalise both our own error params and NextAuth's built-in error codes
+// (emitted when the signIn callback aborts) to authErrors message keys, so the
+// banner always shows a specific message instead of a blank/generic one.
+const ERROR_KEY_MAP: Record<string, string> = {
+  // Our app-emitted codes (from /auth/callback)
+  oauth_failed: 'oauth_failed',
+  account_not_created: 'account_not_created',
+  // NextAuth built-in codes
+  AccessDenied: 'account_not_created',      // signIn callback returned false (provisioning failed / denied)
+  OAuthAccountNotLinked: 'email_conflict',  // email already exists with a different provider
+  Configuration: 'oauth_failed',
+  Verification: 'oauth_failed',
+  OAuthSignin: 'oauth_failed',
+  OAuthCallbackError: 'oauth_failed',
+  Callback: 'invalid_callback',
+};
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -27,8 +46,9 @@ export default function LoginPage() {
   const [state, action] = useActionState<AuthState, FormData>(signIn, {});
   const searchParams = useSearchParams();
   const oauthError = searchParams.get('error');
-  const oauthErrorMessage = oauthError
-    ? (t(oauthError as Parameters<typeof t>[0]) || t('default'))
+  const oauthErrorKey = oauthError ? (ERROR_KEY_MAP[oauthError] ?? 'default') : null;
+  const oauthErrorMessage = oauthErrorKey
+    ? t(oauthErrorKey as Parameters<typeof t>[0])
     : null;
 
   return (
