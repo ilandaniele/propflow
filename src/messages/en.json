@@ -1349,6 +1349,7 @@
     "airtable_unavailable": "Your account was created, but we could not sync with Airtable. The admin can complete the sync.",
     "local_created_airtable_failed": "Your account was created locally. Airtable sync failed and will be retried.",
     "oauth_failed": "Google authentication error. Please try again.",
+    "account_not_created": "We couldn't create or find your account. If you were invited, open your invitation link; otherwise request access from your administrator.",
     "default": "Authentication error. Please try again."
   },
   "invite": {
