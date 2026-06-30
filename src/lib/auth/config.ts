@@ -96,49 +96,20 @@ export const authConfig: NextAuthConfig = {
 
   callbacks: {
     async signIn({ user, account }) {
-      // Only run provisioning for Google OAuth on sign-in
+      // IMPORTANT: do NOT provision here. In @auth/core the signIn callback runs
+      // BEFORE the adapter creates the user row (and user.id is the OAuth `sub`,
+      // not the final DB uuid), so any profile insert keyed on user.id FK-fails
+      // → AccessDenied. Provisioning happens in events.createUser (below), which
+      // runs AFTER the user row is persisted with its real uuid.
       if (account?.provider === 'google') {
         if (!user.email) {
-          log.error('[auth] signIn: Google user missing email', { userId: user.id });
+          log.error('[auth] signIn: Google user missing email');
           return false;
         }
-
-        const email = user.email.trim().toLowerCase();
-
-        try {
-          // Check if a profile already exists (returning user)
-          const existing = user.id ? await getExistingProfile(user.id) : null;
-
-          if (!existing) {
-            if (isAllowlistedAdmin(email)) {
-              // Allowlisted co-admin — attach to the primary org as admin
-              await attachToPrimaryOrgAsAdmin(user.id!, email, user.name ?? null);
-            } else {
-              // First Google login — provision a fresh org + admin profile
-              await provisionOrgAndProfile(
-                user.id!,
-                email,
-                user.name ?? email
-              );
-
-              // Attempt auto-link to existing tenant row (best-effort)
-              await attemptAutoLink(user.id!, email);
-            }
-          }
-
-          return true;
-        } catch (err) {
-          const code = err instanceof Error ? err.name : 'unknown';
-          log.error('[auth] signIn callback error', { code, provider: 'google' });
-          return false;
-        }
-      }
-
-      // Credentials provider — user row already exists from authorize(); allow
-      if (account?.provider === 'credentials') {
         return true;
       }
 
+      // Credentials provider — user row already exists from authorize(); allow
       return true;
     },
 
@@ -167,6 +138,46 @@ export const authConfig: NextAuthConfig = {
       session.user.id = user.id;
 
       return session;
+    },
+  },
+
+  events: {
+    /**
+     * Runs AFTER the adapter persists a brand-new user (real DB uuid, row exists).
+     * This is the only safe place to provision the org/profile for OAuth sign-ups —
+     * the signIn callback runs too early (no users row yet).
+     *
+     * Email/password sign-up does NOT trigger this event (the user is inserted
+     * manually in registerWithEmail, which provisions inline), so there is no
+     * double-provisioning.
+     */
+    async createUser({ user }) {
+      try {
+        if (!user.id || !user.email) {
+          log.error('[auth] createUser event: missing id or email');
+          return;
+        }
+        const email = user.email.trim().toLowerCase();
+
+        // Idempotency guard — a brand-new user should never already have a profile.
+        const existing = await getExistingProfile(user.id);
+        if (existing) return;
+
+        if (isAllowlistedAdmin(email)) {
+          // Allowlisted co-admin — attach to the primary org as admin.
+          await attachToPrimaryOrgAsAdmin(user.id, email, user.name ?? null);
+        } else {
+          // Default self-serve — fresh org + admin profile, then best-effort
+          // auto-link to an existing tenant row.
+          await provisionOrgAndProfile(user.id, email, user.name ?? email);
+          await attemptAutoLink(user.id, email);
+        }
+      } catch (err) {
+        // Never throw from an event — it would abort the sign-in. Log instead;
+        // the session callback surfaces the missing profile as account_not_created.
+        const code = err instanceof Error ? err.message : 'unknown';
+        log.error('[auth] createUser provisioning failed', { code });
+      }
     },
   },
 
