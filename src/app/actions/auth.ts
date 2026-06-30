@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import bcryptjs from 'bcryptjs';
-import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from '@/auth';
+import { signOut as nextAuthSignOut } from '@/auth';
 import { err, Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
 import { checkRateLimit } from '@/lib/ratelimit';
@@ -12,6 +12,7 @@ import { headers } from 'next/headers';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { provisionUser } from '@/lib/auth/provision';
+import { createUserSession } from '@/lib/auth/session';
 
 const BCRYPT_COST = 12;
 
@@ -48,20 +49,28 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     return Errors.VALIDATION_ERROR(parsed.error.flatten());
   }
 
+  const email = parsed.data.email.trim().toLowerCase();
+
+  // Validate credentials and issue a database session ourselves. NextAuth's
+  // Credentials provider can't create a session under strategy:'database', so we
+  // do it directly (see src/lib/auth/session.ts). Same opaque-token mechanism as
+  // OAuth sessions, so auth()/middleware resolve it identically.
   try {
-    await nextAuthSignIn('credentials', {
-      email: parsed.data.email,
-      password: parsed.data.password,
-      redirect: false,
-    });
+    const user = await db.query.users.findFirst({ where: eq(users.email, email) });
+    if (!user?.passwordHash || !(await bcryptjs.compare(parsed.data.password, user.passwordHash))) {
+      log.authFailure(email, 'invalid_credentials');
+      return err('AUTH_FAILED', 'Invalid email or password');
+    }
+    await createUserSession(user.id);
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : 'unknown';
-    log.authFailure(parsed.data.email, errMsg);
+    log.authFailure(email, errMsg);
     return err('AUTH_FAILED', 'Invalid email or password');
   }
 
-  log.authSuccess('', parsed.data.email);
-  redirect('/dashboard');
+  log.authSuccess('', email);
+  // /auth/callback dispatches by role (admin → /dashboard, tenant → /portal).
+  redirect('/auth/callback');
 }
 
 export async function signOut(): Promise<void> {
@@ -118,26 +127,15 @@ export async function registerWithEmail(_prev: AuthState, formData: FormData): P
     if (!created?.id) throw new Error('user_insert_no_rows');
 
     await provisionUser(created.id, email, parsed.data.name, parsed.data.orgName);
+    await createUserSession(created.id);
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : 'unknown';
     log.error('[auth] registerWithEmail failed', { code: errMsg });
     return { error: { code: 'REGISTRATION_FAILED', message: 'No pudimos crear tu cuenta. Intenta nuevamente.' } };
   }
 
-  try {
-    await nextAuthSignIn('credentials', {
-      email,
-      password: parsed.data.password,
-      redirect: false,
-    });
-  } catch (e) {
-    // Account created but auto-login failed — send them to login to sign in manually.
-    const errMsg = e instanceof Error ? e.message : 'unknown';
-    log.warn('[auth] registerWithEmail auto-login failed', { code: errMsg });
-    redirect('/login');
-  }
-
   log.authSuccess('', email);
+  // /auth/callback dispatches by role (new accounts are admins → /dashboard).
   redirect('/auth/callback');
 }
 
