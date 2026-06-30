@@ -25,7 +25,8 @@ import Credentials from 'next-auth/providers/credentials';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users, accounts, sessions, verificationTokens, profiles } from '@/lib/db/schema';
-import { provisionOrgAndProfile, getExistingProfile, attemptAutoLink } from './provision';
+import { provisionOrgAndProfile, getExistingProfile, attemptAutoLink, attachToPrimaryOrgAsAdmin } from './provision';
+import { isAllowlistedAdmin } from './admin-allowlist';
 import { log } from '@/lib/log';
 
 export const authConfig: NextAuthConfig = {
@@ -109,15 +110,20 @@ export const authConfig: NextAuthConfig = {
           const existing = user.id ? await getExistingProfile(user.id) : null;
 
           if (!existing) {
-            // First Google login — provision org + profile
-            await provisionOrgAndProfile(
-              user.id!,
-              email,
-              user.name ?? email
-            );
+            if (isAllowlistedAdmin(email)) {
+              // Allowlisted co-admin — attach to the primary org as admin
+              await attachToPrimaryOrgAsAdmin(user.id!, email, user.name ?? null);
+            } else {
+              // First Google login — provision a fresh org + admin profile
+              await provisionOrgAndProfile(
+                user.id!,
+                email,
+                user.name ?? email
+              );
 
-            // Attempt auto-link to existing tenant row (best-effort)
-            await attemptAutoLink(user.id!, email);
+              // Attempt auto-link to existing tenant row (best-effort)
+              await attemptAutoLink(user.id!, email);
+            }
           }
 
           return true;
