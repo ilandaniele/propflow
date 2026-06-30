@@ -4,10 +4,11 @@
  * Called during the NextAuth signIn callback when a user has no profile yet.
  */
 
-import { and, eq, ilike, isNull } from 'drizzle-orm';
+import { and, asc, eq, ilike, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { organizations, profiles, tenants } from '@/lib/db/schema';
 import { log } from '@/lib/log';
+import { isAllowlistedAdmin, getPrimaryOwnerEmail } from './admin-allowlist';
 
 export interface ProvisionResult {
   orgId: string;
@@ -70,6 +71,85 @@ export async function provisionOrgAndProfile(
     });
     throw new Error(`PROVISION_FAILED:profile:${code}`);
   }
+}
+
+/**
+ * Resolve the "primary" organization that allowlisted admins should join:
+ * the org of the primary owner (admin profile matched by email), falling back
+ * to the oldest organization. Returns null only when no org exists at all.
+ */
+export async function resolvePrimaryOrgId(): Promise<string | null> {
+  const ownerEmail = getPrimaryOwnerEmail();
+
+  const ownerProfile = await db.query.profiles.findFirst({
+    where: and(ilike(profiles.email, ownerEmail), eq(profiles.role, 'admin')),
+    columns: { orgId: true },
+  });
+  if (ownerProfile?.orgId) return ownerProfile.orgId;
+
+  // Fallback: the oldest org (single-tenant deployments, or owner not yet provisioned).
+  const oldest = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .orderBy(asc(organizations.createdAt))
+    .limit(1);
+  return oldest[0]?.id ?? null;
+}
+
+/**
+ * Provision an allowlisted user as an ADMIN of the primary org (no new org).
+ * Idempotent on profiles.user_id. If no primary org exists yet, falls back to
+ * creating a fresh org (so the very first user still gets a workspace).
+ */
+export async function attachToPrimaryOrgAsAdmin(
+  userId: string,
+  email: string,
+  fullName?: string | null,
+): Promise<ProvisionResult> {
+  const orgId = await resolvePrimaryOrgId();
+  if (!orgId) {
+    log.warn('[provision] no primary org found for allowlisted admin — creating new org', { userId });
+    return provisionOrgAndProfile(userId, email, fullName ?? email, fullName ?? undefined);
+  }
+
+  const [inserted] = await db
+    .insert(profiles)
+    .values({ userId, orgId, role: 'admin', email, fullName: fullName ?? null })
+    .onConflictDoNothing()
+    .returning({ id: profiles.id });
+
+  let profileId: string | undefined = inserted?.id;
+  if (!profileId) {
+    const existing = await db.query.profiles.findFirst({
+      where: eq(profiles.userId, userId),
+      columns: { id: true },
+    });
+    profileId = existing?.id;
+  }
+
+  if (!profileId) throw new Error('PROVISION_FAILED:primary_admin:no_rows');
+
+  log.info('[provision] allowlisted admin attached to primary org', {
+    event: 'provision_allowlist_admin', userId, orgId,
+  });
+  return { orgId, profileId, role: 'admin' };
+}
+
+/**
+ * First-sign-in dispatcher: allowlisted emails become admins of the primary org;
+ * everyone else gets a fresh org of their own (the default self-serve workspace).
+ * `orgName` is only used for the non-allowlisted (new-workspace) path.
+ */
+export async function provisionUser(
+  userId: string,
+  email: string,
+  fullName?: string | null,
+  orgName?: string,
+): Promise<ProvisionResult> {
+  if (isAllowlistedAdmin(email)) {
+    return attachToPrimaryOrgAsAdmin(userId, email, fullName);
+  }
+  return provisionOrgAndProfile(userId, email, orgName ?? fullName ?? email, fullName ?? undefined);
 }
 
 /**

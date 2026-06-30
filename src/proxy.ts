@@ -31,6 +31,7 @@ export async function proxy(request: NextRequest) {
   const isFullyPublicRoute =
     path === '/' ||
     path === '/login' ||
+    path === '/register' ||
     path === '/forgot-password' ||
     path.startsWith('/sign/') ||
     path.startsWith('/auth/') ||
@@ -88,7 +89,7 @@ export async function proxy(request: NextRequest) {
   // Route protection
   const isAdminRoute = path.startsWith('/dashboard');
   const isTenantRoute = path.startsWith('/portal');
-  const isAuthRoute = path === '/login' || path === '/forgot-password';
+  const isAuthRoute = path === '/login' || path === '/register' || path === '/forgot-password';
   // Public routes — no auth required (security: token/secret gated by the Route Handler)
   // /auth/callback: PKCE code exchange must run before any session check (IC5)
   // /onboarding: unauthenticated guard is handled by the page Server Component itself

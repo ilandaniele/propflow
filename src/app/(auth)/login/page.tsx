@@ -131,12 +131,12 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-xs text-slate-400">
           ¿No tienes cuenta?{' '}
-          <a
-            href="mailto:hello@propflow.app?subject=Request Access to PropFlow"
+          <Link
+            href="/register"
             className="font-medium text-slate-600 hover:text-slate-900 transition-colors"
           >
-            Solicita acceso
-          </a>
+            Crear cuenta
+          </Link>
         </p>
       </div>
     </div>
