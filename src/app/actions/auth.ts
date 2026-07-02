@@ -13,6 +13,7 @@ import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { provisionUser } from '@/lib/auth/provision';
 import { createUserSession } from '@/lib/auth/session';
+import { isAllowlistedAdmin } from '@/lib/auth/admin-allowlist';
 
 const BCRYPT_COST = 12;
 
@@ -35,6 +36,21 @@ export type AuthState = {
   success?: boolean;
 };
 
+/**
+ * Validate an email/password and, on success, create a database session.
+ * Constant-time (always runs a bcrypt compare) so timing doesn't reveal whether
+ * the email exists. Returns true on success. Shared by the login form action and
+ * the invite-accept flow. Callers must rate-limit before calling.
+ */
+async function verifyPasswordAndStartSession(email: string, password: string): Promise<boolean> {
+  const user = await db.query.users.findFirst({ where: eq(users.email, email) });
+  const hashToCheck = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+  const passwordOk = await bcryptjs.compare(password, hashToCheck);
+  if (!user?.passwordHash || !passwordOk) return false;
+  await createUserSession(user.id);
+  return true;
+}
+
 export async function signIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const headersList = await headers();
   const forwardedFor = headersList.get('x-forwarded-for') ?? 'anonymous';
@@ -56,21 +72,11 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
 
   const email = parsed.data.email.trim().toLowerCase();
 
-  // Validate credentials and issue a database session ourselves. NextAuth's
-  // Credentials provider can't create a session under strategy:'database', so we
-  // do it directly (see src/lib/auth/session.ts). Same opaque-token mechanism as
-  // OAuth sessions, so auth()/middleware resolve it identically.
   try {
-    const user = await db.query.users.findFirst({ where: eq(users.email, email) });
-    // Always run a compare (against a dummy hash when the user/hash is absent) so
-    // response timing doesn't reveal whether the email exists — no enumeration.
-    const hashToCheck = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
-    const passwordOk = await bcryptjs.compare(parsed.data.password, hashToCheck);
-    if (!user?.passwordHash || !passwordOk) {
+    if (!(await verifyPasswordAndStartSession(email, parsed.data.password))) {
       log.authFailure(email, 'invalid_credentials');
       return err('AUTH_FAILED', 'Invalid email or password');
     }
-    await createUserSession(user.id);
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : 'unknown';
     log.authFailure(email, errMsg);
@@ -80,6 +86,40 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   log.authSuccess('', email);
   // /auth/callback dispatches by role (admin → /dashboard, tenant → /portal).
   redirect('/auth/callback');
+}
+
+/**
+ * Non-redirecting password sign-in for the invite-accept flow (client component).
+ * Validates the password, creates the session cookie, and returns a plain result
+ * so the caller can then POST /api/invite/accept. Rate-limited per IP.
+ */
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const headersList = await headers();
+  const forwardedFor = headersList.get('x-forwarded-for') ?? 'anonymous';
+  const ip = forwardedFor.split(',')[0].trim();
+
+  if (!checkAuthRateLimitByIp(ip).success) {
+    return { ok: false, error: 'RATE_LIMITED' };
+  }
+
+  const parsed = SignInSchema.safeParse({ email, password });
+  if (!parsed.success) return { ok: false, error: 'INVALID' };
+
+  const normalizedEmail = parsed.data.email.trim().toLowerCase();
+  try {
+    if (!(await verifyPasswordAndStartSession(normalizedEmail, parsed.data.password))) {
+      log.authFailure(normalizedEmail, 'invalid_credentials');
+      return { ok: false, error: 'AUTH_FAILED' };
+    }
+  } catch {
+    return { ok: false, error: 'AUTH_FAILED' };
+  }
+
+  log.authSuccess('', normalizedEmail);
+  return { ok: true };
 }
 
 export async function signOut(): Promise<void> {
@@ -121,6 +161,14 @@ export async function registerWithEmail(_prev: AuthState, formData: FormData): P
 
   const email = parsed.data.email.trim().toLowerCase();
 
+  // Privilege-escalation guard: allowlisted emails become ADMIN of the primary org.
+  // Password sign-up does not prove email ownership (no verification email is sent
+  // yet), so an attacker could otherwise self-register an allowlisted address and
+  // claim admin. Force those addresses through Google, which verifies the email.
+  if (isAllowlistedAdmin(email)) {
+    return { error: { code: 'USE_GOOGLE', message: 'Esta cuenta debe iniciar sesión con Google.' } };
+  }
+
   try {
     const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
     if (existing) {
@@ -128,9 +176,10 @@ export async function registerWithEmail(_prev: AuthState, formData: FormData): P
     }
 
     const passwordHash = await bcryptjs.hash(parsed.data.password, BCRYPT_COST);
+    // emailVerified stays null — password sign-up does not verify ownership.
     const [created] = await db
       .insert(users)
-      .values({ email, name: parsed.data.name, passwordHash, emailVerified: new Date() })
+      .values({ email, name: parsed.data.name, passwordHash })
       .returning({ id: users.id });
 
     if (!created?.id) throw new Error('user_insert_no_rows');
