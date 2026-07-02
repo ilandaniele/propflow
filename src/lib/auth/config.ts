@@ -3,25 +3,28 @@
  *
  * Providers:
  *   - Google OAuth (AC2)
- *   - Credentials (email + password via bcryptjs) (AC3)
+ *
+ * Email/password auth does NOT use a NextAuth Credentials provider: under the
+ * database session strategy that provider can't mint a session, and leaving it
+ * wired only exposed an unthrottled bcrypt/enumeration oracle at
+ * /api/auth/callback/credentials. Password login/sign-up go through the rate-
+ * limited server actions in src/app/actions/auth.ts, which validate the password
+ * and create the session directly (src/lib/auth/session.ts).
  *
  * Session strategy: database (via DrizzleAdapter) (AC4)
  *
  * Callbacks:
- *   - signIn: provision org+profile on first Google login; attempt auto-link
+ *   - signIn: allow Google (provisioning happens in events.createUser)
  *   - session: augment session.user with { id, orgId, role } from profiles table
  *
  * Security:
- *   - Credentials authorize() never returns a truthy value for invalid passwords
  *   - User identity always fetched server-side; client-supplied userId is never trusted
  *   - No stack traces or PII in error returns
  */
 
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
-import bcryptjs from 'bcryptjs';
 import type { NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
-import Credentials from 'next-auth/providers/credentials';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users, accounts, sessions, verificationTokens, profiles } from '@/lib/db/schema';
@@ -46,50 +49,6 @@ export const authConfig: NextAuthConfig = {
           access_type: 'offline',
           prompt: 'select_account',
         },
-      },
-    }),
-
-    Credentials({
-      name: 'Email',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        if (
-          typeof credentials?.email !== 'string' ||
-          typeof credentials?.password !== 'string'
-        ) {
-          return null;
-        }
-
-        const email = credentials.email.trim().toLowerCase();
-        const password = credentials.password;
-
-        try {
-          const user = await db.query.users.findFirst({
-            where: eq(users.email, email),
-          });
-
-          if (!user?.passwordHash) {
-            // No user or no password (OAuth-only account) — fail silently
-            return null;
-          }
-
-          const valid = await bcryptjs.compare(password, user.passwordHash);
-          if (!valid) return null;
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
-          };
-        } catch (err) {
-          const code = err instanceof Error ? err.name : 'unknown';
-          log.error('[auth] credentials authorize error', { code });
-          return null;
-        }
       },
     }),
   ],

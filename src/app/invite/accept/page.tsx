@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useSession, signIn as nextAuthSignIn } from 'next-auth/react';
+import { signInWithPassword } from '@/app/actions/auth';
 import { Button } from '@/components/ui/Button';
 
 function maskEmail(email: string): string {
@@ -120,13 +121,11 @@ export default function InviteAcceptPage() {
         ? { phase: 'signing_in', maskedEmail: prev.maskedEmail, orgName: prev.orgName }
         : { phase: 'signing_in', maskedEmail: '', orgName: '' }
     );
-    const result = await nextAuthSignIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-    if (result?.error) {
-      setSignInErr(result.error ?? t('errorSignIn'));
+    // Password sign-in via a rate-limited server action that creates the session
+    // directly (no NextAuth Credentials provider under the database strategy).
+    const result = await signInWithPassword(email, password);
+    if (!result.ok) {
+      setSignInErr(t('errorSignIn'));
       setState(prev =>
         prev.phase === 'signing_in'
           ? { phase: 'ready', maskedEmail: prev.maskedEmail, orgName: prev.orgName }
