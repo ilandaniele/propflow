@@ -12,7 +12,16 @@
  */
 
 import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+
+// Stricter than the default schema: drop <img> (and any src/srcset) so LLM output
+// cannot embed a remote image beacon that exfiltrates data (e.g. the org id) via a
+// prompt-injection payload flowing in from tenant/Airtable content.
+const NARRATIVE_SANITIZE_SCHEMA = {
+  ...defaultSchema,
+  tagNames: (defaultSchema.tagNames ?? []).filter((t) => t !== 'img'),
+  attributes: { ...defaultSchema.attributes, '*': (defaultSchema.attributes?.['*'] ?? []) },
+};
 
 interface NarrativeProps {
   /** Markdown string returned by /api/ai/executive-brief — never raw HTML */
@@ -34,8 +43,8 @@ interface NarrativeProps {
 export function Narrative({ markdown, className }: NarrativeProps) {
   return (
     <div className={className}>
-      {/* LLM02: rehype-sanitize strips <script>, <iframe>, on* attributes, etc. */}
-      <ReactMarkdown rehypePlugins={[rehypeSanitize]}>
+      {/* LLM02: rehype-sanitize strips <script>, <iframe>, <img>, on* attributes, etc. */}
+      <ReactMarkdown rehypePlugins={[[rehypeSanitize, NARRATIVE_SANITIZE_SCHEMA]]}>
         {markdown}
       </ReactMarkdown>
     </div>

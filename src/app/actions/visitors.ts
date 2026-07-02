@@ -26,6 +26,7 @@ export async function createVisitorLog(
 
   // For tenant callers: validate that the unit belongs to their active contract (IC-E3)
   let unitId = parsed.data.unit_id ?? null;
+  let hostTenantId = parsed.data.host_tenant_id ?? null;
   if (ctx.role === 'tenant') {
     // Derive unit from tenant's active contract
     const tenantRows = await db
@@ -54,6 +55,10 @@ export async function createVisitorLog(
 
     if (unitId && unitId !== tenantUnitId) return Errors.FORBIDDEN();
     unitId = tenantUnitId;
+
+    // A tenant may only log visitors they themselves host — never impersonate
+    // another tenant via a client-supplied host_tenant_id.
+    hostTenantId = tenantIds[0] ?? null;
   }
 
   try {
@@ -62,7 +67,7 @@ export async function createVisitorLog(
       propertyId: parsed.data.property_id ?? null,
       unitId,
       visitorName: parsed.data.visitor_name,
-      hostTenantId: parsed.data.host_tenant_id ?? null,
+      hostTenantId,
       visitDate: parsed.data.visit_date,
       entryTime: parsed.data.entry_time ? new Date(parsed.data.entry_time) : null,
       purpose: parsed.data.purpose ?? null,
