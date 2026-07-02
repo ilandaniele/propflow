@@ -16,6 +16,7 @@ import { syncAirtableTable } from '@/lib/airtable/sync';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
+import { withDbRetry } from '@/lib/db/retry';
 
 // ---------------------------------------------------------------------------
 // Sync target lists
@@ -82,7 +83,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // ── Determine which orgs to sync — Drizzle query (AC1) ───────────────────
   let orgIds: string[];
   try {
-    const rows = await db.select({ id: organizations.id }).from(organizations);
+    // First query after a Fly machine resume can hit a stale connection — retry.
+    const rows = await withDbRetry(
+      () => db.select({ id: organizations.id }).from(organizations),
+      'cron/airtable-sync',
+    );
     orgIds = rows.map(r => r.id);
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown';

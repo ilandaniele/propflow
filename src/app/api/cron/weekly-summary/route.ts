@@ -17,6 +17,7 @@ import { organizations, properties, profiles, propertyWeeklySummaries } from '@/
 import { eq, and, isNotNull } from 'drizzle-orm';
 import { buildWeeklySummary } from '@/lib/whatsapp/weekly-summary';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
+import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -46,8 +47,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const provider = getWhatsAppProvider();
 
-    // Fetch all organizations — Drizzle (AC1)
-    const orgs = await db.select({ id: organizations.id, name: organizations.name }).from(organizations);
+    // Fetch all organizations — Drizzle (AC1).
+    // First query after a Fly machine resume can hit a stale connection — retry.
+    const orgs = await withDbRetry(
+      () => db.select({ id: organizations.id, name: organizations.name }).from(organizations),
+      'cron/weekly-summary',
+    );
 
     let orgsProcessed     = 0;
     let summariesInserted = 0;
