@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { profiles } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getSignedUrl } from '@/lib/storage/index';
+import { isSafeOrgScopedPath } from '@/lib/storage/path';
 import { z } from 'zod';
 
 const QuerySchema = z.object({
@@ -27,12 +28,6 @@ export async function GET(request: NextRequest) {
 
   const storagePath = parsed.data.path;
 
-  // Extract org_id from path prefix: org_id/incident_id/filename
-  const pathParts = storagePath.split('/');
-  if (pathParts.length < 3) {
-    return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Invalid path format' } }, { status: 404 });
-  }
-
   // Verify the user has access to the incident this photo belongs to — Drizzle (AC1)
   const profileRows = await db
     .select({ orgId: profiles.orgId })
@@ -45,9 +40,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { code: 'UNAUTHORIZED', message: 'Profile not found' } }, { status: 401 });
   }
 
-  // The path must start with the user's org_id (AC8: orgId isolation)
-  const orgIdFromPath = pathParts[0];
-  if (orgIdFromPath !== profile.orgId) {
+  // Path must be a clean {org_id}/{incident_id}/{file} scoped to the caller's org
+  // (rejects .. and prefix tricks — AC8: orgId isolation, ASVS V12.3.1).
+  if (!isSafeOrgScopedPath(storagePath, profile.orgId)) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }
 

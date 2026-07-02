@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/guards';
 import { getSignedUrl } from '@/lib/storage/index';
+import { isSafeOrgScopedPath } from '@/lib/storage/path';
 import { Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const path = request.nextUrl.searchParams.get('path');
-  if (!path || !path.startsWith(ctx.orgId)) {
+  if (!isSafeOrgScopedPath(path, ctx.orgId)) {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 

@@ -16,6 +16,11 @@ import { createUserSession } from '@/lib/auth/session';
 
 const BCRYPT_COST = 12;
 
+// A valid bcrypt hash used to keep the login path constant-time when the email
+// doesn't exist — prevents user enumeration via response timing. The password is
+// never this value; the compare simply always runs.
+const DUMMY_PASSWORD_HASH = bcryptjs.hashSync('propflow-login-timing-guard', BCRYPT_COST);
+
 const SignInSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6).max(200),
@@ -57,7 +62,11 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   // OAuth sessions, so auth()/middleware resolve it identically.
   try {
     const user = await db.query.users.findFirst({ where: eq(users.email, email) });
-    if (!user?.passwordHash || !(await bcryptjs.compare(parsed.data.password, user.passwordHash))) {
+    // Always run a compare (against a dummy hash when the user/hash is absent) so
+    // response timing doesn't reveal whether the email exists — no enumeration.
+    const hashToCheck = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+    const passwordOk = await bcryptjs.compare(parsed.data.password, hashToCheck);
+    if (!user?.passwordHash || !passwordOk) {
       log.authFailure(email, 'invalid_credentials');
       return err('AUTH_FAILED', 'Invalid email or password');
     }
