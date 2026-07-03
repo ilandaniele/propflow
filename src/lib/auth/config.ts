@@ -44,6 +44,12 @@ export const authConfig: NextAuthConfig = {
     Google({
       clientId: process.env.AUTH_GOOGLE_ID!,
       clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+      // Google verifies email ownership, so linking a Google sign-in to an existing
+      // user with the same email is safe here (and the events.linkAccount hook below
+      // revokes any pre-existing self-asserted password on link). This lets the real
+      // owner sign in with Google even if the email was previously password-squatted,
+      // instead of being locked out with OAuthAccountNotLinked.
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           access_type: 'offline',
@@ -101,6 +107,24 @@ export const authConfig: NextAuthConfig = {
   },
 
   events: {
+    /**
+     * When a Google (email-verified) account is linked to an existing user, revoke
+     * any self-asserted password on that user. A password set by someone who could
+     * not prove ownership of the email must not survive a verified takeover — this
+     * closes the account-squatting vector while keeping the verified owner in control.
+     * No-op for fresh Google users (they have no password).
+     */
+    async linkAccount({ user, account }) {
+      if (account?.provider !== 'google' || !user?.id) return;
+      try {
+        await db.update(users).set({ passwordHash: null }).where(eq(users.id, user.id));
+      } catch (err) {
+        log.error('[auth] linkAccount clear-password failed', {
+          code: err instanceof Error ? err.message : 'unknown',
+        });
+      }
+    },
+
     /**
      * Runs AFTER the adapter persists a brand-new user (real DB uuid, row exists).
      * This is the only safe place to provision the org/profile for OAuth sign-ups —
