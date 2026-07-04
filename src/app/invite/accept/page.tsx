@@ -13,7 +13,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useSession, signIn as nextAuthSignIn } from 'next-auth/react';
+import { signIn as nextAuthSignIn } from 'next-auth/react';
 import { signInWithPassword } from '@/app/actions/auth';
 import { Button } from '@/components/ui/Button';
 
@@ -38,7 +38,10 @@ export default function InviteAcceptPage() {
   const router = useRouter();
   const token = searchParams.get('token') ?? '';
 
-  const { data: session } = useSession();
+  // Detect an existing session WITHOUT next-auth/react's useSession — the app has
+  // no <SessionProvider> (it uses server-side database sessions), so useSession()
+  // returned undefined and 500'd this page. Read /api/auth/session directly.
+  const [alreadySignedIn, setAlreadySignedIn] = useState(false);
   const [state, setState] = useState<InviteState>({ phase: 'loading' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,13 +66,21 @@ export default function InviteAcceptPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Check if user is already signed in — if so, try to accept immediately
+  // Detect an existing session on mount (no SessionProvider in this app).
   useEffect(() => {
-    if (session?.user && token && state.phase === 'ready') {
+    void fetch('/api/auth/session')
+      .then(r => r.json())
+      .then((s: { user?: unknown } | null) => { if (s && s.user) setAlreadySignedIn(true); })
+      .catch(() => { /* not signed in — show sign-in options */ });
+  }, []);
+
+  // If already signed in, accept immediately once the invite has loaded.
+  useEffect(() => {
+    if (alreadySignedIn && token && state.phase === 'ready') {
       void acceptInvite();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user, state.phase]);
+  }, [alreadySignedIn, state.phase]);
 
   async function acceptInvite() {
     setState(prev =>

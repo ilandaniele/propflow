@@ -99,9 +99,16 @@ export default async function DashboardPage() {
     payments:   paymentCount[0]?.count ?? 0,
     contracts:  contractCount[0]?.count ?? 0,
   };
-  const unhealthyEntities = (Object.entries(entityHealthMap) as Array<[EntityName, number]>)
-    .filter(([, count]) => count === 0)
-    .map(([entity]) => ({ entity, count: 0, error: null }));
+  // Only flag a "data not loading" anomaly when SOME entities have data but others
+  // are empty — a partial/failed load. A brand-new org where everything is 0 is
+  // simply empty (handled by the friendly empty state below), not an error, so we
+  // must not show the scary DATABASE_URL/connection diagnostic to new users.
+  const anyEntityHasData = Object.values(entityHealthMap).some((count) => count > 0);
+  const unhealthyEntities = anyEntityHasData
+    ? (Object.entries(entityHealthMap) as Array<[EntityName, number]>)
+        .filter(([, count]) => count === 0)
+        .map(([entity]) => ({ entity, count: 0, error: null }))
+    : [];
 
   const statements = (statementResult as unknown as Array<{ is_overdue: boolean; total_charged: string; total_paid: string; balance: string }>);
 
