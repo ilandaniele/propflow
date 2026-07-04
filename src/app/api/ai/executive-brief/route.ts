@@ -27,7 +27,7 @@ import { Errors } from '@/lib/errors';
 import { aiExecutiveBriefRateLimit } from '@/lib/ratelimit';
 import { serverEnv } from '@/lib/env';
 import { sanitizeForLLM } from '@/lib/ai/sanitize';
-import { checkAndIncrementBudget, recordActualUsage, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
+import { checkAndIncrementBudget, recordActualUsage, refundBudget, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
 import { db } from '@/lib/db';
 import { units, payments, expenses, incidents } from '@/lib/db/schema';
@@ -277,6 +277,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
   } catch (e) {
+    // The budget estimate was pre-allocated before the LLM call — refund it so a
+    // failed request (billing error, rate limit, network, KPI-query failure)
+    // doesn't permanently consume the org's daily AI budget.
+    await refundBudget(ctx.orgId, TOKENS_PER_BRIEF);
     const msg = e instanceof Error ? e.message : 'unknown';
     log.error('[executive-brief] exception', { error: msg });
     return NextResponse.json(Errors.INTERNAL(), { status: 500 });

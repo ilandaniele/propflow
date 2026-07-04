@@ -11,7 +11,7 @@ import { aiChatRateLimit } from '@/lib/ratelimit';
 import { assertServerEnv } from '@/lib/env';
 import { AiChatSchema } from '@/lib/schemas/ai';
 import { buildOrgContext, buildSystemPrompt, redactPiiFromUserMessage } from '@/lib/ai/assistant';
-import { checkAndIncrementBudget, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
+import { checkAndIncrementBudget, refundBudget, DAILY_TOKEN_BUDGET } from '@/lib/ai/budget';
 import { log } from '@/lib/log';
 
 const AI_MODEL = 'claude-opus-4-5';
@@ -131,7 +131,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (e) {
-          // A10: fail-closed
+          // A10: fail-closed. Refund the pre-allocated budget — the LLM call failed
+          // (e.g. billing/credit error surfaces here on first stream iteration).
+          await refundBudget(ctx.orgId, TOKENS_PER_CHAT_TURN);
           const msg = e instanceof Error ? e.message : 'unknown';
           log.error('[ai/chat] stream error', { error: msg });
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: 'Stream failed' })}\n\n`));
@@ -149,6 +151,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
   } catch (e) {
+    // Refund the pre-allocated budget — request failed before streaming began
+    // (context build, DB insert, or stream setup).
+    await refundBudget(ctx.orgId, TOKENS_PER_CHAT_TURN);
     // A10: fail-closed; generic error, no stack trace
     const msg = e instanceof Error ? e.message : 'unknown';
     log.error('[ai/chat] exception', { error: msg });

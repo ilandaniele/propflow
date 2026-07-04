@@ -153,6 +153,27 @@ export async function recordActualUsage(
 }
 
 // ---------------------------------------------------------------------------
+// refundBudget (called when the AI call FAILS after budget was pre-allocated)
+// ---------------------------------------------------------------------------
+
+/**
+ * Refund a previously-allocated token estimate when the AI request fails before
+ * producing billable output (billing error, rate limit, network failure, refusal,
+ * KPI-query error, etc.). Without this, every failed AI call permanently consumes
+ * the org's daily budget and eventually blocks all AI even though nothing was spent.
+ *
+ * Safe to call unconditionally in a catch block: it never drives the counter below 0
+ * and no-ops if the row is gone / the day rolled over.
+ */
+export async function refundBudget(orgId: string, estimatedTokens: number): Promise<void> {
+  try {
+    await recordActualUsage(orgId, 0, estimatedTokens);
+  } catch (err) {
+    log.error('[ai/budget] refund failed', { error: (err as Error).message, orgId });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // getBudgetStatus (read-only — used by UI tiles)
 // ---------------------------------------------------------------------------
 
