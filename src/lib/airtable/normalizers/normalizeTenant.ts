@@ -83,6 +83,7 @@ export function normalizeTenant(
 
   const firstName = toString(f[TENANT_FIELD.FIRST_NAME]);
   const lastName  = toString(f[TENANT_FIELD.LAST_NAME]);
+  const dni       = toString(f[TENANT_FIELD.DNI]);
 
   // Formula field may or may not be populated — fall back to concatenation
   const fullNameFormula = toString(f[TENANT_FIELD.FULL_NAME_FORMULA]);
@@ -100,15 +101,18 @@ export function normalizeTenant(
     full_name:            fullName,
     first_name:           firstName,
     last_name:            lastName,
-    dni:                  toString(f[TENANT_FIELD.DNI]),
+    dni:                  dni,
+    // Mirror into document_number — the column the app UI/CRUD reads.
+    document_number:      dni,
     birth_date:           toString(f[TENANT_FIELD.BIRTH_DATE]),
     phone:                toString(f[TENANT_FIELD.PHONE]),
     email:                toString(f[TENANT_FIELD.EMAIL]),
     tenant_status:        toString(f[TENANT_FIELD.STATUS]),
-    // Resolved link field — unit set by link resolver if available.
-    // NOTE: tenants has NO property_id column (property derives via unit_id),
-    // so that key must never appear here.
-    unit_id:              null,
+    // unit_id is intentionally OMITTED (not null) — the Residentes table no
+    // longer carries a unit link, so it can only be derived from active
+    // contracts (cron Phase 3). Emitting null here would clobber that value on
+    // every sync. sync-entities re-adds unit_id only if a Residentes-level link
+    // ever resolves. NOTE: tenants has NO property_id column either.
     // Private link helper — responsable resolved in sync-entities.ts
     _airtable_property_ext_id: null,
     _airtable_unit_label:      null,
