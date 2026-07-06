@@ -526,6 +526,23 @@ describe('POST /api/invite/accept', () => {
     expect(body.accepted).toBe(true);
   });
 
+  it('existing profile in a DIFFERENT org → 409 ALREADY_IN_ORG, no tenant link', async () => {
+    // Isolation guard: profiles.userId is unique (one org per user). A user who
+    // already belongs to another org must not get this org's tenant linked.
+    state.profiles['auth-user-accept-001'] = {
+      id:     'auth-user-accept-001',
+      org_id: 'org-somewhere-else-0000-000000000000',
+      role:   'admin',
+    };
+    const res = await acceptPost(makeAcceptRequest(RAW_TOKEN));
+    expect(res.status).toBe(409);
+    const body = await res.json() as { error?: { code?: string } };
+    expect(body.error?.code).toBe('ALREADY_IN_ORG');
+    // Tenant must NOT have been linked to the foreign-org user
+    expect(state.tenants[TENANT_ID].profile_id ?? null).toBeNull();
+    expect(state.invitations['inv-accept'].status).toBe('pending');
+  });
+
   it('expired token → 410 and status flipped to expired', async () => {
     state.invitations['inv-accept'].expires_at = new Date(Date.now() - 1000).toISOString();
     const res = await acceptPost(makeAcceptRequest(RAW_TOKEN));

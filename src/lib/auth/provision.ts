@@ -4,6 +4,7 @@
  * Called during the NextAuth signIn callback when a user has no profile yet.
  */
 
+import { randomBytes } from 'node:crypto';
 import { and, asc, eq, ilike, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { organizations, profiles, tenants } from '@/lib/db/schema';
@@ -27,7 +28,8 @@ export function generateSlug(orgName: string): string {
 export function generateUniqueSlug(orgName: string, existingSlugs: Set<string> = new Set()): string {
   const base = generateSlug(orgName);
   if (!existingSlugs.has(base)) return base;
-  const suffix = Math.random().toString(16).slice(2, 8);
+  // CSPRNG suffix — avoids predictable slug variants (no Math.random for identifiers).
+  const suffix = randomBytes(3).toString('hex');
   return `${base}-${suffix}`.slice(0, 80);
 }
 
