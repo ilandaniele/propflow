@@ -12,6 +12,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { organizations } from '@/lib/db/schema';
+import { sql } from 'drizzle-orm';
 import { syncAirtableTable } from '@/lib/airtable/sync';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
@@ -213,6 +214,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         skippedLinks: result.skippedLinks,
         status: result.status,
       });
+    }
+  }
+
+  // ── Phase 3: Derive tenant.unit_id from active contracts ──────────────────
+  // The Residentes table no longer carries the unit link (it lives in Historial/
+  // Contratos), so tenants.unit_id can only be resolved AFTER contracts sync.
+  // Set each tenant's unit from their most-recent active contract that has one.
+  for (const orgId of orgIds) {
+    try {
+      await withDbRetry(() => db.execute(sql`
+        UPDATE tenants t
+        SET unit_id = sub.unit_id, updated_at = now()
+        FROM (
+          SELECT DISTINCT ON (tenant_id) tenant_id, unit_id
+          FROM contracts
+          WHERE org_id = ${orgId} AND status = 'active'
+            AND unit_id IS NOT NULL AND tenant_id IS NOT NULL
+          ORDER BY tenant_id, start_date DESC NULLS LAST
+        ) sub
+        WHERE t.id = sub.tenant_id AND t.org_id = ${orgId}
+          AND t.unit_id IS DISTINCT FROM sub.unit_id
+      `), 'cron/airtable-sync:derive-unit');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'unknown error';
+      console.error('[cron/airtable-sync] tenant unit_id derivation failed', { orgId, error: msg });
     }
   }
 

@@ -791,9 +791,10 @@ describe('POST /api/cron/airtable-sync — AC4: unit_id resolution via unitMap',
     Object.keys(airtableTableErrors).forEach(k => delete airtableTableErrors[k]);
   });
 
-  it('unit_id is null for tenants: Residentes table no longer has a unit label field in new schema', async () => {
+  it('unit_id is omitted (not clobbered) for tenants: Residentes has no unit label field in new schema', async () => {
     // New base schema: "N° de habitación" (unit label link) was removed from Residentes.
-    // normalizeTenant always returns _airtable_unit_label: null → unit_id stays null.
+    // normalizeTenant returns _airtable_unit_label: null → the tenant row OMITS unit_id
+    // (rather than writing null) so the value derived from contracts post-sync survives.
     airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [makePropiedadRecord('recPROP001')];
     airtableRecordsByKey['AIRTABLE_TABLE_RESIDENTES'] = [
       makeResidenteRecord('recTENANT001', 'recPROP001', 'Hab. 1'),
@@ -808,14 +809,14 @@ describe('POST /api/cron/airtable-sync — AC4: unit_id resolution via unitMap',
     const tenantUpsert = upsertCalls.find(c => c.table === 'tenants');
     expect(tenantUpsert).toBeDefined();
     const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
-    // In new schema, unit_id and property_id are always null from the tenant normalizer.
-    // The Residentes table no longer carries Propiedad or unit-label links;
-    // property_id for a tenant is resolved indirectly via their contract in the contracts sync.
-    expect(row['unit_id']).toBeNull();
+    // In new schema, the tenant normalizer resolves no unit → the row omits unit_id
+    // (key absent) so a later contracts-derived value is never overwritten with null.
+    // property_id has no column on tenants and is likewise absent.
+    expect(row['unit_id']).toBeUndefined();
     expect(row['property_id']).toBeUndefined(); // tenants has no property_id column — key intentionally absent
   });
 
-  it('sets unit_id to null and does not abort when unit label has no match in unitMap', async () => {
+  it('omits unit_id (does not clobber) and does not abort when unit label has no match in unitMap', async () => {
     airtableRecordsByKey['AIRTABLE_TABLE_PROPIEDADES'] = [makePropiedadRecord('recPROP001')];
     // Residente with a unit label that has no matching unit row
     airtableRecordsByKey['AIRTABLE_TABLE_RESIDENTES'] = [
@@ -832,8 +833,8 @@ describe('POST /api/cron/airtable-sync — AC4: unit_id resolution via unitMap',
     const tenantUpsert = upsertCalls.find(c => c.table === 'tenants');
     expect(tenantUpsert).toBeDefined();
     const row = (tenantUpsert!.rows as Array<Record<string, unknown>>)[0];
-    // unit_id stays null — same null-FK-continue pattern as AC5
-    expect(row['unit_id']).toBeNull();
+    // unit_id is omitted (not written) — no clobber, same null-FK-continue pattern as AC5
+    expect(row['unit_id']).toBeUndefined();
   });
 
   it('does not include _airtable_unit_label in the upserted tenant row', async () => {

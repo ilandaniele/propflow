@@ -112,6 +112,8 @@ describe('normalizeTenant', () => {
     expect(result.first_name).toBe('Juan');
     expect(result.last_name).toBe('Pérez López');
     expect(result.dni).toBe('12345678');
+    // DNI is mirrored into document_number (the column the app UI/CRUD reads)
+    expect(result.document_number).toBe('12345678');
     expect(result.birth_date).toBe('1990-05-15');
     expect(result.phone).toBe('+51987654321');
     expect(result.email).toBe('juan@example.com');
@@ -149,6 +151,7 @@ describe('normalizeTenant', () => {
     const result = normalizeTenant(record, ORG_ID);
     expect(result.full_name).toBe('Solo Nombre');
     expect(result.dni).toBeNull();
+    expect(result.document_number).toBeNull();
     expect(result.phone).toBeNull();
     expect(result.email).toBeNull();
   });

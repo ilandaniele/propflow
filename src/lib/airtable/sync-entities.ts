@@ -503,7 +503,11 @@ function buildDomainRow(
       }
 
       const row = toDbRow(normalized);
-      row['unit_id'] = unitId;
+      // Only set unit_id when we actually resolved one from the Residentes record.
+      // The new base schema dropped the unit link from Residentes (it lives in
+      // Historial/Contratos), so unitId is usually null here — writing that null
+      // would wipe the unit_id derived from contracts post-sync. Leave it alone.
+      if (unitId !== null) row['unit_id'] = unitId;
       if (responsableId !== null) row['responsable_id'] = responsableId;
       return row;
     }

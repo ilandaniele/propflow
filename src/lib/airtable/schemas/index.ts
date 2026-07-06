@@ -91,6 +91,10 @@ export const NormalizedTenantSchema = z.object({
   phone:                 z.string().nullable().optional(),
   codigo:                z.string().nullable().optional(),
   dni:                   z.string().nullable().optional(),
+  // Mirror of `dni` into the column the app UI/CRUD actually reads
+  // (tenants.document_number). Airtable only supplies "N° DNI"; without this
+  // mirror the ID lands in `dni` while every read hits `document_number` → blank.
+  document_number:       z.string().nullable().optional(),
   birth_date:            NullableDateString,
   // Contract-related fields — OPTIONAL in new base schema (moved to Historial/Contratos).
   // These fields may not be present in Residentes records; absent = undefined = DB not overwritten.
