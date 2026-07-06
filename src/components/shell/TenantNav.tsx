@@ -91,7 +91,7 @@ interface TenantNavProps {
   /**
    * profileId is no longer used to pass unreadCount from the server —
    * NotificationBadge fetches the count client-side on mount (spec AC4).
-   * The prop is kept for potential future use (e.g. Supabase Realtime subscriptions).
+   * The prop is kept for potential future use (e.g. realtime subscriptions).
    */
   profileId?: string;
   currentLocale?: Locale;

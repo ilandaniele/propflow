@@ -18,7 +18,7 @@ export interface OccupancySnapshot {
 }
 
 export interface AirtableOccupancyDeltaProps {
-  /** Live occupancy rate computed from Supabase (0–1 fraction) */
+  /** Live occupancy rate computed from the database (0–1 fraction) */
   liveRate: number;
   /** Latest Airtable KPI snapshot, or null when no snapshot exists */
   snapshot: OccupancySnapshot | null;

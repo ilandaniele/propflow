@@ -18,10 +18,6 @@ jobs:
     name: Typecheck / Lint / Unit / Build / Audit
     runs-on: ubuntu-latest
     env:
-      # Supabase Storage stubs (Storage is kept; DB/Auth migrated to Drizzle+NextAuth)
-      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
-      SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
       # Fly.io Postgres stub — db/index.ts detects NEXT_PHASE=phase-production-build
       # and skips real connection; unit tests mock @/lib/db directly.
@@ -229,9 +225,6 @@ jobs:
       - name: Build
         run: pnpm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
-          SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
           DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
           AUTH_SECRET: placeholder_auth_secret_32chars_minimum_length
@@ -251,16 +244,11 @@ jobs:
         # waits for the server to be ready before collecting.
         # The server env vars below are stubs — enough to prevent 500 errors on
         # public routes (/, /login) that don't actually call these services at
-        # render time. The Supabase placeholder guard in updateSession() ensures
-        # no real auth calls are made with these stub credentials.
+        # render time.
         run: npx --yes @lhci/cli@latest autorun --config=./lighthouserc.json
         env:
           LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref }}
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
-          SUPABASE_URL: https://placeholder.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
           ANTHROPIC_API_KEY: placeholder_anthropic_key
           RESEND_API_KEY: placeholder_resend_key
           AIRTABLE_PAT: placeholder_airtable_pat
@@ -270,7 +258,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # E2E (Playwright) — optional gated job; runs on PRs and main pushes.
-  # Requires SUPABASE_DB_URL and service-role key to stand up test data.
+  # Requires STAGING_DATABASE_URL (Fly Postgres) to stand up test data.
   # Gate: only runs when the E2E secret group is configured (senior-dev step).
   # The senior-dev should extend this with actual test environment setup.
   # ---------------------------------------------------------------------------
@@ -306,8 +294,6 @@ jobs:
       - name: Build
         run: pnpm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.STAGING_SITE_URL }}
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
@@ -315,9 +301,7 @@ jobs:
       - name: Run E2E tests
         run: pnpm run test:e2e
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.STAGING_SITE_URL }}
 
       - name: Upload Playwright report

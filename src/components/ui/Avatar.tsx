@@ -2,7 +2,7 @@ interface AvatarProps {
   name?: string | null;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
-  /** Optional photo URL (signed Supabase storage URL). Falls back to initials. */
+  /** Optional photo URL (signed Tigris storage URL). Falls back to initials. */
   src?: string | null;
 }
 

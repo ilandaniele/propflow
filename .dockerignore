@@ -6,4 +6,3 @@ node_modules
 *.md
 tests
 .github
-supabase/.temp

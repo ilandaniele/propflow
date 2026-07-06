@@ -46,11 +46,10 @@ const CONFUSABLE_PAIRS = new Map([
   ['react-native-navigationbar', 'react-native-navigation-bar'],
   ['nodemailer-html-to-text', 'html-to-text'],
   ['typosquat-example',  'this-package-does-not-exist (test)'],
-  // Next.js / Supabase ecosystem typosquats
+  // Next.js / auth / ORM ecosystem typosquats
   ['next-auth2',         'next-auth'],
-  ['supbase',            '@supabase/supabase-js'],
-  ['supabase-js',        '@supabase/supabase-js'],
-  ['@supabase/ssr2',     '@supabase/ssr'],
+  ['drizzle-ohm',        'drizzle-orm'],
+  ['postgres-js',        'postgres'],
   ['anthropic-ai',       '@anthropic-ai/sdk'],
   ['anthropics',         '@anthropic-ai/sdk'],
   ['zod2',               'zod'],
@@ -106,8 +105,9 @@ for (const dep of depNames) {
 // ---------------------------------------------------------------------------
 
 const CORE_PACKAGES = [
-  'next', 'react', 'react-dom', 'zod', '@supabase/supabase-js',
-  '@supabase/ssr', '@anthropic-ai/sdk', 'next-intl', 'papaparse',
+  'next', 'react', 'react-dom', 'zod', 'next-auth',
+  'drizzle-orm', 'postgres', '@aws-sdk/client-s3',
+  '@anthropic-ai/sdk', 'next-intl', 'papaparse',
   'react-markdown', 'rehype-sanitize', 'resend',
 ];
 

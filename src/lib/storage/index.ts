@@ -306,7 +306,7 @@ export async function uploadFile(
       ContentType: contentType,
       // Tigris does not have a native "upsert=false" guard; if the caller wants
       // strict "no overwrite" semantics, they should check existence first.
-      // The upsert param is kept for API compatibility with the Supabase seam.
+      // The upsert param is kept for API compatibility with the legacy storage seam.
     }));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
