@@ -52,7 +52,7 @@ export interface IWhatsAppProvider {
   validateWebhookSignature(rawBody: Buffer, signature: string): boolean;
 
   /**
-   * Download an attachment from the provider and store it in Supabase storage.
+   * Download an attachment from the provider and store it in Tigris storage.
    * Returns the storage path or throws on error.
    */
   downloadAttachment(
