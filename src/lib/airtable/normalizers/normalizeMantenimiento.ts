@@ -1,22 +1,24 @@
 /**
- * normalizeMantenimiento — Airtable "Mantenimiento" → incidents table.
+ * normalizeMantenimiento — Airtable "Incidencias" → incidents table.
  *
- * New base ("Untitled Base", apphwPe2oIkGRSTkb) schema:
+ * Live base (apphwPe2oIkGRSTkb) "Incidencias" table (tblsJMHqMTrVW6u5k) schema:
  *   Tarea ID [singleLineText], Tipo de tarea [singleSelect],
- *   Prioridad [singleSelect], Estado [singleSelect],
- *   Habitación [singleLineText] (free text, NOT a record link),
+ *   Urgencia [singleSelect], Estado [singleSelect],
  *   Fecha solicitud [date], Fecha completado [date],
- *   Responsable [singleLineText], Costo (S/) [currency],
- *   Descripción [multilineText], Fotos / Evidencia [multipleAttachments]
+ *   Residente [multipleRecordLinks], Propiedad [multipleRecordLinks],
+ *   Teléfono residente [singleLineText], Descripción [multilineText],
+ *   Fotos / Evidencia [multipleAttachments], plus notification checkboxes.
+ *
+ * NOTE: priority lives in "Urgencia" (not "Prioridad"); we fall back to the
+ * legacy "Prioridad" name for safety. This table has NO Habitación/Responsable/
+ * Costo fields — those degrade to null. Residente/Propiedad are record links
+ * that are not resolved here (kept null); the description carries free text only.
  *
  * DB constraints (incidents):
  *   category NOT NULL CHECK IN ('plumbing','electrical','appliance','structural','cleaning','other')
  *   title NOT NULL, description NOT NULL
  *   priority NOT NULL CHECK IN ('low','medium','high','urgent')
  *   status NOT NULL CHECK IN ('pending','in_progress','solved')
- *
- * Mantenimiento has NO property/unit record links — Habitación is free text,
- * so unit_id/property_id stay null and the room is recorded in the description.
  */
 
 import type { AirtableRecord } from '@/lib/schemas/airtable';
@@ -24,7 +26,10 @@ import type { AirtableRecord } from '@/lib/schemas/airtable';
 const FIELD = {
   TASK_ID:     'Tarea ID',
   TASK_TYPE:   'Tipo de tarea',
-  PRIORITY:    'Prioridad',
+  // Live "Incidencias" table names this "Urgencia"; keep "Prioridad" as a
+  // legacy fallback in case the column is ever renamed back.
+  PRIORITY:    'Urgencia',
+  PRIORITY_LEGACY: 'Prioridad',
   STATUS:      'Estado',
   ROOM:        'Habitación',
   REQUESTED:   'Fecha solicitud',
@@ -128,7 +133,7 @@ export function normalizeMantenimiento(
     title,
     description,
     category: mapIncidentCategory(taskType),
-    priority: mapIncidentPriority(toString(f[FIELD.PRIORITY])),
+    priority: mapIncidentPriority(toString(f[FIELD.PRIORITY]) ?? toString(f[FIELD.PRIORITY_LEGACY])),
     status: mapIncidentStatus(toString(f[FIELD.STATUS])),
     cost: toNumeric(f[FIELD.COST]),
     photo_path: extractFirstAttachmentUrl(f[FIELD.PHOTOS]),

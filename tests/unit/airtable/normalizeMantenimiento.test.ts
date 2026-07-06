@@ -56,6 +56,32 @@ describe('normalizeMantenimiento', () => {
     expect(r.resolved_at).toBeNull();
   });
 
+  it('reads priority from the live "Urgencia" field', () => {
+    const r = normalizeMantenimiento(
+      makeRecord('recURG01', {
+        'Tarea ID': 'INC-010',
+        'Urgencia': 'Urgente',
+        'Estado': 'Pendiente',
+        'Descripción': 'Sin agua',
+      }),
+      ORG_ID
+    );
+    expect(r.priority).toBe('urgent');
+    expect(r.title).toBe('INC-010');
+    expect(r.description).toContain('Sin agua');
+  });
+
+  it('prefers "Urgencia" over the legacy "Prioridad" when both present', () => {
+    const r = normalizeMantenimiento(
+      makeRecord('recURG02', {
+        'Urgencia': 'Baja',
+        'Prioridad': 'Alta',
+      }),
+      ORG_ID
+    );
+    expect(r.priority).toBe('low');
+  });
+
   it('category keyword mapping', () => {
     expect(mapIncidentCategory('Eléctrico')).toBe('electrical');
     expect(mapIncidentCategory('Limpieza profunda')).toBe('cleaning');
