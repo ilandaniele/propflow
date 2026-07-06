@@ -102,7 +102,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .where(eq(profiles.userId, user.id))
     .limit(1);
 
-  if (existingProfiles.length === 0) {
+  const existingProfile = existingProfiles[0];
+
+  // Isolation guard: profiles.userId is UNIQUE (one org per user). If the caller
+  // already belongs to a DIFFERENT org, refuse — silently linking the tenant here
+  // would attach an org's tenant record to a user whose profile lives in another
+  // org, creating an ambiguous cross-org state. Fail closed.
+  if (existingProfile && existingProfile.orgId !== invitation.orgId) {
+    log.warn('[invite/accept] user already belongs to a different org');
+    return NextResponse.json({
+      error: {
+        code: 'ALREADY_IN_ORG',
+        message: 'This account is already associated with another organization. Use a different email to accept this invitation.',
+      },
+    }, { status: 409 });
+  }
+
+  if (!existingProfile) {
     try {
       await db.insert(profiles).values({
         userId: user.id,
@@ -114,7 +130,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to set up your account.' } }, { status: 500 });
     }
   }
-  // If profile already exists in same org, just continue (link tenant below)
+  // If profile already exists in the SAME org, just continue (link tenant below)
 
   // 6. Link tenant record to auth user — Drizzle (AC1, AC8: org_id scoped)
   const updated = await db

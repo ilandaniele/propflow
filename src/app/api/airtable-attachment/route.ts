@@ -103,8 +103,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const { snapshot_id, att_id } = parsed.data;
 
-  // 4. Check in-process cache
-  const cacheKey = `${snapshot_id}:${att_id}`;
+  // 4. Check in-process cache. The key is org-scoped because this lookup runs
+  // BEFORE the org-scoped DB query below — an un-scoped key could serve another
+  // org's cached URL on a snapshot_id collision, bypassing the IDOR check.
+  const cacheKey = `${ctx.orgId}:${snapshot_id}:${att_id}`;
   const cached = attachmentCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) {
     return NextResponse.redirect(cached.url, { status: 302 });

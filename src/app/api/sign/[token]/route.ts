@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { signatureRequests, contracts, tenants, units, properties } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { Errors } from '@/lib/errors';
 import { uploadFile } from '@/lib/storage';
 import { SignSubmitSchema } from '@/lib/schemas/contractDoc';
@@ -191,7 +191,9 @@ export async function POST(
     })
     .where(eq(signatureRequests.id, sigReq.id));
 
-  // Flip contract.signature_status = 'signed' and signed_at — Drizzle (AC1)
+  // Flip contract.signature_status = 'signed' and signed_at — Drizzle (AC1).
+  // Defense-in-depth: scope the update to the signature request's org so a
+  // contract id can never be flipped outside the token's own organization.
   await db
     .update(contracts)
     .set({
@@ -199,7 +201,7 @@ export async function POST(
       signedAt: now,
       updatedAt: now,
     })
-    .where(eq(contracts.id, sigReq.contractId));
+    .where(and(eq(contracts.id, sigReq.contractId), eq(contracts.orgId, sigReq.orgId)));
 
   log.info('[sign] contract signed', { sigRequestId: sigReq.id, contractId: sigReq.contractId });
   return NextResponse.json({ status: 'signed' });
