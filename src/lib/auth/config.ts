@@ -98,12 +98,17 @@ export const authConfig: NextAuthConfig = {
     },
 
     async session({ session, user }) {
-      // Augment session.user with orgId and role from profiles table (AC4)
+      // Augment session.user with orgId and role from profiles table (AC4).
+      // Runs on every authenticated request; retry transient Fly-Postgres blips
+      // (CONNECTION_CLOSED) so they don't invalidate an otherwise-valid session.
       try {
-        const profile = await db.query.profiles.findFirst({
-          where: eq(profiles.userId, user.id),
-          columns: { orgId: true, role: true },
-        });
+        const profile = await withDbRetry(
+          () => db.query.profiles.findFirst({
+            where: eq(profiles.userId, user.id),
+            columns: { orgId: true, role: true },
+          }),
+          'auth:session-profile',
+        );
 
         if (!profile?.orgId) {
           log.error('[auth] session callback: profile missing or has no orgId — invalidating session', { userId: user.id });

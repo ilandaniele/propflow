@@ -41,7 +41,9 @@ function buildDb() {
   const pgPool: ReturnType<typeof postgres> =
     globalThis.__pgPool ??
     postgres(effectiveUrl, {
-      max: 10,
+      // Keep the pool small — propflow-db2 is a 256MB shared-cpu-1x machine that
+      // thrashes under connection pressure. Fewer sockets = less DB memory.
+      max: 5,
       idle_timeout: 20,       // close a connection after 20s idle (before Fly does)
       max_lifetime: 60 * 30,  // recycle any connection after 30 min
       connect_timeout: 10,    // fail fast instead of hanging on a dead host
