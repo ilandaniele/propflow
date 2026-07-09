@@ -31,10 +31,29 @@ import { users, accounts, sessions, verificationTokens, profiles } from '@/lib/d
 import { provisionOrgAndProfile, getExistingProfile, attemptAutoLink, attachToPrimaryOrgAsAdmin } from './provision';
 import { isAllowlistedAdmin } from './admin-allowlist';
 import { log } from '@/lib/log';
+import { withDbRetry } from '@/lib/db/retry';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const baseAdapter = DrizzleAdapter(db, { usersTable: users, accountsTable: accounts as any, sessionsTable: sessions, verificationTokensTable: verificationTokens });
+
+// getSessionAndUser runs on EVERY authenticated request. On Fly Postgres a stale
+// pooled socket makes this query throw `write CONNECTION_CLOSED`, which NextAuth
+// turns into a SessionTokenError → the user is bounced to /login mid-session.
+// Wrap just this hot-path lookup in the same retry used by the cron routes so a
+// transient connection blip is retried instead of logging the user out.
+// (A genuine "no session" returns null without throwing, so it is not retried.)
+const resilientAdapter: NextAuthConfig['adapter'] = {
+  ...baseAdapter,
+  ...(baseAdapter.getSessionAndUser
+    ? {
+        getSessionAndUser: (sessionToken: string) =>
+          withDbRetry(async () => baseAdapter.getSessionAndUser!(sessionToken), 'auth:getSessionAndUser'),
+      }
+    : {}),
+} as NextAuthConfig['adapter'];
 
 export const authConfig: NextAuthConfig = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  adapter: DrizzleAdapter(db, { usersTable: users, accountsTable: accounts as any, sessionsTable: sessions, verificationTokensTable: verificationTokens }) as NextAuthConfig['adapter'],
+  adapter: resilientAdapter,
 
   session: {
     strategy: 'database',

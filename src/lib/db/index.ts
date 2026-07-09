@@ -31,8 +31,21 @@ function buildDb() {
   // The pool is never actually connected during static page data collection.
   const effectiveUrl = url ?? 'postgres://build:build@localhost:5432/build';
 
+  // Connection hygiene for Fly Postgres. postgres.js defaults to idle_timeout:0
+  // (never closes idle connections), so the pool accumulates sockets that Fly's
+  // Postgres proxy silently closes on its own idle timeout / machine suspend /
+  // leader election — the app then reuses a dead socket and the query fails with
+  // `write CONNECTION_CLOSED`, surfacing to users as a 500 page or a spurious
+  // /login redirect (the NextAuth adapter's session query fails). Proactively
+  // recycling idle/old connections client-side avoids reusing a stale socket.
   const pgPool: ReturnType<typeof postgres> =
-    globalThis.__pgPool ?? postgres(effectiveUrl, { max: 10 });
+    globalThis.__pgPool ??
+    postgres(effectiveUrl, {
+      max: 10,
+      idle_timeout: 20,       // close a connection after 20s idle (before Fly does)
+      max_lifetime: 60 * 30,  // recycle any connection after 30 min
+      connect_timeout: 10,    // fail fast instead of hanging on a dead host
+    });
 
   if (process.env.NODE_ENV !== 'production') {
     globalThis.__pgPool = pgPool;
