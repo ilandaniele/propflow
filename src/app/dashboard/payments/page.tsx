@@ -20,7 +20,19 @@ export default async function PaymentsPage() {
 
   const t = await getTranslations('payments');
 
-  const [paymentRows, contractRows] = await Promise.all([
+  const [statRows, paymentRows, contractRows] = await Promise.all([
+    // ALL payments (aggregation columns only) — KPI totals must cover every row,
+    // not just the 200 shown in the table, or collected/pending/rate are wrong.
+    db
+      .select({
+        amount:    paymentsTable.amount,
+        paidAt:    paymentsTable.paidAt,
+        method:    paymentsTable.method,
+        status:    paymentsTable.status,
+        createdAt: paymentsTable.createdAt,
+      })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.orgId, ctx.orgId)),
     db
       .select({
         id:         paymentsTable.id,
@@ -48,13 +60,13 @@ export default async function PaymentsPage() {
       .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
   ]);
 
-  const pendingCount = paymentRows.filter((p) => p.status === 'pending').length;
+  const pendingCount = statRows.filter((p) => p.status === 'pending').length;
 
-  // Analytics
-  const approved       = paymentRows.filter((p) => p.status === 'approved');
+  // Analytics — computed over ALL payments (statRows), never the capped table set.
+  const approved       = statRows.filter((p) => p.status === 'approved');
   const collectedTotal = approved.reduce((s, p) => s + Number(p.amount), 0);
-  const pendingTotal   = paymentRows.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount), 0);
-  const collectionRate = paymentRows.length > 0 ? Math.round((approved.length / paymentRows.length) * 100) : 0;
+  const pendingTotal   = statRows.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount), 0);
+  const collectionRate = statRows.length > 0 ? Math.round((approved.length / statRows.length) * 100) : 0;
 
   const byMethod: Record<string, number> = {};
   for (const p of approved) {
@@ -105,7 +117,7 @@ export default async function PaymentsPage() {
       </div>
 
       {/* Analytics KPIs */}
-      {paymentRows.length > 0 && (
+      {statRows.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.collected')}</p>

@@ -31,8 +31,9 @@ export default async function AdditionalChargesPage() {
     .leftJoin(contracts, and(eq(contracts.id, additionalCharges.contractId), eq(contracts.orgId, ctx.orgId)))
     .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
     .where(eq(additionalCharges.orgId, ctx.orgId))
-    .orderBy(desc(additionalCharges.anio), desc(additionalCharges.mes))
-    .limit(200);
+    .orderBy(desc(additionalCharges.anio), desc(additionalCharges.mes));
+  // No .limit() here: the KPI totals below (total, by-concept, by-month, by-tenant)
+  // must cover every charge. The table render is sliced to 200 for DOM size.
 
   const totalAmount = rows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
 
@@ -154,7 +155,7 @@ export default async function AdditionalChargesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((charge) => {
+              {rows.slice(0, 200).map((charge) => {
                 const period = charge.mes && charge.anio ? `${charge.mes} ${charge.anio}` : '—';
                 return (
                   <tr key={charge.id} className="hover:bg-slate-50 transition-colors">

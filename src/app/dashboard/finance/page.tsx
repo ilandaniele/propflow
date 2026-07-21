@@ -55,8 +55,8 @@ export default async function FinancePage() {
       .select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, contractId: paymentsTable.contractId })
       .from(paymentsTable)
       .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved')))
-      .orderBy(desc(paymentsTable.paidAt))
-      .limit(500),
+      .orderBy(desc(paymentsTable.paidAt)),
+      // No .limit(): this feeds org-wide income/net-profit totals over all payments.
     db
       .select({ amount: paymentsTable.amount })
       .from(paymentsTable)
@@ -94,8 +94,8 @@ export default async function FinancePage() {
     db
       .select({ amount: charges.amount })
       .from(charges)
-      .where(and(eq(charges.orgId, ctx.orgId), lt(charges.dueDate, today)))
-      .limit(500),
+      .where(and(eq(charges.orgId, ctx.orgId), lt(charges.dueDate, today))),
+      // No .limit(): feeds the org-wide overdue-balance total.
   ]);
 
   const incomeRows: IncomeRow[] = allPayments.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt ? String(p.paidAt) : '' }));
