@@ -44,8 +44,9 @@ export default async function AccountStatementsPage() {
     .leftJoin(contracts, and(eq(contracts.id, accountStatements.contractId), eq(contracts.orgId, ctx.orgId)))
     .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
     .where(eq(accountStatements.orgId, ctx.orgId))
-    .orderBy(desc(accountStatements.anio), desc(accountStatements.mes))
-    .limit(200);
+    .orderBy(desc(accountStatements.anio), desc(accountStatements.mes));
+  // No .limit(): KPI totals (total due, sent count, billing composition) must
+  // cover every statement. Table render is sliced to 200 for DOM size.
 
   // Analytics
   const today = new Date().toISOString().slice(0, 10);
@@ -160,7 +161,7 @@ export default async function AccountStatementsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((stmt) => {
+              {rows.slice(0, 200).map((stmt) => {
                 const period = stmt.mes && stmt.anio ? `${stmt.mes} ${stmt.anio}` : '—';
                 const isOverdue = stmt.dueDate && stmt.dueDate < today && stmt.sendStatus !== 'sent';
                 const statusLabel = stmt.sendStatus ? stmt.sendStatus.charAt(0).toUpperCase() + stmt.sendStatus.slice(1) : '—';
