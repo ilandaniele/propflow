@@ -874,6 +874,7 @@
     }
   },
   "adminImport": {
+    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
     "accountMapping": {
       "addTitle": "Add account mapping",
       "addSubtitle": "Link an external account code to an internal category.",

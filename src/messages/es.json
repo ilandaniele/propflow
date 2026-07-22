@@ -874,6 +874,7 @@
     }
   },
   "adminImport": {
+    "months": ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
     "accountMapping": {
       "addTitle": "Agregar mapeo de cuenta",
       "addSubtitle": "Vincula un codigo de cuenta externo con una categoria interna del plan de cuentas.",
