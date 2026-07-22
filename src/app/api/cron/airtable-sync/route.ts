@@ -242,6 +242,54 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // ── Phase 4: Reconcile source deletions (safe leaf mirror tables only) ─────
+  // A read-only mirror upserts but never deletes, so rows removed from Airtable
+  // linger and inflate financial totals. Remove them — but ONLY when it's safe:
+  //   (a) the entity synced OK with count>0 this run (never delete because a
+  //       fetch failed or returned empty), and
+  //   (b) the row has been missing longer than the grace window. A live Airtable
+  //       row is re-upserted every run, so its airtable_synced_at is always fresh
+  //       and can never cross the grace window; a transient/partial fetch
+  //       self-heals on the next sync. Only genuinely-deleted rows accumulate
+  //       enough staleness to be removed.
+  // Scope: leaf tables with no cascading children (verified). Parent tables
+  // (tenants/contracts/units/…) and cascade tables (incidents) are excluded.
+  const RECONCILE_GRACE_HOURS = 72;
+  const RECONCILABLE: Array<{ entity: EntityName; table: string }> = [
+    { entity: 'payments',           table: 'payments' },
+    { entity: 'additional_charges', table: 'additional_charges' },
+    { entity: 'account_statements', table: 'account_statements' },
+    { entity: 'service_payments',   table: 'service_payments' },
+    { entity: 'tax_receipts',       table: 'tax_receipts' },
+    { entity: 'tenant_feedback',    table: 'tenant_feedback' },
+  ];
+  const reconcileResults: Array<{ orgId: string; entity: EntityName; deleted: number }> = [];
+
+  for (const orgId of orgIds) {
+    for (const { entity, table } of RECONCILABLE) {
+      const res = entityResults.find(r => r.orgId === orgId && r.entity === entity);
+      if (!res || res.status !== 'success' || res.count <= 0) continue; // safety guard (a)
+      try {
+        const result = await withDbRetry(
+          () => db.execute(sql`
+            DELETE FROM ${sql.raw(table)}
+            WHERE org_id = ${orgId}
+              AND airtable_synced_at < now() - make_interval(hours => ${RECONCILE_GRACE_HOURS})
+          `),
+          `cron/airtable-sync:reconcile:${entity}`,
+        );
+        const deleted = (result as unknown as { count?: number }).count ?? 0;
+        if (deleted > 0) {
+          reconcileResults.push({ orgId, entity, deleted });
+          console.info('[cron/airtable-sync] reconciled source deletions', { orgId, entity, deleted });
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'unknown error';
+        console.error('[cron/airtable-sync] reconcile failed', { orgId, entity, error: msg });
+      }
+    }
+  }
+
   // ── Build combined response ───────────────────────────────────────────────
   const snapshotErrorCount = snapshotResults.filter(r => r.status === 'error').length;
   const entityErrorCount   = entityResults.filter(r => r.status === 'error').length;
@@ -262,6 +310,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ran_at: new Date().toISOString(),
       snapshotResults,
       entityResults,
+      reconcileResults,
     },
     { status: httpStatus }
   );
