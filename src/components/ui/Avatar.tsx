@@ -1,3 +1,10 @@
+'use client';
+
+// Client component: the <img onError> fallback is an event handler, which is not
+// allowed in a Server Component ("Event handlers cannot be passed to Client
+// Component props"). Avatar is rendered inside server components (tenants,
+// incidents, units pages), so it must opt into the client boundary itself.
+
 interface AvatarProps {
   name?: string | null;
   size?: 'sm' | 'md' | 'lg';
