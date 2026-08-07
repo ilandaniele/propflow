@@ -72,8 +72,8 @@ export default async function FinancePage() {
       .from(expensesTable)
       .leftJoin(expenseCategories, eq(expenseCategories.id, expensesTable.categoryId))
       .where(eq(expensesTable.orgId, ctx.orgId))
-      .orderBy(desc(expensesTable.incurredOn))
-      .limit(500),
+      .orderBy(desc(expensesTable.incurredOn)),
+      // No .limit(): feeds org-wide expense/net-profit totals over all expenses.
     db
       .select({ amount: expensesTable.amount, categoryName: expenseCategories.name })
       .from(expensesTable)

@@ -33,8 +33,9 @@ export default async function IncidentsPage() {
     .from(incidents)
     .leftJoin(profiles, eq(profiles.id, incidents.createdBy))
     .where(eq(incidents.orgId, ctx.orgId))
-    .orderBy(desc(incidents.createdAt))
-    .limit(200);
+    .orderBy(desc(incidents.createdAt));
+  // No .limit(): KPI totals (cost, open/solved counts, by-month) cover all rows.
+  // The card list is sliced to 200 below for DOM size.
 
   // Cost analytics
   const withCost   = list.filter((i) => i.cost != null && Number(i.cost) > 0);
@@ -149,7 +150,7 @@ export default async function IncidentsPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {list.map((incident) => (
+          {list.slice(0, 200).map((incident) => (
             <Link key={incident.id} href={`/dashboard/incidents/${incident.id}`} className="block">
               <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 hover:border-brand-300 hover:shadow-md transition-all duration-150 flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">

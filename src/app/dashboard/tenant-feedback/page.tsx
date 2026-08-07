@@ -44,8 +44,9 @@ export default async function TenantFeedbackPage() {
     .from(tenantFeedback)
     .leftJoin(tenants, and(eq(tenants.id, tenantFeedback.tenantId), eq(tenants.orgId, ctx.orgId)))
     .where(eq(tenantFeedback.orgId, ctx.orgId))
-    .orderBy(desc(tenantFeedback.fecha))
-    .limit(100);
+    .orderBy(desc(tenantFeedback.fecha));
+  // No .limit(): KPI averages / recommend-rate cover all feedback rows.
+  // The list is sliced to 100 below for DOM size.
 
   const avgScore = (getter: (r: typeof rows[number]) => number | null) => {
     const vals = rows.map(getter).filter((v): v is number => v !== null);
@@ -123,7 +124,7 @@ export default async function TenantFeedbackPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((fb) => (
+              {rows.slice(0, 100).map((fb) => (
                 <tr key={fb.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4 text-sm font-medium text-slate-900">{fb.tenantFullName ?? '—'}</td>
                   <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{fb.fecha ?? '—'}</td>
