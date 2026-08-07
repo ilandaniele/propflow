@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { accountStatements, contracts, tenants } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { computeStatementKpis } from '@/lib/finance/statement-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -48,20 +49,12 @@ export default async function AccountStatementsPage() {
   // No .limit(): KPI totals (total due, sent count, billing composition) must
   // cover every statement. Table render is sliced to 200 for DOM size.
 
-  // Analytics
+  // Analytics — over ALL statements (rows is uncapped; table render is sliced).
   const today = new Date().toISOString().slice(0, 10);
-  const sentCount    = rows.filter((r) => r.sendStatus === 'sent').length;
-  const errorCount   = rows.filter((r) => r.sendStatus === 'error').length;
-  const totalDue     = rows.reduce((s, r) => s + Number(r.totalDue ?? 0), 0);
-  const totalRent    = rows.reduce((s, r) => s + Number(r.rentAmount ?? 0), 0);
-  const totalAddl    = rows.reduce((s, r) => s + Number(r.additionalSubtotal ?? 0), 0);
-
-  const overdue  = rows.filter((r) => r.dueDate && r.dueDate < today && r.sendStatus !== 'sent');
-  const dueToday = rows.filter((r) => r.dueDate === today);
-
-  const additionalsPct = totalDue > 0 ? Math.round((totalAddl / totalDue) * 100) : 0;
-  const withWhatsapp   = rows.filter((r) => r.whatsappMessageId).length;
-  const withError      = rows.filter((r) => r.sendError).length;
+  const {
+    sentCount, errorCount, totalDue, totalRent, totalAddl,
+    additionalsPct, withWhatsapp, withError, overdue, dueToday,
+  } = computeStatementKpis(rows, today);
 
   return (
     <div className="space-y-6 max-w-5xl">
