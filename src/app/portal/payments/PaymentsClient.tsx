@@ -61,6 +61,14 @@ function fmtDate(d: string | null): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+// Module-scope so it isn't recreated on every PaymentsClient render (a new
+// component identity each render remounts it — "Cannot create components during
+// render"). Sort state is passed in as props.
+function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortDir: 'asc' | 'desc' }) {
+  if (sortBy !== col) return <span className="text-slate-300 ml-1">↕</span>;
+  return <span className="text-brand-600 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+}
+
 export function PaymentsClient() {
   const t = useTranslations('tenantPayments');
   const [summary, setSummary] = useState<PaymentSummary | null>(null);
@@ -124,10 +132,6 @@ export function PaymentsClient() {
     else { setSortBy(col); setSortDir('asc'); }
   }
 
-  function SortIcon({ col }: { col: string }) {
-    if (sortBy !== col) return <span className="text-slate-300 ml-1">↕</span>;
-    return <span className="text-brand-600 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
-  }
 
   const currency = summary?.currency ?? 'PEN';
   const totalPages = Math.ceil(total / LIMIT);
@@ -244,7 +248,7 @@ export function PaymentsClient() {
                       className="px-4 py-3 text-left font-medium text-slate-600 cursor-pointer select-none"
                       onClick={() => toggleSort('paid_at')}
                     >
-                      {t('colDate')} <SortIcon col="paid_at" />
+                      {t('colDate')} <SortIcon col="paid_at" sortBy={sortBy} sortDir={sortDir} />
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colDescription')}</th>
                     <th className="px-4 py-3 text-left font-medium text-slate-600">{t('colType')}</th>
@@ -252,7 +256,7 @@ export function PaymentsClient() {
                       className="px-4 py-3 text-right font-medium text-slate-600 cursor-pointer select-none"
                       onClick={() => toggleSort('amount')}
                     >
-                      {t('colDebit')} <SortIcon col="amount" />
+                      {t('colDebit')} <SortIcon col="amount" sortBy={sortBy} sortDir={sortDir} />
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colCredit')}</th>
                     <th className="px-4 py-3 text-right font-medium text-slate-600">{t('colBalance')}</th>
