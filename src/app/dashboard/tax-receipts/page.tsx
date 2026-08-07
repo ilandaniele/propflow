@@ -29,8 +29,9 @@ export default async function TaxReceiptsPage() {
     .select()
     .from(taxReceipts)
     .where(eq(taxReceipts.orgId, ctx.orgId))
-    .orderBy(desc(taxReceipts.anio), desc(taxReceipts.mes))
-    .limit(200);
+    .orderBy(desc(taxReceipts.anio), desc(taxReceipts.mes));
+  // No .limit(): KPI totals (amount/base/IGV, by-type, by-month) cover all rows.
+  // The table is sliced to 200 below for DOM size.
 
   // Analytics
   const issuedRows    = rows.filter((r) => r.status === 'issued');
@@ -159,7 +160,7 @@ export default async function TaxReceiptsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((receipt) => {
+              {rows.slice(0, 200).map((receipt) => {
                 const period = receipt.mes && receipt.anio ? `${receipt.mes} ${receipt.anio}` : '—';
                 return (
                   <tr key={receipt.id} className="hover:bg-slate-50 transition-colors">
