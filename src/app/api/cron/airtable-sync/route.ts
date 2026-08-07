@@ -15,6 +15,7 @@ import { organizations } from '@/lib/db/schema';
 import { sql } from 'drizzle-orm';
 import { syncAirtableTable } from '@/lib/airtable/sync';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
+import { RECONCILABLE_ENTITIES, isEntityReconcilable, RECONCILE_GRACE_HOURS } from '@/lib/airtable/reconcile';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
 import { withDbRetry } from '@/lib/db/retry';
@@ -254,21 +255,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   //       enough staleness to be removed.
   // Scope: leaf tables with no cascading children (verified). Parent tables
   // (tenants/contracts/units/…) and cascade tables (incidents) are excluded.
-  const RECONCILE_GRACE_HOURS = 72;
-  const RECONCILABLE: Array<{ entity: EntityName; table: string }> = [
-    { entity: 'payments',           table: 'payments' },
-    { entity: 'additional_charges', table: 'additional_charges' },
-    { entity: 'account_statements', table: 'account_statements' },
-    { entity: 'service_payments',   table: 'service_payments' },
-    { entity: 'tax_receipts',       table: 'tax_receipts' },
-    { entity: 'tenant_feedback',    table: 'tenant_feedback' },
-  ];
   const reconcileResults: Array<{ orgId: string; entity: EntityName; deleted: number }> = [];
 
   for (const orgId of orgIds) {
-    for (const { entity, table } of RECONCILABLE) {
+    for (const { entity, table } of RECONCILABLE_ENTITIES) {
       const res = entityResults.find(r => r.orgId === orgId && r.entity === entity);
-      if (!res || res.status !== 'success' || res.count <= 0) continue; // safety guard (a)
+      if (!isEntityReconcilable(res)) continue; // safety guard (a)
       try {
         const result = await withDbRetry(
           () => db.execute(sql`
