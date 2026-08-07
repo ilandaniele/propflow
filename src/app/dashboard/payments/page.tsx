@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { payments as paymentsTable, contracts, tenants } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { computePaymentKpis } from '@/lib/finance/payment-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -60,19 +61,9 @@ export default async function PaymentsPage() {
       .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
   ]);
 
-  const pendingCount = statRows.filter((p) => p.status === 'pending').length;
-
   // Analytics — computed over ALL payments (statRows), never the capped table set.
-  const approved       = statRows.filter((p) => p.status === 'approved');
-  const collectedTotal = approved.reduce((s, p) => s + Number(p.amount), 0);
-  const pendingTotal   = statRows.filter((p) => p.status === 'pending').reduce((s, p) => s + Number(p.amount), 0);
-  const collectionRate = statRows.length > 0 ? Math.round((approved.length / statRows.length) * 100) : 0;
-
-  const byMethod: Record<string, number> = {};
-  for (const p of approved) {
-    const m = p.method ?? 'other';
-    byMethod[m] = (byMethod[m] ?? 0) + 1;
-  }
+  const { pendingCount, collectedTotal, pendingTotal, collectionRate, byMethod, byMonth } =
+    computePaymentKpis(statRows);
   const topMethods = Object.entries(byMethod).sort(([, a], [, b]) => b - a).slice(0, 4);
 
   // Monthly collected trend (last 6 months)
@@ -81,13 +72,6 @@ export default async function PaymentsPage() {
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     last6months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-  }
-  const byMonth: Record<string, number> = {};
-  for (const p of approved) {
-    const dateStr = p.paidAt ?? p.createdAt;
-    if (!dateStr) continue;
-    const key = String(dateStr).slice(0, 7);
-    byMonth[key] = (byMonth[key] ?? 0) + Number(p.amount);
   }
   const maxMonthAmount = Math.max(1, ...last6months.map((k) => byMonth[k] ?? 0));
 
