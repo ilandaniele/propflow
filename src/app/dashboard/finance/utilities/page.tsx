@@ -193,7 +193,11 @@ export default async function UtilitiesPage() {
                 {recentMonths.length > 0 && (
                   <div className="mt-3 divide-y divide-slate-50">
                     {recentMonths.slice(-3).reverse().map((month) => {
-                      const entry  = svc.monthlyData?.[month]!;
+                      // A service may have no data for a given recent month —
+                      // guard instead of asserting non-null (which crashed on
+                      // entry.amount when the entry was actually undefined).
+                      const entry = svc.monthlyData?.[month];
+                      if (!entry) return null;
                       const isOver = svc.tope !== null && (entry.amount ?? 0) > Number(svc.tope);
                       return (
                         <div key={month} className="flex items-center justify-between py-1.5 text-xs">
