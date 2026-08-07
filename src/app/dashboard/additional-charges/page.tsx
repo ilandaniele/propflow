@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { additionalCharges, contracts, tenants } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { computeChargeKpis } from '@/lib/finance/charge-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -35,35 +36,13 @@ export default async function AdditionalChargesPage() {
   // No .limit() here: the KPI totals below (total, by-concept, by-month, by-tenant)
   // must cover every charge. The table render is sliced to 200 for DOM size.
 
-  const totalAmount = rows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
-
-  // By concept/description breakdown
-  const byDescription: Record<string, number> = {};
-  for (const r of rows) {
-    const key = r.description ?? t('kpi.noDescription');
-    byDescription[key] = (byDescription[key] ?? 0) + Number(r.amount ?? 0);
-  }
+  const { totalAmount, byDescription, byMonth, byTenant } = computeChargeKpis(rows, {
+    noDescription: t('kpi.noDescription'),
+    unknownTenant: t('kpi.unknown'),
+  });
   const topConcepts = Object.entries(byDescription).sort(([, a], [, b]) => b - a).slice(0, 6);
-
-  // By month (last 6 months that have data)
-  const byMonth: Record<string, number> = {};
-  for (const r of rows) {
-    if (r.mes && r.anio) {
-      const key = `${r.anio}-${String(r.mes).padStart(2, '0')}`;
-      byMonth[key] = (byMonth[key] ?? 0) + Number(r.amount ?? 0);
-    }
-  }
   const monthKeys = Object.keys(byMonth).sort().slice(-6);
   const maxMonthAmount = Math.max(1, ...monthKeys.map((k) => byMonth[k]));
-
-  // By tenant
-  const byTenant: Record<string, { name: string; total: number }> = {};
-  for (const r of rows) {
-    const name = r.tenantFullName ?? t('kpi.unknown');
-    const id   = r.contractId ?? name;
-    if (!byTenant[id]) byTenant[id] = { name, total: 0 };
-    byTenant[id].total += Number(r.amount ?? 0);
-  }
   const topTenants = Object.values(byTenant).sort((a, b) => b.total - a.total).slice(0, 5);
 
   return (
