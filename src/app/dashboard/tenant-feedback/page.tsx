@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { tenantFeedback, tenants } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
+import { averageScore, recommendStats } from '@/lib/finance/feedback-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -48,11 +49,8 @@ export default async function TenantFeedbackPage() {
   // No .limit(): KPI averages / recommend-rate cover all feedback rows.
   // The list is sliced to 100 below for DOM size.
 
-  const avgScore = (getter: (r: typeof rows[number]) => number | null) => {
-    const vals = rows.map(getter).filter((v): v is number => v !== null);
-    if (!vals.length) return null;
-    return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
-  };
+  const avgScore = (getter: (r: typeof rows[number]) => number | null) =>
+    averageScore(rows.map(getter));
 
   const metrics = [
     { label: t('metricCleaning'),    getter: (r: typeof rows[number]) => r.cleaningScore },
@@ -62,8 +60,7 @@ export default async function TenantFeedbackPage() {
     { label: t('metricValue'),       getter: (r: typeof rows[number]) => r.valueScore },
   ];
 
-  const recommendCount = rows.filter((r) => r.wouldRecommend === true).length;
-  const recommendRate  = rows.length > 0 ? Math.round((recommendCount / rows.length) * 100) : 0;
+  const { count: recommendCount, rate: recommendRate } = recommendStats(rows);
 
   return (
     <div className="space-y-6 max-w-5xl">

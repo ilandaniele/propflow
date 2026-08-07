@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { taxReceipts } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { computeTaxReceiptKpis } from '@/lib/finance/tax-receipt-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -33,32 +34,11 @@ export default async function TaxReceiptsPage() {
   // No .limit(): KPI totals (amount/base/IGV, by-type, by-month) cover all rows.
   // The table is sliced to 200 below for DOM size.
 
-  // Analytics
-  const issuedRows    = rows.filter((r) => r.status === 'issued');
-  const cancelledRows = rows.filter((r) => r.status === 'cancelled');
-  const draftRows     = rows.filter((r) => r.status === 'draft');
-
-  const totalAmount = issuedRows.reduce((s, r) => s + Number(r.totalAmount ?? 0), 0);
-  const totalBase   = issuedRows.reduce((s, r) => s + Number(r.baseAmount ?? 0), 0);
-  const totalIGV    = issuedRows.reduce((s, r) => s + Number(r.igvAmount ?? 0), 0);
-
-  // By type
-  const byType: Record<string, { count: number; total: number }> = {};
-  for (const r of rows) {
-    const key = r.tipo ?? 'other';
-    if (!byType[key]) byType[key] = { count: 0, total: 0 };
-    byType[key].count += 1;
-    byType[key].total += Number(r.totalAmount ?? 0);
-  }
-
-  // Monthly trend (last 6 months with data)
-  const byMonth: Record<string, number> = {};
-  for (const r of issuedRows) {
-    if (r.mes && r.anio) {
-      const k = `${r.anio}-${String(r.mes).padStart(2, '0')}`;
-      byMonth[k] = (byMonth[k] ?? 0) + Number(r.totalAmount ?? 0);
-    }
-  }
+  // Analytics — over ALL receipts (rows is uncapped; table render is sliced).
+  const {
+    issuedCount, cancelledCount, draftCount,
+    totalAmount, totalBase, totalIGV, byType, byMonth,
+  } = computeTaxReceiptKpis(rows);
   const monthKeys = Object.keys(byMonth).sort().slice(-6);
   const maxMonth = Math.max(1, ...monthKeys.map((k) => byMonth[k]));
 
@@ -86,12 +66,12 @@ export default async function TaxReceiptsPage() {
             </div>
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.issued')}</p>
-              <p className="text-xl font-bold text-green-600">{issuedRows.length}</p>
-              {cancelledRows.length > 0 && <p className="text-xs text-red-500 mt-0.5">{cancelledRows.length} {t('kpi.cancelled')}</p>}
+              <p className="text-xl font-bold text-green-600">{issuedCount}</p>
+              {cancelledCount > 0 && <p className="text-xs text-red-500 mt-0.5">{cancelledCount} {t('kpi.cancelled')}</p>}
             </div>
             <div className="bg-white rounded-xl border border-slate-200 p-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">{t('kpi.draft')}</p>
-              <p className="text-xl font-bold text-slate-500">{draftRows.length}</p>
+              <p className="text-xl font-bold text-slate-500">{draftCount}</p>
             </div>
           </div>
 
