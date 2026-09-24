@@ -27,6 +27,9 @@ import type {
   OutboundMessage,
   SendResult,
   InteractiveButtonOpts,
+  InteractiveListOpts,
+  TemplateMessageOpts,
+  ImageMessageOpts,
 } from './provider';
 
 const META_API_HOST = 'https://graph.facebook.com';
@@ -252,6 +255,122 @@ export class MetaWhatsAppProvider implements IWhatsAppProvider {
       errorCode,
     });
 
+    return { success: false, error: errorCode };
+  }
+
+  async sendInteractiveList(orgId: string, opts: InteractiveListOpts): Promise<SendResult> {
+    if (opts.rows.length > 10) {
+      throw new ValidationError(
+        `[meta-provider] sendInteractiveList: max 10 rows allowed, got ${opts.rows.length}`
+      );
+    }
+    for (const row of opts.rows) {
+      if (row.title.length > 24) {
+        throw new ValidationError(`[meta-provider] sendInteractiveList: row title max 24 chars`);
+      }
+      if (row.description && row.description.length > 72) {
+        throw new ValidationError(`[meta-provider] sendInteractiveList: row description max 72 chars`);
+      }
+    }
+    const ids = opts.rows.map((r) => r.id);
+    if (new Set(ids).size !== ids.length) {
+      throw new ValidationError('[meta-provider] sendInteractiveList: row ids must be unique');
+    }
+    if (opts.buttonText.length > 20) {
+      throw new ValidationError('[meta-provider] sendInteractiveList: buttonText max 20 chars');
+    }
+
+    const accessToken   = getAccessToken();
+    const phoneNumberId = getPhoneNumberId();
+    const url = `${META_API_HOST}/${META_API_VERSION}/${phoneNumberId}/messages`;
+
+    const requestBody = {
+      messaging_product: 'whatsapp',
+      to: normalisePhone(opts.to),
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        body: { text: opts.bodyText },
+        action: {
+          button: opts.buttonText,
+          sections: [
+            {
+              rows: opts.rows.map((r) => ({ id: r.id, title: r.title, description: r.description })),
+            },
+          ],
+        },
+      },
+    };
+
+    log.info('[meta-provider] sendInteractiveList', { orgId, rowCount: opts.rows.length, toRedacted: '[REDACTED]' });
+
+    const { ok, status, data } = await metaPost(url, requestBody, accessToken);
+
+    if (ok) {
+      const responseData = data as { messages?: Array<{ id: string }> };
+      return { success: true, providerMessageId: responseData.messages?.[0]?.id };
+    }
+    const metaData = data as { error?: { code?: number } } | null;
+    const errorCode = metaData?.error?.code ? `META_${metaData.error.code}` : `META_HTTP_${status}`;
+    log.warn('[meta-provider] sendInteractiveList failed', { orgId, status, errorCode });
+    return { success: false, error: errorCode };
+  }
+
+  async sendTemplate(orgId: string, opts: TemplateMessageOpts): Promise<SendResult> {
+    const accessToken   = getAccessToken();
+    const phoneNumberId = getPhoneNumberId();
+    const url = `${META_API_HOST}/${META_API_VERSION}/${phoneNumberId}/messages`;
+
+    const requestBody = {
+      messaging_product: 'whatsapp',
+      to: normalisePhone(opts.to),
+      type: 'template',
+      template: {
+        name: opts.templateName,
+        language: { code: opts.languageCode },
+        ...(opts.bodyParams?.length
+          ? { components: [{ type: 'body', parameters: opts.bodyParams.map((text) => ({ type: 'text', text })) }] }
+          : {}),
+      },
+    };
+
+    log.info('[meta-provider] sendTemplate', { orgId, templateName: opts.templateName, toRedacted: '[REDACTED]' });
+
+    const { ok, status, data } = await metaPost(url, requestBody, accessToken);
+
+    if (ok) {
+      const responseData = data as { messages?: Array<{ id: string }> };
+      return { success: true, providerMessageId: responseData.messages?.[0]?.id };
+    }
+    const metaData = data as { error?: { code?: number } } | null;
+    const errorCode = metaData?.error?.code ? `META_${metaData.error.code}` : `META_HTTP_${status}`;
+    log.warn('[meta-provider] sendTemplate failed', { orgId, status, errorCode, templateName: opts.templateName });
+    return { success: false, error: errorCode };
+  }
+
+  async sendImage(orgId: string, opts: ImageMessageOpts): Promise<SendResult> {
+    const accessToken   = getAccessToken();
+    const phoneNumberId = getPhoneNumberId();
+    const url = `${META_API_HOST}/${META_API_VERSION}/${phoneNumberId}/messages`;
+
+    const requestBody = {
+      messaging_product: 'whatsapp',
+      to: normalisePhone(opts.to),
+      type: 'image',
+      image: { link: opts.imageUrl, ...(opts.caption ? { caption: opts.caption } : {}) },
+    };
+
+    log.info('[meta-provider] sendImage', { orgId, toRedacted: '[REDACTED]' });
+
+    const { ok, status, data } = await metaPost(url, requestBody, accessToken);
+
+    if (ok) {
+      const responseData = data as { messages?: Array<{ id: string }> };
+      return { success: true, providerMessageId: responseData.messages?.[0]?.id };
+    }
+    const metaData = data as { error?: { code?: number } } | null;
+    const errorCode = metaData?.error?.code ? `META_${metaData.error.code}` : `META_HTTP_${status}`;
+    log.warn('[meta-provider] sendImage failed', { orgId, status, errorCode });
     return { success: false, error: errorCode };
   }
 

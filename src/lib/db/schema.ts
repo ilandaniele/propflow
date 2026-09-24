@@ -768,6 +768,47 @@ export const whatsappMessages = pgTable('whatsapp_messages', {
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Domain table: org_channels — routes an inbound channel identifier (WhatsApp
+// phone_number_id, widget public key, voice number) to an organization.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const orgChannels = pgTable('org_channels', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  orgId:      uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  channel:    text('channel').notNull(),      // 'whatsapp' | 'web' | 'voice'
+  externalId: text('external_id').notNull(),  // phone_number_id | widget public key | voice number
+  config:     jsonb('config').notNull().default({}),
+  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:  timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  channelExternalUniq: uniqueIndex('org_channels_channel_external_id').on(t.channel, t.externalId),
+  orgIdx:              index('idx_org_channels_org').on(t.orgId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_jobs — durable queue for the real-estate agent's async
+// work (reminders, follow-ups, calendar sync, outbound calls). Claimed with
+// FOR UPDATE SKIP LOCKED by the agent-dispatch drain (src/lib/agent/jobs.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentJobs = pgTable('agent_jobs', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  orgId:       uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  kind:        text('kind').notNull(),
+  runAt:       timestamp('run_at', { withTimezone: true }).notNull().defaultNow(),
+  payload:     jsonb('payload').notNull().default({}),
+  status:      text('status').notNull().default('pending'), // 'pending'|'processing'|'done'|'failed'
+  attempts:    integer('attempts').notNull().default(0),
+  lastError:   text('last_error'),
+  lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dueIdx: index('idx_agent_jobs_due').on(t.status, t.runAt),
+  orgIdx: index('idx_agent_jobs_org').on(t.orgId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Domain table 31: payment_receipts
 // ─────────────────────────────────────────────────────────────────────────────
 
