@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { whatsappConversations, whatsappMessages, tenants } from '@/lib/db/schema';
+import { whatsappConversations, whatsappMessages, tenants, agentSessions } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { SendMessageForm } from '../_components/SendMessageForm';
 import { MarkReadOnView } from '../_components/MarkReadOnView';
@@ -38,6 +38,13 @@ export default async function ConversationPage({
   const conversation = convRows[0];
   if (!conversation) notFound();
 
+  const sessionRows = await db
+    .select({ id: agentSessions.id })
+    .from(agentSessions)
+    .where(and(eq(agentSessions.whatsappConversationId, conversationId), eq(agentSessions.orgId, ctx.orgId)))
+    .limit(1);
+  const agentSession = sessionRows[0] ?? null;
+
   const messages = await db
     .select({
       id: whatsappMessages.id,
@@ -62,6 +69,11 @@ export default async function ConversationPage({
         <Link href="/dashboard/whatsapp" className="text-sm text-brand-600 hover:text-brand-800">
           {t('backToInbox')}
         </Link>
+        {agentSession && (
+          <Link href={`/dashboard/agent/inbox/${agentSession.id}`} className="text-sm text-brand-600 hover:text-brand-800">
+            {t('viewInAgentInbox')}
+          </Link>
+        )}
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">

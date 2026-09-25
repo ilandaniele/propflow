@@ -16,18 +16,37 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient, AGENT_MODEL } from '@/lib/ai/client';
 import { log } from '@/lib/log';
 import { getOrCreateAgentConfig } from './config';
-import { getOrCreateSession, getSessionHistory, appendSessionMessage } from './session';
+import {
+  getOrCreateSession,
+  getSessionHistory,
+  appendSessionMessage,
+  setSessionMode,
+  setSessionLanguage,
+  recordAgentTurn,
+} from './session';
+import { recordAgentEvent } from './events';
 import { getLead } from './lead';
 import { buildAgentSystemPrompt, buildTurnContext } from './prompt';
 import { buildAgentTools } from './tools';
-import type { RunAgentTurnArgs, RunAgentTurnResult } from './types';
+import { detectLanguage } from './language';
+import type { AgentLanguage, RunAgentTurnArgs, RunAgentTurnResult } from './types';
 
 export type { RunAgentTurnArgs, RunAgentTurnResult } from './types';
 
 const MAX_ITERATIONS = 8;
 const MAX_TOKENS = 2048;
-const BUDGET_EXCEEDED_REPLY =
-  'En este momento estoy con mucha demanda. Un asesor te va a escribir en breve para seguir ayudándote.';
+
+/** Fallback replies (decision 10: answer in the user's language). Defaults to 'es' when no language is known. */
+const TURN_CAP_REPLY: Record<AgentLanguage, string> = {
+  es: 'Ya charlamos bastante por acá — un asesor va a seguir la conversación en breve.',
+  en: 'We’ve covered a lot here — an advisor will take over the conversation shortly.',
+  pt: 'Já conversamos bastante por aqui — um consultor vai continuar a conversa em breve.',
+};
+const BUDGET_EXCEEDED_REPLY: Record<AgentLanguage, string> = {
+  es: 'En este momento estoy con mucha demanda. Un asesor te va a escribir en breve para seguir ayudándote.',
+  en: 'We’re getting a lot of messages right now. An advisor will reach out shortly to keep helping you.',
+  pt: 'Neste momento estamos com muita demanda. Um consultor vai falar com você em breve.',
+};
 
 async function isOverDailyBudget(orgId: string, dailyTokenBudget: number): Promise<boolean> {
   const since = new Date();
@@ -63,19 +82,73 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     whatsappConversationId: args.whatsappConversationId,
   });
 
+  // Step 1 (blueprint §3): a live session already handed off to a human never
+  // gets a model turn — the playground (dryRun) is exempt, it has its own
+  // session and is never gated by mode.
+  if (!dryRun && session.mode !== 'ai') {
+    return {
+      sessionId: session.id,
+      leadId: session.leadId,
+      replyText: '',
+      handedOffToHuman: false,
+      handoffReason: null,
+      skipped: true,
+      language: session.language,
+      assistantMessageId: null,
+    };
+  }
+
+  // Step 2: the per-session turn cap (auto-handoff, decision 8).
+  if (!dryRun && config.maxAgentTurns != null && session.agentTurnCount >= config.maxAgentTurns) {
+    await setSessionMode(session.id, 'human', 'Tope de turnos del agente alcanzado', 'turn_cap');
+    await recordAgentEvent({
+      orgId: args.orgId,
+      sessionId: session.id,
+      kind: 'handoff',
+      data: { reason: 'turn_cap', auto: true },
+    });
+    log.warn('[agent] turn cap reached', { orgId: args.orgId, sessionId: session.id });
+    return {
+      sessionId: session.id,
+      leadId: session.leadId,
+      replyText: TURN_CAP_REPLY[session.language ?? 'es'],
+      handedOffToHuman: true,
+      handoffReason: 'turn_cap',
+      skipped: false,
+      language: session.language,
+      assistantMessageId: null,
+    };
+  }
+
+  // Step 3: the org-wide daily token budget (auto-handoff, decision 8).
   if (!dryRun && (await isOverDailyBudget(args.orgId, config.dailyTokenBudget))) {
+    await setSessionMode(session.id, 'human', 'Presupuesto diario del agente agotado', 'budget');
+    await recordAgentEvent({
+      orgId: args.orgId,
+      sessionId: session.id,
+      kind: 'handoff',
+      data: { reason: 'budget', auto: true },
+    });
     log.warn('[agent] daily token budget exceeded', { orgId: args.orgId });
     return {
       sessionId: session.id,
       leadId: session.leadId,
-      replyText: BUDGET_EXCEEDED_REPLY,
-      handedOffToHuman: false,
-      handoffReason: null,
+      replyText: BUDGET_EXCEEDED_REPLY[session.language ?? 'es'],
+      handedOffToHuman: true,
+      handoffReason: 'budget',
       skipped: false,
-      language: null,
+      language: session.language,
       assistantMessageId: null,
     };
   }
+
+  // Step 4: language detection. Never persisted or run for dryRun (pitfall: the
+  // playground must never call setSessionLanguage).
+  const detected = detectLanguage(args.inboundText);
+  if (!dryRun && detected && detected !== session.language) {
+    await setSessionLanguage(session.id, detected);
+  }
+  const lang: AgentLanguage = detected ?? session.language ?? 'es';
 
   const lead = session.leadId ? await getLead(args.orgId, session.leadId) : null;
   const history = await getSessionHistory(session.id);
@@ -88,10 +161,16 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     externalId: args.externalId,
     dryRun,
     leadIdRef,
+    attribution: session.attribution,
   });
 
   const systemPrompt = buildAgentSystemPrompt(config);
-  const turnContext = buildTurnContext(lead, new Date().toISOString());
+  const turnContext = buildTurnContext(lead, new Date().toISOString(), {
+    language: lang,
+    attribution: session.attribution,
+    humanReplies: args.humanRepliesSinceLastTurn ?? [],
+    timezone: config.timezone,
+  });
 
   // Captured BEFORE appending this turn's inbound message — everything from
   // here on (the inbound message itself, tool turns, the final reply) is new
@@ -148,24 +227,22 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     if (isLast && m.role === 'assistant') assistantMessageId = id;
   }
 
+  if (!dryRun) await recordAgentTurn(session.id);
+
+  const handedOffToHuman = newMessages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((b) => b.type === 'tool_use' && b.name === 'handoff_to_human'),
+  );
+
   return {
     sessionId: session.id,
     leadId: leadIdRef.current,
     replyText: extractReplyText(finalMessage.content),
-    handedOffToHuman: newMessages.some(
-      (m) =>
-        Array.isArray(m.content) &&
-        m.content.some((b) => b.type === 'tool_use' && b.name === 'handoff_to_human'),
-    ),
-    handoffReason: newMessages.some(
-      (m) =>
-        Array.isArray(m.content) &&
-        m.content.some((b) => b.type === 'tool_use' && b.name === 'handoff_to_human'),
-    )
-      ? 'tool'
-      : null,
+    handedOffToHuman,
+    handoffReason: handedOffToHuman ? 'tool' : null,
     skipped: false,
-    language: null,
+    language: lang,
     assistantMessageId,
   };
 }

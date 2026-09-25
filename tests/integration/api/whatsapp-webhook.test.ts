@@ -36,29 +36,52 @@ vi.mock('@/lib/events/handlers', () => ({
 
 // vi.mock factories are hoisted above regular declarations, so any mock fns
 // they close over must be created via vi.hoisted() to avoid a TDZ error.
-const { findOrgIdByWhatsAppPhoneNumberId, updateMessageStatusByProviderId, mockProvider } = vi.hoisted(() => ({
+const {
+  findOrgIdByWhatsAppPhoneNumberId,
+  updateMessageStatusByProviderId,
+  findTenantByPhone,
+  mockProvider,
+  getOrCreateAgentConfig,
+  queueAgentInbound,
+  scheduleAgentDrain,
+  insertMessage,
+} = vi.hoisted(() => ({
   findOrgIdByWhatsAppPhoneNumberId: vi.fn(async () => null as string | null),
   updateMessageStatusByProviderId: vi.fn(async () => {}),
+  findTenantByPhone: vi.fn(async () => null as { id: string; profile_id: string | null; preferred_language: string } | null),
   mockProvider: {
     sendMessage: vi.fn(),
     validateWebhookSignature: vi.fn(),
     downloadAttachment: vi.fn(async () => ({ storagePath: 'whatsapp/org-1/conv-1/wamid.1' })),
     verifyWebhookToken: vi.fn((token: string) => token === 'correct-verify-token'),
   },
+  getOrCreateAgentConfig: vi.fn(async () => ({ channelsEnabled: { whatsapp: false, web: false, voice: false } })),
+  queueAgentInbound: vi.fn(async () => true),
+  scheduleAgentDrain: vi.fn(),
+  insertMessage: vi.fn(async () => 'msg-1' as string | null),
 }));
 
 vi.mock('@/lib/whatsapp/db', () => ({
-  findTenantByPhone: async () => null,
+  findTenantByPhone,
   upsertConversation: async () => 'conv-1',
-  insertMessage: async () => 'msg-1',
+  insertMessage,
   updateConversationActivity: async () => {},
   findOrgIdByWhatsAppPhoneNumberId,
   updateMessageStatusByProviderId,
+  finishClaimedInbound: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
   getWhatsAppProvider: () => mockProvider,
 }));
+
+vi.mock('@/lib/agent/config', () => ({ getOrCreateAgentConfig }));
+
+vi.mock('@/lib/agent/whatsapp-dispatch', () => ({ queueAgentInbound, scheduleAgentDrain }));
+
+vi.mock('@/lib/agent/job-handlers', () => ({ registerAgentJobHandlers: vi.fn() }));
+
+vi.mock('@/lib/agent/button-replies', () => ({ dispatchButtonReply: vi.fn(async () => false) }));
 
 const SECRET = 'test-secret-for-webhook-tests-xx';
 
@@ -235,5 +258,39 @@ describe('POST /api/whatsapp/webhook (real Meta payload)', () => {
     const response = await callMetaWebhook(body, metaSignature(body));
     expect(response.status).toBe(200);
     expect(updateMessageStatusByProviderId).toHaveBeenCalledWith('org-1', 'wamid.1', 'delivered');
+  });
+
+  it('queues an agent turn for a non-tenant when WhatsApp is enabled, and drains', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue(null);
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    const body = metaBody();
+    const response = await callMetaWebhook(body, metaSignature(body));
+    expect(response.status).toBe(200);
+    expect(queueAgentInbound).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-1', conversationId: 'conv-1' }));
+    expect(scheduleAgentDrain).toHaveBeenCalled();
+  });
+
+  it('does not queue an agent turn for a tenant, even with WhatsApp enabled', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue({ id: 'tenant-1', profile_id: null, preferred_language: 'es' });
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    const body = metaBody();
+    const response = await callMetaWebhook(body, metaSignature(body));
+    expect(response.status).toBe(200);
+    expect(queueAgentInbound).not.toHaveBeenCalled();
+    expect(scheduleAgentDrain).not.toHaveBeenCalled();
+  });
+
+  it('does not queue an agent turn for a duplicate message (insertMessage returns null)', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue(null);
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    insertMessage.mockResolvedValueOnce(null);
+    const body = metaBody();
+    const response = await callMetaWebhook(body, metaSignature(body));
+    expect(response.status).toBe(200);
+    expect(queueAgentInbound).not.toHaveBeenCalled();
+    expect(scheduleAgentDrain).not.toHaveBeenCalled();
   });
 });

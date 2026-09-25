@@ -2,19 +2,26 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { whatsappConversations, whatsappMessages } from '@/lib/db/schema';
+import { whatsappConversations } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { Errors, ok } from '@/lib/errors';
+import { Errors, err, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
-import { getWhatsAppProvider } from '@/lib/whatsapp';
+import { sendWhatsAppText } from '@/lib/agent/outbound';
+import { getSessionByConversation, setSessionMode } from '@/lib/agent/session';
+import { recordAgentEvent } from '@/lib/agent/events';
 import { SendWhatsAppMessageSchema } from '@/lib/schemas/whatsapp';
 import type { ActionResult } from '@/lib/errors';
 
 /**
  * Send a WhatsApp message from admin.
- * Writes outbound message to DB + calls provider (mock: no network).
+ *
+ * Routes through sendWhatsAppText (agent/outbound.ts) — the only place that
+ * sends WhatsApp free text — so the 24h window, provider call and message
+ * persistence stay in one place shared with the agent inbox. If an agent
+ * session exists for this conversation and is still in 'ai' mode, a human
+ * sending here takes it over first so the bot doesn't talk over staff.
  */
 export async function sendWhatsappMessage(
   _prev: ActionResult,
@@ -31,62 +38,34 @@ export async function sendWhatsappMessage(
 
   const { conversation_id, body } = parsed.data;
 
-  // Verify conversation belongs to this org (IDOR guard)
-  const convRows = await db
-    .select({ id: whatsappConversations.id, externalPhone: whatsappConversations.externalPhone })
-    .from(whatsappConversations)
-    .where(and(eq(whatsappConversations.id, conversation_id), eq(whatsappConversations.orgId, ctx.orgId)))
-    .limit(1);
+  const session = await getSessionByConversation(ctx.orgId, conversation_id);
+  if (session && session.mode === 'ai') {
+    await setSessionMode(session.id, 'human', undefined, 'manual');
+    await recordAgentEvent({
+      orgId: ctx.orgId,
+      sessionId: session.id,
+      kind: 'mode_change',
+      data: { to: 'human', implicit: true },
+      actorProfileId: ctx.userId,
+    });
+  }
 
-  if (!convRows[0]) return Errors.NOT_FOUND();
-  const conv = convRows[0];
-
-  // Call provider (mock: no network, logs only)
-  const provider = getWhatsAppProvider();
-  const sendResult = await provider.sendMessage(ctx.orgId, {
-    to: conv.externalPhone,  // PII — not logged by provider
+  const outcome = await sendWhatsAppText({
+    orgId: ctx.orgId,
+    conversationId: conversation_id,
     body,
+    senderKind: 'human',
+    sentByProfileId: ctx.userId,
   });
 
-  // Insert outbound message directly with Drizzle
-  let messageId: string | null = null;
-  try {
-    const rows = await db
-      .insert(whatsappMessages)
-      .values({
-        orgId:             ctx.orgId,
-        conversationId:    conversation_id,
-        direction:         'outbound',
-        providerMessageId: sendResult.providerMessageId ?? null,
-        body:              body ?? null,
-        status:            sendResult.success ? 'sent' : 'failed',
-        meta:              {},
-      })
-      .returning({ id: whatsappMessages.id });
-
-    messageId = rows[0]?.id ?? null;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // 23505 = unique_violation — idempotent duplicate
-    if (msg.includes('23505')) {
-      log.info('[sendWhatsappMessage] duplicate message ignored', { orgId: ctx.orgId });
-    } else {
-      log.error('[sendWhatsappMessage] insert failed', { orgId: ctx.orgId, code: msg });
-      return Errors.INTERNAL();
+  if (!outcome.ok) {
+    if (outcome.code === 'WINDOW_CLOSED') {
+      return err('WINDOW_CLOSED', 'Fuera de la ventana de 24 h: solo plantillas aprobadas');
     }
-  }
-
-  if (!messageId) {
-    log.error('[sendWhatsappMessage] insert returned no id', { orgId: ctx.orgId });
+    if (outcome.code === 'NOT_FOUND') return Errors.NOT_FOUND();
+    log.error('[sendWhatsappMessage] send failed', { orgId: ctx.orgId, code: outcome.code });
     return Errors.INTERNAL();
   }
-
-  // Update conversation last_message_at
-  await db
-    .update(whatsappConversations)
-    .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-    .where(eq(whatsappConversations.id, conversation_id))
-    .catch(() => undefined);
 
   log.adminAction(ctx.userId, 'send_whatsapp', 'conversation', conversation_id);
   revalidatePath(`/dashboard/whatsapp/${conversation_id}`);

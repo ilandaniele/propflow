@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { applyLeadQualification, createProspectLead } from '../lead';
+import { applyLeadQualification, attributionToSource, createProspectLead } from '../lead';
 import { setSessionLead } from '../session';
 import { computeLeadScore, intentTagForScore } from '../scoring';
 import type { AgentToolContext } from './context';
@@ -36,11 +36,14 @@ export function makeUpdateLeadProfileTool(ctx: AgentToolContext) {
       let leadId = ctx.leadIdRef.current;
       if (!leadId) {
         const phone = ctx.channel === 'whatsapp' || ctx.channel === 'voice' ? ctx.externalId : null;
+        const { sourceRef, sourceMeta } = attributionToSource(ctx.attribution);
         const lead = await createProspectLead({
           orgId: ctx.orgId,
           fullName: args.fullName ?? defaultFullName(ctx.channel),
           phone,
           sourceChannel: ctx.channel,
+          sourceRef,
+          sourceMeta,
         });
         leadId = lead.id;
         ctx.leadIdRef.current = leadId;
