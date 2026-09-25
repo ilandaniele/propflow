@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { getOrCreateAgentConfig } from '../config';
+import { isSlotStillAvailable } from '../visits/availability';
 import { rescheduleVisit } from '../visits/service';
 import { decodeSlotId } from '../visits/slot-id';
 import { formatSlotLabel } from '../visits/slots';
@@ -36,6 +37,17 @@ export function makeRescheduleVisitTool(ctx: AgentToolContext) {
       if (ctx.channel !== 'whatsapp') {
         return `Para reprogramar la visita al ${label} coordinemos por WhatsApp — pedile al usuario que te escriba por ahí.`;
       }
+
+      // The slot id can be up to 24h old (its TTL) — recheck it's still
+      // actually offered before writing, instead of relying solely on the
+      // DB's exclusion constraint to catch a stale claim.
+      const stillAvailable = await isSlotStillAvailable({
+        orgId: ctx.orgId,
+        profileId: claim.profileId,
+        listingId: claim.listingId,
+        startsAt: claim.startsAt,
+      });
+      if (!stillAvailable) return 'Ese horario se acaba de ocupar; pedí horarios nuevos con get_available_slots.';
 
       const result = await rescheduleVisit({
         orgId: ctx.orgId,

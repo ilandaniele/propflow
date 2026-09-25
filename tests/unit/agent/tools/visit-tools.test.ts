@@ -9,6 +9,7 @@ const LISTING_ID = '44444444-4444-4444-4444-444444444444';
 const {
   getListingDetails,
   getAvailableSlotsForOrg,
+  isSlotStillAvailable,
   getOrCreateAgentConfig,
   bookVisit,
   rescheduleVisit,
@@ -21,6 +22,7 @@ const {
 } = vi.hoisted(() => ({
   getListingDetails: vi.fn(async () => ({ id: LISTING_ID, title: 'Depa Sol' }) as unknown),
   getAvailableSlotsForOrg: vi.fn(async () => ({ timezone: 'America/Lima', slots: [] as unknown[], loadByProfile: {} })),
+  isSlotStillAvailable: vi.fn(async () => true),
   getOrCreateAgentConfig: vi.fn(async () => ({ timezone: 'America/Lima' }) as unknown),
   bookVisit: vi.fn(async () => ({ ok: true, visit: { id: 'visit-1' } }) as unknown),
   rescheduleVisit: vi.fn(async () => ({ ok: true, visit: { id: 'visit-2' } }) as unknown),
@@ -33,7 +35,7 @@ const {
 }));
 
 vi.mock('@/lib/agent/listings', () => ({ getListingDetails }));
-vi.mock('@/lib/agent/visits/availability', () => ({ getAvailableSlotsForOrg }));
+vi.mock('@/lib/agent/visits/availability', () => ({ getAvailableSlotsForOrg, isSlotStillAvailable }));
 vi.mock('@/lib/agent/config', () => ({ getOrCreateAgentConfig }));
 vi.mock('@/lib/agent/visits/service', () => ({ bookVisit, rescheduleVisit, cancelVisit, listLeadActiveVisits }));
 vi.mock('@/lib/agent/lead', () => ({
@@ -102,6 +104,15 @@ describe('get_available_slots tool', () => {
     expect(String(result)).toMatch(/visit_scheduling/);
   });
 
+  it('converts fromDate as a local (org timezone) calendar date, not UTC midnight', async () => {
+    const tool = makeGetAvailableSlotsTool(makeCtx());
+    await tool.run({ listingId: LISTING_ID, fromDate: '2026-10-05' });
+    // America/Lima is UTC-5 — local midnight on 2026-10-05 is 2026-10-05T05:00:00Z, not 2026-10-05T00:00:00Z.
+    expect(getAvailableSlotsForOrg).toHaveBeenCalledWith(
+      expect.objectContaining({ from: new Date('2026-10-05T05:00:00.000Z') }),
+    );
+  });
+
   it('returns opaque slot ids the model can pass straight to book_visit', async () => {
     getAvailableSlotsForOrg.mockResolvedValueOnce({
       timezone: 'America/Lima',
@@ -122,6 +133,7 @@ describe('book_visit tool', () => {
     bookVisit.mockResolvedValue({ ok: true, visit: { id: 'visit-1' } });
     getOrCreateAgentConfig.mockResolvedValue({ timezone: 'America/Lima' });
     getListingDetails.mockResolvedValue({ id: LISTING_ID, title: 'Depa Sol' });
+    isSlotStillAvailable.mockResolvedValue(true);
   });
 
   it('rejects an altered slot id without calling bookVisit', async () => {
@@ -165,6 +177,20 @@ describe('book_visit tool', () => {
     expect(result).toMatch(/sl_/);
   });
 
+  it('rejects a stale slot (isSlotStillAvailable false) and offers alternatives, without calling bookVisit', async () => {
+    isSlotStillAvailable.mockResolvedValueOnce(false);
+    getAvailableSlotsForOrg.mockResolvedValueOnce({
+      timezone: 'America/Lima',
+      slots: [{ profileId: PROFILE_ID, startsAt: new Date('2026-10-06T14:00:00.000Z'), endsAt: new Date('2026-10-06T14:45:00.000Z'), bufferMinutes: 15 }],
+      loadByProfile: {},
+    });
+    const tool = makeBookVisitTool(makeCtx());
+    const result = String(await tool.run({ slotId: validSlotId() }));
+    expect(result).toMatch(/ya no está disponible/i);
+    expect(result).toMatch(/sl_/);
+    expect(bookVisit).not.toHaveBeenCalled();
+  });
+
   it('never passes a lead the model chose — always ctx.leadIdRef.current via ensureLead', async () => {
     const ctx = makeCtx({ leadIdRef: { current: null } });
     const tool = makeBookVisitTool(ctx);
@@ -204,12 +230,21 @@ describe('reschedule_visit tool', () => {
     vi.clearAllMocks();
     getOrCreateAgentConfig.mockResolvedValue({ timezone: 'America/Lima' });
     rescheduleVisit.mockResolvedValue({ ok: true, visit: { id: 'visit-2' } });
+    isSlotStillAvailable.mockResolvedValue(true);
   });
 
   it('rejects an invalid slot id without calling rescheduleVisit', async () => {
     const tool = makeRescheduleVisitTool(makeCtx());
     const result = await tool.run({ visitId: 'visit-1', slotId: `${validSlotId()}xx` });
     expect(String(result)).toMatch(/no es válido/i);
+    expect(rescheduleVisit).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale slot (isSlotStillAvailable false) without calling rescheduleVisit', async () => {
+    isSlotStillAvailable.mockResolvedValueOnce(false);
+    const tool = makeRescheduleVisitTool(makeCtx());
+    const result = await tool.run({ visitId: 'visit-1', slotId: validSlotId() });
+    expect(String(result)).toMatch(/se acaba de ocupar/i);
     expect(rescheduleVisit).not.toHaveBeenCalled();
   });
 

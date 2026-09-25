@@ -33,8 +33,10 @@ describe('agent/visits/slot-id', () => {
   });
 
   it('stays within a reasonable length for a Meta list row id', () => {
+    // 42-byte payload (incl. the 4-byte issuedAt TTL field) + 12-byte HMAC,
+    // base64url-encoded plus the 'sl_' prefix — well under Meta's 256-char row id limit.
     const id = encodeSlotId(claim(), bind);
-    expect(id.length).toBeLessThanOrEqual(70);
+    expect(id.length).toBeLessThanOrEqual(80);
   });
 
   it('returns null when a byte is altered', () => {
@@ -57,5 +59,17 @@ describe('agent/visits/slot-id', () => {
     expect(decodeSlotId('not-a-slot-id', bind)).toBeNull();
     expect(decodeSlotId('sl_not-base64!!!', bind)).toBeNull();
     expect(decodeSlotId('', bind)).toBeNull();
+  });
+
+  it('decodes an id issued just under 24h ago', () => {
+    const issuedAt = new Date(Date.now() - (24 * 60 * 60 * 1000 - 60_000));
+    const id = encodeSlotId(claim(), bind, issuedAt);
+    expect(decodeSlotId(id, bind)).not.toBeNull();
+  });
+
+  it('rejects an id issued more than 24h ago (expired TTL)', () => {
+    const issuedAt = new Date(Date.now() - (24 * 60 * 60 * 1000 + 60_000));
+    const id = encodeSlotId(claim(), bind, issuedAt);
+    expect(decodeSlotId(id, bind)).toBeNull();
   });
 });

@@ -9,7 +9,9 @@
  *     this flag's message).
  *  3. Send.
  *  4. A failed send releases the flag and throws, so jobs.ts retries with
- *     backoff.
+ *     backoff — except `window_closed` (no approved template / no open
+ *     customer-service window), which finishes the job normally with the
+ *     flag left claimed, so a later run never resends (see `finishSend`).
  * Leads with `do_not_contact` never get a message.
  */
 
@@ -17,7 +19,7 @@ import { db } from '@/lib/db';
 import { crmLeads, notificationInbox, profiles } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { log } from '@/lib/log';
-import type { InteractiveListRow } from '@/lib/whatsapp/provider';
+import type { InteractiveListRow, SendResult } from '@/lib/whatsapp/provider';
 import { toE164 } from '@/lib/whatsapp/phone';
 import { getOrCreateAgentConfig } from '../config';
 import { getOrCreateSession } from '../session';
@@ -29,18 +31,46 @@ import { claimVisitFlag, getVisit, releaseVisitFlag } from './service';
 import type { VisitJobPayload } from './job-plan';
 import type { VisitRecord, VisitStatus } from './types';
 
-/** Meta template names — approval pending (blueprint §8); until then, sends outside the window fail with window_closed and retry until they exhaust. */
+/** Meta template names — approval pending (blueprint §8); until then, sends outside the window fail with window_closed and are skipped without retry (see `finishSend`). */
 export const VISIT_TEMPLATES = {
   reminder24h: 'recordatorio_visita_24h',
   reminder2h: 'recordatorio_visita_2h',
   postCheck: 'feedback_post_visita',
 } as const;
 
+/**
+ * Normalizes prospect/listing text (leadName, listingTitle) before it goes
+ * into an outbound message body or a WhatsApp template param — Meta
+ * templates reject embedded newlines and this also caps runaway CRM data
+ * from blowing up a message. `len` defaults to 60 for names, pass ~80 for
+ * titles.
+ */
+export function sanitizeText(s: string, len = 60): string {
+  return s.replace(/\s+/g, ' ').trim().slice(0, len);
+}
+
 function parseVisitJobPayload(payload: Record<string, unknown>): VisitJobPayload | null {
   const { visitId, startsAt } = payload;
   if (typeof visitId !== 'string' || !visitId) return null;
   if (typeof startsAt !== 'string' || !startsAt) return null;
   return { visitId, startsAt };
+}
+
+/**
+ * Shared send-outcome handling for every job in this file: success -> no-op;
+ * `window_closed` -> the flag stays claimed (no later resend) and the job
+ * finishes normally, logged at info (not an error — there's no approved
+ * template/open window to send through yet, see VISIT_TEMPLATES' comment);
+ * any other failure releases the flag and throws so jobs.ts retries.
+ */
+async function finishSend(orgId: string, visitId: string, flag: string, label: string, result: SendResult): Promise<void> {
+  if (result.success) return;
+  if (result.error === 'window_closed') {
+    log.info(`[agent/visits/reminder-jobs] ${label} window closed — skipping without retry`, { orgId, visitId, flag });
+    return;
+  }
+  await releaseVisitFlag(orgId, visitId, flag);
+  throw new Error(`[agent/visits/reminder-jobs] ${label} send failed`);
 }
 
 async function isLeadDoNotContact(orgId: string, leadId: string): Promise<boolean> {
@@ -59,17 +89,17 @@ async function loadVisitForSend(orgId: string, visitId: string): Promise<VisitRe
 
 // ─── reminder_24h / reminder_2h ────────────────────────────────────────────
 
-async function sendVisitReminder(orgId: string, visitId: string, templateName: string): Promise<boolean> {
+async function sendVisitReminder(orgId: string, visitId: string, templateName: string): Promise<SendResult> {
   const visit = await loadVisitForSend(orgId, visitId);
-  if (!visit || !visit.contactPhone) return true; // nothing to send to — not a send failure
+  if (!visit || !visit.contactPhone) return { success: true }; // nothing to send to — not a send failure
 
   const config = await getOrCreateAgentConfig(orgId);
-  const title = visit.listingTitle ?? 'la propiedad';
+  const title = sanitizeText(visit.listingTitle ?? 'la propiedad', 80);
   const when = formatSlotLabel(visit.startsAt, config.timezone);
-  const name = visit.leadName ?? '';
+  const name = sanitizeText(visit.leadName ?? '');
   const bodyText = `Hola${name ? ' ' + name : ''}, te recordamos tu visita a ${title} el ${when}. ¿Confirmas que asistirás?`;
 
-  const result = await sendVisitMessage({
+  return sendVisitMessage({
     orgId,
     phone: visit.contactPhone,
     bodyText,
@@ -80,7 +110,6 @@ async function sendVisitReminder(orgId: string, visitId: string, templateName: s
     template: { name: templateName, bodyParams: [name || 'Hola', title, when] },
     meta: { kind: templateName === VISIT_TEMPLATES.reminder24h ? 'visit_reminder_24h' : 'visit_reminder_2h', visitId: visit.id },
   });
-  return result.success;
 }
 
 async function runReminderJob(payload: Record<string, unknown>, orgId: string, flag: 'reminder_24h_sent_at' | 'reminder_2h_sent_at', templateName: string): Promise<void> {
@@ -95,11 +124,8 @@ async function runReminderJob(payload: Record<string, unknown>, orgId: string, f
 
   if (await isLeadDoNotContact(orgId, claimed.leadId)) return;
 
-  const sent = await sendVisitReminder(orgId, parsed.visitId, templateName);
-  if (!sent) {
-    await releaseVisitFlag(orgId, parsed.visitId, flag);
-    throw new Error(`[agent/visits/reminder-jobs] ${flag} send failed`);
-  }
+  const result = await sendVisitReminder(orgId, parsed.visitId, templateName);
+  await finishSend(orgId, parsed.visitId, flag, flag, result);
 }
 
 export async function handleVisitReminder24h(payload: Record<string, unknown>, orgId: string): Promise<void> {
@@ -125,13 +151,14 @@ export async function handleVisitAdvisorReminder(payload: Record<string, unknown
   const visit = (await loadVisitForSend(orgId, parsed.visitId)) ?? claimed;
   const config = await getOrCreateAgentConfig(orgId);
   const when = formatSlotLabel(visit.startsAt, config.timezone);
+  const leadName = visit.leadName ? sanitizeText(visit.leadName) : null;
 
   await db.insert(notificationInbox).values({
     orgId,
     profileId: visit.profileId,
     type: 'visit_reminder',
     title: 'Visita próxima',
-    body: `Tienes una visita programada a las ${when}${visit.leadName ? ` con ${visit.leadName}` : ''}.`,
+    body: `Tienes una visita programada a las ${when}${leadName ? ` con ${leadName}` : ''}.`,
     relatedType: 'property_visit',
     relatedId: visit.id,
   });
@@ -144,7 +171,7 @@ export async function handleVisitAdvisorReminder(payload: Record<string, unknown
       await sendVisitMessage({
         orgId,
         phone: toE164(phone),
-        bodyText: `Recordatorio: visita a las ${when}${visit.leadName ? ` con ${visit.leadName}` : ''}.`,
+        bodyText: `Recordatorio: visita a las ${when}${leadName ? ` con ${leadName}` : ''}.`,
         meta: { kind: 'visit_advisor_reminder', visitId: visit.id },
       });
     }
@@ -157,8 +184,22 @@ export async function handleVisitAdvisorReminder(payload: Record<string, unknown
 
 const POST_CHECK_GUARD_STATUSES: VisitStatus[] = ['scheduled', 'confirmed', 'completed', 'no_show'];
 
-/** Up to 9 new slots for the same listing (preferred advisor = the current one) — shared with button-reply.ts's `resched`/`vslot` flow. */
-export async function buildReofferList(orgId: string, visit: VisitRecord): Promise<{ buttonText: string; rows: InteractiveListRow[] } | null> {
+/**
+ * Up to 9 new slots for the same listing (preferred advisor = the current
+ * one) — shared with button-reply.ts's `resched`/`vslot` flow.
+ *
+ * `declineAction` picks what the list's "No, gracias" row does when tapped:
+ * 'cancel' (the no-show post-visit reoffer — declining really does mean the
+ * lead doesn't want the visit anymore) or 'keep' (the reminder's
+ * "Reprogramar" flow — declining must NOT cancel a visit that's still
+ * scheduled; it just keeps the current time, see button-reply.ts's `keep`
+ * action).
+ */
+export async function buildReofferList(
+  orgId: string,
+  visit: VisitRecord,
+  declineAction: 'cancel' | 'keep',
+): Promise<{ buttonText: string; rows: InteractiveListRow[] } | null> {
   if (!visit.contactPhone) return null;
 
   const { timezone, slots, loadByProfile } = await getAvailableSlotsForOrg({ orgId, listingId: visit.listingId });
@@ -171,36 +212,35 @@ export async function buildReofferList(orgId: string, visit: VisitRecord): Promi
     id: `vslot:${visit.id}:${encodeSlotId({ profileId: s.profileId, listingId: visit.listingId, startsAt: s.startsAt, visitMinutes: Math.round((s.endsAt.getTime() - s.startsAt.getTime()) / 60_000) }, { orgId, sessionId: session.id })}`,
     title: formatSlotLabel(s.startsAt, timezone),
   }));
-  rows.push({ id: `visit:${visit.id}:cancel`, title: 'No, gracias' });
+  rows.push({ id: `visit:${visit.id}:${declineAction}`, title: 'No, gracias' });
 
   return { buttonText: 'Ver horarios', rows };
 }
 
-async function sendReoffer(orgId: string, visit: VisitRecord): Promise<boolean> {
-  if (!visit.contactPhone) return true;
-  const list = await buildReofferList(orgId, visit);
-  const title = visit.listingTitle ?? 'la propiedad';
+async function sendReoffer(orgId: string, visit: VisitRecord): Promise<SendResult> {
+  if (!visit.contactPhone) return { success: true };
+  const list = await buildReofferList(orgId, visit, 'cancel');
+  const title = sanitizeText(visit.listingTitle ?? 'la propiedad', 80);
   const bodyText = list
     ? `No pudiste ir a la visita a ${title}. Elige un nuevo horario:`
     : `No pudiste ir a la visita a ${title}. Escríbenos para coordinar un nuevo horario.`;
 
   // No approved template covers this branch (blueprint §5.1 lists only 3
   // templates and none has a slot-list/"no, gracias" quick-reply) — outside
-  // the 24h window this send fails with window_closed and retries until it
-  // exhausts, same as any other unapproved-template gap (blueprint §8).
-  const result = await sendVisitMessage({
+  // the 24h window this send fails with window_closed; the caller (finishSend)
+  // treats that as "nothing to do" rather than retrying forever.
+  return sendVisitMessage({
     orgId,
     phone: visit.contactPhone,
     bodyText,
     list: list ?? undefined,
     meta: { kind: 'visit_reoffer', visitId: visit.id },
   });
-  return result.success;
 }
 
-async function sendFeedbackRequest(orgId: string, visit: VisitRecord): Promise<boolean> {
-  if (!visit.contactPhone) return true;
-  const title = visit.listingTitle ?? 'la propiedad';
+async function sendFeedbackRequest(orgId: string, visit: VisitRecord): Promise<SendResult> {
+  if (!visit.contactPhone) return { success: true };
+  const title = sanitizeText(visit.listingTitle ?? 'la propiedad', 80);
   // No approved template covers "Me interesó / No me convenció / Ver otras"
   // — see the reoffer comment above; this branch is interactive-window-only
   // until a matching template is approved.
@@ -215,14 +255,14 @@ async function sendFeedbackRequest(orgId: string, visit: VisitRecord): Promise<b
     ],
     meta: { kind: 'visit_feedback_request', visitId: visit.id },
   });
-  return result.success;
+  return result;
 }
 
-async function sendWentOrMissedCheck(orgId: string, visit: VisitRecord): Promise<boolean> {
-  if (!visit.contactPhone) return true;
-  const title = visit.listingTitle ?? 'la propiedad';
+async function sendWentOrMissedCheck(orgId: string, visit: VisitRecord): Promise<SendResult> {
+  if (!visit.contactPhone) return { success: true };
+  const title = sanitizeText(visit.listingTitle ?? 'la propiedad', 80);
   const config = await getOrCreateAgentConfig(orgId);
-  const result = await sendVisitMessage({
+  return sendVisitMessage({
     orgId,
     phone: visit.contactPhone,
     bodyText: `¿Pudiste ir a la visita a ${title}?`,
@@ -230,10 +270,9 @@ async function sendWentOrMissedCheck(orgId: string, visit: VisitRecord): Promise
       { id: `visit:${visit.id}:went`, title: 'Sí, fui' },
       { id: `visit:${visit.id}:missed`, title: 'No pude ir' },
     ],
-    template: { name: VISIT_TEMPLATES.postCheck, bodyParams: [visit.leadName ?? 'Hola', title, formatSlotLabel(visit.startsAt, config.timezone)] },
+    template: { name: VISIT_TEMPLATES.postCheck, bodyParams: [sanitizeText(visit.leadName ?? 'Hola'), title, formatSlotLabel(visit.startsAt, config.timezone)] },
     meta: { kind: 'visit_post_check', visitId: visit.id },
   });
-  return result.success;
 }
 
 export async function handleVisitPostCheck(payload: Record<string, unknown>, orgId: string): Promise<void> {
@@ -251,33 +290,24 @@ export async function handleVisitPostCheck(payload: Record<string, unknown>, org
   if (visit.status === 'completed') {
     const claimed = await claimVisitFlag(orgId, visit.id, 'feedback_requested_at', { statuses: POST_CHECK_GUARD_STATUSES });
     if (!claimed) return;
-    const sent = await sendFeedbackRequest(orgId, visit);
-    if (!sent) {
-      await releaseVisitFlag(orgId, visit.id, 'feedback_requested_at');
-      throw new Error('[agent/visits/reminder-jobs] post_check (completed) send failed');
-    }
+    const result = await sendFeedbackRequest(orgId, visit);
+    await finishSend(orgId, visit.id, 'feedback_requested_at', 'post_check (completed)', result);
     return;
   }
 
   if (visit.status === 'no_show') {
     const claimed = await claimVisitFlag(orgId, visit.id, 'reoffer_sent_at', { statuses: POST_CHECK_GUARD_STATUSES });
     if (!claimed) return;
-    const sent = await sendReoffer(orgId, visit);
-    if (!sent) {
-      await releaseVisitFlag(orgId, visit.id, 'reoffer_sent_at');
-      throw new Error('[agent/visits/reminder-jobs] post_check (no_show) send failed');
-    }
+    const result = await sendReoffer(orgId, visit);
+    await finishSend(orgId, visit.id, 'reoffer_sent_at', 'post_check (no_show)', result);
     return;
   }
 
   if (visit.status === 'scheduled' || visit.status === 'confirmed') {
     const claimed = await claimVisitFlag(orgId, visit.id, 'post_check_sent_at', { statuses: POST_CHECK_GUARD_STATUSES });
     if (!claimed) return;
-    const sent = await sendWentOrMissedCheck(orgId, visit);
-    if (!sent) {
-      await releaseVisitFlag(orgId, visit.id, 'post_check_sent_at');
-      throw new Error('[agent/visits/reminder-jobs] post_check (active) send failed');
-    }
+    const result = await sendWentOrMissedCheck(orgId, visit);
+    await finishSend(orgId, visit.id, 'post_check_sent_at', 'post_check (active)', result);
     return;
   }
   // cancelled / rescheduled -> no-op

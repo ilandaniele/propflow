@@ -5,6 +5,7 @@
  */
 
 import { db } from '@/lib/db';
+import { toE164 } from '@/lib/whatsapp/phone';
 import {
   agentAdvisorSettings,
   agentJobs,
@@ -14,7 +15,7 @@ import {
   profiles,
   propertyVisits,
 } from '@/lib/db/schema';
-import { and, asc, eq, gte, inArray, isNull, lt, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
 import { planVisitJobs, VISIT_JOB_KINDS, type VisitJobPayload } from './job-plan';
 import { ACTIVE_VISIT_STATUSES, MAX_ACTIVE_VISITS_PER_PHONE, type VisitFeedback, type VisitRecord, type VisitStatus } from './types';
 
@@ -72,6 +73,19 @@ function toVisitRecord(
   };
 }
 
+/**
+ * Thrown inside rescheduleVisit's transaction when bookVisitInTx returns a
+ * soft failure (e.g. cap_reached) after the old visit was already marked
+ * 'rescheduled' — rolls the whole transaction back so the old visit stays
+ * active instead of committing an orphaned reschedule. Unwrapped in the
+ * catch next to isExclusionViolation.
+ */
+class RescheduleFailed extends Error {
+  constructor(public readonly reason: BookFailure) {
+    super(`[agent/visits/service] reschedule failed: ${reason}`);
+  }
+}
+
 /** code === '23P01' on the error itself or on e.cause (DrizzleQueryError wraps the driver error). */
 export function isExclusionViolation(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false;
@@ -82,6 +96,10 @@ export function isExclusionViolation(e: unknown): boolean {
 
 /** Steps 2-9 of bookVisit (blueprint §2.8) — shared with rescheduleVisit, which runs them in its own transaction. Never catches 23P01: the caller's transaction must roll back. */
 async function bookVisitInTx(tx: Tx, a: BookVisitArgs, now: Date): Promise<BookVisitResult> {
+  if (a.startsAt < now) return { ok: false, reason: 'in_past' };
+
+  const contactPhone = a.contactPhone ? toE164(a.contactPhone) : null;
+
   const leadRows = await tx
     .select({ id: crmLeads.id, stage: crmLeads.stage, assignedProfileId: crmLeads.assignedProfileId })
     .from(crmLeads)
@@ -113,14 +131,14 @@ async function bookVisitInTx(tx: Tx, a: BookVisitArgs, now: Date): Promise<BookV
     if (!listingRows[0]) return { ok: false, reason: 'listing_unavailable' };
   }
 
-  if (a.enforcePhoneCap && a.contactPhone) {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${a.orgId + ':' + a.contactPhone}))`);
+  if (a.enforcePhoneCap && contactPhone) {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${a.orgId + ':' + contactPhone}))`);
     const activeRows = await tx
       .select({ id: propertyVisits.id })
       .from(propertyVisits)
       .where(and(
         eq(propertyVisits.orgId, a.orgId),
-        eq(propertyVisits.contactPhone, a.contactPhone),
+        eq(propertyVisits.contactPhone, contactPhone),
         inArray(propertyVisits.status, ACTIVE_STATUSES),
         gte(propertyVisits.startsAt, now),
       ));
@@ -139,7 +157,7 @@ async function bookVisitInTx(tx: Tx, a: BookVisitArgs, now: Date): Promise<BookV
       listingId: a.listingId,
       profileId: a.profileId,
       sessionId: a.sessionId ?? null,
-      contactPhone: a.contactPhone,
+      contactPhone,
       startsAt: a.startsAt,
       endsAt,
       blockedUntil,
@@ -185,7 +203,6 @@ async function bookVisitInTx(tx: Tx, a: BookVisitArgs, now: Date): Promise<BookV
 
 export async function bookVisit(a: BookVisitArgs): Promise<BookVisitResult> {
   const now = new Date();
-  if (a.startsAt < now) return { ok: false, reason: 'in_past' };
 
   try {
     return await db.transaction((tx) => bookVisitInTx(tx, a, now));
@@ -213,15 +230,23 @@ export async function rescheduleVisit(
   try {
     return await db.transaction(async (tx) => {
       const now = new Date();
-      const conditions = [eq(propertyVisits.id, a.visitId), eq(propertyVisits.orgId, a.orgId)];
-      if (a.leadId) conditions.push(eq(propertyVisits.leadId, a.leadId));
+      // Atomic claim: UPDATE ... WHERE status IN (active) RETURNING * doubles
+      // as the row lock and the active-status check — no separate SELECT that
+      // could race with a concurrent cancel/reschedule of the same visit.
+      const lockConditions = [
+        eq(propertyVisits.id, a.visitId),
+        eq(propertyVisits.orgId, a.orgId),
+        inArray(propertyVisits.status, ACTIVE_STATUSES),
+      ];
+      if (a.leadId) lockConditions.push(eq(propertyVisits.leadId, a.leadId));
 
-      const rows = await tx.select().from(propertyVisits).where(and(...conditions)).limit(1);
-      const old = rows[0];
-      if (!old) return { ok: false as const, reason: 'not_found' as const };
-      if (!ACTIVE_STATUSES.includes(old.status)) return { ok: false as const, reason: 'not_active' as const };
-
-      await tx.update(propertyVisits).set({ status: 'rescheduled', updatedAt: now }).where(eq(propertyVisits.id, old.id));
+      const lockedRows = await tx
+        .update(propertyVisits)
+        .set({ status: 'rescheduled', updatedAt: now })
+        .where(and(...lockConditions))
+        .returning();
+      const old = lockedRows[0];
+      if (!old) return { ok: false as const, reason: 'not_active' as const };
 
       const bookArgs: BookVisitArgs = {
         orgId: a.orgId,
@@ -241,13 +266,18 @@ export async function rescheduleVisit(
       };
 
       const result = await bookVisitInTx(tx, bookArgs, now);
-      if (!result.ok) return result;
+      // A soft failure here must not commit — the old visit was already set
+      // to 'rescheduled' above, so returning `result` as-is would leave it
+      // rescheduled with no replacement booked. Throw so the transaction
+      // rolls the old visit back to its original status.
+      if (!result.ok) throw new RescheduleFailed(result.reason);
 
       await tx.update(propertyVisits).set({ rescheduledFromId: old.id }).where(eq(propertyVisits.id, result.visit.id));
 
       return { ok: true as const, visit: { ...result.visit, rescheduledFromId: old.id } };
     });
   } catch (e) {
+    if (e instanceof RescheduleFailed) return { ok: false, reason: e.reason };
     if (isExclusionViolation(e)) return { ok: false, reason: 'slot_taken' };
     throw e;
   }
@@ -302,18 +332,24 @@ export interface MarkVisitOutcomeArgs {
   actorProfileId?: string | null;
 }
 
+const OUTCOME_ELIGIBLE_STATUSES: string[] = ['scheduled', 'confirmed'];
+
+/** Atomic claim + guard: only a scheduled/confirmed visit whose time has already passed can have its outcome recorded. Anything else (already marked, cancelled, rescheduled, or still in the future) returns null — the caller surfaces this as an error rather than silently overwriting an outcome. */
 export async function markVisitOutcome(a: MarkVisitOutcomeArgs): Promise<VisitRecord | null> {
   return db.transaction(async (tx) => {
-    const rows = await tx.select().from(propertyVisits).where(and(eq(propertyVisits.id, a.visitId), eq(propertyVisits.orgId, a.orgId))).limit(1);
-    const visit = rows[0];
-    if (!visit) return null;
-
     const now = new Date();
     const updated = await tx
       .update(propertyVisits)
       .set({ status: a.outcome, completedAt: now, outcomeSource: a.source, updatedAt: now })
-      .where(eq(propertyVisits.id, visit.id))
+      .where(and(
+        eq(propertyVisits.id, a.visitId),
+        eq(propertyVisits.orgId, a.orgId),
+        inArray(propertyVisits.status, OUTCOME_ELIGIBLE_STATUSES),
+        lte(propertyVisits.startsAt, now),
+      ))
       .returning();
+    const visit = updated[0];
+    if (!visit) return null;
 
     if (a.outcome === 'completed') {
       const leadRows = await tx.select({ stage: crmLeads.stage }).from(crmLeads).where(eq(crmLeads.id, visit.leadId)).limit(1);
@@ -331,7 +367,7 @@ export async function markVisitOutcome(a: MarkVisitOutcomeArgs): Promise<VisitRe
       });
     }
 
-    return toVisitRecord(updated[0]);
+    return toVisitRecord(visit);
   });
 }
 

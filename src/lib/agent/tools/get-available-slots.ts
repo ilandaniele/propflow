@@ -3,10 +3,11 @@ import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { db } from '@/lib/db';
 import { crmLeads } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
+import { getOrCreateAgentConfig } from '../config';
 import { getListingDetails } from '../listings';
 import { getAvailableSlotsForOrg } from '../visits/availability';
 import { encodeSlotId } from '../visits/slot-id';
-import { formatSlotLabel, pickSlotsForOffer } from '../visits/slots';
+import { formatSlotLabel, pickSlotsForOffer, zonedWallTimeToUtc } from '../visits/slots';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
@@ -14,6 +15,12 @@ const InputSchema = z.object({
   fromDate: z.string().optional().describe('Fecha desde la cual buscar horarios, formato YYYY-MM-DD'),
   partOfDay: z.enum(['morning', 'afternoon', 'evening', 'any']).optional().describe('Preferencia de franja del día, si el usuario la mencionó'),
 });
+
+/** args.fromDate ('YYYY-MM-DD') is local midnight in `timeZone`, not UTC midnight. */
+function parseLocalDate(dateStr: string, timeZone: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return zonedWallTimeToUtc(y, m, d, 0, timeZone);
+}
 
 /** Not exposed on LeadRecord (lead.ts is item A/prompt's, not B's) — read directly. */
 async function getAssignedProfileId(orgId: string, leadId: string | null): Promise<string | null> {
@@ -37,7 +44,12 @@ export function makeGetAvailableSlotsTool(ctx: AgentToolContext) {
       const listing = await getListingDetails(ctx.orgId, args.listingId);
       if (!listing) return 'No se encontró esa propiedad.';
 
-      const from = args.fromDate ? new Date(`${args.fromDate}T00:00:00.000Z`) : undefined;
+      // fromDate is a local (org timezone) calendar date, not UTC — parsing
+      // it as UTC midnight would shift the offered day by the timezone
+      // offset (e.g. Lima UTC-5: "2026-10-05" would start at 2026-10-04
+      // 19:00 local instead of 2026-10-05 00:00 local).
+      const config = await getOrCreateAgentConfig(ctx.orgId);
+      const from = args.fromDate ? parseLocalDate(args.fromDate, config.timezone) : undefined;
       const { timezone, slots, loadByProfile } = await getAvailableSlotsForOrg({
         orgId: ctx.orgId,
         listingId: args.listingId,

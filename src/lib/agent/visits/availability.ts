@@ -184,3 +184,29 @@ export async function getAvailableSlotsForOrg(a: {
 
   return { timezone, slots, loadByProfile };
 }
+
+/**
+ * Re-derives availability for one advisor/listing right before a booking
+ * commits, so a slot id minted minutes (or hours, within its 24h TTL) ago
+ * that's since been taken, blocked, or dropped from the advisor's schedule
+ * gets rejected instead of racing the DB's EXCLUDE constraint on a stale
+ * offer. The EXCLUDE constraint still protects against a genuine race with
+ * another booking landing in between this check and the insert.
+ */
+export async function isSlotStillAvailable(a: {
+  orgId: string;
+  profileId: string;
+  listingId: string | null;
+  startsAt: Date;
+}): Promise<boolean> {
+  const from = new Date(a.startsAt.getTime() - 60_000);
+  const to = new Date(a.startsAt.getTime() + 60_000);
+  const { slots } = await getAvailableSlotsForOrg({
+    orgId: a.orgId,
+    listingId: a.listingId ?? undefined,
+    profileIds: [a.profileId],
+    from,
+    to,
+  });
+  return slots.some((s) => s.profileId === a.profileId && s.startsAt.getTime() === a.startsAt.getTime());
+}

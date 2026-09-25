@@ -22,6 +22,7 @@ import { crmLeads } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { zonedWallTimeToUtc } from '@/lib/agent/visits/slots';
+import { toE164 } from '@/lib/whatsapp/phone';
 import {
   bookVisit,
   cancelVisit,
@@ -110,7 +111,7 @@ export async function createVisitManual(input: CreateVisitManualInput): Promise<
       .limit(1);
     if (!rows[0]) return Errors.NOT_FOUND();
     leadId = rows[0].id;
-    contactPhone = rows[0].phone;
+    contactPhone = rows[0].phone ? toE164(rows[0].phone) : null;
   } else {
     const inserted = await db
       .insert(crmLeads)
@@ -123,7 +124,7 @@ export async function createVisitManual(input: CreateVisitManualInput): Promise<
       })
       .returning({ id: crmLeads.id, phone: crmLeads.phone });
     leadId = inserted[0].id;
-    contactPhone = inserted[0].phone;
+    contactPhone = inserted[0].phone ? toE164(inserted[0].phone) : null;
   }
 
   const config = await getOrCreateAgentConfig(ctx.orgId);

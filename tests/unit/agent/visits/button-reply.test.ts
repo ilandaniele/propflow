@@ -8,12 +8,14 @@ const {
   markVisitOutcomeMock,
   recordVisitFeedbackMock,
   rescheduleVisitMock,
+  claimVisitFlagMock,
   buildReofferListMock,
   sendFeedbackRequestMock,
   sendReofferMock,
   sendVisitMessageMock,
   getOrCreateAgentConfigMock,
   getOrCreateSessionMock,
+  isSlotStillAvailableMock,
   insertMessageMock,
   queueAgentInboundMock,
   dbInsertValues,
@@ -25,12 +27,14 @@ const {
   markVisitOutcomeMock: vi.fn(),
   recordVisitFeedbackMock: vi.fn(),
   rescheduleVisitMock: vi.fn(),
+  claimVisitFlagMock: vi.fn(async () => ({ id: 'visit-1' })),
   buildReofferListMock: vi.fn(async () => null),
   sendFeedbackRequestMock: vi.fn(async () => true),
   sendReofferMock: vi.fn(async () => true),
   sendVisitMessageMock: vi.fn(async () => ({ success: true, providerMessageId: 'mock-1' })),
   getOrCreateAgentConfigMock: vi.fn(async () => ({ timezone: 'America/Lima' })),
   getOrCreateSessionMock: vi.fn(async () => ({ id: 'session-1' })),
+  isSlotStillAvailableMock: vi.fn(async () => true),
   insertMessageMock: vi.fn(async () => 'msg-1'),
   queueAgentInboundMock: vi.fn(async () => true),
   dbInsertValues: vi.fn(async () => []),
@@ -54,12 +58,18 @@ vi.mock('@/lib/agent/visits/service', () => ({
   markVisitOutcome: markVisitOutcomeMock,
   recordVisitFeedback: recordVisitFeedbackMock,
   rescheduleVisit: rescheduleVisitMock,
+  claimVisitFlag: claimVisitFlagMock,
 }));
 
 vi.mock('@/lib/agent/visits/reminder-jobs', () => ({
   buildReofferList: buildReofferListMock,
   sendFeedbackRequest: sendFeedbackRequestMock,
   sendReoffer: sendReofferMock,
+  sanitizeText: (s: string, maxLen = 60) => s.replace(/\s+/g, ' ').trim().slice(0, maxLen),
+}));
+
+vi.mock('@/lib/agent/visits/availability', () => ({
+  isSlotStillAvailable: isSlotStillAvailableMock,
 }));
 
 vi.mock('@/lib/agent/visits/messaging', () => ({
@@ -141,6 +151,8 @@ describe('agent/visits/button-reply handleVisitButtonReply', () => {
     getOrCreateSessionMock.mockResolvedValue({ id: 'session-1' });
     sendVisitMessageMock.mockResolvedValue({ success: true, providerMessageId: 'mock-1' });
     buildReofferListMock.mockResolvedValue(null);
+    claimVisitFlagMock.mockResolvedValue({ id: 'visit-1' });
+    isSlotStillAvailableMock.mockResolvedValue(true);
   });
 
   it('returns handled:false for an id that is not visit grammar or a known template text', async () => {
@@ -202,6 +214,43 @@ describe('agent/visits/button-reply handleVisitButtonReply', () => {
     expect(result).toEqual({ handled: true, action: 'rescheduled' });
   });
 
+  it('vslot rejects a stale claim (isSlotStillAvailable false) without calling rescheduleVisit', async () => {
+    getVisitMock.mockResolvedValue(visit());
+    isSlotStillAvailableMock.mockResolvedValueOnce(false);
+    const slotId = encodeSlotId(
+      { profileId: '33333333-3333-3333-3333-333333333333', listingId: '44444444-4444-4444-4444-444444444444', startsAt: new Date('2026-06-12T15:00:00Z'), visitMinutes: 45 },
+      { orgId: ORG, sessionId: 'session-1' },
+    );
+    buildReofferListMock.mockResolvedValue({ buttonText: 'Ver horarios', rows: [{ id: 'vslot:visit-1:sl_new', title: 'jue 12 jun, 10:00' }] });
+
+    const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: `vslot:visit-1:${slotId}`, replyTitle: null, whatsappConversationId: 'conv-1' });
+
+    expect(result).toEqual({ handled: true, action: 'slot_taken' });
+    expect(rescheduleVisitMock).not.toHaveBeenCalled();
+    expect(buildReofferListMock).toHaveBeenCalledWith(ORG, expect.objectContaining({ id: 'visit-1' }), 'keep');
+  });
+
+  it('resched offers a "keep" decline row, not "cancel"', async () => {
+    getVisitMock.mockResolvedValue(visit());
+    buildReofferListMock.mockResolvedValue({ buttonText: 'Ver horarios', rows: [{ id: 'visit:visit-1:keep', title: 'No, gracias' }] });
+
+    const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: 'visit:visit-1:resched', replyTitle: null, whatsappConversationId: 'conv-1' });
+
+    expect(buildReofferListMock).toHaveBeenCalledWith(ORG, expect.objectContaining({ id: 'visit-1' }), 'keep');
+    expect(result).toEqual({ handled: true, action: 'reschedule_offered' });
+  });
+
+  it('keep acks that the visit was kept, without cancelling or rescheduling it', async () => {
+    getVisitMock.mockResolvedValue(visit());
+
+    const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: 'visit:visit-1:keep', replyTitle: null, whatsappConversationId: 'conv-1' });
+
+    expect(result).toEqual({ handled: true, action: 'kept' });
+    expect(cancelVisitMock).not.toHaveBeenCalled();
+    expect(rescheduleVisitMock).not.toHaveBeenCalled();
+    expect(sendVisitMessageMock).toHaveBeenCalledWith(expect.objectContaining({ bodyText: expect.stringMatching(/mantenemos/i) }));
+  });
+
   it('fb_more records feedback and returns an agentFollowupText', async () => {
     getVisitMock.mockResolvedValue(visit({ status: 'completed' }));
     recordVisitFeedbackMock.mockResolvedValue(visit({ status: 'completed', feedback: 'wants_more' }));
@@ -240,7 +289,30 @@ describe('agent/visits/button-reply handleVisitButtonReply', () => {
     const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: 'visit:visit-1:missed', replyTitle: null, whatsappConversationId: 'conv-1' });
 
     expect(markVisitOutcomeMock).toHaveBeenCalledWith({ orgId: ORG, visitId: 'visit-1', outcome: 'no_show', source: 'lead' });
+    expect(claimVisitFlagMock).toHaveBeenCalledWith(ORG, 'visit-1', 'reoffer_sent_at', {});
     expect(sendReofferMock).toHaveBeenCalledOnce();
+    expect(result).toEqual({ handled: true, action: 'outcome_recorded' });
+  });
+
+  it('went does not resend feedback when claimVisitFlag reports it was already claimed (replay-safe)', async () => {
+    getVisitMock.mockResolvedValue(visit());
+    markVisitOutcomeMock.mockResolvedValue(visit({ status: 'completed' }));
+    claimVisitFlagMock.mockResolvedValueOnce(null);
+
+    const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: 'visit:visit-1:went', replyTitle: null, whatsappConversationId: 'conv-1' });
+
+    expect(sendFeedbackRequestMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ handled: true, action: 'outcome_recorded' });
+  });
+
+  it('missed does not resend a reoffer when claimVisitFlag reports it was already claimed (replay-safe)', async () => {
+    getVisitMock.mockResolvedValue(visit());
+    markVisitOutcomeMock.mockResolvedValue(visit({ status: 'no_show' }));
+    claimVisitFlagMock.mockResolvedValueOnce(null);
+
+    const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: 'visit:visit-1:missed', replyTitle: null, whatsappConversationId: 'conv-1' });
+
+    expect(sendReofferMock).not.toHaveBeenCalled();
     expect(result).toEqual({ handled: true, action: 'outcome_recorded' });
   });
 
@@ -254,9 +326,19 @@ describe('agent/visits/button-reply handleVisitButtonReply', () => {
     expect(result).toEqual({ handled: true, action: 'cancelled' });
   });
 
-  it('never throws — an unexpected error resolves to not_found', async () => {
+  it('cancel still acks when the visit is already not_active (e.g. a replayed webhook)', async () => {
+    getVisitMock.mockResolvedValue(visit());
+    cancelVisitMock.mockResolvedValue({ ok: false, reason: 'not_active' });
+
+    const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: 'visit:visit-1:cancel', replyTitle: null, whatsappConversationId: 'conv-1' });
+
+    expect(result).toEqual({ handled: true, action: 'cancelled' });
+    expect(sendVisitMessageMock).toHaveBeenCalledOnce();
+  });
+
+  it('never throws — an unexpected error resolves to handled:false so the agent turn still answers', async () => {
     getVisitMock.mockRejectedValue(new Error('db down'));
     const result = await handleVisitButtonReply({ orgId: ORG, fromPhone: PHONE, replyId: 'visit:visit-1:confirm', replyTitle: null, whatsappConversationId: 'conv-1' });
-    expect(result).toEqual({ handled: true, action: 'not_found' });
+    expect(result).toEqual({ handled: false });
   });
 });

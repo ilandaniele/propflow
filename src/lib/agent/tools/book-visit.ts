@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { getOrCreateAgentConfig } from '../config';
 import { getListingDetails } from '../listings';
-import { getAvailableSlotsForOrg } from '../visits/availability';
+import { getAvailableSlotsForOrg, isSlotStillAvailable } from '../visits/availability';
 import { bookVisit } from '../visits/service';
 import { decodeSlotId, encodeSlotId, type SlotClaim } from '../visits/slot-id';
 import { formatSlotLabel, pickSlotsForOffer } from '../visits/slots';
@@ -60,6 +60,20 @@ export function makeBookVisitTool(ctx: AgentToolContext) {
       if (claim.listingId) {
         const listing = await getListingDetails(ctx.orgId, claim.listingId);
         listingTitle = listing?.title ?? null;
+      }
+
+      // The slot id can be up to 24h old (its TTL) — recheck it's still
+      // actually offered before writing, instead of relying solely on the
+      // DB's exclusion constraint to catch a stale claim.
+      const stillAvailable = await isSlotStillAvailable({
+        orgId: ctx.orgId,
+        profileId: claim.profileId,
+        listingId: claim.listingId,
+        startsAt: claim.startsAt,
+      });
+      if (!stillAvailable) {
+        const alt = await alternativesText(ctx, claim, config.timezone);
+        return `Ese horario ya no está disponible. ${alt}`;
       }
 
       const result = await bookVisit({

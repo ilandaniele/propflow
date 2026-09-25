@@ -24,12 +24,14 @@ import { queueAgentInbound } from '../whatsapp-dispatch';
 import { insertMessage } from '@/lib/whatsapp/db';
 import { getOrCreateAgentConfig } from '../config';
 import { getOrCreateSession } from '../session';
+import { isSlotStillAvailable } from './availability';
 import { sendVisitMessage } from './messaging';
 import { formatSlotLabel } from './slots';
 import { decodeSlotId } from './slot-id';
-import { buildReofferList, sendFeedbackRequest, sendReoffer } from './reminder-jobs';
+import { buildReofferList, sanitizeText, sendFeedbackRequest, sendReoffer } from './reminder-jobs';
 import {
   cancelVisit,
+  claimVisitFlag,
   confirmVisit,
   findNextActiveVisitByPhone,
   getVisit,
@@ -52,6 +54,7 @@ export type VisitButtonReplyAction =
   | 'confirmed'
   | 'reschedule_offered'
   | 'rescheduled'
+  | 'kept'
   | 'cancelled'
   | 'outcome_recorded'
   | 'feedback_recorded'
@@ -62,8 +65,12 @@ export type VisitButtonReplyResult =
   | { handled: false }
   | { handled: true; action: VisitButtonReplyAction; agentFollowupText?: string };
 
-type DirectAction = 'confirm' | 'resched' | 'cancel' | 'went' | 'missed' | 'fb_yes' | 'fb_no' | 'fb_more';
-const DIRECT_ACTIONS: readonly DirectAction[] = ['confirm', 'resched', 'cancel', 'went', 'missed', 'fb_yes', 'fb_no', 'fb_more'];
+// 'keep' is the decline option on the *reschedule* offer's list ("No,
+// gracias" -> keep the existing visit as-is) — distinct from 'cancel', which
+// is the decline option on the no-show *reoffer* list (see buildReofferList's
+// declineAction param in reminder-jobs.ts / blueprint item 8).
+type DirectAction = 'confirm' | 'resched' | 'cancel' | 'keep' | 'went' | 'missed' | 'fb_yes' | 'fb_no' | 'fb_more';
+const DIRECT_ACTIONS: readonly DirectAction[] = ['confirm', 'resched', 'cancel', 'keep', 'went', 'missed', 'fb_yes', 'fb_no', 'fb_more'];
 
 type ParsedReply =
   | { kind: 'visit'; visitId: string; action: DirectAction }
@@ -131,16 +138,35 @@ async function runDirectAction(ctx: VisitButtonReplyCtx, visit: VisitRecord, act
     }
 
     case 'resched': {
-      const list = await buildReofferList(ctx.orgId, visit);
-      const title = visit.listingTitle ?? 'la propiedad';
+      const list = await buildReofferList(ctx.orgId, visit, 'keep');
+      const title = sanitizeText(visit.listingTitle ?? 'la propiedad', 80);
       const bodyText = list ? `Elige un nuevo horario para tu visita a ${title}:` : `No encontramos horarios disponibles ahora mismo para ${title}; escríbenos y te ayudamos a coordinar.`;
       await sendVisitMessage({ orgId: ctx.orgId, phone: ctx.fromPhone, bodyText, list: list ?? undefined, meta: { kind: 'visit_reschedule_offer', visitId: visit.id } });
       return { handled: true, action: 'reschedule_offered' };
     }
 
+    // Decline option on the *reschedule* offer's list — keeps the existing
+    // visit untouched (never cancels it; see the DirectAction comment above).
+    case 'keep': {
+      await ack(ctx.orgId, ctx.fromPhone, `Mantenemos tu visita el ${formatSlotLabel(visit.startsAt, config.timezone)}.`, {
+        kind: 'visit_button_keep', visitId: visit.id,
+      });
+      return { handled: true, action: 'kept' };
+    }
+
     case 'cancel': {
       const result = await cancelVisit({ orgId: ctx.orgId, visitId: visit.id, leadId: visit.leadId, actor: 'lead_button' });
-      if (!result.ok) return { handled: true, action: 'not_found' };
+      if (!result.ok) {
+        // not_active (already cancelled/rescheduled by an earlier reply, or
+        // a retried webhook) — still ack so the lead isn't left thinking the
+        // cancel silently failed. A genuine not_found (wrong org/phone) is
+        // handled earlier in handleVisitButtonReply and never reaches here.
+        if (result.reason === 'not_active') {
+          await ack(ctx.orgId, ctx.fromPhone, 'Tu visita ya no está activa; no hace falta cancelarla.', { kind: 'visit_button_cancel', visitId: visit.id });
+          return { handled: true, action: 'cancelled' };
+        }
+        return { handled: true, action: 'not_found' };
+      }
       await ack(ctx.orgId, ctx.fromPhone, 'Listo, cancelamos tu visita. Avísanos si quieres coordinar otra.', { kind: 'visit_button_cancel', visitId: visit.id });
       return { handled: true, action: 'cancelled' };
     }
@@ -150,8 +176,15 @@ async function runDirectAction(ctx: VisitButtonReplyCtx, visit: VisitRecord, act
       const outcome = action === 'went' ? 'completed' : 'no_show';
       const updated = await markVisitOutcome({ orgId: ctx.orgId, visitId: visit.id, outcome, source: 'lead' });
       if (!updated) return { handled: true, action: 'not_found' };
-      if (outcome === 'completed') await sendFeedbackRequest(ctx.orgId, updated);
-      else await sendReoffer(ctx.orgId, updated);
+      // claimVisitFlag guards against a replayed button click (or a race
+      // with the post_check job, which claims the same flags) resending.
+      if (outcome === 'completed') {
+        const claimed = await claimVisitFlag(ctx.orgId, updated.id, 'feedback_requested_at', {});
+        if (claimed) await sendFeedbackRequest(ctx.orgId, updated);
+      } else {
+        const claimed = await claimVisitFlag(ctx.orgId, updated.id, 'reoffer_sent_at', {});
+        if (claimed) await sendReoffer(ctx.orgId, updated);
+      }
       return { handled: true, action: 'outcome_recorded' };
     }
 
@@ -168,7 +201,7 @@ async function runDirectAction(ctx: VisitButtonReplyCtx, visit: VisitRecord, act
           profileId: updated.profileId,
           type: 'visit_feedback',
           title: 'Lead interesado',
-          body: `${updated.leadName ?? 'El lead'} confirmó que le interesó la visita a ${updated.listingTitle ?? 'la propiedad'}.`,
+          body: `${sanitizeText(updated.leadName ?? 'El lead')} confirmó que le interesó la visita a ${sanitizeText(updated.listingTitle ?? 'la propiedad', 80)}.`,
           relatedType: 'property_visit',
           relatedId: updated.id,
         });
@@ -192,6 +225,27 @@ async function runVslot(ctx: VisitButtonReplyCtx, visit: VisitRecord, slotId: st
     return { handled: true, action: 'not_found' };
   }
 
+  // The slot id can be up to 24h old (its TTL) — recheck it's still
+  // actually offered before writing, instead of relying solely on the DB's
+  // exclusion constraint to catch a stale claim.
+  const stillAvailable = await isSlotStillAvailable({
+    orgId: ctx.orgId,
+    profileId: claim.profileId,
+    listingId: claim.listingId,
+    startsAt: claim.startsAt,
+  });
+  if (!stillAvailable) {
+    const list = await buildReofferList(ctx.orgId, visit, 'keep');
+    await sendVisitMessage({
+      orgId: ctx.orgId,
+      phone: ctx.fromPhone,
+      bodyText: 'Ese horario se acaba de ocupar. Elige otro:',
+      list: list ?? undefined,
+      meta: { kind: 'visit_reschedule_offer', visitId: visit.id },
+    });
+    return { handled: true, action: 'slot_taken' };
+  }
+
   const result = await rescheduleVisit({
     orgId: ctx.orgId,
     visitId: visit.id,
@@ -205,7 +259,7 @@ async function runVslot(ctx: VisitButtonReplyCtx, visit: VisitRecord, slotId: st
 
   if (!result.ok) {
     if (result.reason === 'slot_taken') {
-      const list = await buildReofferList(ctx.orgId, visit);
+      const list = await buildReofferList(ctx.orgId, visit, 'keep');
       await sendVisitMessage({
         orgId: ctx.orgId,
         phone: ctx.fromPhone,
@@ -246,8 +300,12 @@ export async function handleVisitButtonReply(ctx: VisitButtonReplyCtx): Promise<
     if (parsed.kind === 'vslot') return runVslot(ctx, visit, parsed.slotId);
     return runDirectAction(ctx, visit, parsed.action);
   } catch (e) {
+    // handled:false (not 'not_found') — an unexpected error here must not
+    // eat the message; it falls through so the agent's own turn still
+    // answers the lead instead of getting silently swallowed by this
+    // handler's not_found branch.
     log.error('[agent/visits/button-reply] handler failed', { orgId: ctx.orgId, err: (e as Error).message });
-    return { handled: true, action: 'not_found' };
+    return { handled: false };
   }
 }
 

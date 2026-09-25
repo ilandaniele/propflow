@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { db: dbMock, pushSelect, getInserted, getUpdated, resetMock, setVisitInsertError } = vi.hoisted(() => {
+const { db: dbMock, pushSelect, pushUpdateReturn, getInserted, getUpdated, resetMock, setVisitInsertError } = vi.hoisted(() => {
   let selectQueue: unknown[][] = [];
+  // When empty, updateChain()'s default behavior (DEFAULT_VISIT_ROW merged
+  // with the patch) applies — push an override (e.g. []) to simulate a
+  // lock/guard update matching zero rows.
+  let updateReturnQueue: (unknown[] | undefined)[] = [];
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
   let visitInsertError: unknown = null;
@@ -82,7 +86,10 @@ const { db: dbMock, pushSelect, getInserted, getUpdated, resetMock, setVisitInse
         return {
           where: () => {
             const result: Record<string, unknown> = {};
-            result.returning = async () => [{ ...DEFAULT_VISIT_ROW, ...(s as object) }];
+            result.returning = async () => {
+              const override = updateReturnQueue.shift();
+              return override ?? [{ ...DEFAULT_VISIT_ROW, ...(s as object) }];
+            };
             result.then = (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve);
             return result;
           },
@@ -102,10 +109,12 @@ const { db: dbMock, pushSelect, getInserted, getUpdated, resetMock, setVisitInse
   return {
     db,
     pushSelect: (rows: unknown[]) => selectQueue.push(rows),
+    pushUpdateReturn: (rows: unknown[]) => updateReturnQueue.push(rows),
     getInserted: () => inserted,
     getUpdated: () => updated,
     resetMock: () => {
       selectQueue = [];
+      updateReturnQueue = [];
       inserted.length = 0;
       updated.length = 0;
       visitInsertError = null;
@@ -118,7 +127,8 @@ const { db: dbMock, pushSelect, getInserted, getUpdated, resetMock, setVisitInse
 
 vi.mock('@/lib/db', () => ({ db: dbMock }));
 
-import { bookVisit, cancelVisit } from '@/lib/agent/visits/service';
+import { bookVisit, cancelVisit, markVisitOutcome, rescheduleVisit } from '@/lib/agent/visits/service';
+import { VISIT_JOB_KINDS } from '@/lib/agent/visits/job-plan';
 import { MAX_ACTIVE_VISITS_PER_PHONE } from '@/lib/agent/visits/types';
 
 const FUTURE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -200,5 +210,86 @@ describe('agent/visits/service — cancelVisit', () => {
     pushSelect([]); // no row matches org+visitId+leadId
     const result = await cancelVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: 'lead-other', actor: 'agent' });
     expect(result).toEqual({ ok: false, reason: 'not_found' });
+  });
+});
+
+describe('agent/visits/service — bookVisit in_past guard (moved into bookVisitInTx)', () => {
+  beforeEach(() => resetMock());
+
+  it('rejects a start time in the past before touching the DB', async () => {
+    const PAST = new Date(Date.now() - 60_000);
+    const result = await bookVisit(bookArgs({ startsAt: PAST, enforcePhoneCap: false }));
+    expect(result).toEqual({ ok: false, reason: 'in_past' });
+    expect(getInserted()).toHaveLength(0);
+  });
+});
+
+describe('agent/visits/service — bookVisit contactPhone normalization', () => {
+  beforeEach(() => resetMock());
+
+  it('normalizes contactPhone to E.164 before it is written', async () => {
+    pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]);
+    pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]);
+
+    const result = await bookVisit(bookArgs({ enforcePhoneCap: false, contactPhone: '51999999999' }));
+    expect(result.ok).toBe(true);
+
+    const visitInsert = getInserted().find((v) => v && typeof v === 'object' && 'blockedUntil' in (v as object)) as Record<string, unknown> | undefined;
+    expect(visitInsert?.contactPhone).toBe('+51999999999');
+  });
+});
+
+describe('agent/visits/service — rescheduleVisit', () => {
+  beforeEach(() => resetMock());
+
+  it('returns not_active when the atomic lock UPDATE matches zero rows (already cancelled/rescheduled/completed)', async () => {
+    pushUpdateReturn([]); // UPDATE ... WHERE status IN (active) RETURNING matches nothing
+    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: FUTURE, actor: 'human' });
+    expect(result).toEqual({ ok: false, reason: 'not_active' });
+  });
+
+  it('rejects a reschedule to a start time in the past', async () => {
+    const PAST = new Date(Date.now() - 60_000);
+    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: PAST, actor: 'human' });
+    expect(result).toEqual({ ok: false, reason: 'in_past' });
+  });
+
+  it('unwraps a soft bookVisitInTx failure (RescheduleFailed) into the same ok:false shape, without leaving the reschedule half-applied', async () => {
+    pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]); // lead lookup inside bookVisitInTx
+    pushSelect([]); // advisor lookup finds nothing -> advisor_invalid
+
+    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: FUTURE, actor: 'human' });
+
+    expect(result).toEqual({ ok: false, reason: 'advisor_invalid' });
+    // The final rescheduledFromId-linking update only runs after a successful
+    // bookVisitInTx — it must never run on this path.
+    expect(getUpdated().some((s) => (s as Record<string, unknown>).rescheduledFromId)).toBe(false);
+  });
+
+  it('reschedules successfully and links rescheduledFromId back to the old visit', async () => {
+    pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]);
+    pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]);
+
+    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: FUTURE, actor: 'human' });
+
+    expect(result.ok).toBe(true);
+    expect(getUpdated().some((s) => (s as Record<string, unknown>).rescheduledFromId === 'visit-new')).toBe(true);
+  });
+});
+
+describe('agent/visits/service — markVisitOutcome', () => {
+  beforeEach(() => resetMock());
+
+  it('returns null when the eligible-status/already-started guard matches nothing (already marked, cancelled, or still in the future)', async () => {
+    pushUpdateReturn([]); // UPDATE ... WHERE status IN (scheduled, confirmed) AND starts_at <= now matches nothing
+    const result = await markVisitOutcome({ orgId: 'org-1', visitId: 'visit-1', outcome: 'completed', source: 'staff' });
+    expect(result).toBeNull();
+  });
+
+  it('records the outcome and schedules a post_check job when the guard matches', async () => {
+    pushSelect([{ stage: 'visit_scheduled' }]); // crmLeads lookup (only reached for outcome:'completed')
+    const result = await markVisitOutcome({ orgId: 'org-1', visitId: 'visit-1', outcome: 'completed', source: 'staff' });
+    expect(result?.status).toBe('completed');
+    expect(getInserted().some((v) => v && typeof v === 'object' && (v as Record<string, unknown>).kind === VISIT_JOB_KINDS.postCheck)).toBe(true);
   });
 });

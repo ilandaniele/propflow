@@ -98,6 +98,7 @@ import {
   handleVisitReminder2h,
   handleVisitAdvisorReminder,
   handleVisitPostCheck,
+  sanitizeText,
 } from '@/lib/agent/visits/reminder-jobs';
 
 function visit(overrides: Record<string, unknown> = {}) {
@@ -209,6 +210,33 @@ describe('agent/visits/reminder-jobs', () => {
     expect(releaseVisitFlagMock).toHaveBeenCalledWith('org-1', 'visit-1', 'reminder_2h_sent_at');
   });
 
+  it('reminder_24h: sanitizes leadName/listingTitle before they go into the template params', async () => {
+    claimVisitFlagMock.mockResolvedValue(visit());
+    pushSelect([{ doNotContact: false }]);
+    getVisitMock.mockResolvedValue(visit({ leadName: '  Juan\n\nLead  ', listingTitle: '  Depa   en\tMiraflores  ' }));
+    getOrCreateSessionMock.mockResolvedValue({ id: 'session-1', windowExpiresAt: null });
+
+    await handleVisitReminder24h(payload, 'org-1');
+
+    const params = sendTemplateMock.mock.calls[0][1].bodyParams as string[];
+    expect(params[0]).toBe('Juan Lead');
+    expect(params[1]).toBe('Depa en Miraflores');
+  });
+
+  it('post_check (no_show): window_closed is not a failure — finishes without releasing the flag or throwing', async () => {
+    getVisitMock.mockResolvedValue(visit({ status: 'no_show' }));
+    pushSelect([{ doNotContact: false }]);
+    claimVisitFlagMock.mockResolvedValue(visit({ status: 'no_show' }));
+    // Closed window + sendReoffer has no `template` param -> messaging.ts returns window_closed.
+    getOrCreateSessionMock.mockResolvedValue({ id: 'session-1', windowExpiresAt: null });
+    getAvailableSlotsForOrgMock.mockResolvedValue({ timezone: 'America/Lima', slots: [], loadByProfile: {} });
+
+    await expect(handleVisitPostCheck(payload, 'org-1')).resolves.toBeUndefined();
+
+    expect(releaseVisitFlagMock).not.toHaveBeenCalled();
+    expect(sendInteractiveListMock).not.toHaveBeenCalled();
+  });
+
   it('advisor_reminder: creates a notification and best-effort WhatsApp; a failed send does not throw', async () => {
     claimVisitFlagMock.mockResolvedValue(visit());
     getVisitMock.mockResolvedValue(visit());
@@ -289,5 +317,36 @@ describe('agent/visits/reminder-jobs', () => {
     getVisitMock.mockResolvedValue(visit({ startsAt: new Date('2026-06-11T15:00:00Z') }));
     await handleVisitPostCheck(payload, 'org-1');
     expect(claimVisitFlagMock).not.toHaveBeenCalled();
+  });
+
+  it('post_check: no_show reoffer list keeps "cancel" as the decline action (an actual decline of a no-show)', async () => {
+    getVisitMock.mockResolvedValue(visit({ status: 'no_show' }));
+    pushSelect([{ doNotContact: false }]);
+    claimVisitFlagMock.mockResolvedValue(visit({ status: 'no_show' }));
+    getOrCreateSessionMock.mockResolvedValue({ id: 'session-1', windowExpiresAt: new Date(Date.now() + 60_000) });
+    getAvailableSlotsForOrgMock.mockResolvedValue({
+      timezone: 'America/Lima',
+      slots: [{ profileId: '33333333-3333-3333-3333-333333333333', startsAt: new Date('2026-06-12T15:00:00Z'), endsAt: new Date('2026-06-12T15:45:00Z'), bufferMinutes: 15 }],
+      loadByProfile: { '33333333-3333-3333-3333-333333333333': 0 },
+    });
+
+    await handleVisitPostCheck(payload, 'org-1');
+
+    const opts = sendInteractiveListMock.mock.calls[0][1];
+    expect(opts.rows.find((r: { id: string }) => r.title === 'No, gracias').id).toBe('visit:visit-1:cancel');
+  });
+});
+
+describe('agent/visits/reminder-jobs sanitizeText', () => {
+  it('collapses internal whitespace/newlines and trims', () => {
+    expect(sanitizeText('  Juan\n\n  Pérez   ')).toBe('Juan Pérez');
+  });
+
+  it('caps the length', () => {
+    expect(sanitizeText('a'.repeat(100), 10)).toBe('a'.repeat(10));
+  });
+
+  it('defaults to a 60-char cap', () => {
+    expect(sanitizeText('a'.repeat(100)).length).toBe(60);
   });
 });
