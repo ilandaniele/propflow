@@ -790,6 +790,10 @@ export const whatsappMessages = pgTable('whatsapp_messages', {
   agentStatus:       text('agent_status'),           // null (tenant/disabled) | 'pending'|'processing'|'processed'|'skipped'
   senderKind:        text('sender_kind'),             // 'contact'|'agent'|'human'|'system'
   sentByProfileId:   uuid('sent_by_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  // Item 4: when this row was claimed ('pending' → 'processing') — lets the
+  // sweeper tell a crashed turn (stuck 'processing') apart from one still in
+  // flight, so it can resurrect the former back to 'pending'.
+  agentClaimedAt:    timestamp('agent_claimed_at', { withTimezone: true }),
   createdAt:         timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   convIdx:       index('idx_wa_msg_conv').on(t.conversationId, t.createdAt),
@@ -1010,7 +1014,7 @@ export const agentSuggestions = pgTable('agent_suggestions', {
   // 'shadow_discarded' when decided — see getSessionHistory().
   agentMessageId:         uuid('agent_message_id').references(() => agentMessages.id, { onDelete: 'set null' }),
   body:                   text('body').notNull(),
-  status:                 text('status').notNull().default('pending'), // 'pending'|'sent'|'discarded'|'superseded'
+  status:                 text('status').notNull().default('pending'), // 'pending'|'sending'|'sent'|'discarded'|'superseded'
   decidedBy:              uuid('decided_by').references(() => profiles.id, { onDelete: 'set null' }),
   decidedAt:              timestamp('decided_at', { withTimezone: true }),
   sentMessageId:          uuid('sent_message_id').references(() => whatsappMessages.id, { onDelete: 'set null' }),

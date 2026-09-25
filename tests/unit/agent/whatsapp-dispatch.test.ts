@@ -5,11 +5,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const {
   callOrder,
   getSessionByConversation,
+  getSessionById,
   tryAcquireSessionLock,
   releaseSessionLock,
+  setAssistantMessageSendStatus,
   claimPendingInbound,
   finishClaimedInbound,
   hasPendingInbound,
+  listStalePendingConversations,
   listHumanRepliesSince,
   getOrCreateAgentConfig,
   getLead,
@@ -21,11 +24,14 @@ const {
 } = vi.hoisted(() => ({
   callOrder: [] as string[],
   getSessionByConversation: vi.fn(),
+  getSessionById: vi.fn(),
   tryAcquireSessionLock: vi.fn(async () => true),
   releaseSessionLock: vi.fn(async () => {}),
+  setAssistantMessageSendStatus: vi.fn(async () => {}),
   claimPendingInbound: vi.fn(async () => [] as Array<{ id: string; body: string | null; attachmentKind: string | null; createdAt: Date }>),
   finishClaimedInbound: vi.fn(async () => {}),
   hasPendingInbound: vi.fn(async () => false),
+  listStalePendingConversations: vi.fn(async () => [] as Array<{ orgId: string; conversationId: string }>),
   listHumanRepliesSince: vi.fn(async () => [] as string[]),
   getOrCreateAgentConfig: vi.fn(async () => ({ channelsEnabled: { whatsapp: true, web: false, voice: false }, shadowMode: false })),
   getLead: vi.fn(async () => null as { doNotContact: boolean } | null),
@@ -77,6 +83,7 @@ vi.mock('@/lib/agent/config', () => ({ getOrCreateAgentConfig }));
 vi.mock('@/lib/agent/session', () => ({
   getOrCreateSession: vi.fn(),
   getSessionByConversation,
+  getSessionById,
   touchInbound: vi.fn(async () => {}),
   tryAcquireSessionLock: (...args: unknown[]) => {
     callOrder.push('tryAcquireSessionLock');
@@ -87,6 +94,7 @@ vi.mock('@/lib/agent/session', () => ({
     return releaseSessionLock(...args);
   },
   setSessionAttributionIfEmpty: vi.fn(async () => false),
+  setAssistantMessageSendStatus,
 }));
 
 vi.mock('@/lib/agent/lead', () => ({ getLead }));
@@ -116,11 +124,11 @@ vi.mock('@/lib/whatsapp/db', () => ({
     callOrder.push('hasPendingInbound');
     return hasPendingInbound(...args);
   },
-  listStalePendingConversations: vi.fn(async () => []),
+  listStalePendingConversations,
   listHumanRepliesSince,
 }));
 
-import { processWhatsAppAgentTurn } from '@/lib/agent/whatsapp-dispatch';
+import { processWhatsAppAgentTurn, sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
 
 const CLAIMED = [
   { id: 'm1', body: 'Hola', attachmentKind: null, createdAt: new Date('2026-01-01T00:00:00Z') },
@@ -132,9 +140,11 @@ describe('agent/whatsapp-dispatch — processWhatsAppAgentTurn', () => {
     vi.clearAllMocks();
     callOrder.length = 0;
     getSessionByConversation.mockResolvedValue({ ...SESSION });
+    getSessionById.mockResolvedValue({ ...SESSION });
     tryAcquireSessionLock.mockResolvedValue(true);
     claimPendingInbound.mockResolvedValue(CLAIMED);
     hasPendingInbound.mockResolvedValue(false);
+    listStalePendingConversations.mockResolvedValue([]);
     getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false }, shadowMode: false });
     getLead.mockResolvedValue(null);
   });
@@ -196,5 +206,62 @@ describe('agent/whatsapp-dispatch — processWhatsAppAgentTurn', () => {
     expect(releaseIdx).toBeGreaterThanOrEqual(0);
     expect(recheckIdx).toBeGreaterThan(releaseIdx);
     expect(enqueueJob).toHaveBeenCalledWith(expect.objectContaining({ kind: 'agent.whatsapp_turn' }));
+  });
+
+  it('runs the turn with the loaded session\'s externalId, not the (possibly stale/absent) job payload externalPhone', async () => {
+    getSessionByConversation.mockResolvedValue({ ...SESSION, externalId: '+51888888888' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+    expect(runAgentTurn).toHaveBeenCalledWith(expect.objectContaining({ externalId: '+51888888888' }));
+  });
+
+  it('re-enqueues the follow-up job without an externalPhone in the payload', async () => {
+    hasPendingInbound.mockResolvedValue(true);
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1' }, 'org-1');
+    expect(enqueueJob).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'agent.whatsapp_turn',
+      payload: { conversationId: 'conv-1' },
+    }));
+  });
+
+  it('drops the reply and discards the draft when the session mode changed away from "ai" during the turn', async () => {
+    getSessionById.mockResolvedValue({ ...SESSION, mode: 'human' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+
+    expect(sendWhatsAppText).not.toHaveBeenCalled();
+    expect(createSuggestion).not.toHaveBeenCalled();
+    expect(setAssistantMessageSendStatus).toHaveBeenCalledWith('msg-assistant-1', 'shadow_discarded');
+    expect(recordAgentEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: 'reply_dropped' }));
+    expect(finishClaimedInbound).toHaveBeenCalledWith(['m1', 'm2'], 'processed');
+  });
+
+  it('sends normally when the session mode is still "ai" after the turn', async () => {
+    getSessionById.mockResolvedValue({ ...SESSION, mode: 'ai' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+    expect(sendWhatsAppText).toHaveBeenCalledOnce();
+    expect(setAssistantMessageSendStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe('agent/whatsapp-dispatch — sweepStalePendingInbound', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    listStalePendingConversations.mockResolvedValue([]);
+  });
+
+  it('enqueues a job with only conversationId — no externalPhone placeholder', async () => {
+    listStalePendingConversations.mockResolvedValue([{ orgId: 'org-1', conversationId: 'conv-1' }]);
+    const enqueued = await sweepStalePendingInbound();
+    expect(enqueued).toBe(1);
+    expect(enqueueJob).toHaveBeenCalledWith({
+      orgId: 'org-1',
+      kind: 'agent.whatsapp_turn',
+      payload: { conversationId: 'conv-1' },
+    });
+  });
+
+  it('no-ops when nothing is stale', async () => {
+    const enqueued = await sweepStalePendingInbound();
+    expect(enqueued).toBe(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 });

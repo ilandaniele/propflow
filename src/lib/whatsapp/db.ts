@@ -205,7 +205,10 @@ export async function claimPendingInbound(
 ): Promise<Array<{ id: string; body: string | null; attachmentKind: string | null; createdAt: Date }>> {
   const rows = await db
     .update(whatsappMessages)
-    .set({ agentStatus: 'processing' })
+    // agentClaimedAt (item 4): stamped here so listStalePendingConversations
+    // can tell a turn still legitimately in flight apart from one whose
+    // process crashed mid-turn, and resurrect the latter back to 'pending'.
+    .set({ agentStatus: 'processing', agentClaimedAt: new Date() })
     .where(and(
       eq(whatsappMessages.orgId, orgId),
       eq(whatsappMessages.conversationId, conversationId),
@@ -250,16 +253,43 @@ export async function hasPendingInbound(orgId: string, conversationId: string): 
   return rows.length > 0;
 }
 
+// Item 4: mirrors session.ts's SESSION_LOCK_TTL_MS — a turn holding the
+// session lock past this point has crashed, so a 'processing' message it
+// claimed is never coming back on its own and must be resurrected.
+const PROCESSING_STALE_MS = 3 * 60 * 1000;
+
+/**
+ * Item 4: revert 'processing' messages whose claim (agentClaimedAt) is older
+ * than the session lock TTL back to 'pending'. claimPendingInbound() only
+ * ever claims 'pending' rows, so without this a message whose turn crashed
+ * mid-processing (not caught by the try/catch in processWhatsAppAgentTurn —
+ * e.g. the process itself was killed) would stay 'processing' forever and
+ * never be retried by the debounce job, the sweep below, or anything else.
+ */
+async function resurrectStaleProcessing(olderThanMs: number): Promise<void> {
+  await db
+    .update(whatsappMessages)
+    .set({ agentStatus: 'pending', agentClaimedAt: null })
+    .where(and(
+      eq(whatsappMessages.agentStatus, 'processing'),
+      lt(whatsappMessages.agentClaimedAt, new Date(Date.now() - olderThanMs)),
+    ));
+}
+
 /**
  * Sweeper backstop: conversations with a 'pending' message older than
  * `olderThanMs` (the debounce job should have claimed it by now) but not so
  * old it's not worth resurrecting (`newerThanMs`). One row per conversation.
+ * Also resurrects stale 'processing' rows (item 4) first, so a crashed turn's
+ * messages fall right back into this same 'pending' query.
  */
 export async function listStalePendingConversations(
   olderThanMs: number,
   newerThanMs: number,
   limit: number
 ): Promise<Array<{ orgId: string; conversationId: string }>> {
+  await resurrectStaleProcessing(PROCESSING_STALE_MS);
+
   const now = Date.now();
   const rows = await db
     .selectDistinctOn([whatsappMessages.conversationId], {

@@ -49,6 +49,7 @@ import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { queueAgentInbound, scheduleAgentDrain } from '@/lib/agent/whatsapp-dispatch';
 import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
 import { dispatchButtonReply } from '@/lib/agent/button-replies';
+import { getSessionByConversation, touchInbound } from '@/lib/agent/session';
 
 // Register event handlers on module load
 registerAllHandlers();
@@ -272,6 +273,12 @@ async function processMetaMessage(
       text: message.text,
     });
     if (handled) {
+      // A button-reply handler short-circuits the normal agent pipeline
+      // (queueAgentInbound, which owns touchInbound), so refresh the 24h
+      // window here too — any inbound on a conversation with a live agent
+      // session counts, regardless of handler path (item 6).
+      const session = await getSessionByConversation(orgId, conversationId);
+      if (session) await touchInbound(session.id);
       // Handled outside the agent pipeline — clear the 'pending' agentStatus
       // set by insertMessage() above so the sweeper never resurrects it.
       await finishClaimedInbound([messageId], 'processed');
@@ -404,7 +411,10 @@ async function handleMockPayload(
 
   // Mock payloads (dev/tests) never carry a button/list reply, so there's no
   // button-replies.ts extension point here — see processMetaMessage above.
-  if (agentEnabled) {
+  // Item 5: this branch is dev/test-only (the mock-provider signature scheme,
+  // never Meta's). In production it must never feed the live agent — a stray
+  // mock-shaped POST must not create bogus sessions/leads.
+  if (agentEnabled && process.env.NODE_ENV !== 'production') {
     const queued = await queueAgentInbound({ orgId, conversationId, externalPhone: from, text: text ?? null, referral: null });
     if (queued) scheduleAgentDrain();
   }

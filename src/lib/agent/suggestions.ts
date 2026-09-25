@@ -82,11 +82,18 @@ export interface ApproveSuggestionArgs {
  * Approves a pending suggestion and sends it (as-is, or with the human's
  * edit). The `WHERE status='pending'` on the claiming update means a double
  * click can never send twice.
+ *
+ * Claims into an intermediate 'sending' status rather than flipping straight
+ * to 'sent' (item 3): if the send fails, the suggestion is reverted to
+ * 'pending' so it can be retried, instead of being permanently stuck in a
+ * 'sent' state for a message that was never actually delivered. The
+ * agent_messages row's send_status only flips to 'sent' once the send
+ * actually succeeds — never before.
  */
 export async function approveSuggestion(args: ApproveSuggestionArgs): Promise<SendOutcome> {
   const claimed = await db
     .update(agentSuggestions)
-    .set({ status: 'sent', decidedBy: args.profileId, decidedAt: new Date() })
+    .set({ status: 'sending', decidedBy: args.profileId, decidedAt: new Date() })
     .where(and(
       eq(agentSuggestions.id, args.suggestionId),
       eq(agentSuggestions.orgId, args.orgId),
@@ -108,9 +115,29 @@ export async function approveSuggestion(args: ApproveSuggestionArgs): Promise<Se
     sentByProfileId: args.profileId,
   });
 
+  if (!outcome.ok) {
+    // Revert the claim so the suggestion is retryable — it's still the
+    // reviewer's job to approve/discard it, not stuck in limbo as 'sending'.
+    await db
+      .update(agentSuggestions)
+      .set({ status: 'pending', decidedBy: null, decidedAt: null })
+      .where(eq(agentSuggestions.id, suggestion.id));
+
+    await recordAgentEvent({
+      orgId: args.orgId,
+      sessionId: suggestion.sessionId,
+      kind: 'suggestion_sent',
+      data: { suggestionId: suggestion.id, edited: args.editedBody !== undefined, ok: false },
+      actorProfileId: args.profileId,
+    });
+
+    return outcome;
+  }
+
   if (suggestion.agentMessageId) {
     // "The human approved it as-is" → no edit, the draft text stands as sent.
     // "The human edited it" → the sent text is what counts for future turns.
+    // Only flipped once the send has actually succeeded (item 3).
     await setAssistantMessageSendStatus(
       suggestion.agentMessageId,
       'sent',
@@ -118,18 +145,16 @@ export async function approveSuggestion(args: ApproveSuggestionArgs): Promise<Se
     );
   }
 
-  if (outcome.ok) {
-    await db
-      .update(agentSuggestions)
-      .set({ sentMessageId: outcome.messageId })
-      .where(eq(agentSuggestions.id, suggestion.id));
-  }
+  await db
+    .update(agentSuggestions)
+    .set({ status: 'sent', sentMessageId: outcome.messageId })
+    .where(eq(agentSuggestions.id, suggestion.id));
 
   await recordAgentEvent({
     orgId: args.orgId,
     sessionId: suggestion.sessionId,
     kind: 'suggestion_sent',
-    data: { suggestionId: suggestion.id, edited: args.editedBody !== undefined, ok: outcome.ok },
+    data: { suggestionId: suggestion.id, edited: args.editedBody !== undefined, ok: true },
     actorProfileId: args.profileId,
   });
 

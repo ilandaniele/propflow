@@ -17,7 +17,8 @@ export type AgentEventKind =
   | 'suggestion_discarded'
   | 'attribution'
   | 'window_closed'
-  | 'turn_error';
+  | 'turn_error'
+  | 'reply_dropped';
 
 export interface AgentAttribution {
   type: 'ctwa' | 'wa_link';

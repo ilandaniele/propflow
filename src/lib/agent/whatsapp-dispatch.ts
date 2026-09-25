@@ -12,10 +12,12 @@ import { getOrCreateAgentConfig } from './config';
 import {
   getOrCreateSession,
   getSessionByConversation,
+  getSessionById,
   touchInbound,
   tryAcquireSessionLock,
   releaseSessionLock,
   setSessionAttributionIfEmpty,
+  setAssistantMessageSendStatus,
 } from './session';
 import { getLead } from './lead';
 import { recordAgentEvent } from './events';
@@ -100,7 +102,11 @@ export async function queueAgentInbound(args: QueueAgentInboundArgs): Promise<bo
   await enqueueJob({
     orgId: args.orgId,
     kind: AGENT_WHATSAPP_TURN_JOB,
-    payload: { conversationId: args.conversationId, externalPhone: args.externalPhone },
+    // Item 1: externalPhone is intentionally NOT carried in the job payload —
+    // processWhatsAppAgentTurn re-derives it from the loaded session
+    // (session.externalId), which is deterministic. A sweeper-enqueued job
+    // (below) has no real phone to put here anyway.
+    payload: { conversationId: args.conversationId },
     runAt: new Date(Date.now() + AGENT_DEBOUNCE_MS),
   });
 
@@ -119,7 +125,12 @@ function buildInboundText(
 
 export interface WhatsAppAgentTurnPayload {
   conversationId: string;
-  externalPhone: string;
+  /**
+   * Item 1: deprecated and unused — kept optional so an old job payload still
+   * enqueued with it (pre-fix) deserializes harmlessly. The turn always
+   * re-derives the real external id from the loaded session instead.
+   */
+  externalPhone?: string;
 }
 
 /**
@@ -155,7 +166,9 @@ export async function processWhatsAppAgentTurn(payload: WhatsAppAgentTurnPayload
     const result = await runAgentTurn({
       orgId,
       channel: 'whatsapp',
-      externalId: payload.externalPhone,
+      // Item 1: the session's own externalId, not the job payload's
+      // (possibly-absent, possibly-stale) externalPhone.
+      externalId: session.externalId,
       whatsappConversationId: payload.conversationId,
       inboundText,
       humanRepliesSinceLastTurn,
@@ -163,6 +176,20 @@ export async function processWhatsAppAgentTurn(payload: WhatsAppAgentTurnPayload
 
     if (result.skipped) {
       await finishClaimedInbound(claimedIds, 'skipped');
+      return;
+    }
+
+    // Item 2: the turn can take several model iterations; re-check the
+    // session's mode now in case it was handed off to a human (or paused)
+    // while the turn was running. A reply drafted for an AI-owned
+    // conversation must never reach a contact once a human has taken over.
+    const freshSession = await getSessionById(orgId, session.id);
+    if (freshSession && freshSession.mode !== 'ai') {
+      if (result.assistantMessageId) {
+        await setAssistantMessageSendStatus(result.assistantMessageId, 'shadow_discarded');
+      }
+      await recordAgentEvent({ orgId, sessionId: session.id, kind: 'reply_dropped', data: { reason: 'mode_changed_mid_turn' } });
+      await finishClaimedInbound(claimedIds, 'processed');
       return;
     }
 
@@ -206,7 +233,7 @@ export async function processWhatsAppAgentTurn(payload: WhatsAppAgentTurnPayload
       await enqueueJob({
         orgId,
         kind: AGENT_WHATSAPP_TURN_JOB,
-        payload: { conversationId: payload.conversationId, externalPhone: payload.externalPhone },
+        payload: { conversationId: payload.conversationId },
         runAt: new Date(),
       });
     }
@@ -239,9 +266,12 @@ export async function sweepStalePendingInbound(): Promise<number> {
   let enqueued = 0;
   for (const { orgId, conversationId } of stale) {
     if (queuedSet.has(conversationId)) continue;
-    // externalPhone isn't known here — the handler re-derives it from the
-    // conversation via getSessionByConversation, so a placeholder is fine.
-    await enqueueJob({ orgId, kind: AGENT_WHATSAPP_TURN_JOB, payload: { conversationId, externalPhone: '' } });
+    // Item 1: no externalPhone in the payload — the handler re-derives it
+    // from the loaded session (session.externalId). A placeholder value here
+    // used to create a bogus duplicate session/lead keyed on '' when the real
+    // session lookup missed for any reason; omitting it entirely removes that
+    // failure mode.
+    await enqueueJob({ orgId, kind: AGENT_WHATSAPP_TURN_JOB, payload: { conversationId } });
     enqueued++;
   }
   return enqueued;

@@ -85,9 +85,19 @@ describe('agent/suggestions', () => {
   });
 
   describe('approveSuggestion', () => {
+    it('claims into "sending" before the send call, not straight to "sent"', async () => {
+      updateQueue.push([pendingSuggestionRow()]); // claim
+      updateQueue.push([]); // final status='sent' update
+      sendWhatsAppTextMock.mockResolvedValue({ ok: true, messageId: 'wa-msg-claim' });
+
+      await approveSuggestion({ orgId: 'org-1', suggestionId: 'suggestion-1', profileId: 'profile-1' });
+
+      expect(updateCalls[0]).toMatchObject({ status: 'sending' });
+    });
+
     it('approving twice sends once — the second call finds no pending row', async () => {
       updateQueue.push([pendingSuggestionRow()]); // 1st call claims it
-      updateQueue.push([]); // sentMessageId update (ignored by test)
+      updateQueue.push([]); // final status='sent' update
       sendWhatsAppTextMock.mockResolvedValue({ ok: true, messageId: 'wa-msg-1' });
 
       const first = await approveSuggestion({ orgId: 'org-1', suggestionId: 'suggestion-1', profileId: 'profile-1' });
@@ -99,6 +109,20 @@ describe('agent/suggestions', () => {
 
       expect(second).toEqual({ ok: false, code: 'NOT_FOUND' });
       expect(sendWhatsAppTextMock).toHaveBeenCalledOnce(); // still just once
+    });
+
+    it('reverts to pending (not stuck "sending") and never flips the draft to sent when the send fails', async () => {
+      updateQueue.push([pendingSuggestionRow()]); // claim into 'sending'
+      updateQueue.push([]); // revert-to-pending update
+      sendWhatsAppTextMock.mockResolvedValue({ ok: false, code: 'WINDOW_CLOSED' });
+
+      const outcome = await approveSuggestion({ orgId: 'org-1', suggestionId: 'suggestion-1', profileId: 'profile-1' });
+
+      expect(outcome).toEqual({ ok: false, code: 'WINDOW_CLOSED' });
+      expect(setAssistantMessageSendStatusMock).not.toHaveBeenCalled();
+      // Last update call reverts the claim back to 'pending' so it's retryable.
+      expect(updateCalls.at(-1)).toMatchObject({ status: 'pending' });
+      expect(recordAgentEventMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'suggestion_sent', data: expect.objectContaining({ ok: false }) }));
     });
 
     it('sends the original body when not edited, and flips the agent_messages row to sent with no edited text', async () => {

@@ -28,6 +28,8 @@ export interface AgentSession {
   handoffReason: HandoffReason | null;
   windowExpiresAt: Date | null;
   lastAgentTurnAt: Date | null;
+  /** Item 6: isWindowOpen()'s fallback basis when windowExpiresAt is null. */
+  lastInboundAt: Date | null;
 }
 
 function toSession(row: typeof agentSessions.$inferSelect): AgentSession {
@@ -46,6 +48,7 @@ function toSession(row: typeof agentSessions.$inferSelect): AgentSession {
     handoffReason: row.handoffReason as HandoffReason | null,
     windowExpiresAt: row.windowExpiresAt,
     lastAgentTurnAt: row.lastAgentTurnAt,
+    lastInboundAt: row.lastInboundAt,
   };
 }
 
@@ -114,6 +117,11 @@ export async function getSessionByConversation(orgId: string, conversationId: st
       eq(agentSessions.channel, 'whatsapp'),
       eq(agentSessions.whatsappConversationId, conversationId),
     ))
+    // Deterministic: (org_id, channel, whatsapp_conversation_id) isn't a unique
+    // constraint, so without an ORDER BY a stray duplicate row (e.g. a bogus
+    // session created by a sweeper job with a placeholder external_id) could
+    // be returned nondeterministically. Oldest wins.
+    .orderBy(asc(agentSessions.createdAt))
     .limit(1);
   return rows[0] ? toSession(rows[0]) : null;
 }
@@ -210,9 +218,19 @@ export async function setSessionAttributionIfEmpty(sessionId: string, a: AgentAt
   return rows.length > 0;
 }
 
-/** Pure — no DB access. */
-export function isWindowOpen(session: Pick<AgentSession, 'windowExpiresAt'>, now: Date = new Date()): boolean {
-  return session.windowExpiresAt != null && session.windowExpiresAt.getTime() > now.getTime();
+/**
+ * Pure — no DB access. Falls back to deriving the window from `lastInboundAt`
+ * (already loaded on the session row) when `windowExpiresAt` is null, instead
+ * of assuming closed — cheap because it reuses a field the caller already
+ * has rather than issuing a fresh query for the latest inbound message.
+ */
+export function isWindowOpen(
+  session: Pick<AgentSession, 'windowExpiresAt' | 'lastInboundAt'>,
+  now: Date = new Date(),
+): boolean {
+  if (session.windowExpiresAt != null) return session.windowExpiresAt.getTime() > now.getTime();
+  if (session.lastInboundAt != null) return session.lastInboundAt.getTime() + 24 * 60 * 60 * 1000 > now.getTime();
+  return false;
 }
 
 const HISTORY_LIMIT = 40;

@@ -20,7 +20,12 @@
 ALTER TABLE "whatsapp_messages"
   ADD COLUMN IF NOT EXISTS "agent_status" TEXT CHECK (agent_status IS NULL OR agent_status IN ('pending','processing','processed','skipped')),
   ADD COLUMN IF NOT EXISTS "sender_kind" TEXT CHECK (sender_kind IS NULL OR sender_kind IN ('contact','agent','human','system')),
-  ADD COLUMN IF NOT EXISTS "sent_by_profile_id" UUID REFERENCES "profiles"("id") ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS "sent_by_profile_id" UUID REFERENCES "profiles"("id") ON DELETE SET NULL,
+  -- item 4 (added after initial ship): set by claimPendingInbound() the moment
+  -- a message flips 'pending' → 'processing'. Without this there's no way to
+  -- tell a legitimately-in-progress turn apart from one whose process crashed
+  -- mid-turn, so a stuck 'processing' row could never be resurrected.
+  ADD COLUMN IF NOT EXISTS "agent_claimed_at" TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_wa_msg_agent_pending ON "whatsapp_messages"("conversation_id", "created_at")
   WHERE agent_status IN ('pending','processing');
@@ -81,12 +86,21 @@ CREATE TABLE IF NOT EXISTS "agent_suggestions" (
   "whatsapp_conversation_id" UUID REFERENCES "whatsapp_conversations"("id") ON DELETE SET NULL,
   "agent_message_id"         UUID REFERENCES "agent_messages"("id") ON DELETE SET NULL, -- OVERRIDE: the assistant turn this suggestion drafted; flips to sent/shadow_discarded on decision
   "body"                     TEXT NOT NULL,
-  "status"                   TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','discarded','superseded')),
+  -- 'sending' (item 3, added after initial ship): claimed by approveSuggestion
+  -- before the send call, so a crash mid-send never leaves the row stuck
+  -- looking permanently 'sent' for a message that was never delivered.
+  "status"                   TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sending','sent','discarded','superseded')),
   "decided_by"               UUID REFERENCES "profiles"("id") ON DELETE SET NULL,
   "decided_at"               TIMESTAMPTZ,
   "sent_message_id"          UUID REFERENCES "whatsapp_messages"("id") ON DELETE SET NULL,
   "created_at"               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Widen the CHECK for a DB where this migration already ran before 'sending'
+-- was added (CREATE TABLE IF NOT EXISTS above is a no-op there).
+ALTER TABLE "agent_suggestions" DROP CONSTRAINT IF EXISTS "agent_suggestions_status_check";
+ALTER TABLE "agent_suggestions" ADD CONSTRAINT "agent_suggestions_status_check"
+  CHECK (status IN ('pending','sending','sent','discarded','superseded'));
 
 CREATE INDEX IF NOT EXISTS idx_agent_suggestions_session ON "agent_suggestions"("session_id", "created_at" DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS agent_suggestions_one_pending ON "agent_suggestions"("session_id") WHERE status = 'pending';

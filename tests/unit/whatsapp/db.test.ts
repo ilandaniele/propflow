@@ -11,12 +11,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
 const mockSelect = vi.fn();
+const mockSelectDistinctOn = vi.fn();
 
 vi.mock('@/lib/db', () => ({
   db: {
     insert: (...args: unknown[]) => mockInsert(...args),
     update: (...args: unknown[]) => mockUpdate(...args),
     select: (...args: unknown[]) => mockSelect(...args),
+    selectDistinctOn: (...args: unknown[]) => mockSelectDistinctOn(...args),
   },
 }));
 
@@ -34,6 +36,7 @@ import {
   finishClaimedInbound,
   hasPendingInbound,
   listHumanRepliesSince,
+  listStalePendingConversations,
 } from '@/lib/whatsapp/db';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -185,6 +188,18 @@ describe('claimPendingInbound', () => {
     expect(result.map((r) => r.id)).toEqual(['msg-1', 'msg-2']);
     expect(chain.set).toHaveBeenCalledWith(expect.objectContaining({ agentStatus: 'processing' }));
   });
+
+  it('stamps agentClaimedAt (item 4) so a stale claim is later distinguishable from an in-flight one', async () => {
+    const chain = {
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([]),
+    };
+    mockUpdate.mockReturnValue(chain);
+
+    await claimPendingInbound('org-1', 'conv-1');
+    expect(chain.set).toHaveBeenCalledWith(expect.objectContaining({ agentClaimedAt: expect.any(Date) }));
+  });
 });
 
 describe('finishClaimedInbound', () => {
@@ -272,5 +287,38 @@ describe('incrementUnread', () => {
     setupUpdateChain();
     await incrementUnread('conv-uuid-42');
     expect(mockUpdate).toHaveBeenCalledOnce();
+  });
+});
+
+// ── listStalePendingConversations ─────────────────────────────────────────────
+
+describe('listStalePendingConversations', () => {
+  it('resurrects stale "processing" rows back to "pending" before selecting (item 4)', async () => {
+    const resurrectChain = setupUpdateChain();
+    mockSelectDistinctOn.mockReturnValue({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([]),
+    });
+
+    await listStalePendingConversations(2 * 60 * 1000, 30 * 60 * 1000, 20);
+
+    expect(mockUpdate).toHaveBeenCalledOnce();
+    expect(resurrectChain.set).toHaveBeenCalledWith(
+      expect.objectContaining({ agentStatus: 'pending', agentClaimedAt: null })
+    );
+  });
+
+  it('returns the distinct stale conversations after resurrecting', async () => {
+    setupUpdateChain();
+    const rows = [{ orgId: 'org-1', conversationId: 'conv-1' }];
+    mockSelectDistinctOn.mockReturnValue({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue(rows),
+    });
+
+    const result = await listStalePendingConversations(2 * 60 * 1000, 30 * 60 * 1000, 20);
+    expect(result).toEqual(rows);
   });
 });
