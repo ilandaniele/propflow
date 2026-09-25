@@ -30,6 +30,10 @@ import {
   findTenantByPhone,
   updateConversationActivity,
   incrementUnread,
+  claimPendingInbound,
+  finishClaimedInbound,
+  hasPendingInbound,
+  listHumanRepliesSince,
 } from '@/lib/whatsapp/db';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -148,8 +152,78 @@ describe('insertMessage', () => {
       classification: 'receipt',
       status: 'sent',
       meta: { source: 'cron' },
+      agentStatus: 'processed',
+      senderKind: 'agent',
+      sentByProfileId: 'profile-1',
     });
     expect(result).toBe('msg-100');
+  });
+
+  it('uses the plain (org_id, provider_message_id) unique index as the onConflictDoNothing arbiter, not a deferrable constraint', async () => {
+    const chain = setupInsertChain([{ id: 'msg-101' }]);
+    await insertMessage({ orgId: 'org-1', conversationId: 'conv-1', direction: 'inbound', providerMessageId: 'prov-abc' });
+    expect(chain.onConflictDoNothing).toHaveBeenCalledWith(
+      expect.objectContaining({ target: expect.any(Array) })
+    );
+  });
+});
+
+// ── claimPendingInbound / finishClaimedInbound / hasPendingInbound ───────────
+
+describe('claimPendingInbound', () => {
+  it('claims pending messages and returns them oldest first', async () => {
+    const older = { id: 'msg-1', body: 'primero', attachmentKind: null, createdAt: new Date('2026-01-01T00:00:00Z') };
+    const newer = { id: 'msg-2', body: 'segundo', attachmentKind: null, createdAt: new Date('2026-01-01T00:00:05Z') };
+    const chain = {
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue([newer, older]), // out of order on purpose
+    };
+    mockUpdate.mockReturnValue(chain);
+
+    const result = await claimPendingInbound('org-1', 'conv-1');
+    expect(result.map((r) => r.id)).toEqual(['msg-1', 'msg-2']);
+    expect(chain.set).toHaveBeenCalledWith(expect.objectContaining({ agentStatus: 'processing' }));
+  });
+});
+
+describe('finishClaimedInbound', () => {
+  it('no-ops on an empty id list', async () => {
+    await finishClaimedInbound([], 'processed');
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('updates the given ids to the given status', async () => {
+    const chain = setupUpdateChain();
+    await finishClaimedInbound(['msg-1', 'msg-2'], 'pending');
+    expect(chain.set).toHaveBeenCalledWith(expect.objectContaining({ agentStatus: 'pending' }));
+  });
+});
+
+describe('hasPendingInbound', () => {
+  it('returns true when a pending row exists', async () => {
+    setupSelectChain([{ id: 'msg-1' }]);
+    expect(await hasPendingInbound('org-1', 'conv-1')).toBe(true);
+  });
+
+  it('returns false when none do', async () => {
+    setupSelectChain([]);
+    expect(await hasPendingInbound('org-1', 'conv-1')).toBe(false);
+  });
+});
+
+describe('listHumanRepliesSince', () => {
+  it('returns bodies of human-sent messages, filtering out nulls', async () => {
+    const chain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue([{ body: 'Ya te escribo' }, { body: null }]),
+    };
+    mockSelect.mockReturnValue(chain);
+
+    const result = await listHumanRepliesSince('org-1', 'conv-1', null);
+    expect(result).toEqual(['Ya te escribo']);
   });
 });
 

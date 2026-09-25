@@ -3,6 +3,10 @@
  * tool-use loop, persisted history out. Channel adapters (WhatsApp webhook,
  * web widget, voice webhook — later phases) all call this; none of them
  * talk to Anthropic directly.
+ *
+ * Args/result types live in ./types.ts (the shared contract with the
+ * WhatsApp dispatch pipeline and the inbox actions); re-exported here for
+ * backward-compat imports.
  */
 
 import { db } from '@/lib/db';
@@ -12,32 +16,18 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient, AGENT_MODEL } from '@/lib/ai/client';
 import { log } from '@/lib/log';
 import { getOrCreateAgentConfig } from './config';
-import { getOrCreateSession, getSessionHistory, appendSessionMessage, type AgentChannel } from './session';
+import { getOrCreateSession, getSessionHistory, appendSessionMessage } from './session';
 import { getLead } from './lead';
 import { buildAgentSystemPrompt, buildTurnContext } from './prompt';
 import { buildAgentTools } from './tools';
+import type { RunAgentTurnArgs, RunAgentTurnResult } from './types';
+
+export type { RunAgentTurnArgs, RunAgentTurnResult } from './types';
 
 const MAX_ITERATIONS = 8;
 const MAX_TOKENS = 2048;
 const BUDGET_EXCEEDED_REPLY =
   'En este momento estoy con mucha demanda. Un asesor te va a escribir en breve para seguir ayudándote.';
-
-export interface RunAgentTurnArgs {
-  orgId: string;
-  channel: AgentChannel;
-  externalId: string;
-  whatsappConversationId?: string | null;
-  inboundText: string;
-  /** true from the admin playground: mutating tools describe instead of writing, and no budget is spent against the org. */
-  dryRun?: boolean;
-}
-
-export interface RunAgentTurnResult {
-  sessionId: string;
-  leadId: string | null;
-  replyText: string;
-  handedOffToHuman: boolean;
-}
 
 async function isOverDailyBudget(orgId: string, dailyTokenBudget: number): Promise<boolean> {
   const since = new Date();
@@ -75,7 +65,16 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
 
   if (!dryRun && (await isOverDailyBudget(args.orgId, config.dailyTokenBudget))) {
     log.warn('[agent] daily token budget exceeded', { orgId: args.orgId });
-    return { sessionId: session.id, leadId: session.leadId, replyText: BUDGET_EXCEEDED_REPLY, handedOffToHuman: false };
+    return {
+      sessionId: session.id,
+      leadId: session.leadId,
+      replyText: BUDGET_EXCEEDED_REPLY,
+      handedOffToHuman: false,
+      handoffReason: null,
+      skipped: false,
+      language: null,
+      assistantMessageId: null,
+    };
   }
 
   const lead = session.leadId ? await getLead(args.orgId, session.leadId) : null;
@@ -125,17 +124,28 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     .filter((m): m is Anthropic.Beta.Messages.BetaMessageParam & { role: 'user' | 'assistant' } =>
       m.role === 'user' || m.role === 'assistant');
 
+  // OVERRIDE (item A "Override" note): in shadow mode, the final assistant
+  // reply is a draft — held for human review (see whatsapp-dispatch.ts /
+  // suggestions.ts) instead of being sent. Tag it 'shadow_pending' so
+  // getSessionHistory() excludes it from the next turn until it's approved
+  // (optionally edited) or discarded. Never applies to dryRun (the admin
+  // playground) — that has its own session and is never reviewed.
+  let assistantMessageId: string | null = null;
   for (let i = 0; i < newMessages.length; i++) {
     const m = newMessages[i];
     const isLast = i === newMessages.length - 1;
-    await appendSessionMessage({
+    const id = await appendSessionMessage({
       orgId: args.orgId,
       sessionId: session.id,
       role: m.role,
       content: m.content,
       inputTokens: isLast ? finalMessage.usage.input_tokens : null,
       outputTokens: isLast ? finalMessage.usage.output_tokens : null,
+      ...(isLast && m.role === 'assistant'
+        ? { sendStatus: !dryRun && config.shadowMode ? 'shadow_pending' : 'sent' }
+        : {}),
     });
+    if (isLast && m.role === 'assistant') assistantMessageId = id;
   }
 
   return {
@@ -147,5 +157,15 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
         Array.isArray(m.content) &&
         m.content.some((b) => b.type === 'tool_use' && b.name === 'handoff_to_human'),
     ),
+    handoffReason: newMessages.some(
+      (m) =>
+        Array.isArray(m.content) &&
+        m.content.some((b) => b.type === 'tool_use' && b.name === 'handoff_to_human'),
+    )
+      ? 'tool'
+      : null,
+    skipped: false,
+    language: null,
+    assistantMessageId,
   };
 }

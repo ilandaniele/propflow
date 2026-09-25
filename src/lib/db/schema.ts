@@ -24,6 +24,8 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
+// import type only — avoids a circular runtime import (types.ts has no runtime deps on schema.ts).
+import type { AgentAttribution } from '@/lib/agent/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NextAuth tables (required by @auth/drizzle-adapter)
@@ -539,6 +541,7 @@ export const crmLeads = pgTable('crm_leads', {
   doNotContact:       boolean('do_not_contact').notNull().default(false),
   sourceChannel:      text('source_channel'), // 'whatsapp'|'web'|'voice'|'manual'
   sourceRef:          text('source_ref'),
+  sourceMeta:         jsonb('source_meta').notNull().default({}).$type<Record<string, unknown>>(),
   createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -783,11 +786,19 @@ export const whatsappMessages = pgTable('whatsapp_messages', {
   classification:    text('classification'),     // 'receipt'|'task-proof'|'incident-evidence'|'other'
   status:            text('status').notNull().default('received'),
   meta:              jsonb('meta').notNull().default({}),
+  // Agent Phase 2: per-message claim/debounce + sender attribution for the inbox.
+  agentStatus:       text('agent_status'),           // null (tenant/disabled) | 'pending'|'processing'|'processed'|'skipped'
+  senderKind:        text('sender_kind'),             // 'contact'|'agent'|'human'|'system'
+  sentByProfileId:   uuid('sent_by_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
   createdAt:         timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   convIdx:       index('idx_wa_msg_conv').on(t.conversationId, t.createdAt),
   orgStatusIdx:  index('idx_wa_msg_org_status').on(t.orgId, t.status, t.createdAt),
+  // Plain unique index, not a deferrable constraint (see migration 0005) — Postgres
+  // requires a non-deferrable arbiter for insertMessage()'s onConflictDoNothing.
   providerUniq:  uniqueIndex('whatsapp_messages_provider_id_per_org').on(t.orgId, t.providerMessageId),
+  agentPendingIdx: index('idx_wa_msg_agent_pending').on(t.conversationId, t.createdAt)
+    .where(sql`agent_status IN ('pending','processing')`),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -854,6 +865,8 @@ export const agentConfigs = pgTable('agent_configs', {
   widgetAllowedOrigins:  jsonb('widget_allowed_origins').notNull().default([]),
   channelsEnabled:       jsonb('channels_enabled').notNull()
     .default({ whatsapp: false, web: false, voice: false }),
+  shadowMode:            boolean('shadow_mode').notNull().default(false),
+  maxAgentTurns:         integer('max_agent_turns').default(30),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -875,12 +888,20 @@ export const agentSessions = pgTable('agent_sessions', {
   summary:                text('summary'),
   windowExpiresAt:        timestamp('window_expires_at', { withTimezone: true }),
   processingLockedUntil:  timestamp('processing_locked_until', { withTimezone: true }),
+  // Agent Phase 2: turn cap, language, attribution and handoff bookkeeping.
+  agentTurnCount:         integer('agent_turn_count').notNull().default(0),
+  language:               text('language'), // 'es'|'en'|'pt'
+  attribution:            jsonb('attribution').$type<AgentAttribution | null>(),
+  handoffReason:          text('handoff_reason'), // 'tool'|'budget'|'turn_cap'|'manual'
+  lastInboundAt:          timestamp('last_inbound_at', { withTimezone: true }),
+  lastAgentTurnAt:        timestamp('last_agent_turn_at', { withTimezone: true }),
   createdAt:              timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:              timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   channelExternalUniq: uniqueIndex('uq_agent_sessions_channel_external').on(t.orgId, t.channel, t.externalId),
   orgIdx:              index('idx_agent_sessions_org').on(t.orgId),
   leadIdx:             index('idx_agent_sessions_lead').on(t.leadId),
+  orgInboundIdx:       index('idx_agent_sessions_org_inbound').on(t.orgId, t.lastInboundAt),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -899,6 +920,11 @@ export const agentMessages = pgTable('agent_messages', {
   inputTokens:  integer('input_tokens'),
   outputTokens: integer('output_tokens'),
   costUsd:      numeric('cost_usd', { precision: 10, scale: 4 }),
+  // OVERRIDE (Phase 2, item A): null|'sent' rows count toward LLM history;
+  // 'shadow_pending' (unreviewed shadow-mode draft) and 'shadow_discarded'
+  // (rejected draft) are filtered out by getSessionHistory(). See
+  // handoffs/phase2-blueprint.md item A "Override" note.
+  sendStatus:   text('send_status'),
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   sessionIdx: index('idx_agent_messages_session').on(t.sessionId, t.createdAt),
@@ -966,6 +992,51 @@ export const listingImages = pgTable('listing_images', {
   listingSortIdx: index('idx_listing_images_listing').on(t.listingId, t.sortOrder),
   orgIdx:         index('idx_listing_images_org').on(t.orgId),
   coverUniq:      uniqueIndex('listing_images_cover_idx').on(t.listingId).where(sql`is_cover = true`),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_suggestions — shadow mode's review queue. The turn runs
+// for real (tools write, history persists) but the reply waits here for a
+// human to approve (optionally edited) or discard before it reaches WhatsApp.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentSuggestions = pgTable('agent_suggestions', {
+  id:                     uuid('id').primaryKey().defaultRandom(),
+  orgId:                  uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  sessionId:              uuid('session_id').notNull().references(() => agentSessions.id, { onDelete: 'cascade' }),
+  whatsappConversationId: uuid('whatsapp_conversation_id').references(() => whatsappConversations.id, { onDelete: 'set null' }),
+  // OVERRIDE: the assistant turn (agent_messages row) this suggestion drafted.
+  // Flips to send_status='sent' (approved, possibly with edited content) or
+  // 'shadow_discarded' when decided — see getSessionHistory().
+  agentMessageId:         uuid('agent_message_id').references(() => agentMessages.id, { onDelete: 'set null' }),
+  body:                   text('body').notNull(),
+  status:                 text('status').notNull().default('pending'), // 'pending'|'sent'|'discarded'|'superseded'
+  decidedBy:              uuid('decided_by').references(() => profiles.id, { onDelete: 'set null' }),
+  decidedAt:              timestamp('decided_at', { withTimezone: true }),
+  sentMessageId:          uuid('sent_message_id').references(() => whatsappMessages.id, { onDelete: 'set null' }),
+  createdAt:              timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  sessionIdx:  index('idx_agent_suggestions_session').on(t.sessionId, t.createdAt),
+  onePending:  uniqueIndex('agent_suggestions_one_pending').on(t.sessionId).where(sql`status = 'pending'`),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_events — inbox timeline (handoffs, mode changes,
+// suggestions, attribution, window-closed, turn errors). `kind` is free TEXT
+// with no CHECK so later phases (e.g. Phase 3's visit_* kinds) don't need a
+// migration.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentEvents = pgTable('agent_events', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  orgId:           uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  sessionId:       uuid('session_id').notNull().references(() => agentSessions.id, { onDelete: 'cascade' }),
+  kind:            text('kind').notNull(),
+  data:            jsonb('data').notNull().default({}),
+  actorProfileId:  uuid('actor_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  sessionIdx: index('idx_agent_events_session').on(t.sessionId, t.createdAt),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────

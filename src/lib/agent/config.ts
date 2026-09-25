@@ -6,7 +6,7 @@
 
 import { db } from '@/lib/db';
 import { agentConfigs } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 export interface AgentConfig {
   id: string;
@@ -24,6 +24,8 @@ export interface AgentConfig {
   dailyTokenBudget: number;
   widgetAllowedOrigins: string[];
   channelsEnabled: { whatsapp: boolean; web: boolean; voice: boolean };
+  shadowMode: boolean;
+  maxAgentTurns: number | null;
 }
 
 function toAgentConfig(row: typeof agentConfigs.$inferSelect): AgentConfig {
@@ -47,6 +49,8 @@ function toAgentConfig(row: typeof agentConfigs.$inferSelect): AgentConfig {
       web: false,
       voice: false,
     },
+    shadowMode: row.shadowMode,
+    maxAgentTurns: row.maxAgentTurns,
   };
 }
 
@@ -66,5 +70,42 @@ export async function getOrCreateAgentConfig(orgId: string): Promise<AgentConfig
   // Lost a race with a concurrent first-read — re-fetch the row the other request created.
   const rows = await db.select().from(agentConfigs).where(eq(agentConfigs.orgId, orgId)).limit(1);
   if (!rows[0]) throw new Error('[agent/config] failed to get or create agent_configs row');
+  return toAgentConfig(rows[0]);
+}
+
+export interface UpdateAgentLiveSettingsPatch {
+  whatsappEnabled?: boolean;
+  shadowMode?: boolean;
+  maxAgentTurns?: number | null;
+}
+
+/**
+ * Update the "go live" settings from the inbox's LiveSettingsForm. Merges
+ * into channels_enabled (never overwrites web/voice) and only touches
+ * shadow_mode / max_agent_turns when explicitly provided.
+ */
+export async function updateAgentLiveSettings(
+  orgId: string,
+  patch: UpdateAgentLiveSettingsPatch
+): Promise<AgentConfig> {
+  const current = await getOrCreateAgentConfig(orgId);
+
+  const channelsEnabled = {
+    ...current.channelsEnabled,
+    ...(patch.whatsappEnabled !== undefined ? { whatsapp: patch.whatsappEnabled } : {}),
+  };
+
+  const rows = await db
+    .update(agentConfigs)
+    .set({
+      channelsEnabled,
+      ...(patch.shadowMode !== undefined ? { shadowMode: patch.shadowMode } : {}),
+      ...(patch.maxAgentTurns !== undefined ? { maxAgentTurns: patch.maxAgentTurns } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(agentConfigs.orgId, orgId))
+    .returning();
+
+  if (!rows[0]) throw new Error('[agent/config] updateAgentLiveSettings: org has no agent_configs row');
   return toAgentConfig(rows[0]);
 }
