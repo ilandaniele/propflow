@@ -889,6 +889,11 @@ export const agentConfigs = pgTable('agent_configs', {
   // syncListingsFromUnits() inserts published=true rows, so without this gate
   // turning on the widget would also expose every synced unit's page.
   publicPagesEnabled:    boolean('public_pages_enabled').notNull().default(false),
+  // Agent Phase 8: voice AI (Vapi) config — see src/lib/agent/config-schema.ts's VoiceConfig.
+  voiceConfig:           jsonb('voice_config').notNull().default({}),
+  // Agent Phase 9: settings/metrics — the two remaining per-org limits.
+  maxActiveVisitsPerPhone: integer('max_active_visits_per_phone').notNull().default(2),
+  maxListingPhotos:      integer('max_listing_photos').notNull().default(5),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1965,7 +1970,8 @@ export const agentWebSessions = pgTable('agent_web_sessions', {
 export const agentWebHandoffCodes = pgTable('agent_web_handoff_codes', {
   id:                 uuid('id').primaryKey().defaultRandom(),
   orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
-  webSessionId:       uuid('web_session_id').notNull().references(() => agentWebSessions.id, { onDelete: 'cascade' }),
+  // Phase 8: nullable — voice codes (source='voice') have no web session.
+  webSessionId:       uuid('web_session_id').references(() => agentWebSessions.id, { onDelete: 'cascade' }),
   code:               text('code').notNull(),
   kind:               text('kind').notNull(), // 'visit'|'continue'
   leadId:             uuid('lead_id').references(() => crmLeads.id, { onDelete: 'set null' }),
@@ -1982,9 +1988,15 @@ export const agentWebHandoffCodes = pgTable('agent_web_handoff_codes', {
   expiresAt:          timestamp('expires_at', { withTimezone: true }).notNull(),
   redeemedAt:         timestamp('redeemed_at', { withTimezone: true }),
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Phase 8: 'web'|'voice'. Voice codes ('VOZ-XXXXXX') carry a call_id and
+  // redeem only from target_phone — see src/lib/widget/handoff-codes.ts.
+  source:             text('source').notNull().default('web'),
+  callId:             uuid('call_id').references(() => agentCalls.id, { onDelete: 'set null' }),
+  targetPhone:        text('target_phone'),
 }, (t) => ({
   orgCodeUniq: uniqueIndex('uq_web_handoff_code').on(t.orgId, t.code),
   sessionIdx:  index('idx_web_handoff_session').on(t.webSessionId, t.status),
+  voicePhoneIdx: index('idx_handoff_voice_phone').on(t.orgId, t.targetPhone, t.status).where(sql`source = 'voice'`),
 }));
 
 export const agentWebUsageDaily = pgTable('agent_web_usage_daily', {
@@ -1994,4 +2006,78 @@ export const agentWebUsageDaily = pgTable('agent_web_usage_daily', {
   messages: integer('messages').notNull().default(0),
 }, (t) => ({
   pk: primaryKey({ columns: [t.orgId, t.day] }),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_calls — Phase 8 (voice AI / Vapi). One row per inbound
+// or outbound call, from 'queued' through 'ended'/'failed'/'skipped'/'blocked'.
+// See src/lib/agent/voice/calls.ts (the only write path).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentCalls = pgTable('agent_calls', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  orgId:            uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  sessionId:        uuid('session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
+  leadId:           uuid('lead_id').references(() => crmLeads.id, { onDelete: 'set null' }),
+  visitId:          uuid('visit_id').references(() => propertyVisits.id, { onDelete: 'set null' }),
+  direction:        text('direction').notNull(),   // 'inbound'|'outbound'
+  purpose:          text('purpose').notNull(),      // 'inbound'|'speed_to_lead'|'visit_confirmation'|'reactivation'
+  status:           text('status').notNull().default('queued'),
+  // 'queued'|'dialing'|'in_progress'|'ended'|'failed'|'skipped'|'blocked'
+  blockReason:      text('block_reason'),
+  dedupeKey:        text('dedupe_key'),
+  vapiCallId:       text('vapi_call_id').unique(),
+  phoneNumberId:    text('phone_number_id'),
+  customerPhone:    text('customer_phone'),
+  startedAt:        timestamp('started_at', { withTimezone: true }),
+  endedAt:          timestamp('ended_at', { withTimezone: true }),
+  durationSeconds:  integer('duration_seconds'),
+  endedReason:      text('ended_reason'),
+  outcome:          text('outcome'), // 'answered'|'no_answer'|'busy'|'voicemail'|'failed'|'abandoned'
+  transcript:       text('transcript'),
+  recordingUrl:     text('recording_url'),
+  summary:          text('summary'),
+  costUsd:          numeric('cost_usd', { precision: 10, scale: 4 }),
+  costBreakdown:    jsonb('cost_breakdown'),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dedupeUniq: uniqueIndex('agent_calls_dedupe').on(t.orgId, t.dedupeKey).where(sql`dedupe_key IS NOT NULL`),
+  orgCreatedIdx: index('idx_agent_calls_org_created').on(t.orgId, t.createdAt),
+  orgStatusIdx:  index('idx_agent_calls_org_status').on(t.orgId, t.status),
+  leadIdx:       index('idx_agent_calls_lead').on(t.leadId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: voice_do_not_call — Phase 8. Org-scoped DNC list, checked by
+// the outbound compliance gate (src/lib/agent/voice/compliance.ts) alongside
+// crm_leads.do_not_contact. 'caller_request' rows are permanent (staff can't
+// remove them from the settings UI — see removeDoNotCall's 'protected').
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const voiceDoNotCall = pgTable('voice_do_not_call', {
+  orgId:            uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  phoneE164:        text('phone_e164').notNull(),
+  reason:           text('reason'),
+  source:           text('source').notNull(), // 'staff'|'caller_request'
+  addedByProfileId: uuid('added_by_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.orgId, t.phoneE164] }),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_session_listings — Phase 9. Every listing id a session
+// has actually seen (search_listings / attribution / page) — the only ids
+// send_listing_card / send_listing_photos are allowed to act on.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentSessionListings = pgTable('agent_session_listings', {
+  sessionId:  uuid('session_id').notNull().references(() => agentSessions.id, { onDelete: 'cascade' }),
+  orgId:      uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  listingId:  uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  source:     text('source').notNull(), // 'search'|'attribution'|'page'
+  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.sessionId, t.listingId] }),
 }));

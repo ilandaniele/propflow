@@ -48,6 +48,15 @@ describe('widget/handoff-codes — pure helpers', () => {
     expect(extractHandoffCode('code web-ab2k9m please')).toBe('WEB-AB2K9M');
   });
 
+  it('Phase 8: generateHandoffCode/extractHandoffCode support the VOZ- prefix', () => {
+    for (let i = 0; i < 50; i++) {
+      const code = generateHandoffCode('voice');
+      expect(code).toMatch(/^VOZ-[A-HJ-NP-Z2-9]{6}$/);
+    }
+    expect(extractHandoffCode('Confirmo VOZ-AB2K9M')).toBe('VOZ-AB2K9M');
+    expect(extractHandoffCode('confirmo voz-ab2k9m')).toBe('VOZ-AB2K9M');
+  });
+
   it('extractHandoffCode ignores near-misses', () => {
     expect(extractHandoffCode('WEB-12')).toBeNull();
     expect(extractHandoffCode('referencia ABC123')).toBeNull();
@@ -154,6 +163,18 @@ describe('widget/handoff-codes — claimHandoffCode', () => {
     mockUpdate.mockReturnValueOnce(makeChain([]));
 
     const result = await claimHandoffCode('org-1', 'WEB-NOPE99', '+51987654321', 'wa-session-1');
+    expect(result).toBeNull();
+  });
+
+  it('Phase 8: a voice code redeemed from another phone fails the claim (falls through to the not-found/expired path)', async () => {
+    // The WHERE clause's `or(source='web', target_phone=$phone)` excludes this
+    // row at the DB level — the mock simulates that by returning no rows for
+    // both the redeem and the mark-expired attempts (the row IS pending and
+    // unexpired, but for a different target_phone, so a real DB wouldn't match either).
+    mockUpdate.mockReturnValueOnce(makeChain([]));
+    mockUpdate.mockReturnValueOnce(makeChain([]));
+
+    const result = await claimHandoffCode('org-1', 'VOZ-AB2K9M', '+51999999999', 'wa-session-1');
     expect(result).toBeNull();
   });
 });

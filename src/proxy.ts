@@ -109,7 +109,12 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/sign/') ||
     path.startsWith('/api/sign/') ||
     path.startsWith('/auth/') ||    // /auth/callback — must not be blocked before code exchange
-    path === '/onboarding';          // guard is in the page itself (may have session but no profile)
+    path === '/onboarding' ||        // guard is in the page itself (may have session but no profile)
+    // Agent Phase 8: Vapi's server webhook authenticates itself (x-vapi-secret /
+    // Authorization: Bearer, timingSafeEqual — see the route handler), not via
+    // a NextAuth session. Listed explicitly for clarity even though it's
+    // already outside /dashboard and /portal, same as Phase 7's /api/agent/web/*.
+    path === '/api/agent/voice/vapi';
 
   if (!user) {
     if (isPublicRoute) return response; // sign page — public, CSP still applied above

@@ -29,6 +29,7 @@ import { getLead } from './lead';
 import { buildAgentSystemPrompt, buildTurnContext } from './prompt';
 import { buildAgentTools } from './tools';
 import { detectLanguage } from './language';
+import { estimateCostUsd } from './pricing';
 import type { AgentLanguage, RunAgentTurnArgs, RunAgentTurnResult } from './types';
 
 export type { RunAgentTurnArgs, RunAgentTurnResult } from './types';
@@ -163,6 +164,11 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     leadIdRef,
     attribution: session.attribution,
     webSessionId: args.webSessionId ?? null,
+    // Phase 8/9: shadowMode is evaluated once per turn (never mid-turn, so a
+    // tool's suppress/send decision stays consistent within one reply).
+    shadowMode: !dryRun && config.shadowMode,
+    whatsappConversationId: args.whatsappConversationId ?? null,
+    voiceCallId: null, // run-turn.ts never runs voice turns (blueprint §0.2) — voice/assistant.ts sets its own tool ctx.
   });
 
   const systemPrompt = buildAgentSystemPrompt(config);
@@ -171,6 +177,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     attribution: session.attribution,
     humanReplies: args.humanRepliesSinceLastTurn ?? [],
     timezone: config.timezone,
+    businessHours: config.businessHours.weekly,
     channel: args.channel,
     pageContext: args.pageContext ?? null,
     notes: args.extraContextNotes ?? [],
@@ -198,7 +205,32 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     messages,
   });
 
-  const finalMessage = await runner.done();
+  // OVERRIDE (item A "Override" note, blueprint §0.12): iterate the runner
+  // instead of calling runner.done() so multi-iteration tool loops (e.g. one
+  // search_listings call followed by the final reply) get their FULL token
+  // usage summed here, not just the last API call's. Previously only the
+  // final message's usage was persisted, silently undercounting both the
+  // daily token budget and per-message cost for any turn with >=1 tool call.
+  let finalMessage: Anthropic.Beta.Messages.BetaMessage | null = null;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCacheReadTokens = 0;
+  let totalCacheWriteTokens = 0;
+  for await (const message of runner) {
+    finalMessage = message;
+    totalInputTokens += message.usage.input_tokens;
+    totalOutputTokens += message.usage.output_tokens;
+    totalCacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+    totalCacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
+  }
+  if (!finalMessage) throw new Error('[agent/run-turn] toolRunner produced no messages');
+  const costUsd = estimateCostUsd({
+    input: totalInputTokens,
+    output: totalOutputTokens,
+    cacheRead: totalCacheReadTokens,
+    cacheWrite: totalCacheWriteTokens,
+  });
+
   const fullMessages = runner.params.messages;
   // We never push a 'system'-role message (that's the mid-conversation-system-message
   // feature — unused here), but the SDK's type allows for one, so narrow defensively.
@@ -222,8 +254,11 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
       sessionId: session.id,
       role: m.role,
       content: m.content,
-      inputTokens: isLast ? finalMessage.usage.input_tokens : null,
-      outputTokens: isLast ? finalMessage.usage.output_tokens : null,
+      // Summed across every iteration of this turn's tool loop (see the
+      // OVERRIDE note above) — attributed to the final row, same as before.
+      inputTokens: isLast ? totalInputTokens : null,
+      outputTokens: isLast ? totalOutputTokens : null,
+      ...(isLast ? { costUsd: String(costUsd) } : {}),
       ...(isLast && m.role === 'assistant'
         ? { sendStatus: !dryRun && config.shadowMode ? 'shadow_pending' : 'sent' }
         : {}),
