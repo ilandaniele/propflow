@@ -12,7 +12,27 @@
 -- admins can add/rename/reorder stages without a migration. `status` is left
 -- untouched (legacy, no longer rendered).
 -- =============================================================================
-ALTER TABLE "crm_leads" DROP CONSTRAINT IF EXISTS "crm_leads_stage_check";
+-- Drop the old stage enum CHECK by *definition*, not by its (possibly
+-- environment-dependent) generated name: any CHECK on crm_leads that
+-- mentions "stage" and constrains it to an IN-list / ANY(ARRAY) literal.
+-- Excludes the new format check by name so this stays idempotent across
+-- re-runs after it's been created.
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'crm_leads'::regclass
+      AND contype = 'c'
+      AND conname <> 'crm_leads_stage_format'
+      AND pg_get_constraintdef(oid) ILIKE '%stage%'
+      AND (pg_get_constraintdef(oid) ILIKE '% IN %' OR pg_get_constraintdef(oid) ILIKE '%= ANY (ARRAY%')
+  LOOP
+    EXECUTE format('ALTER TABLE "crm_leads" DROP CONSTRAINT %I', r.conname);
+  END LOOP;
+END $$;
 
 DO $$
 BEGIN

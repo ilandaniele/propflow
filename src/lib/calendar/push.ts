@@ -11,7 +11,7 @@ import { and, eq } from 'drizzle-orm';
 import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { env } from '@/lib/env';
 import type { VisitRecord } from '@/lib/agent/visits/types';
-import { buildVisitEvent, deleteEvent, insertEvent, patchEvent } from './google/events';
+import { buildVisitEvent, deleteEvent, eventIdForVisit, insertEvent, patchEvent } from './google/events';
 import { getConnectionForProfile } from './connections';
 import { CALENDAR_JOB_KINDS, CalendarAuthError, GoogleApiError } from './types';
 import { enqueueJob } from '@/lib/agent/jobs';
@@ -61,6 +61,8 @@ export async function pushVisitToCalendar(payload: Record<string, unknown>, orgI
   const connection = await getConnectionForProfile(orgId, visit.profileId);
   if (!connection || connection.status !== 'active' || !connection.writeEvents) return;
 
+  const now = new Date();
+
   try {
     if (WRITE_STATUSES.includes(visit.status)) {
       const config = await getOrCreateAgentConfig(orgId);
@@ -92,9 +94,22 @@ export async function pushVisitToCalendar(payload: Record<string, unknown>, orgI
         includeId: !visit.googleEventId,
       });
 
-      const result = visit.googleEventId
-        ? await patchEvent(connection.id, connection.calendarId, visit.googleEventId, body)
-        : await insertEvent(connection.id, connection.calendarId, body);
+      let result: { id: string; etag: string };
+      if (visit.googleEventId) {
+        try {
+          result = await patchEvent(connection.id, connection.calendarId, visit.googleEventId, body);
+        } catch (e) {
+          if (e instanceof GoogleApiError && (e.status === 404 || e.status === 410)) {
+            // The event is gone on Google's side (deleted out from under us) — recreate it
+            // instead of erroring forever on every retry.
+            result = await insertEvent(connection.id, connection.calendarId, { ...body, id: eventIdForVisit(visit.id) });
+          } else {
+            throw e;
+          }
+        }
+      } else {
+        result = await insertEvent(connection.id, connection.calendarId, body);
+      }
 
       await db
         .update(propertyVisits)
@@ -103,16 +118,16 @@ export async function pushVisitToCalendar(payload: Record<string, unknown>, orgI
           googleEventEtag: result.etag,
           googleConnectionId: connection.id,
           googleSyncStatus: 'synced',
-          googleSyncedAt: new Date(),
+          googleSyncedAt: now,
           googleSyncError: null,
-          updatedAt: new Date(),
+          updatedAt: now,
         })
         .where(eq(propertyVisits.id, visitId));
     } else if (DETACH_STATUSES.includes(visit.status)) {
       if (visit.googleEventId) await deleteEvent(connection.id, connection.calendarId, visit.googleEventId);
       await db
         .update(propertyVisits)
-        .set({ googleSyncStatus: 'detached', googleEventId: null, updatedAt: new Date() })
+        .set({ googleSyncStatus: 'detached', googleEventId: null, googleSyncedAt: now, updatedAt: now })
         .where(eq(propertyVisits.id, visitId));
     }
   } catch (e) {

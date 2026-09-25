@@ -16,14 +16,12 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { Errors, ok, type ActionResult } from '@/lib/errors';
 import { log } from '@/lib/log';
-import { enqueueJob } from '@/lib/agent/jobs';
 import {
   disconnectConnection,
   getConnectionForProfile,
   updateConnectionSettings,
 } from '@/lib/calendar/connections';
-import { resolveVisitDrift } from '@/lib/calendar/sync';
-import { CALENDAR_JOB_KINDS } from '@/lib/calendar/types';
+import { enqueueCalendarSyncOnce, resolveVisitDrift } from '@/lib/calendar/sync';
 
 const AVAILABILITY_PATH = '/dashboard/visits/availability';
 const VISITS_PATH = '/dashboard/visits';
@@ -126,7 +124,8 @@ export async function resyncCalendarNow(): Promise<ActionResult<null>> {
   const connection = await getConnectionForProfile(ctx.orgId, ctx.profile.id);
   if (!connection) return Errors.NOT_FOUND();
 
-  await enqueueJob({ orgId: ctx.orgId, kind: CALENDAR_JOB_KINDS.sync, payload: { connectionId: connection.id } });
+  // Deduped: a click racing the connection's own self-scheduled sync must not fan out.
+  await enqueueCalendarSyncOnce(ctx.orgId, connection.id);
 
   revalidatePath(AVAILABILITY_PATH);
   return ok(null);

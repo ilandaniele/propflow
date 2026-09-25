@@ -69,7 +69,7 @@ vi.mock('@/lib/calendar/google/events', () => ({ listEventsPage: (...args: unkno
 const mockEnqueueVisitPush = vi.fn(async () => true);
 vi.mock('@/lib/calendar/push', () => ({ enqueueVisitPush: (...args: unknown[]) => mockEnqueueVisitPush(...args) }));
 
-import { classifyRemoteChange, resolveVisitDrift, syncCalendarConnection } from '@/lib/calendar/sync';
+import { classifyRemoteChange, enqueueCalendarSyncOnce, resolveVisitDrift, syncCalendarConnection } from '@/lib/calendar/sync';
 import { GoogleApiError } from '@/lib/calendar/types';
 
 const CONNECTION_ROW = {
@@ -177,6 +177,76 @@ describe('syncCalendarConnection', () => {
     await syncCalendarConnection({ connectionId: 'conn-1' }, 'org-1');
 
     expect(mockEnqueueJob).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-1', kind: 'calendar.sync', payload: { connectionId: 'conn-1' } }));
+  });
+
+  it('does not self-schedule a second sync job when one is already pending/processing for the connection', async () => {
+    pushSelect([CONNECTION_ROW]);
+    mockListEventsPage.mockResolvedValueOnce({ items: [], nextPageToken: null, nextSyncToken: 'tok' });
+    pushSelect([]); // reconcile: no stale visits
+    pushSelect([{ id: 'already-queued-job' }]); // enqueueCalendarSyncOnce's dedupe check
+
+    await syncCalendarConnection({ connectionId: 'conn-1' }, 'org-1');
+
+    expect(mockEnqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('ignores a remote event whose id does not match the visit\'s own googleEventId', async () => {
+    pushSelect([CONNECTION_ROW]);
+    mockListEventsPage.mockResolvedValueOnce({
+      items: [{ id: 'e-duplicate', status: 'cancelled', extendedProperties: { private: { pfOrgId: 'org-1', pfVisitId: 'v1' } } }],
+      nextPageToken: null,
+      nextSyncToken: 'tok2',
+    });
+    pushSelect([{ id: 'v1', status: 'scheduled', startsAt: new Date(), endsAt: new Date(), googleEventId: 'e-real' }]);
+    pushSelect([]); // reconcile
+
+    await syncCalendarConnection({ connectionId: 'conn-1' }, 'org-1');
+
+    expect(updatedRows.some((r) => r.table === 'propertyVisits')).toBe(false);
+  });
+
+  it('passes timeMin for an initial full sync (no syncToken) and omits it once a syncToken exists', async () => {
+    pushSelect([CONNECTION_ROW]); // syncToken: null
+    mockListEventsPage.mockResolvedValueOnce({ items: [], nextPageToken: null, nextSyncToken: 'tok' });
+    pushSelect([]); // reconcile
+
+    await syncCalendarConnection({ connectionId: 'conn-1' }, 'org-1');
+
+    expect(mockListEventsPage.mock.calls[0][2].timeMin).toBeInstanceOf(Date);
+
+    mockListEventsPage.mockClear();
+    pushSelect([{ ...CONNECTION_ROW, syncToken: 'existing-token' }]);
+    mockListEventsPage.mockResolvedValueOnce({ items: [], nextPageToken: null, nextSyncToken: 'tok2' });
+    pushSelect([]); // reconcile
+
+    await syncCalendarConnection({ connectionId: 'conn-1' }, 'org-1');
+
+    expect(mockListEventsPage.mock.calls[0][2].timeMin).toBeUndefined();
+  });
+});
+
+// ─── enqueueCalendarSyncOnce ─────────────────────────────────────────────────
+
+describe('enqueueCalendarSyncOnce', () => {
+  it('enqueues when there is no pending/processing sync job for the connection', async () => {
+    pushSelect([]);
+    const result = await enqueueCalendarSyncOnce('org-1', 'conn-1');
+    expect(result).toBe(true);
+    expect(mockEnqueueJob).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-1', kind: 'calendar.sync', payload: { connectionId: 'conn-1' } }));
+  });
+
+  it('skips when a sync job is already pending/processing for the connection', async () => {
+    pushSelect([{ id: 'job-already-queued' }]);
+    const result = await enqueueCalendarSyncOnce('org-1', 'conn-1');
+    expect(result).toBe(false);
+    expect(mockEnqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('forwards runAt when given', async () => {
+    pushSelect([]);
+    const runAt = new Date('2026-07-01T00:00:00Z');
+    await enqueueCalendarSyncOnce('org-1', 'conn-1', runAt);
+    expect(mockEnqueueJob).toHaveBeenCalledWith(expect.objectContaining({ runAt }));
   });
 });
 

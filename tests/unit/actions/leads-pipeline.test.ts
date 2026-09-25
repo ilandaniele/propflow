@@ -71,11 +71,23 @@ const mockAssignLeadManually = vi.fn();
 const mockRouteLead = vi.fn();
 const mockUpsertRoutingMember = vi.fn();
 const mockRemoveRoutingMember = vi.fn();
+
+/** Real class (not a mock) so `instanceof` checks in lead-routing.ts still work against this mocked module. */
+const { RoutingMemberForbiddenError } = vi.hoisted(() => ({
+  RoutingMemberForbiddenError: class RoutingMemberForbiddenError extends Error {
+    constructor(message = '[leads/routing] profile is not an org admin') {
+      super(message);
+      this.name = 'RoutingMemberForbiddenError';
+    }
+  },
+}));
+
 vi.mock('@/lib/leads/routing', () => ({
   assignLeadManually: (...args: unknown[]) => mockAssignLeadManually(...args),
   routeLead: (...args: unknown[]) => mockRouteLead(...args),
   upsertRoutingMember: (...args: unknown[]) => mockUpsertRoutingMember(...args),
   removeRoutingMember: (...args: unknown[]) => mockRemoveRoutingMember(...args),
+  RoutingMemberForbiddenError,
 }));
 
 const mockStopFollowups = vi.fn();
@@ -210,10 +222,16 @@ describe('reorderStages', () => {
 // ─── upsertRoutingMemberAction — non-admin profile -> FORBIDDEN ─────────────
 
 describe('upsertRoutingMemberAction', () => {
-  it('returns FORBIDDEN when the target profile is not an org admin', async () => {
-    mockUpsertRoutingMember.mockImplementation(async () => { throw new Error('profile is not an org admin'); });
+  it('returns FORBIDDEN when the target profile is not an org admin (typed error)', async () => {
+    mockUpsertRoutingMember.mockImplementation(async () => { throw new RoutingMemberForbiddenError(); });
     const result = await upsertRoutingMemberAction({ profileId: PROFILE_UUID, pipeline: 'both', weight: 1, active: true, maxOpenLeads: null });
     expect(result.error?.code).toBe('FORBIDDEN');
+  });
+
+  it('returns INTERNAL (not FORBIDDEN) for any other thrown error', async () => {
+    mockUpsertRoutingMember.mockImplementation(async () => { throw new Error('db exploded'); });
+    const result = await upsertRoutingMemberAction({ profileId: PROFILE_UUID, pipeline: 'both', weight: 1, active: true, maxOpenLeads: null });
+    expect(result.error?.code).toBe('INTERNAL_ERROR');
   });
 
   it('succeeds for a valid admin profile', async () => {

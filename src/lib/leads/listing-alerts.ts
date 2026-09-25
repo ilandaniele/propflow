@@ -14,6 +14,7 @@ import { sendVisitMessage } from '@/lib/agent/visits/messaging';
 import { appendSystemOutboundToHistory } from '@/lib/agent/session';
 import { getPipelineStages } from './stages';
 import { parseFollowupPolicy, type FollowupPolicy } from './types';
+import { localDateParts } from '@/lib/agent/visits/slots';
 
 export interface LeadMatchInput {
   operationType: string | null;
@@ -73,6 +74,7 @@ async function loadOptedInOrgs(): Promise<OrgAlertConfig[]> {
   const rows = await db.select().from(agentConfigs);
   const out: OrgAlertConfig[] = [];
   for (const row of rows) {
+    if (row.shadowMode) continue;
     const channelsEnabled = (row.channelsEnabled as { whatsapp?: boolean } | null) ?? {};
     if (!channelsEnabled.whatsapp) continue;
     const policy = parseFollowupPolicy(row.followupPolicy);
@@ -115,7 +117,13 @@ export async function runListingAlertScan(now: Date = new Date()): Promise<{ org
 }
 
 async function scanOrg(org: OrgAlertConfig, now: Date): Promise<{ sent: number; skipped: number }> {
-  const { orgId, policy } = org;
+  const { orgId, policy, timezone } = org;
+
+  const minuteOfDay = localDateParts(now, timezone).minuteOfDay;
+  if (minuteOfDay < policy.sendWindow.startMinute || minuteOfDay >= policy.sendWindow.endMinute) {
+    return { sent: 0, skipped: 0 };
+  }
+
   const publishedSince = new Date(now.getTime() - 26 * 60 * 60 * 1000);
 
   const recentListings = await db

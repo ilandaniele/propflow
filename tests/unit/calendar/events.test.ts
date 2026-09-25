@@ -10,7 +10,7 @@ vi.mock('@/lib/calendar/connections', () => ({
   getValidAccessToken: (...args: unknown[]) => mockGetValidAccessToken(...args),
 }));
 
-import { buildVisitEvent, eventIdForVisit, insertEvent, sanitizeForCalendar } from '@/lib/calendar/google/events';
+import { buildVisitEvent, eventIdForVisit, insertEvent, listEventsPage, sanitizeForCalendar } from '@/lib/calendar/google/events';
 import type { VisitRecord } from '@/lib/agent/visits/types';
 
 beforeEach(() => {
@@ -50,6 +50,12 @@ describe('sanitizeForCalendar', () => {
   it('returns empty string for null/undefined', () => {
     expect(sanitizeForCalendar(null, 10)).toBe('');
     expect(sanitizeForCalendar(undefined, 10)).toBe('');
+  });
+
+  it('HTML-escapes & < > " \' so the description cannot inject markup', () => {
+    expect(sanitizeForCalendar(`<script>alert("x")</script> & 'quote'`, 200)).toBe(
+      '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &#39;quote&#39;',
+    );
   });
 });
 
@@ -126,6 +132,34 @@ describe('insertEvent', () => {
     expect(secondCallUrl).toContain(`/events/${body.id}`);
     const secondCallInit = fetchMock.mock.calls[1][1] as RequestInit;
     expect(secondCallInit.method).toBe('PATCH');
+    vi.unstubAllGlobals();
+  });
+});
+
+// ─── listEventsPage: timeMin only on an initial full sync ──────────────────
+
+describe('listEventsPage', () => {
+  it('sends timeMin when there is no syncToken and no pageToken', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const timeMin = new Date('2026-05-01T00:00:00Z');
+    await listEventsPage('conn-1', 'primary', { timeMin });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.get('timeMin')).toBe(timeMin.toISOString());
+    vi.unstubAllGlobals();
+  });
+
+  it('omits timeMin once a syncToken is present', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ items: [] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await listEventsPage('conn-1', 'primary', { syncToken: 'tok', timeMin: new Date() });
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(url.searchParams.has('timeMin')).toBe(false);
+    expect(url.searchParams.get('syncToken')).toBe('tok');
     vi.unstubAllGlobals();
   });
 });

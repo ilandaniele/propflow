@@ -167,9 +167,13 @@ const CSV_HEADER = [
 // quote so they are read back as text.
 const FORMULA_PREFIX_RE = /^[=+\-@\t\r]/;
 
+// E.164 phone numbers ("+51987654321") start with '+' but are never formulas
+// — don't mangle them with a guard prefix.
+const E164_PHONE_RE = /^\+\d+$/;
+
 function escapeCsvCell(raw: string): string {
   let cell = raw;
-  if (FORMULA_PREFIX_RE.test(cell)) cell = `'${cell}`;
+  if (FORMULA_PREFIX_RE.test(cell) && !E164_PHONE_RE.test(cell)) cell = `'${cell}`;
   if (/["\r\n]/.test(cell) || cell.includes(',')) {
     return `"${cell.replace(/"/g, '""')}"`;
   }
@@ -229,15 +233,16 @@ function maskPhone(phone: string | null): string {
 export function buildQaEmail(a: {
   orgName: string;
   weekStart: string;
+  timeZone: string;
   counts: { handoffs: number; complaints: number; takeovers: number };
   top: QaRow[];
-  dashboardUrl: string;
+  dashboardUrl: string | null;
 }): { subject: string; html: string } {
   const subject = `QA semanal — ${a.orgName} — semana del ${a.weekStart}`;
 
   const rowsHtml = a.top.map((r) => `
     <tr>
-      <td style="padding:4px 8px;border-bottom:1px solid #e2e8f0">${escapeHtml(formatCsvDate(r.occurredAt, 'America/Lima'))}</td>
+      <td style="padding:4px 8px;border-bottom:1px solid #e2e8f0">${escapeHtml(formatCsvDate(r.occurredAt, a.timeZone))}</td>
       <td style="padding:4px 8px;border-bottom:1px solid #e2e8f0">${escapeHtml(r.isComplaint ? 'Queja' : r.kind === 'handoff' ? 'Traspaso' : 'Toma manual')}</td>
       <td style="padding:4px 8px;border-bottom:1px solid #e2e8f0">${escapeHtml(r.reason)}</td>
       <td style="padding:4px 8px;border-bottom:1px solid #e2e8f0">${escapeHtml(r.leadName ?? '—')}</td>
@@ -266,11 +271,11 @@ export function buildQaEmail(a: {
     </thead>
     <tbody>${rowsHtml || '<tr><td colspan="6" style="padding:8px">Sin eventos.</td></tr>'}</tbody>
   </table>
-  <p style="margin:24px 0">
+  ${a.dashboardUrl ? `<p style="margin:24px 0">
     <a href="${escapeHtml(a.dashboardUrl)}" style="background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block">
       Ver todos en el panel
     </a>
-  </p>
+  </p>` : ''}
   <p style="color:#64748b;font-size:12px;margin-top:32px">
     Reporte automático generado por PropFlow. El CSV completo está disponible en el panel de QA del agente.
   </p>
@@ -284,6 +289,7 @@ async function emailAdmins(a: {
   orgId: string;
   exportId: string;
   weekStart: string;
+  timeZone: string;
   rows: QaRow[];
   counts: { handoffs: number; complaints: number; takeovers: number };
 }): Promise<number> {
@@ -307,13 +313,14 @@ async function emailAdmins(a: {
     .sort((x, y) => Number(y.isComplaint) - Number(x.isComplaint) || x.occurredAt.getTime() - y.occurredAt.getTime())
     .slice(0, QA_EMAIL_TOP_ROWS);
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const { subject, html } = buildQaEmail({
     orgName,
     weekStart: a.weekStart,
+    timeZone: a.timeZone,
     counts: a.counts,
     top,
-    dashboardUrl: `${siteUrl}/dashboard/agent/qa`,
+    dashboardUrl: siteUrl ? `${siteUrl}/dashboard/agent/qa` : null,
   });
 
   let sent = 0;
@@ -385,6 +392,7 @@ export async function generateWeeklyQaExport(
       orgId,
       exportId: inserted[0].id,
       weekStart,
+      timeZone,
       rows,
       counts: { handoffs: handoffCount, complaints: complaintCount, takeovers: takeoverCount },
     }).catch((e) => {

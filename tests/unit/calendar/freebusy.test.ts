@@ -78,6 +78,16 @@ describe('googleFreeBusyProvider', () => {
     expect(result.get('advisor-2')).toEqual([{ start: FROM, end: TO }]);
   });
 
+  it('blocks the full range when Google returns a 200 with a per-calendar error (fail-closed)', async () => {
+    mockListConnections.mockResolvedValue([conn()]);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      calendars: { primary: { errors: [{ reason: 'notFound' }] } },
+    }), { status: 200 })));
+
+    const result = await googleFreeBusyProvider({ orgId: 'org-1', profileIds: ['advisor-1'], from: FROM, to: TO });
+    expect(result.get('advisor-1')).toEqual([{ start: FROM, end: TO }]);
+  });
+
   it('omits a revoked advisor entirely (fail-open)', async () => {
     mockListConnections.mockResolvedValue([conn()]);
     mockGetValidAccessToken.mockImplementation(async () => { throw new CalendarAuthError(); });

@@ -120,6 +120,17 @@ describe('toCsv', () => {
       expect(csv).toContain(`'${malicious}`);
     }
   });
+
+  it('does not guard an E.164 phone number even though it starts with +', () => {
+    const csv = toCsv([row({ leadPhone: '+51987654321' })], 'America/Lima');
+    expect(csv).toContain(',+51987654321,');
+    expect(csv).not.toContain(",'+51987654321,");
+  });
+
+  it('still guards a non-E.164 value starting with + (not all-digits)', () => {
+    const csv = toCsv([row({ leadName: '+1abc' })], 'America/Lima');
+    expect(csv).toContain("'+1abc");
+  });
 });
 
 describe('buildQaEmail', () => {
@@ -127,6 +138,7 @@ describe('buildQaEmail', () => {
     const { html } = buildQaEmail({
       orgName: 'Acme Realty',
       weekStart: '2026-09-07',
+      timeZone: 'America/Lima',
       counts: { handoffs: 3, complaints: 1, takeovers: 2 },
       top: [row({ leadName: '<script>alert(1)</script>', leadPhone: '+51987654321' })],
       dashboardUrl: 'https://example.com/dashboard/agent/qa',
@@ -136,6 +148,43 @@ describe('buildQaEmail', () => {
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('+51•••••321');
     expect(html).not.toContain('987654321');
+  });
+
+  it('formats event dates using the passed timeZone, not a hardcoded one', () => {
+    // 2026-09-08T10:05:00Z: 2026-09-08 05:05 in America/Lima (UTC-5) vs 2026-09-08 12:05 in Europe/Madrid (UTC+2).
+    const lima = buildQaEmail({
+      orgName: 'Acme Realty',
+      weekStart: '2026-09-07',
+      timeZone: 'America/Lima',
+      counts: { handoffs: 1, complaints: 0, takeovers: 0 },
+      top: [row()],
+      dashboardUrl: null,
+    });
+    const madrid = buildQaEmail({
+      orgName: 'Acme Realty',
+      weekStart: '2026-09-07',
+      timeZone: 'Europe/Madrid',
+      counts: { handoffs: 1, complaints: 0, takeovers: 0 },
+      top: [row()],
+      dashboardUrl: null,
+    });
+
+    expect(lima.html).toContain('2026-09-08 05:05');
+    expect(madrid.html).toContain('2026-09-08 12:05');
+  });
+
+  it('omits the dashboard button when dashboardUrl is null', () => {
+    const { html } = buildQaEmail({
+      orgName: 'Acme Realty',
+      weekStart: '2026-09-07',
+      timeZone: 'America/Lima',
+      counts: { handoffs: 0, complaints: 0, takeovers: 0 },
+      top: [],
+      dashboardUrl: null,
+    });
+
+    expect(html).not.toContain('<a href=');
+    expect(html).not.toContain('Ver todos en el panel');
   });
 });
 

@@ -22,6 +22,14 @@ import { notifyAdvisorLeadAssigned } from './notify-advisor';
 // Same query-builder surface as `db` (select/insert/update/delete/execute).
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** Thrown by upsertRoutingMember() when the target profile isn't an org admin — callers map this to FORBIDDEN. */
+export class RoutingMemberForbiddenError extends Error {
+  constructor(message = '[leads/routing] profile is not an org admin') {
+    super(message);
+    this.name = 'RoutingMemberForbiddenError';
+  }
+}
+
 /**
  * Pure. `mode` is 'manual' is handled by the caller (routeLead no-ops before
  * calling this) — pickAssignee only ever runs round_robin or weighted.
@@ -270,7 +278,7 @@ export async function upsertRoutingMember(orgId: string, m: Omit<RoutingMember, 
     .where(and(eq(profiles.id, m.profileId), eq(profiles.orgId, orgId)))
     .limit(1);
   if (!profRows[0] || profRows[0].role !== 'admin') {
-    throw new Error('[leads/routing] profile is not an org admin');
+    throw new RoutingMemberForbiddenError();
   }
 
   const existingRows = await db

@@ -43,7 +43,7 @@ function safeEqual(a: string, b: string): boolean {
 
 function errorRedirect(request: NextRequest, code: string): NextResponse {
   const response = NextResponse.redirect(new URL(`${AVAILABILITY_PATH}?calendar=error:${code}`, request.url));
-  response.cookies.delete(CALENDAR_STATE_COOKIE);
+  response.cookies.delete({ name: CALENDAR_STATE_COOKIE, path: '/api/calendar/google' });
   return response;
 }
 
@@ -95,6 +95,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   log.info('[calendar/callback] connected', { orgId: ctx.orgId });
   const response = NextResponse.redirect(new URL(`${AVAILABILITY_PATH}?calendar=connected`, request.url));
-  response.cookies.delete(CALENDAR_STATE_COOKIE);
+  response.cookies.delete({ name: CALENDAR_STATE_COOKIE, path: '/api/calendar/google' });
   return response;
 }

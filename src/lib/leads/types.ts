@@ -67,8 +67,10 @@ export type FollowupStopReason =
   | 'window_closed'
   | 'superseded'
   | 'disabled'
+  | 'shadow_mode'
   | 'no_phone'
-  | 'no_session';
+  | 'no_session'
+  | 'job_failed';
 
 export interface FollowupPolicy {
   enabled: boolean;

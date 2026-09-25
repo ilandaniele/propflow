@@ -86,7 +86,7 @@ vi.mock('@/lib/agent/session', () => ({ getSessionById, appendSystemOutboundToHi
 vi.mock('@/lib/agent/visits/messaging', () => ({ sendVisitMessage }));
 vi.mock('@/lib/log', () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
-import { runFollowupJob, scheduleFollowupSequence, stopFollowups } from '@/lib/leads/followups';
+import { runFollowupJob, scheduleFollowupSequence, stopFollowups, sweepStaleFollowups } from '@/lib/leads/followups';
 
 const LEAD = {
   id: 'lead-1', fullName: 'Jane Doe', phone: '+51999999999', operationType: 'rent', pipeline: 'demand',
@@ -133,6 +133,17 @@ describe('leads/followups — scheduleFollowupSequence', () => {
     expect(queues.insertCalls[0].values).toHaveLength(2); // lead_followups rows
     expect(queues.insertCalls[1].values).toHaveLength(2); // agent_jobs rows
     expect(queues.updateCalls[1].values).toMatchObject({ followupState: 'active' });
+  });
+
+  it('does not schedule anything when the org policy is disabled', async () => {
+    getOrCreateAgentConfig.mockResolvedValue({
+      timezone: 'America/Lima',
+      followupPolicy: { enabled: false, steps: [{ afterMinutes: 120, kind: 'text' }], sendWindow: { startMinute: 0, endMinute: 1440 }, listingAlerts: { enabled: false, coldAfterDays: 7, minDaysBetween: 7, maxPerOrgPerRun: 200, template: 'propiedad_nueva' } },
+    });
+    const count = await scheduleFollowupSequence({ orgId: 'org-1', leadId: 'lead-1', sessionId: 'session-1', anchorAt: new Date('2026-03-10T12:00:00Z') });
+    expect(count).toBe(0);
+    expect(queues.updateCalls).toHaveLength(0);
+    expect(queues.insertCalls).toHaveLength(0);
   });
 });
 
@@ -188,6 +199,21 @@ describe('leads/followups — runFollowupJob', () => {
     expect(queues.updateCalls[1].values).toMatchObject({ status: 'scheduled' });
   });
 
+  it('stops the sequence when the org is in shadow mode', async () => {
+    queues.updateReturnQueue.push([{ ...FOLLOWUP_ROW }]); // claim
+    getOrCreateAgentConfig.mockResolvedValue({
+      timezone: 'America/Lima',
+      shadowMode: true,
+      followupPolicy: { enabled: true, steps: [{ afterMinutes: 120, kind: 'text' }], sendWindow: { startMinute: 0, endMinute: 1440 }, listingAlerts: { enabled: false, coldAfterDays: 7, minDaysBetween: 7, maxPerOrgPerRun: 200, template: 'propiedad_nueva' } },
+    });
+    queues.updateReturnQueue.push([{ id: 'fu-2' }]); // stopFollowups' cancel-scheduled update
+    await runFollowupJob({ followupId: 'fu-1' }, 'org-1');
+    expect(queues.updateCalls[1].values).toMatchObject({ status: 'cancelled', stopReason: 'shadow_mode' });
+    expect(queues.updateCalls[2].values).toMatchObject({ status: 'cancelled', stopReason: 'shadow_mode' });
+    expect(queues.updateCalls[3].values).toMatchObject({ followupState: 'stopped', followupStopReason: 'shadow_mode' });
+    expect(sendVisitMessage).not.toHaveBeenCalled();
+  });
+
   it('sends and marks the lead completed on the last step', async () => {
     queues.updateReturnQueue.push([{ ...FOLLOWUP_ROW, step: 2, kind: 'template', templateName: 'seguimiento_lead' }]); // claim
     await runFollowupJob({ followupId: 'fu-1' }, 'org-1');
@@ -197,5 +223,30 @@ describe('leads/followups — runFollowupJob', () => {
     expect(queues.updateCalls[1].values).toMatchObject({ status: 'sent' });
     expect(appendSystemOutboundToHistory).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-1', sessionId: 'session-1' }));
     expect(queues.updateCalls[2].values).toMatchObject({ followupState: 'completed' });
+  });
+});
+
+describe('leads/followups — sweepStaleFollowups', () => {
+  it('marks stale scheduled rows failed and recomputes next_followup_at per affected lead', async () => {
+    queues.updateReturnQueue.push([
+      { orgId: 'org-1', leadId: 'lead-1' },
+      { orgId: 'org-1', leadId: 'lead-2' },
+    ]); // the sweep UPDATE ... RETURNING
+    queues.selectQueue.push([{ scheduledFor: new Date('2026-03-12T14:00:00Z') }]); // recompute for lead-1
+    queues.selectQueue.push([]); // recompute for lead-2 (none left scheduled)
+
+    const count = await sweepStaleFollowups(new Date('2026-03-14T00:00:00Z'));
+
+    expect(count).toBe(2);
+    expect(queues.updateCalls[0].values).toMatchObject({ status: 'failed', stopReason: 'job_failed' });
+    expect(queues.updateCalls[1].values).toMatchObject({ nextFollowupAt: new Date('2026-03-12T14:00:00Z') });
+    expect(queues.updateCalls[2].values).toMatchObject({ nextFollowupAt: null });
+  });
+
+  it('is a no-op when nothing is stale', async () => {
+    queues.updateReturnQueue.push([]); // no stale rows
+    const count = await sweepStaleFollowups(new Date('2026-03-14T00:00:00Z'));
+    expect(count).toBe(0);
+    expect(queues.updateCalls).toHaveLength(1); // just the sweep UPDATE itself
   });
 });

@@ -56,6 +56,7 @@ const mockPatchEvent = vi.fn();
 const mockDeleteEvent = vi.fn();
 vi.mock('@/lib/calendar/google/events', () => ({
   buildVisitEvent: vi.fn(() => ({ summary: 's', description: 'd' })),
+  eventIdForVisit: (id: string) => `pfv${id}`,
   insertEvent: (...args: unknown[]) => mockInsertEvent(...args),
   patchEvent: (...args: unknown[]) => mockPatchEvent(...args),
   deleteEvent: (...args: unknown[]) => mockDeleteEvent(...args),
@@ -188,5 +189,44 @@ describe('pushVisitToCalendar', () => {
     mockInsertEvent.mockResolvedValue({ id: 'pfv1', etag: '"e1"' });
     await pushVisitToCalendar({ visitId: 'visit-1', force: true }, 'org-1');
     expect(mockInsertEvent).toHaveBeenCalled();
+  });
+
+  it('recreates the event via insert when patch 404s (deleted out from under us)', async () => {
+    pushSelect([visitRow({ googleEventId: 'pfv-stale' })]);
+    mockPatchEvent.mockRejectedValue(new GoogleApiError(404, 'notFound'));
+    mockInsertEvent.mockResolvedValue({ id: 'pfv-new', etag: '"e2"' });
+
+    await pushVisitToCalendar({ visitId: 'visit-1' }, 'org-1');
+
+    expect(mockPatchEvent).toHaveBeenCalled();
+    expect(mockInsertEvent).toHaveBeenCalled();
+    expect(updatedRows.at(-1)).toMatchObject({ googleSyncStatus: 'synced', googleEventId: 'pfv-new' });
+  });
+
+  it('recreates the event via insert when patch 410s (gone)', async () => {
+    pushSelect([visitRow({ googleEventId: 'pfv-stale' })]);
+    mockPatchEvent.mockRejectedValue(new GoogleApiError(410, 'deleted'));
+    mockInsertEvent.mockResolvedValue({ id: 'pfv-new', etag: '"e2"' });
+
+    await pushVisitToCalendar({ visitId: 'visit-1' }, 'org-1');
+
+    expect(mockInsertEvent).toHaveBeenCalled();
+    expect(updatedRows.at(-1)).toMatchObject({ googleSyncStatus: 'synced', googleEventId: 'pfv-new' });
+  });
+
+  it('still throws (does not fall back to insert) on a non-404/410 patch failure', async () => {
+    pushSelect([visitRow({ googleEventId: 'pfv-stale' })]);
+    mockPatchEvent.mockRejectedValue(new GoogleApiError(500, 'backendError'));
+
+    await expect(pushVisitToCalendar({ visitId: 'visit-1' }, 'org-1')).rejects.toBeInstanceOf(GoogleApiError);
+    expect(mockInsertEvent).not.toHaveBeenCalled();
+  });
+
+  it('sets googleSyncedAt on detach', async () => {
+    pushSelect([visitRow({ status: 'cancelled', googleEventId: 'pfv1' })]);
+
+    await pushVisitToCalendar({ visitId: 'visit-1' }, 'org-1');
+
+    expect(updatedRows.at(-1)).toMatchObject({ googleSyncStatus: 'detached', googleEventId: null, googleSyncedAt: expect.any(Date) });
   });
 });

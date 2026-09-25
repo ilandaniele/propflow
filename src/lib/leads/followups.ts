@@ -9,7 +9,7 @@
 
 import { db } from '@/lib/db';
 import { agentJobs, crmLeads, leadFollowups, propertyVisits } from '@/lib/db/schema';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 import { log } from '@/lib/log';
 import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { getLead } from '@/lib/agent/lead';
@@ -39,6 +39,7 @@ export async function scheduleFollowupSequence(a: {
 }): Promise<number> {
   const config = await getOrCreateAgentConfig(a.orgId);
   const policy = parseFollowupPolicy(config.followupPolicy);
+  if (!policy.enabled) return 0;
   const plan = planFollowups(a.anchorAt, policy, config.timezone);
   if (plan.length === 0) return 0;
 
@@ -160,6 +161,39 @@ async function recomputeNextFollowupAt(orgId: string, leadId: string): Promise<v
     .where(and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, orgId)));
 }
 
+const STALE_FOLLOWUP_HOURS = 24;
+
+/**
+ * Backstop for jobs.ts' own retry/backoff: registerAgentJobHandler() passes
+ * no attempt count to the handler, so runFollowupJob can't tell "this was
+ * the final attempt" — on send failure it just reverts to 'scheduled' and
+ * lets agent_jobs retry. If agent_jobs eventually exhausts MAX_ATTEMPTS and
+ * marks its own row 'failed', the lead_followups row is never touched again
+ * and would stay 'scheduled' forever. Called once a day from the
+ * lead-alerts cron route, this sweeps any row still 'scheduled' more than
+ * 24h past its scheduledFor, marks it 'failed' and recomputes
+ * crm_leads.next_followup_at for every affected lead.
+ */
+export async function sweepStaleFollowups(now: Date = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - STALE_FOLLOWUP_HOURS * 60 * 60 * 1000);
+
+  const stale = await db
+    .update(leadFollowups)
+    .set({ status: 'failed', stopReason: 'job_failed', updatedAt: now })
+    .where(and(eq(leadFollowups.status, 'scheduled'), lt(leadFollowups.scheduledFor, cutoff)))
+    .returning({ orgId: leadFollowups.orgId, leadId: leadFollowups.leadId });
+
+  const seen = new Set<string>();
+  for (const row of stale) {
+    const key = `${row.orgId}:${row.leadId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    await recomputeNextFollowupAt(row.orgId, row.leadId);
+  }
+
+  return stale.length;
+}
+
 /**
  * Job handler for lead.followup (registered by register-jobs.ts). Claims the
  * row (status scheduled -> sending) so a retried/duplicate job is a no-op,
@@ -190,6 +224,12 @@ export async function runFollowupJob(payload: Record<string, unknown>, orgId: st
 
   const config = await getOrCreateAgentConfig(orgId);
   const policy = parseFollowupPolicy(config.followupPolicy);
+
+  if (config.shadowMode) {
+    await db.update(leadFollowups).set({ status: 'cancelled', stopReason: 'shadow_mode', updatedAt: now }).where(eq(leadFollowups.id, row.id));
+    await stopFollowups(orgId, row.leadId, 'shadow_mode');
+    return;
+  }
 
   const decision = decideFollowup({
     kind: row.kind as 'text' | 'template',

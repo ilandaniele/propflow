@@ -63,7 +63,11 @@ export async function syncCalendarConnection(payload: Record<string, unknown>, o
       pages++;
       let page;
       try {
-        page = await listEventsPage(connection.id, connection.calendarId, { syncToken, pageToken });
+        // No syncToken yet -> this page belongs to an initial (or post-410) full sync;
+        // bound it to the last 30 days so we don't walk the calendar's entire history.
+        // timeMin is dropped the moment a syncToken exists — Google rejects the combination.
+        const timeMin = syncToken ? undefined : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        page = await listEventsPage(connection.id, connection.calendarId, { syncToken, pageToken, timeMin });
       } catch (e) {
         if (e instanceof GoogleApiError && e.status === 410) {
           // fullSyncRequired — clear both tokens and restart from scratch.
@@ -98,12 +102,8 @@ export async function syncCalendarConnection(payload: Record<string, unknown>, o
     await reconcileStaleVisits(orgId, connection.id, connection.profileId);
   } finally {
     // Self-schedule the next run — ensureCalendarSyncJobs is only the safety net.
-    await enqueueJob({
-      orgId,
-      kind: CALENDAR_JOB_KINDS.sync,
-      payload: { connectionId: connection.id },
-      runAt: new Date(Date.now() + SYNC_INTERVAL_MS),
-    });
+    // Deduped: resyncCalendarNow and reconnecting the same connection can race this.
+    await enqueueCalendarSyncOnce(orgId, connection.id, new Date(Date.now() + SYNC_INTERVAL_MS));
   }
 }
 
@@ -118,6 +118,9 @@ async function processRemoteEvent(orgId: string, connectionId: string, connectio
     .limit(1);
   const visit = visitRows[0];
   if (!visit || !ACTIVE_STATUSES.includes(visit.status)) return;
+  // Google duplicates copy extendedProperties onto the copy, so pfVisitId alone can
+  // match a stale/duplicate event — only trust it once it's also the visit's own event.
+  if (item.id !== visit.googleEventId) return;
 
   const change = classifyRemoteChange(
     { status: visit.status, startsAt: visit.startsAt, endsAt: visit.endsAt, googleEventId: visit.googleEventId },
@@ -173,7 +176,7 @@ async function reconcileStaleVisits(orgId: string, connectionId: string, profile
       gt(propertyVisits.startsAt, dayAgo),
       or(
         inArray(propertyVisits.googleSyncStatus, ['pending', 'error']),
-        sql`${propertyVisits.updatedAt} > ${propertyVisits.googleSyncedAt}`,
+        and(inArray(propertyVisits.status, ACTIVE_STATUSES), sql`${propertyVisits.updatedAt} > ${propertyVisits.googleSyncedAt}`),
         and(inArray(propertyVisits.status, ACTIVE_STATUSES), isNull(propertyVisits.googleEventId)),
       ),
     ))
@@ -182,6 +185,29 @@ async function reconcileStaleVisits(orgId: string, connectionId: string, profile
   for (const row of staleRows) {
     await enqueueVisitPush(orgId, row.id, profileId);
   }
+}
+
+/**
+ * Enqueues a single calendar.sync job for connectionId, unless one is already
+ * pending/processing for it. Shared by every call site that can enqueue a
+ * sync for the same connection concurrently — this file's own self-schedule,
+ * resyncCalendarNow, and reconnecting (saveConnection) — so those chains
+ * never fan out into duplicate jobs. Returns whether a job was enqueued.
+ */
+export async function enqueueCalendarSyncOnce(orgId: string, connectionId: string, runAt?: Date): Promise<boolean> {
+  const pending = await db
+    .select({ id: agentJobs.id })
+    .from(agentJobs)
+    .where(and(
+      eq(agentJobs.kind, CALENDAR_JOB_KINDS.sync),
+      inArray(agentJobs.status, ['pending', 'processing']),
+      sql`${agentJobs.payload} ->> 'connectionId' = ${connectionId}`,
+    ))
+    .limit(1);
+  if (pending.length > 0) return false;
+
+  await enqueueJob({ orgId, kind: CALENDAR_JOB_KINDS.sync, payload: { connectionId }, ...(runAt ? { runAt } : {}) });
+  return true;
 }
 
 /** Active connections that haven't synced in >5min and have no pending/processing calendar.sync job already queued -> enqueue one. Returns the count enqueued. */
@@ -198,19 +224,7 @@ export async function ensureCalendarSyncJobs(now: Date = new Date()): Promise<nu
 
   let enqueued = 0;
   for (const conn of staleConnections) {
-    const pending = await db
-      .select({ id: agentJobs.id })
-      .from(agentJobs)
-      .where(and(
-        eq(agentJobs.kind, CALENDAR_JOB_KINDS.sync),
-        inArray(agentJobs.status, ['pending', 'processing']),
-        sql`${agentJobs.payload} ->> 'connectionId' = ${conn.id}`,
-      ))
-      .limit(1);
-    if (pending.length > 0) continue;
-
-    await enqueueJob({ orgId: conn.orgId, kind: CALENDAR_JOB_KINDS.sync, payload: { connectionId: conn.id } });
-    enqueued++;
+    if (await enqueueCalendarSyncOnce(conn.orgId, conn.id)) enqueued++;
   }
   return enqueued;
 }

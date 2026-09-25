@@ -26,6 +26,7 @@ import {
   encodeStateCookie,
   exchangeCode,
   refreshAccessToken,
+  revokeToken,
 } from '@/lib/calendar/google/oauth';
 import { CalendarAuthError, GoogleApiError, GOOGLE_CALENDAR_SCOPES } from '@/lib/calendar/types';
 
@@ -166,5 +167,24 @@ describe('refreshAccessToken', () => {
   it('gives CalendarAuthError on invalid_grant', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 })));
     await expect(refreshAccessToken('revoked-rt')).rejects.toBeInstanceOf(CalendarAuthError);
+  });
+});
+
+// ─── revokeToken ─────────────────────────────────────────────────────────────
+
+describe('revokeToken', () => {
+  it('sends a bounded abort signal so a hung revoke endpoint cannot block disconnect', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await revokeToken('some-refresh-token');
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('is best-effort: swallows a network failure instead of throwing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+    await expect(revokeToken('some-refresh-token')).resolves.toBeUndefined();
   });
 });

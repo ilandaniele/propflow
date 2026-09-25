@@ -89,6 +89,7 @@ async function postToTokenEndpoint(body: URLSearchParams): Promise<TokenResponse
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
+    signal: AbortSignal.timeout(10_000),
   });
   const json = (await res.json().catch(() => ({}))) as TokenResponse;
   if (!res.ok || json.error) {
@@ -159,6 +160,7 @@ export async function revokeToken(token: string): Promise<void> {
     await fetch(`${REVOKE_ENDPOINT}?token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     // swallow — disconnect proceeds regardless (blueprint §3.1)

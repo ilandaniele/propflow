@@ -79,6 +79,13 @@ describe('missing state cookie', () => {
     expect(mockExchangeCode).not.toHaveBeenCalled();
     expect(mockSaveConnection).not.toHaveBeenCalled();
   });
+
+  it('clears the state cookie scoped to the same path it was set on, so the browser actually deletes it', async () => {
+    const response = await callCallback('https://app.test/api/calendar/google/callback?state=abc&code=xyz');
+    const setCookie = response.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('pf_cal_oauth=');
+    expect(setCookie).toContain('Path=/api/calendar/google');
+  });
 });
 
 describe('expired or tampered cookie', () => {
@@ -149,6 +156,9 @@ describe('happy path', () => {
       expect.objectContaining({ orgId: ORG_UUID, profileId: PROFILE_UUID, googleEmail: 'advisor@gmail.com' }),
     );
     expect(response.headers.get('location')).toContain('calendar=connected');
+
+    const setCookie = response.headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('Path=/api/calendar/google');
   });
 });
 

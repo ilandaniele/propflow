@@ -176,6 +176,26 @@ describe('leads/listing-alerts — runListingAlertScan', () => {
     expect(sendVisitMessage).not.toHaveBeenCalled();
   });
 
+  it('skips an org with shadowMode on entirely', async () => {
+    queues.selectQueue.push([{ ...CONFIG_ROW_ENABLED, shadowMode: true }]); // agentConfigs
+    const result = await runListingAlertScan();
+    expect(result).toEqual({ orgs: 0, sent: 0, skipped: 0, failed: 0 });
+    expect(sendVisitMessage).not.toHaveBeenCalled();
+  });
+
+  it('skips an org this run when now falls outside policy.sendWindow in org timezone', async () => {
+    // 2026-09-08T04:00:00Z == 2026-09-07 23:00 America/Lima (UTC-5) — before a 09:00-20:00 window.
+    const narrowWindow = {
+      ...CONFIG_ROW_ENABLED,
+      followupPolicy: { ...CONFIG_ROW_ENABLED.followupPolicy, sendWindow: { startMinute: 540, endMinute: 1200 } },
+    };
+    queues.selectQueue.push([narrowWindow]); // agentConfigs
+
+    const result = await runListingAlertScan(new Date('2026-09-08T04:00:00.000Z'));
+    expect(result).toEqual({ orgs: 1, sent: 0, skipped: 0, failed: 0 });
+    expect(sendVisitMessage).not.toHaveBeenCalled();
+  });
+
   it('respects maxPerOrgPerRun', async () => {
     const cappedConfig = { ...CONFIG_ROW_ENABLED, followupPolicy: { ...CONFIG_ROW_ENABLED.followupPolicy, listingAlerts: { ...CONFIG_ROW_ENABLED.followupPolicy.listingAlerts, maxPerOrgPerRun: 1 } } };
     queues.selectQueue.push([cappedConfig]);

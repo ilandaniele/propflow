@@ -18,7 +18,7 @@ import { log } from '@/lib/log';
 import { db } from '@/lib/db';
 import { agentConfigs } from '@/lib/db/schema';
 import { getOrCreateAgentConfig } from '@/lib/agent/config';
-import { removeRoutingMember, upsertRoutingMember } from '@/lib/leads/routing';
+import { removeRoutingMember, RoutingMemberForbiddenError, upsertRoutingMember } from '@/lib/leads/routing';
 import { parseFollowupPolicy } from '@/lib/leads/types';
 import type { ActionResult } from '@/lib/errors';
 
@@ -72,9 +72,10 @@ export async function upsertRoutingMemberAction(input: UpsertRoutingMemberInput)
 
   try {
     await upsertRoutingMember(ctx.orgId, parsed.data);
-  } catch {
-    // upsertRoutingMember throws when the profile isn't an org admin.
-    return Errors.FORBIDDEN();
+  } catch (e) {
+    if (e instanceof RoutingMemberForbiddenError) return Errors.FORBIDDEN();
+    log.error('[actions/lead-routing] upsertRoutingMember failed', { orgId: ctx.orgId, error: e instanceof Error ? e.message : 'unknown' });
+    return Errors.INTERNAL();
   }
 
   log.adminAction(ctx.userId, 'leads_routing_member_upsert', 'lead_routing_member', parsed.data.profileId);

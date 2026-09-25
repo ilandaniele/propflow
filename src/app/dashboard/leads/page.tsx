@@ -23,6 +23,8 @@ export const metadata: Metadata = { title: 'Leads' };
 const CARDS_FETCH_LIMIT = 1000;
 const CARDS_PER_STAGE_CAP = 100;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface LeadsSearchParams {
   pipeline?: string;
   advisor?: string;
@@ -45,7 +47,8 @@ export default async function LeadsPage({
   // false-positive on keys that only exist in one of them.
 
   const pipeline: Pipeline = params.pipeline === 'supply' ? 'supply' : 'demand';
-  const advisorParam = params.advisor ?? 'all';
+  const rawAdvisor = params.advisor ?? 'all';
+  const advisorParam = rawAdvisor === 'all' || rawAdvisor === 'unassigned' || UUID_RE.test(rawAdvisor) ? rawAdvisor : 'all';
   const q = (params.q ?? '').trim().slice(0, 80);
 
   const filters = [eq(crmLeads.orgId, ctx.orgId), eq(crmLeads.pipeline, pipeline)];

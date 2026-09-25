@@ -35,7 +35,7 @@ export function clearFreeBusyCache(): void {
 }
 
 interface FreeBusyResponse {
-  calendars: Record<string, { busy?: { start: string; end: string }[] }>;
+  calendars: Record<string, { busy?: { start: string; end: string }[]; errors?: { reason?: string }[] }>;
 }
 
 async function fetchBusyForConnection(conn: CalendarConnection, from: Date, to: Date): Promise<Interval[]> {
@@ -49,6 +49,18 @@ async function fetchBusyForConnection(conn: CalendarConnection, from: Date, to: 
       timeoutMs: FREEBUSY_TIMEOUT_MS,
       body: { timeMin: from.toISOString(), timeMax: to.toISOString(), items: [{ id: conn.calendarId }] },
     });
+    const calendarErrors = res.calendars?.[conn.calendarId]?.errors;
+    if (calendarErrors && calendarErrors.length > 0) {
+      // A 200 with a per-calendar error (e.g. notFound) is still a failure for this calendar —
+      // fail-closed the same as a transport/HTTP error, not fail-open as an empty busy list.
+      log.warn('[calendar/freebusy] google freeBusy reported a per-calendar error, blocking full range for this advisor', {
+        connectionId: conn.id,
+        reason: calendarErrors[0]?.reason ?? null,
+      });
+      const blockedOnError: Interval[] = [{ start: from, end: to }];
+      cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, intervals: blockedOnError });
+      return blockedOnError;
+    }
     const busy = (res.calendars?.[conn.calendarId]?.busy ?? []).map((b) => ({ start: new Date(b.start), end: new Date(b.end) }));
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, intervals: busy });
     return busy;

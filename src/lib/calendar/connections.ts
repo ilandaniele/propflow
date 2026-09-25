@@ -17,6 +17,7 @@ import { log } from '@/lib/log';
 import { enqueueJob } from '@/lib/agent/jobs';
 import { ACTIVE_VISIT_STATUSES } from '@/lib/agent/visits/types';
 import { refreshAccessToken, revokeToken } from './google/oauth';
+import { enqueueCalendarSyncOnce } from './sync';
 import { CALENDAR_JOB_KINDS } from './types';
 import { CalendarAuthError, type CalendarConnection } from './types';
 
@@ -104,7 +105,9 @@ export async function saveConnection(a: SaveConnectionArgs): Promise<CalendarCon
     .returning();
   const row = rows[0];
 
-  await enqueueJob({ orgId: a.orgId, kind: CALENDAR_JOB_KINDS.sync, payload: { connectionId: row.id } });
+  // Deduped: a reconnect racing this connection's own self-scheduled sync (or a
+  // pending resyncCalendarNow) must not fan out into a second sync job.
+  await enqueueCalendarSyncOnce(a.orgId, row.id);
 
   const now = new Date();
   const activeVisits = await db
@@ -145,6 +148,17 @@ export async function disconnectConnection(orgId: string, profileId: string): Pr
     .update(propertyVisits)
     .set({ googleSyncStatus: 'none', googleConnectionId: null, googleEventId: null, updatedAt: new Date() })
     .where(and(eq(propertyVisits.orgId, orgId), eq(propertyVisits.googleConnectionId, conn.id)));
+  // Also catch visits still mid-flight (queued for push but never got as far as
+  // googleConnectionId, or errored out before it was set) so they don't linger
+  // pointing at a connection that no longer exists.
+  await db
+    .update(propertyVisits)
+    .set({ googleSyncStatus: 'none', googleConnectionId: null, googleEventId: null, updatedAt: new Date() })
+    .where(and(
+      eq(propertyVisits.orgId, orgId),
+      eq(propertyVisits.profileId, profileId),
+      inArray(propertyVisits.googleSyncStatus, ['pending', 'error']),
+    ));
 
   return true;
 }

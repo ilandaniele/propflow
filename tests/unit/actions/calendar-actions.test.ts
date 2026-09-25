@@ -51,15 +51,11 @@ vi.mock('@/lib/calendar/connections', () => ({
 }));
 
 const mockResolveVisitDrift = vi.fn();
+const mockEnqueueCalendarSyncOnce = vi.fn();
 
 vi.mock('@/lib/calendar/sync', () => ({
   resolveVisitDrift: (...args: unknown[]) => mockResolveVisitDrift(...args),
-}));
-
-const mockEnqueueJob = vi.fn();
-
-vi.mock('@/lib/agent/jobs', () => ({
-  enqueueJob: (...args: unknown[]) => mockEnqueueJob(...args),
+  enqueueCalendarSyncOnce: (...args: unknown[]) => mockEnqueueCalendarSyncOnce(...args),
 }));
 
 import { disconnectCalendar, resolveCalendarDrift, resyncCalendarNow, updateCalendarSettings } from '@/app/actions/calendar';
@@ -72,6 +68,7 @@ beforeEach(() => {
   mockUpdateConnectionSettings.mockImplementation(async () => undefined);
   mockGetConnectionForProfile.mockImplementation(async () => ({ id: CONNECTION_UUID }));
   mockResolveVisitDrift.mockImplementation(async () => ({ ok: true }));
+  mockEnqueueCalendarSyncOnce.mockImplementation(async () => true);
 });
 
 // ─── UNAUTHORIZED ────────────────────────────────────────────────────────────
@@ -168,20 +165,18 @@ describe('resolveCalendarDrift', () => {
 // ─── resyncCalendarNow ────────────────────────────────────────────────────────
 
 describe('resyncCalendarNow', () => {
-  it('enqueues calendar.sync for the caller own connection', async () => {
+  it('enqueues calendar.sync (deduped) for the caller own connection', async () => {
     const result = await resyncCalendarNow();
     expect(result.error).toBeUndefined();
     expect(mockGetConnectionForProfile).toHaveBeenCalledWith(ORG_UUID, PROFILE_UUID);
-    expect(mockEnqueueJob).toHaveBeenCalledWith(
-      expect.objectContaining({ orgId: ORG_UUID, kind: 'calendar.sync', payload: { connectionId: CONNECTION_UUID } }),
-    );
+    expect(mockEnqueueCalendarSyncOnce).toHaveBeenCalledWith(ORG_UUID, CONNECTION_UUID);
   });
 
   it('returns NOT_FOUND when there is no connection', async () => {
     mockGetConnectionForProfile.mockImplementation(async () => null);
     const result = await resyncCalendarNow();
     expect(result.error?.code).toBe('NOT_FOUND');
-    expect(mockEnqueueJob).not.toHaveBeenCalled();
+    expect(mockEnqueueCalendarSyncOnce).not.toHaveBeenCalled();
   });
 });
 

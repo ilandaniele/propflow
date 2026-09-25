@@ -38,11 +38,15 @@ export function eventIdForVisit(visitId: string): string {
 // ─── Sanitization ────────────────────────────────────────────────────────────
 
 const CONTROL_CHARS_RE = /[\u0000-\u001f\u007f-\u009f]/g;
+const HTML_UNSAFE_RE = /[&<>"']/g;
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
+/** Google renders the event description as HTML — escape it so lead/free-text input can never inject markup. */
 export function sanitizeForCalendar(s: string | null | undefined, max: number): string {
   if (!s) return '';
   const stripped = s.replace(CONTROL_CHARS_RE, ' ').replace(/\s+/g, ' ').trim();
-  return stripped.length > max ? stripped.slice(0, max).trim() : stripped;
+  const capped = stripped.length > max ? stripped.slice(0, max).trim() : stripped;
+  return capped.replace(HTML_UNSAFE_RE, (c) => HTML_ESCAPES[c]);
 }
 
 // ─── Event body ──────────────────────────────────────────────────────────────
@@ -163,10 +167,11 @@ interface ListEventsResponse {
 export async function listEventsPage(
   connId: string,
   calId: string,
-  a: { syncToken?: string | null; pageToken?: string | null },
+  a: { syncToken?: string | null; pageToken?: string | null; timeMin?: Date },
 ): Promise<{ items: GoogleEventItem[]; nextPageToken: string | null; nextSyncToken: string | null }> {
-  // showDeleted + singleEvents=true; NO timeMin/privateExtendedProperty —
-  // both are incompatible with syncToken (Google API constraint).
+  // showDeleted + singleEvents=true; NO privateExtendedProperty, and timeMin only
+  // when there's no syncToken yet (initial/post-410 full sync) — both timeMin and
+  // privateExtendedProperty are incompatible with syncToken (Google API constraint).
   const query: Record<string, string | undefined> = {
     showDeleted: 'true',
     singleEvents: 'true',
@@ -174,6 +179,7 @@ export async function listEventsPage(
   };
   if (a.pageToken) query.pageToken = a.pageToken;
   else if (a.syncToken) query.syncToken = a.syncToken;
+  else if (a.timeMin) query.timeMin = a.timeMin.toISOString();
 
   const res = await googleFetch<ListEventsResponse>(connId, `/calendars/${encodeURIComponent(calId)}/events`, { query });
 
