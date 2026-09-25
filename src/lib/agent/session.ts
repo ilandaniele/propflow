@@ -300,6 +300,26 @@ export async function appendSessionMessage(args: PersistMessageArgs): Promise<st
  * rewriting content to the human-edited text, since "the sent text is what
  * counts" for future turns. `discard` sets 'shadow_discarded'.
  */
+/**
+ * OVERRIDE (Phase 5-6, item A): follow-up and listing-alert messages
+ * (src/lib/leads/followups.ts, listing-alerts.ts) are sent outside a live
+ * agent turn — sendVisitMessage() writes them to whatsapp_messages but they
+ * never pass through appendSessionMessage(), so without this helper the
+ * agent's next turn would have no idea it already reached out. Appends the
+ * text as an assistant row with send_status 'sent' so getSessionHistory()
+ * includes it like any other sent reply. Item E calls this after a
+ * successful send; item H is the ordering note for other builders.
+ */
+export async function appendSystemOutboundToHistory(a: { orgId: string; sessionId: string; text: string }): Promise<string> {
+  return appendSessionMessage({
+    orgId: a.orgId,
+    sessionId: a.sessionId,
+    role: 'assistant',
+    content: [{ type: 'text', text: a.text }],
+    sendStatus: 'sent',
+  });
+}
+
 export async function setAssistantMessageSendStatus(
   messageId: string,
   status: 'sent' | 'shadow_discarded',

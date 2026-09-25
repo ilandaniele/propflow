@@ -100,7 +100,8 @@
     "closeNav": "Cerrar navegación",
     "mainNav": "Navegación principal",
     "utilities": "Servicios",
-    "responsables": "Responsables"
+    "responsables": "Responsables",
+    "agentQa": "QA del agente"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -2141,5 +2142,63 @@
     "colTenants": "Inquilinos",
     "noTenants": "Ninguno",
     "syncNote": "Datos sincronizados desde Airtable. Para editar, actualiza en Airtable y re-sincroniza."
+  },
+  "calendar": {
+    "connect": "Conectar Google Calendar",
+    "connected": "Conectado",
+    "disconnect": "Desconectar",
+    "reconnect": "Reconectar",
+    "statusRevoked": "Conexión revocada",
+    "statusError": "Error de sincronización",
+    "freebusyToggle": "Bloquear horario ocupado en Google",
+    "writeEventsToggle": "Crear eventos en Google Calendar",
+    "driftTitle": "El horario cambió en Google",
+    "driftBody": "Este evento fue movido directamente en Google Calendar. Elige qué horario debe quedar.",
+    "keepPropflow": "Mantener horario de PropFlow",
+    "applyGoogle": "Aplicar horario de Google",
+    "detachedBody": "El evento fue eliminado en Google Calendar. La visita sigue activa en PropFlow.",
+    "lastSync": "Última sincronización"
+  },
+  "leadsPipeline": {
+    "title": "Pipeline de leads",
+    "demand": "Demanda",
+    "supply": "Oferta",
+    "moveTo": "Mover a",
+    "unassigned": "Sin asignar",
+    "allAdvisors": "Todos los asesores",
+    "assign": "Asignar",
+    "autoAssign": "Auto-asignar",
+    "stages": "Etapas",
+    "addStage": "Agregar etapa",
+    "archive": "Archivar",
+    "deleteStage": "Eliminar etapa",
+    "moveLeadsTo": "Mover leads a",
+    "routing": "Enrutamiento",
+    "routingMode": "Modo de enrutamiento",
+    "rrLabel": "Round robin",
+    "weightedLabel": "Ponderado",
+    "manualLabel": "Manual",
+    "weight": "Peso",
+    "maxOpen": "Máx. leads abiertos",
+    "followups": "Seguimientos",
+    "followupsEnabled": "Seguimientos automáticos activos",
+    "listingAlerts": "Alertas de nuevas propiedades",
+    "followupActive": "Seguimiento activo",
+    "followupStopped": "Seguimiento detenido",
+    "nextFollowup": "Próximo seguimiento",
+    "more": "más",
+    "doNotContact": "No contactar"
+  },
+  "agentQa": {
+    "title": "QA del agente",
+    "week": "Semana",
+    "handoffs": "Traspasos",
+    "complaints": "Quejas",
+    "takeovers": "Tomas manuales",
+    "download": "Descargar CSV",
+    "rangeFrom": "Desde",
+    "rangeTo": "Hasta",
+    "generate": "Generar",
+    "empty": "No hay exportaciones QA todavía."
   }
 }
