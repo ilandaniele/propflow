@@ -8,10 +8,24 @@
  */
 
 import { db } from '@/lib/db';
-import { organizations, listings, unitImages, listingImages } from '@/lib/db/schema';
+import { organizations, listings, unitImages, listingImages, agentConfigs } from '@/lib/db/schema';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { getOrgWebChannel } from '@/lib/widget/channel';
+
+/**
+ * Read-only — never getOrCreateAgentConfig(), which upserts a row on first
+ * read. This runs on every unauthenticated /p/<orgSlug> request, so it must
+ * never write: an org with no agent_configs row yet just means public pages
+ * are disabled, not "create one and check again".
+ */
+async function isPublicPagesEnabled(orgId: string): Promise<boolean> {
+  const rows = await db
+    .select({ publicPagesEnabled: agentConfigs.publicPagesEnabled })
+    .from(agentConfigs)
+    .where(eq(agentConfigs.orgId, orgId))
+    .limit(1);
+  return rows[0]?.publicPagesEnabled ?? false;
+}
 
 const PAGE_SIZE = 24;
 const MAX_DETAIL_IMAGES = 12;
@@ -62,8 +76,7 @@ export async function getPublicOrg(orgSlug: string): Promise<PublicOrg | null> {
   const org = rows[0];
   if (!org || !org.slug) return null;
 
-  const config = await getOrCreateAgentConfig(org.id);
-  if (!config.publicPagesEnabled) return null;
+  if (!(await isPublicPagesEnabled(org.id))) return null;
 
   const webChannel = await getOrgWebChannel(org.id);
 

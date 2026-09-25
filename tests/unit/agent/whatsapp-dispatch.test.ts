@@ -25,6 +25,8 @@ const {
   scheduleFollowupSequence,
   getOrCreateSession,
   redeemWebHandoffCode,
+  appendSessionMessage,
+  appendSystemOutboundToHistory,
 } = vi.hoisted(() => ({
   callOrder: [] as string[],
   getSessionByConversation: vi.fn(),
@@ -57,6 +59,8 @@ const {
   scheduleFollowupSequence: vi.fn(async () => 0),
   getOrCreateSession: vi.fn(),
   redeemWebHandoffCode: vi.fn(async () => ({ kind: 'none' }) as unknown),
+  appendSessionMessage: vi.fn(async () => 'msg-1'),
+  appendSystemOutboundToHistory: vi.fn(async () => 'msg-2'),
 }));
 
 const SESSION = {
@@ -103,6 +107,8 @@ vi.mock('@/lib/agent/session', () => ({
   },
   setSessionAttributionIfEmpty: vi.fn(async () => false),
   setAssistantMessageSendStatus,
+  appendSessionMessage,
+  appendSystemOutboundToHistory,
 }));
 
 vi.mock('@/lib/agent/lead', () => ({ getLead }));
@@ -296,6 +302,23 @@ describe('agent/whatsapp-dispatch — processWhatsAppAgentTurn', () => {
       senderKind: 'agent',
     }));
     expect(finishClaimedInbound).toHaveBeenCalledWith(['m1', 'm2'], 'processed');
+  });
+
+  it('a visit_booked redemption appends both the inbound text and the confirmation reply to agent_messages', async () => {
+    redeemWebHandoffCode.mockResolvedValue({ kind: 'visit_booked', replyText: '¡Listo! Confirmamos tu visita.', visitId: 'visit-9' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+
+    expect(appendSessionMessage).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: 'org-1',
+      sessionId: 'session-1',
+      role: 'user',
+      content: [{ type: 'text', text: expect.stringContaining('Hola') }],
+    }));
+    expect(appendSystemOutboundToHistory).toHaveBeenCalledWith({
+      orgId: 'org-1',
+      sessionId: 'session-1',
+      text: '¡Listo! Confirmamos tu visita.',
+    });
   });
 
   it('a visit_booked redemption still releases the session lock (finally block)', async () => {

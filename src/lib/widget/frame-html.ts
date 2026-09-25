@@ -38,14 +38,23 @@ const FRAME_RUNTIME_JS = `(function () {
   var greetingEl = document.getElementById("pf-greeting");
   var ctaEl = document.getElementById("pf-cta");
   var currentListingRef = CONFIG.initialListingRef || null;
+  // In-memory fallback so the widget still works when localStorage is
+  // unavailable (blocked third-party storage, privacy mode, etc.) — the
+  // session just won't survive a full page reload in that case.
+  var memToken = null;
 
   document.title = CONFIG.orgName ? (CONFIG.orgName + " — Chat") : "Chat";
   if (greetingEl && CONFIG.greeting) greetingEl.textContent = CONFIG.greeting;
 
   function getToken() {
-    try { return window.localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+    try {
+      var stored = window.localStorage.getItem(TOKEN_KEY);
+      if (stored) return stored;
+    } catch (e) { /* storage unavailable — fall through to memory */ }
+    return memToken;
   }
   function setToken(token) {
+    memToken = token || null;
     try { window.localStorage.setItem(TOKEN_KEY, token); } catch (e) { /* storage unavailable */ }
   }
 
@@ -154,6 +163,28 @@ const FRAME_RUNTIME_JS = `(function () {
     notifyParent("propflow:resize", { height: document.documentElement.scrollHeight });
   }) : null;
   if (resizeObserver) resizeObserver.observe(document.documentElement);
+
+  // On (re)load, if we already hold a token, replay the transcript so a
+  // reopened widget doesn't start blank.
+  function loadTranscript() {
+    var token = getToken();
+    if (!token) return;
+    fetch("/api/agent/web/messages?publicKey=" + encodeURIComponent(CONFIG.publicKey), {
+      method: "GET",
+      headers: { "Authorization": "Bearer " + token },
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (r) {
+        if (!r.ok || !r.body || !Array.isArray(r.body.messages)) return;
+        r.body.messages.forEach(function (m) {
+          if (m && typeof m.text === "string" && (m.role === "user" || m.role === "assistant")) {
+            addBubble(m.role, m.text);
+          }
+        });
+      })
+      .catch(function () { /* transcript replay is best-effort — a blank widget still works */ });
+  }
+  loadTranscript();
 })();
 `;
 

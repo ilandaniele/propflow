@@ -28,11 +28,6 @@ vi.mock('@/lib/db', () => ({
   db: { select: (...a: unknown[]) => mockSelect(...a) },
 }));
 
-const mockGetOrCreateAgentConfig = vi.fn();
-vi.mock('@/lib/agent/config', () => ({
-  getOrCreateAgentConfig: (...a: unknown[]) => mockGetOrCreateAgentConfig(...a),
-}));
-
 const mockGetOrgWebChannel = vi.fn();
 vi.mock('@/lib/widget/channel', () => ({
   getOrgWebChannel: (...a: unknown[]) => mockGetOrgWebChannel(...a),
@@ -45,7 +40,6 @@ const ORG_ID = '550e8400-e29b-41d4-a716-446655440020';
 beforeEach(() => {
   vi.clearAllMocks();
   selectQueue = [];
-  mockGetOrCreateAgentConfig.mockResolvedValue({ publicPagesEnabled: true });
   mockGetOrgWebChannel.mockResolvedValue(null);
 });
 
@@ -65,13 +59,21 @@ describe('getPublicOrg', () => {
 
   it('returns null when public_pages_enabled is false', async () => {
     selectQueue.push([{ id: ORG_ID, name: 'Acme', slug: 'acme' }]);
-    mockGetOrCreateAgentConfig.mockResolvedValue({ publicPagesEnabled: false });
+    selectQueue.push([{ publicPagesEnabled: false }]);
+    const org = await getPublicOrg('acme');
+    expect(org).toBeNull();
+  });
+
+  it('returns null (read-only, never creates a row) when the org has no agent_configs row yet', async () => {
+    selectQueue.push([{ id: ORG_ID, name: 'Acme', slug: 'acme' }]);
+    selectQueue.push([]); // no agent_configs row for this org
     const org = await getPublicOrg('acme');
     expect(org).toBeNull();
   });
 
   it('omits webPublicKey when the web channel is not enabled', async () => {
     selectQueue.push([{ id: ORG_ID, name: 'Acme', slug: 'acme' }]);
+    selectQueue.push([{ publicPagesEnabled: true }]);
     mockGetOrgWebChannel.mockResolvedValue({ enabled: false, publicKey: 'pk_x' });
     const org = await getPublicOrg('acme');
     expect(org).toEqual({ id: ORG_ID, name: 'Acme', slug: 'acme', webPublicKey: null });
@@ -79,6 +81,7 @@ describe('getPublicOrg', () => {
 
   it('includes webPublicKey when the web channel is enabled', async () => {
     selectQueue.push([{ id: ORG_ID, name: 'Acme', slug: 'acme' }]);
+    selectQueue.push([{ publicPagesEnabled: true }]);
     mockGetOrgWebChannel.mockResolvedValue({ enabled: true, publicKey: 'pk_x' });
     const org = await getPublicOrg('acme');
     expect(org?.webPublicKey).toBe('pk_x');

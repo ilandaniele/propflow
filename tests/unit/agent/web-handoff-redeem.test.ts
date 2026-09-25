@@ -14,6 +14,7 @@ const {
   recordAgentEvent,
   updateSet,
   updateWhere,
+  selectLimit,
 } = vi.hoisted(() => ({
   claimHandoffCode: vi.fn(),
   finishHandoffCode: vi.fn(async () => {}),
@@ -24,6 +25,7 @@ const {
   recordAgentEvent: vi.fn(async () => {}),
   updateSet: vi.fn(() => ({ where: updateWhereImpl })),
   updateWhere: vi.fn(async () => {}),
+  selectLimit: vi.fn(async () => [] as Array<{ phone: string | null; sourceMeta: Record<string, unknown> | null }>),
 }));
 
 function updateWhereImpl(...args: unknown[]) {
@@ -40,7 +42,10 @@ vi.mock('@/lib/agent/visits/service', () => ({ bookVisit }));
 vi.mock('@/lib/agent/session', () => ({ setSessionLead }));
 vi.mock('@/lib/agent/events', () => ({ recordAgentEvent }));
 vi.mock('@/lib/db', () => ({
-  db: { update: vi.fn(() => ({ set: updateSet })) },
+  db: {
+    update: vi.fn(() => ({ set: updateSet })),
+    select: vi.fn(() => ({ from: () => ({ where: () => ({ limit: selectLimit }) }) })),
+  },
 }));
 
 import { redeemWebHandoffCode } from '@/lib/agent/web-handoff-redeem';
@@ -73,6 +78,7 @@ describe('redeemWebHandoffCode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     bookVisit.mockResolvedValue({ ok: true, visit: { id: 'visit-1' } });
+    selectLimit.mockResolvedValue([]);
   });
 
   it('returns "none" when the text has no WEB-XXXXXX code', async () => {
@@ -151,5 +157,43 @@ describe('redeemWebHandoffCode', () => {
       whatsappSession: { id: WA_SESSION_ID, leadId: 'existing-lead' },
     });
     expect(setSessionLead).not.toHaveBeenCalled();
+  });
+
+  it('overwrites an unverified stored phone with the redeemer\'s and flips phoneVerified=true', async () => {
+    selectLimit.mockResolvedValue([{ phone: '+51900000000', sourceMeta: { phoneVerified: false } }]);
+    claimHandoffCode.mockResolvedValue(CONTINUE_CODE);
+    const outcome = await redeemWebHandoffCode({
+      orgId: ORG_ID, phoneE164: PHONE, text: 'Código WEB-ABCDEF',
+      whatsappSession: { id: WA_SESSION_ID, leadId: null },
+    });
+    expect(updateSet).toHaveBeenCalledWith(expect.objectContaining({ phone: PHONE }));
+    expect(outcome).toEqual({ kind: 'linked', note: expect.stringContaining('chat web') });
+  });
+
+  it('does not overwrite a verified phone that differs from the redeemer\'s and records a note', async () => {
+    selectLimit.mockResolvedValue([{ phone: '+51900000000', sourceMeta: { phoneVerified: true } }]);
+    claimHandoffCode.mockResolvedValue(CONTINUE_CODE);
+    const outcome = await redeemWebHandoffCode({
+      orgId: ORG_ID, phoneE164: PHONE, text: 'Código WEB-ABCDEF',
+      whatsappSession: { id: WA_SESSION_ID, leadId: null },
+    });
+    expect(updateSet).not.toHaveBeenCalled();
+    expect((outcome as { note: string }).note).toMatch(/no se sobrescribió/);
+    expect(recordAgentEvent).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        web_handoff_redeemed: expect.objectContaining({ phoneConflictNote: expect.stringContaining('+51900000000') }),
+      }),
+    }));
+  });
+
+  it('leaves an already-verified matching phone untouched (no conflict, no overwrite call)', async () => {
+    selectLimit.mockResolvedValue([{ phone: PHONE, sourceMeta: { phoneVerified: true } }]);
+    claimHandoffCode.mockResolvedValue(CONTINUE_CODE);
+    const outcome = await redeemWebHandoffCode({
+      orgId: ORG_ID, phoneE164: PHONE, text: 'Código WEB-ABCDEF',
+      whatsappSession: { id: WA_SESSION_ID, leadId: null },
+    });
+    expect(outcome).toEqual({ kind: 'linked', note: expect.stringContaining('chat web') });
+    expect((outcome as { note: string }).note).not.toMatch(/no se sobrescribió/);
   });
 });

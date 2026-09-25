@@ -7,7 +7,7 @@ import { mutationRateLimit } from '@/lib/ratelimit';
 import { Errors, ok } from '@/lib/errors';
 import { log } from '@/lib/log';
 import { normalizeOrigin } from '@/lib/widget/origins';
-import { upsertWebChannel, rotateWebPublicKey, setWhatsAppDisplayPhone, E164_RE } from '@/lib/widget/channel';
+import { upsertWebChannel, rotateWebPublicKey, setWhatsAppDisplayPhone, hasWhatsAppChannel, E164_RE } from '@/lib/widget/channel';
 import { setPublicPagesEnabled } from '@/lib/agent/config';
 import type { ActionResult } from '@/lib/errors';
 
@@ -72,6 +72,16 @@ export async function updateWidgetSettings(_prev: ActionResult, formData: FormDa
     return fieldError('whatsapp_display_phone', 'Debe ser un teléfono E.164, ej. +51987654321');
   }
 
+  // Validated BEFORE the web channel upsert runs — so a request that can't
+  // possibly succeed never leaves the widget config half-saved (origins/caps
+  // written, display phone rejected).
+  if (whatsappPhone) {
+    const hasWhatsapp = await hasWhatsAppChannel(ctx.orgId);
+    if (!hasWhatsapp) {
+      return fieldError('whatsapp_display_phone', 'Esta organización todavía no tiene un canal de WhatsApp habilitado.');
+    }
+  }
+
   try {
     await upsertWebChannel(ctx.orgId, {
       enabled: parsed.data.enabled === 'true',
@@ -82,12 +92,10 @@ export async function updateWidgetSettings(_prev: ActionResult, formData: FormDa
       accentColor,
     });
 
-    if (whatsappPhone) {
-      const attached = await setWhatsAppDisplayPhone(ctx.orgId, whatsappPhone);
-      if (!attached) {
-        return fieldError('whatsapp_display_phone', 'Esta organización todavía no tiene un canal de WhatsApp habilitado.');
-      }
-    }
+    // An empty field clears whatever number was stored; otherwise the newly
+    // validated number is attached (the whatsapp row is guaranteed to exist
+    // at this point, checked above).
+    await setWhatsAppDisplayPhone(ctx.orgId, whatsappPhone || null);
   } catch (e) {
     log.error('[agent-widget] updateWidgetSettings failed', { orgId: ctx.orgId, error: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();

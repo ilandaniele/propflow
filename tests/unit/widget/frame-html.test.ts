@@ -56,4 +56,21 @@ describe('renderWidgetFrame', () => {
     expect(html).toContain('a.target = "_blank"');
     expect(html).toContain('a.rel = "noopener"');
   });
+
+  it('falls back to an in-memory token when localStorage is unavailable', () => {
+    const html = renderWidgetFrame(BASE);
+    expect(html).toContain('var memToken = null;');
+    expect(html).toContain('memToken = token || null;');
+    expect(html).toMatch(/return memToken;/);
+  });
+
+  it('replays the transcript on load via GET /api/agent/web/messages when a token exists', () => {
+    const html = renderWidgetFrame(BASE);
+    expect(html).toContain('function loadTranscript()');
+    expect(html).toContain('/api/agent/web/messages?publicKey=');
+    expect(html).toContain('"Authorization": "Bearer " + token');
+    expect(html).toContain('loadTranscript();');
+    // Rendered strictly via textContent, same as live replies.
+    expect(html).toContain('addBubble(m.role, m.text);');
+  });
 });

@@ -40,6 +40,32 @@ describe('widget/origins', () => {
       expect(normalizeOrigin('not a url')).toBeNull();
       expect(normalizeOrigin('')).toBeNull();
     });
+
+    it('rejects a hostname with a trailing dot', () => {
+      expect(normalizeOrigin('https://example.com.')).toBeNull();
+    });
+
+    it('rejects an IPv6 literal hostname (brackets are not a valid hostname label)', () => {
+      expect(normalizeOrigin('https://[::1]')).toBeNull();
+    });
+
+    it('rejects a hostname with an underscore or other invalid label characters', () => {
+      expect(normalizeOrigin('https://ev_il.example.com')).toBeNull();
+      expect(normalizeOrigin('https://exa mple.com')).toBeNull();
+    });
+
+    it('rejects a hostname with an empty label (double dot)', () => {
+      expect(normalizeOrigin('https://example..com')).toBeNull();
+    });
+
+    it('still accepts plain localhost and dotted-quad 127.0.0.1', () => {
+      expect(normalizeOrigin('http://localhost:3000')).toBe('http://localhost:3000');
+      expect(normalizeOrigin('http://127.0.0.1:5173')).toBe('http://127.0.0.1:5173');
+    });
+
+    it('still accepts an ordinary multi-label https hostname', () => {
+      expect(normalizeOrigin('https://widget.acme-realty.com')).toBe('https://widget.acme-realty.com');
+    });
   });
 
   describe('buildFrameAncestors', () => {

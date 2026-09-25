@@ -13,8 +13,16 @@ interface RateLimitEntry {
 const store = new Map<string, RateLimitEntry>();
 
 export function getClientIp(request: Request): string {
+  const flyClientIp = request.headers.get('fly-client-ip');
+  if (flyClientIp) return flyClientIp.trim();
   const xff = request.headers.get('x-forwarded-for');
-  if (xff) return xff.split(',')[0].trim();
+  if (xff) {
+    // Fly appends the connecting peer's IP to the end of the list, so the
+    // last entry is the one closest to the actual client (earlier entries
+    // are client-supplied and can be spoofed).
+    const parts = xff.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
   const realIp = request.headers.get('x-real-ip');
   if (realIp) return realIp;
   return 'anonymous';

@@ -18,6 +18,8 @@ import {
   releaseSessionLock,
   setSessionAttributionIfEmpty,
   setAssistantMessageSendStatus,
+  appendSessionMessage,
+  appendSystemOutboundToHistory,
 } from './session';
 import { getLead } from './lead';
 import { recordAgentEvent } from './events';
@@ -188,12 +190,23 @@ export async function processWhatsAppAgentTurn(payload: WhatsAppAgentTurnPayload
     });
 
     if (redeemOutcome.kind === 'visit_booked') {
+      // This short-circuits runAgentTurn entirely (bookVisit already ran
+      // inside redeemWebHandoffCode), so neither the visitor's confirmation
+      // text nor our reply would otherwise ever land in agent_messages —
+      // record both so the model has this exchange in context next turn.
+      await appendSessionMessage({
+        orgId,
+        sessionId: session.id,
+        role: 'user',
+        content: [{ type: 'text', text: inboundText }],
+      });
       await sendWhatsAppText({
         orgId,
         conversationId: payload.conversationId,
         body: redeemOutcome.replyText,
         senderKind: 'agent',
       });
+      await appendSystemOutboundToHistory({ orgId, sessionId: session.id, text: redeemOutcome.replyText });
       await finishClaimedInbound(claimedIds, 'processed');
       return;
     }

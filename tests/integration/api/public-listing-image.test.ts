@@ -30,11 +30,6 @@ vi.mock('@/lib/db', () => ({
   db: { select: (...a: unknown[]) => mockSelect(...a) },
 }));
 
-const mockGetOrCreateAgentConfig = vi.fn();
-vi.mock('@/lib/agent/config', () => ({
-  getOrCreateAgentConfig: (...a: unknown[]) => mockGetOrCreateAgentConfig(...a),
-}));
-
 const mockGetSignedUrl = vi.fn();
 vi.mock('@/lib/storage/index', () => ({
   getSignedUrl: (...a: unknown[]) => mockGetSignedUrl(...a),
@@ -60,7 +55,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   selectQueue = [];
   mockRateLimit.mockReturnValue({ success: true, retryAfterMs: 0 });
-  mockGetOrCreateAgentConfig.mockResolvedValue({ publicPagesEnabled: true, channelsEnabled: { web: false }, widgetAllowedOrigins: [] });
   mockGetSignedUrl.mockResolvedValue('https://tigris.example/signed?x=1');
 });
 
@@ -82,7 +76,16 @@ describe('GET /api/public/listing-image/[imageId]', () => {
   it('404s when the org has public pages disabled and the web channel disabled', async () => {
     selectQueue.push([{ path: 'org/unit/uuid.jpg', orgId: ORG_ID, unitId: 'unit-1' }]);
     selectQueue.push([{ published: true, status: 'available' }]);
-    mockGetOrCreateAgentConfig.mockResolvedValue({ publicPagesEnabled: false, channelsEnabled: { web: false }, widgetAllowedOrigins: [] });
+    selectQueue.push([{ publicPagesEnabled: false, channelsEnabled: { web: false }, widgetAllowedOrigins: [] }]);
+
+    const res = await GET(makeRequest('unit'), callParams());
+    expect(res.status).toBe(404);
+  });
+
+  it('404s (read-only, never creates a row) when the org has no agent_configs row yet', async () => {
+    selectQueue.push([{ path: 'org/unit/uuid.jpg', orgId: ORG_ID, unitId: 'unit-1' }]);
+    selectQueue.push([{ published: true, status: 'available' }]);
+    selectQueue.push([]); // no agent_configs row for this org
 
     const res = await GET(makeRequest('unit'), callParams());
     expect(res.status).toBe(404);
@@ -98,6 +101,7 @@ describe('GET /api/public/listing-image/[imageId]', () => {
   it('happy path (unit image): 302 to a fresh signed URL, cached', async () => {
     selectQueue.push([{ path: 'org/unit/uuid.jpg', orgId: ORG_ID, unitId: 'unit-1' }]);
     selectQueue.push([{ published: true, status: 'available' }]);
+    selectQueue.push([{ publicPagesEnabled: true, channelsEnabled: { web: false }, widgetAllowedOrigins: [] }]);
 
     const res = await GET(makeRequest('unit'), callParams());
     expect(res.status).toBe(302);
@@ -109,6 +113,7 @@ describe('GET /api/public/listing-image/[imageId]', () => {
   it('happy path (listing image): 302 to a fresh signed URL', async () => {
     selectQueue.push([{ path: 'org/listing/uuid.jpg', orgId: ORG_ID, listingId: 'listing-1' }]);
     selectQueue.push([{ published: true, status: 'available' }]);
+    selectQueue.push([{ publicPagesEnabled: true, channelsEnabled: { web: false }, widgetAllowedOrigins: [] }]);
 
     const res = await GET(makeRequest('listing'), callParams());
     expect(res.status).toBe(302);

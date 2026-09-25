@@ -38,11 +38,13 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 const mockUpsertWebChannel = vi.fn();
 const mockRotateWebPublicKey = vi.fn();
 const mockSetWhatsAppDisplayPhone = vi.fn();
+const mockHasWhatsAppChannel = vi.fn();
 
 vi.mock('@/lib/widget/channel', () => ({
   upsertWebChannel: (...a: unknown[]) => mockUpsertWebChannel(...a),
   rotateWebPublicKey: (...a: unknown[]) => mockRotateWebPublicKey(...a),
   setWhatsAppDisplayPhone: (...a: unknown[]) => mockSetWhatsAppDisplayPhone(...a),
+  hasWhatsAppChannel: (...a: unknown[]) => mockHasWhatsAppChannel(...a),
   E164_RE: /^\+[1-9]\d{6,14}$/,
 }));
 
@@ -76,6 +78,7 @@ beforeEach(() => {
   mockUpsertWebChannel.mockResolvedValue({ orgId: ORG_UUID, publicKey: 'pk_abc' });
   mockRotateWebPublicKey.mockResolvedValue('pk_new');
   mockSetWhatsAppDisplayPhone.mockResolvedValue(true);
+  mockHasWhatsAppChannel.mockResolvedValue(true);
   mockSetPublicPagesEnabled.mockResolvedValue(undefined);
 });
 
@@ -131,12 +134,29 @@ describe('updateWidgetSettings — validation', () => {
     expect(result.error?.code).toBe('VALIDATION_ERROR');
   });
 
-  it('surfaces a field error when the org has no WhatsApp channel yet', async () => {
-    mockSetWhatsAppDisplayPhone.mockResolvedValueOnce(false);
+  it('surfaces a field error when the org has no WhatsApp channel yet, BEFORE touching the web channel', async () => {
+    mockHasWhatsAppChannel.mockResolvedValueOnce(false);
     const result = await updateWidgetSettings({}, fd({ ...BASE_SETTINGS, whatsapp_display_phone: '+51987654321' }));
     expect(result.error?.code).toBe('VALIDATION_ERROR');
     const fieldErrors = (result.error?.details as { fieldErrors?: Record<string, string[]> })?.fieldErrors;
     expect(fieldErrors?.whatsapp_display_phone?.[0]).toBeTruthy();
+    // Pre-checked before the web channel upsert — never half-saves the form.
+    expect(mockUpsertWebChannel).not.toHaveBeenCalled();
+    expect(mockSetWhatsAppDisplayPhone).not.toHaveBeenCalled();
+  });
+
+  it('attaches the validated display phone after the web channel upsert succeeds', async () => {
+    const result = await updateWidgetSettings({}, fd({ ...BASE_SETTINGS, whatsapp_display_phone: '+51987654321' }));
+    expect(result.error).toBeUndefined();
+    expect(mockHasWhatsAppChannel).toHaveBeenCalledWith(ORG_UUID);
+    expect(mockSetWhatsAppDisplayPhone).toHaveBeenCalledWith(ORG_UUID, '+51987654321');
+  });
+
+  it('clears the stored display phone when the field is left empty', async () => {
+    const result = await updateWidgetSettings({}, fd({ ...BASE_SETTINGS, whatsapp_display_phone: '' }));
+    expect(result.error).toBeUndefined();
+    expect(mockHasWhatsAppChannel).not.toHaveBeenCalled(); // no phone provided — nothing to gate on
+    expect(mockSetWhatsAppDisplayPhone).toHaveBeenCalledWith(ORG_UUID, null);
   });
 
   it('scopes the upsert to the caller\'s own org (IDOR)', async () => {

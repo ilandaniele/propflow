@@ -3,6 +3,9 @@
  * (Phase 7 §2.2, §2.9). Pure — no DB access.
  */
 
+/** RFC 1123-ish hostname labels only — rejects IPv6 literals (`[::1]`), userinfo-smuggling hosts, and anything else `new URL()` would happily parse but shouldn't be treated as a normal DNS hostname. `localhost` and dotted-quad IPv4 (e.g. `127.0.0.1`) both match. */
+const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/;
+
 /** The app's own origin — the widget iframe (src/app/widget/[publicKey]) is served from here. */
 export function getAppOrigin(): string {
   const url = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXTAUTH_URL;
@@ -26,6 +29,9 @@ export function normalizeOrigin(input: string): string | null {
 
   const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
   if (url.protocol !== 'https:' && !(isLocal && url.protocol === 'http:')) return null;
+
+  if (url.hostname.endsWith('.')) return null;
+  if (!HOSTNAME_RE.test(url.hostname)) return null;
 
   return url.origin.toLowerCase();
 }

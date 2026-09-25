@@ -191,17 +191,29 @@ export async function getWhatsAppDisplayPhone(orgId: string): Promise<string | n
   return config.displayPhoneE164 ?? null;
 }
 
+/** True when this org already has a whatsapp org_channels row — used to validate a display-phone save BEFORE the web channel upsert runs, so a bad request never leaves the widget config half-saved. */
+export async function hasWhatsAppChannel(orgId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: orgChannels.id })
+    .from(orgChannels)
+    .where(and(eq(orgChannels.orgId, orgId), eq(orgChannels.channel, 'whatsapp')))
+    .limit(1);
+  return rows.length > 0;
+}
+
 /**
  * OVERRIDE (A, phase7-blueprint.md "owner change"): lets an admin set the
  * WhatsApp display number from /dashboard/agent/widget (item B) instead of
  * by hand with SQL. Org-scoped (only ever touches this org's whatsapp row)
- * and validates E.164. Returns false when the org has no whatsapp
- * org_channels row yet — item B surfaces that as a form error, since there's
- * nothing to attach the number to (the whatsapp row is provisioned
- * separately, per decision 4).
+ * and validates E.164. `null` clears the stored number (an admin blanking
+ * the field). Returns false when the org has no whatsapp org_channels row
+ * yet and a phone was being set — item B surfaces that as a form error,
+ * since there's nothing to attach the number to (the whatsapp row is
+ * provisioned separately, per decision 4). Clearing (`null`) on an org with
+ * no whatsapp row is a no-op success — there's nothing to clear.
  */
-export async function setWhatsAppDisplayPhone(orgId: string, phoneE164: string): Promise<boolean> {
-  if (!E164_RE.test(phoneE164)) {
+export async function setWhatsAppDisplayPhone(orgId: string, phoneE164: string | null): Promise<boolean> {
+  if (phoneE164 != null && !E164_RE.test(phoneE164)) {
     throw new Error('[widget/channel] setWhatsAppDisplayPhone: phone must be E.164 (e.g. +51987654321)');
   }
 
@@ -211,7 +223,7 @@ export async function setWhatsAppDisplayPhone(orgId: string, phoneE164: string):
     .where(and(eq(orgChannels.orgId, orgId), eq(orgChannels.channel, 'whatsapp')))
     .limit(1);
   const row = rows[0];
-  if (!row) return false;
+  if (!row) return phoneE164 == null;
 
   const nextConfig = { ...((row.config as WhatsAppChannelConfig) ?? {}), displayPhoneE164: phoneE164 };
   await db.update(orgChannels).set({ config: nextConfig, updatedAt: new Date() }).where(eq(orgChannels.id, row.id));

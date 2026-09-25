@@ -27,6 +27,7 @@ import {
   webSessionExternalId,
   tryLockWebSession,
   hashIp,
+  listWebTranscript,
 } from '@/lib/widget/web-session';
 
 beforeEach(() => vi.clearAllMocks());
@@ -84,6 +85,28 @@ describe('widget/web-session', () => {
     expect(h1).toBe(h2);
     expect(h1).not.toContain('203.0.113.5');
     expect(h1).toHaveLength(64);
+  });
+
+  it('listWebTranscript orders DESC + limits, then reverses back to chronological order', async () => {
+    // Rows as the DB would return them under ORDER BY created_at DESC LIMIT 2 —
+    // i.e. newest first, already capped to the latest N.
+    const rows = [
+      { role: 'assistant', content: [{ type: 'text', text: 'segundo' }], createdAt: new Date('2026-01-01T00:00:02Z') },
+      { role: 'user', content: [{ type: 'text', text: 'primero' }], createdAt: new Date('2026-01-01T00:00:01Z') },
+    ];
+    let orderByArgs: unknown[] = [];
+    let limitArg: unknown;
+    const chain = makeChain(rows);
+    (chain.orderBy as ReturnType<typeof vi.fn>).mockImplementation((...args: unknown[]) => { orderByArgs = args; return chain; });
+    (chain.limit as ReturnType<typeof vi.fn>).mockImplementation((n: unknown) => { limitArg = n; return chain; });
+    mockSelect.mockReturnValueOnce(chain);
+
+    const entries = await listWebTranscript('org-1', 'session-1', 2);
+
+    expect(limitArg).toBe(2);
+    expect(orderByArgs).toHaveLength(1); // desc(agentMessages.createdAt)
+    // Reversed back to oldest-first for chronological rendering.
+    expect(entries.map((e) => e.text)).toEqual(['primero', 'segundo']);
   });
 
   it('tryLockWebSession builds a conditional update (returns true only when a row comes back)', async () => {

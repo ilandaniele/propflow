@@ -11,10 +11,9 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { unitImages, listingImages, listings } from '@/lib/db/schema';
+import { unitImages, listingImages, listings, agentConfigs } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getSignedUrl } from '@/lib/storage/index';
-import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { publicAssetRateLimit, getClientIp } from '@/lib/ratelimit';
 
 const QuerySchema = z.object({ src: z.enum(['unit', 'listing']) });
@@ -95,9 +94,23 @@ async function resolvePublicImage(
   return { bucket: 'listing-images', path: row.path };
 }
 
-/** public_pages_enabled OR the web channel is switched on — either surface may link to this image. */
+/**
+ * public_pages_enabled OR the web channel is switched on — either surface
+ * may link to this image. Read-only — never getOrCreateAgentConfig(), which
+ * upserts a row on first read; this route is unauthenticated and hit by
+ * crawlers/widgets on every image load, so a missing agent_configs row
+ * simply means "disabled", not "create one".
+ */
 async function isPublicEligible(orgId: string): Promise<boolean> {
-  const config = await getOrCreateAgentConfig(orgId);
+  const rows = await db
+    .select({ publicPagesEnabled: agentConfigs.publicPagesEnabled, channelsEnabled: agentConfigs.channelsEnabled, widgetAllowedOrigins: agentConfigs.widgetAllowedOrigins })
+    .from(agentConfigs)
+    .where(eq(agentConfigs.orgId, orgId))
+    .limit(1);
+  const config = rows[0];
+  if (!config) return false;
   if (config.publicPagesEnabled) return true;
-  return config.channelsEnabled.web && config.widgetAllowedOrigins.length > 0;
+  const channelsEnabled = (config.channelsEnabled as { web?: boolean } | null) ?? {};
+  const widgetAllowedOrigins = (config.widgetAllowedOrigins as string[] | null) ?? [];
+  return channelsEnabled.web === true && widgetAllowedOrigins.length > 0;
 }

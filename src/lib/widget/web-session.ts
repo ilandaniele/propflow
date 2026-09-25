@@ -8,7 +8,7 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { db } from '@/lib/db';
 import { agentWebSessions, agentMessages, agentSessions } from '@/lib/db/schema';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, sql } from 'drizzle-orm';
 
 export const WEB_SESSION_TTL_MS = 30 * 24 * 3600_000;
 const LOCK_TTL_MS = 90_000;
@@ -148,15 +148,16 @@ export interface WebTranscriptEntry {
   at: string;
 }
 
-/** Text blocks only (no tool_use/tool_result) — the widget renders plain reply bubbles. */
+/** Text blocks only (no tool_use/tool_result) — the widget renders plain reply bubbles. Returns the latest `limit` messages, oldest-first. */
 export async function listWebTranscript(orgId: string, agentSessionId: string, limit = 30): Promise<WebTranscriptEntry[]> {
   const rows = await db
     .select({ role: agentMessages.role, content: agentMessages.content, createdAt: agentMessages.createdAt })
     .from(agentMessages)
     .innerJoin(agentSessions, eq(agentSessions.id, agentMessages.sessionId))
     .where(and(eq(agentSessions.id, agentSessionId), eq(agentSessions.orgId, orgId)))
-    .orderBy(agentMessages.createdAt)
+    .orderBy(desc(agentMessages.createdAt))
     .limit(limit);
+  rows.reverse(); // back to chronological order for rendering
 
   const entries: WebTranscriptEntry[] = [];
   for (const row of rows) {

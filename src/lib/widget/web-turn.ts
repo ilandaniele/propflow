@@ -47,22 +47,6 @@ export async function handleWebMessage(a: HandleWebMessageArgs): Promise<HandleW
     };
   }
 
-  const usage = await incrementWebUsage(a.channel.orgId, 'messages', a.channel.dailyMessageCap);
-  if (!usage.allowed) {
-    // Body is a WebTurnResponse (not WebApiError) at 503 — the widget still
-    // renders a bubble + CTA, it just can't reach the model for the rest of
-    // the day. computeWebCta needs a leadId, which we may not have yet this
-    // early (no turn has run) — null is fine, createHandoffCode accepts it.
-    const cta = await computeWebCta({
-      orgId: a.channel.orgId,
-      webSessionId: a.session.id,
-      leadId: null,
-      displayPhone: a.channel.whatsappDisplayPhone,
-      forceContinue: true,
-    });
-    return { status: 503, body: { reply: DAILY_CAP_REPLY, mode: 'handoff', cta } };
-  }
-
   const locked = await tryLockWebSession(a.session.id);
   if (!locked) {
     return { status: 409, body: { error: { code: 'BUSY', message: 'Ya hay un mensaje en curso para esta conversación.' } } };
@@ -74,6 +58,25 @@ export async function handleWebMessage(a: HandleWebMessageArgs): Promise<HandleW
       currentListingId: pageContext?.listingId ?? null,
       ...(a.pageUrl !== undefined ? { pageUrl: a.pageUrl } : {}),
     });
+
+    // Only spend a message credit once we're actually committed to running a
+    // turn (past rate-limiting, 409-busy, and validation) — right before the
+    // model call, with the lock held.
+    const usage = await incrementWebUsage(a.channel.orgId, 'messages', a.channel.dailyMessageCap);
+    if (!usage.allowed) {
+      // Body is a WebTurnResponse (not WebApiError) at 503 — the widget still
+      // renders a bubble + CTA, it just can't reach the model for the rest of
+      // the day. computeWebCta needs a leadId, which we may not have yet this
+      // early (no turn has run) — null is fine, createHandoffCode accepts it.
+      const cta = await computeWebCta({
+        orgId: a.channel.orgId,
+        webSessionId: a.session.id,
+        leadId: null,
+        displayPhone: a.channel.whatsappDisplayPhone,
+        forceContinue: true,
+      });
+      return { status: 503, body: { reply: DAILY_CAP_REPLY, mode: 'handoff', cta } };
+    }
 
     const result = await runAgentTurn({
       orgId: a.channel.orgId,
