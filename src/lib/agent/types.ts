@@ -32,6 +32,14 @@ export interface AgentAttribution {
   capturedAt: string; // ISO
 }
 
+/** Phase 7: the listing a web visitor is looking at when they open the widget or navigate a /p page. */
+export interface AgentPageContext {
+  listingId: string;
+  title: string | null;
+  refCode: string | null;
+  publicSlug: string | null;
+}
+
 export interface RunAgentTurnArgs {
   orgId: string;
   channel: AgentChannel;
@@ -42,6 +50,12 @@ export interface RunAgentTurnArgs {
   dryRun?: boolean;
   /** Outbound messages with sender_kind='human' created since the session's last agent turn — volatile turn context, never cached history. */
   humanRepliesSinceLastTurn?: string[];
+  /** Phase 7: the web listing page/widget context, if any. Never in the cached system block — see buildTurnContext. */
+  pageContext?: AgentPageContext | null;
+  /** Phase 7: extra volatile notes for this turn only (e.g. a WhatsApp handoff-code redemption outcome). Sanitized to 500 chars each. */
+  extraContextNotes?: string[];
+  /** Phase 7: set only on the web channel — threaded into AgentToolContext so web-only tools (continue_on_whatsapp, book_visit's web branch) can act. */
+  webSessionId?: string | null;
 }
 
 export interface RunAgentTurnResult {
@@ -61,6 +75,29 @@ export interface RunAgentTurnResult {
    * send_status instead of leaving an unsent draft in the LLM history.
    */
   assistantMessageId: string | null;
+}
+
+/** Phase 7: the widget's call-to-action, always derived from DB state (a pending/created handoff code) — never parsed from model text. */
+export interface WebCta {
+  kind: 'whatsapp';
+  url: string;
+  label: string;
+  code: string | null;
+  purpose: 'visit' | 'continue';
+}
+
+export interface WebTurnResponse {
+  reply: string;
+  mode: 'ai' | 'handoff';
+  cta: WebCta | null;
+}
+
+export interface WebApiError {
+  error: {
+    code: 'VALIDATION' | 'SESSION' | 'NOT_FOUND' | 'FORBIDDEN_ORIGIN' | 'BUSY' | 'RATE_LIMITED' | 'DAILY_CAP';
+    message: string;
+    retryAfterMs?: number;
+  };
 }
 
 export type { AgentChannel, AgentSessionMode };

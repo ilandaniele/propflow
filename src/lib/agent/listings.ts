@@ -10,9 +10,11 @@
  * feeds units.status can lag up to 24h (see docs in the Phase 1 PR).
  */
 
+import { randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { listings, units, properties } from '@/lib/db/schema';
 import { and, eq, gte, lte, isNotNull, sql } from 'drizzle-orm';
+import { buildListingSlug } from '@/lib/widget/slug';
 
 export interface SyncListingsResult {
   inserted: number;
@@ -54,7 +56,11 @@ export async function syncListingsFromUnits(orgId: string): Promise<SyncListings
     const existing = existingByUnit.get(unit.id);
 
     if (!existing) {
+      // Pre-generated id (rather than defaultRandom()) so publicSlug's id
+      // suffix (buildListingSlug, Phase 7 §2.8) is known before the insert.
+      const id = randomUUID();
       await db.insert(listings).values({
+        id,
         orgId,
         unitId: unit.id,
         propertyId: unit.propertyId,
@@ -65,6 +71,7 @@ export async function syncListingsFromUnits(orgId: string): Promise<SyncListings
         zone: unit.propertyCity ?? null,
         bedrooms: unit.bedrooms ?? null,
         areaM2: unit.areaM2 ?? null,
+        publicSlug: buildListingSlug(unit.propertyName ?? null, id),
       });
       inserted++;
       continue;

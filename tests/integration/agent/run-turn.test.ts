@@ -301,6 +301,39 @@ describe('runAgentTurn', () => {
     CONFIG_FIXTURE.maxAgentTurns = null;
   });
 
+  it('Phase 7: threads pageContext/notes/channel into the volatile turn context, never the cached system block', async () => {
+    const finalContent = [{ type: 'text', text: 'Hola desde el widget' }];
+    const fullMessages = [
+      { role: 'user', content: 'hola' },
+      { role: 'assistant', content: finalContent },
+    ];
+    toolRunnerMock.mockReturnValue(fakeRunner(finalContent, fullMessages));
+
+    await runAgentTurn({
+      orgId: 'org-1',
+      channel: 'web',
+      externalId: 'web:ws-1',
+      inboundText: 'hola',
+      pageContext: { listingId: 'listing-1', title: 'Depa Sol', refCode: 'ABC123', publicSlug: 'depa-sol-abcdef' },
+      extraContextNotes: ['El usuario viene del chat web; su perfil ya está cargado.'],
+    });
+
+    const call = toolRunnerMock.mock.calls[0][0] as { system: Array<{ text: string; cache_control?: unknown }> };
+    const [cached, volatile] = call.system;
+
+    expect(cached.cache_control).toEqual({ type: 'ephemeral' });
+    expect(cached.text).not.toContain('Depa Sol');
+    expect(cached.text).not.toContain('ABC123');
+    expect(cached.text).not.toContain('viene del chat web');
+
+    expect(volatile.cache_control).toBeUndefined();
+    expect(volatile.text).toContain('Canal: web');
+    expect(volatile.text).toContain('Depa Sol');
+    expect(volatile.text).toContain('ABC123');
+    expect(volatile.text).toContain('viene del chat web');
+    expect(volatile.text).toContain('book_visit genera un código');
+  });
+
   it('falls back to a placeholder when the model returns no text blocks', async () => {
     const finalContent = [{ type: 'tool_use', id: 't1', name: 'search_listings', input: {} }];
     const fullMessages = [

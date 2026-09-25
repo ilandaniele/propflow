@@ -832,6 +832,9 @@ export const orgChannels = pgTable('org_channels', {
 }, (t) => ({
   channelExternalUniq: uniqueIndex('org_channels_channel_external_id').on(t.channel, t.externalId),
   orgIdx:              index('idx_org_channels_org').on(t.orgId),
+  // Agent Phase 7: resolveWebChannel()/getOrgWebChannel() assume exactly one
+  // 'web' row per org.
+  oneWebPerOrgUniq:    uniqueIndex('org_channels_one_web_per_org').on(t.orgId).where(sql`channel = 'web'`),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -882,6 +885,10 @@ export const agentConfigs = pgTable('agent_configs', {
     .default({ whatsapp: false, web: false, voice: false }),
   shadowMode:            boolean('shadow_mode').notNull().default(false),
   maxAgentTurns:         integer('max_agent_turns').default(30),
+  // Agent Phase 7: public catalogue pages (src/app/p/**) are opt-in per org —
+  // syncListingsFromUnits() inserts published=true rows, so without this gate
+  // turning on the widget would also expose every synced unit's page.
+  publicPagesEnabled:    boolean('public_pages_enabled').notNull().default(false),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1923,4 +1930,68 @@ export const qaExports = pgTable('qa_exports', {
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgWeekUniq: uniqueIndex('qa_exports_org_week_uniq').on(t.orgId, t.weekStart),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Phase 7: web chat widget. agent_web_sessions is the widget's opaque
+// session identity (the bearer token itself is never stored, only its
+// sha256 — see src/lib/widget/web-session.ts); agent_web_handoff_codes are
+// the WEB-XXXXXX codes that stand in for a booking or a "continue on
+// WhatsApp" link until the visitor's WhatsApp message proves they own the
+// phone (decision 6, handoffs/phase7-blueprint.md); agent_web_usage_daily is
+// the DB-backed backstop for the in-memory per-org daily cap.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentWebSessions = pgTable('agent_web_sessions', {
+  id:                uuid('id').primaryKey().defaultRandom(),
+  orgId:             uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  tokenHash:         text('token_hash').notNull().unique(),
+  agentSessionId:    uuid('agent_session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
+  ipHash:            text('ip_hash'),
+  origin:            text('origin'),
+  pageUrl:           text('page_url'),
+  currentListingId:  uuid('current_listing_id').references(() => listings.id, { onDelete: 'set null' }),
+  phoneE164:         text('phone_e164'),
+  phoneCapturedAt:   timestamp('phone_captured_at', { withTimezone: true }),
+  messageCount:      integer('message_count').notNull().default(0),
+  lastMessageAt:     timestamp('last_message_at', { withTimezone: true }),
+  processingUntil:   timestamp('processing_until', { withTimezone: true }),
+  expiresAt:         timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt:         timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx: index('idx_agent_web_sessions_org').on(t.orgId, t.createdAt),
+}));
+
+export const agentWebHandoffCodes = pgTable('agent_web_handoff_codes', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  orgId:              uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  webSessionId:       uuid('web_session_id').notNull().references(() => agentWebSessions.id, { onDelete: 'cascade' }),
+  code:               text('code').notNull(),
+  kind:               text('kind').notNull(), // 'visit'|'continue'
+  leadId:             uuid('lead_id').references(() => crmLeads.id, { onDelete: 'set null' }),
+  listingId:          uuid('listing_id').references(() => listings.id, { onDelete: 'set null' }),
+  profileId:          uuid('profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  startsAt:           timestamp('starts_at', { withTimezone: true }),
+  visitMinutes:       integer('visit_minutes'),
+  status:             text('status').notNull().default('pending'),
+  // 'pending'|'redeemed'|'failed'|'expired'|'superseded'
+  redeemedPhone:      text('redeemed_phone'),
+  redeemedSessionId:  uuid('redeemed_session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
+  visitId:            uuid('visit_id').references(() => propertyVisits.id, { onDelete: 'set null' }),
+  result:             text('result'),
+  expiresAt:          timestamp('expires_at', { withTimezone: true }).notNull(),
+  redeemedAt:         timestamp('redeemed_at', { withTimezone: true }),
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgCodeUniq: uniqueIndex('uq_web_handoff_code').on(t.orgId, t.code),
+  sessionIdx:  index('idx_web_handoff_session').on(t.webSessionId, t.status),
+}));
+
+export const agentWebUsageDaily = pgTable('agent_web_usage_daily', {
+  orgId:    uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  day:      date('day').notNull(),
+  sessions: integer('sessions').notNull().default(0),
+  messages: integer('messages').notNull().default(0),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.orgId, t.day] }),
 }));

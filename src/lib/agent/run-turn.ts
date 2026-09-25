@@ -162,6 +162,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     dryRun,
     leadIdRef,
     attribution: session.attribution,
+    webSessionId: args.webSessionId ?? null,
   });
 
   const systemPrompt = buildAgentSystemPrompt(config);
@@ -170,6 +171,9 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     attribution: session.attribution,
     humanReplies: args.humanRepliesSinceLastTurn ?? [],
     timezone: config.timezone,
+    channel: args.channel,
+    pageContext: args.pageContext ?? null,
+    notes: args.extraContextNotes ?? [],
   });
 
   // Captured BEFORE appending this turn's inbound message — everything from

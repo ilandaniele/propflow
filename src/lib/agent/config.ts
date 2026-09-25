@@ -26,6 +26,8 @@ export interface AgentConfig {
   channelsEnabled: { whatsapp: boolean; web: boolean; voice: boolean };
   shadowMode: boolean;
   maxAgentTurns: number | null;
+  /** Phase 7: public catalogue pages (/p/<orgSlug>) are opt-in — see 0009's migration comment for why. */
+  publicPagesEnabled: boolean;
 }
 
 function toAgentConfig(row: typeof agentConfigs.$inferSelect): AgentConfig {
@@ -51,6 +53,7 @@ function toAgentConfig(row: typeof agentConfigs.$inferSelect): AgentConfig {
     },
     shadowMode: row.shadowMode,
     maxAgentTurns: row.maxAgentTurns,
+    publicPagesEnabled: row.publicPagesEnabled,
   };
 }
 
@@ -108,4 +111,13 @@ export async function updateAgentLiveSettings(
 
   if (!rows[0]) throw new Error('[agent/config] updateAgentLiveSettings: org has no agent_configs row');
   return toAgentConfig(rows[0]);
+}
+
+/** Phase 7: the /dashboard/agent/widget "Enable public pages" toggle (item B). Org-scoped. */
+export async function setPublicPagesEnabled(orgId: string, enabled: boolean): Promise<void> {
+  await getOrCreateAgentConfig(orgId); // ensures the row exists before the update below
+  await db
+    .update(agentConfigs)
+    .set({ publicPagesEnabled: enabled, updatedAt: sql`now()` })
+    .where(eq(agentConfigs.orgId, orgId));
 }
