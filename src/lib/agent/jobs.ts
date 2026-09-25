@@ -22,6 +22,16 @@ export function registerAgentJobHandler(kind: string, handler: AgentJobHandler):
   HANDLERS.set(kind, handler);
 }
 
+/** Every currently-registered job kind — used by claimDueJobs' filter and by tests. */
+export function registeredJobKinds(): string[] {
+  return [...HANDLERS.keys()];
+}
+
+/** Test-only: clears every registered handler. */
+export function _resetAgentJobHandlers(): void {
+  HANDLERS.clear();
+}
+
 const CLAIM_LOCK_MS = 2 * 60 * 1000; // 2 minutes — long enough for a Fly resume + a Claude call
 const MAX_ATTEMPTS = 5;
 const BACKOFF_MS = [30_000, 60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000]; // per attempt
@@ -50,8 +60,18 @@ interface ClaimedJob {
   attempts: number;
 }
 
-/** Claim up to `limit` due jobs, marking them 'processing' with a lock, in one transaction. */
+/**
+ * Claim up to `limit` due jobs, marking them 'processing' with a lock, in one
+ * transaction. Only claims kinds that have a registered handler — the
+ * instrumentation/cron/webhook bundles don't share HANDLERS as a module-level
+ * Map, so an unregistered kind would otherwise get claimed and immediately
+ * burn a retry attempt for "no handler registered" instead of just waiting
+ * for a drainer that does have one.
+ */
 async function claimDueJobs(limit: number): Promise<ClaimedJob[]> {
+  const kinds = registeredJobKinds();
+  if (kinds.length === 0) return [];
+
   return db.transaction(async (tx) => {
     const now = new Date();
 
@@ -68,6 +88,7 @@ async function claimDueJobs(limit: number): Promise<ClaimedJob[]> {
         eq(agentJobs.status, 'pending'),
         lte(agentJobs.runAt, now),
         or(isNull(agentJobs.lockedUntil), lte(agentJobs.lockedUntil, now)),
+        inArray(agentJobs.kind, kinds),
       ))
       .orderBy(agentJobs.runAt)
       .limit(limit)
