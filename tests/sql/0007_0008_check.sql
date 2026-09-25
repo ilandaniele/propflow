@@ -12,6 +12,9 @@ INSERT INTO organizations (id, name) VALUES ('00000000-0000-0000-0000-0000000000
 INSERT INTO profiles (id, org_id, role, full_name)
 VALUES ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000e1', 'admin', 'Test Advisor');
 
+INSERT INTO properties (id, org_id, name)
+VALUES ('00000000-0000-0000-0000-0000000000e9', '00000000-0000-0000-0000-0000000000e1', 'Test Property');
+
 -- ---------------------------------------------------------------------------
 -- 1. crm_leads.stage format CHECK: 'Bad Stage' (uppercase + space) must fail.
 -- ---------------------------------------------------------------------------
@@ -38,8 +41,8 @@ DO $$ BEGIN RAISE NOTICE 'PASS: custom stage ''tasacion_2'' was accepted'; END $
 -- ---------------------------------------------------------------------------
 -- 3. listings.published_at trigger: false→true sets it; it never resets.
 -- ---------------------------------------------------------------------------
-INSERT INTO listings (id, org_id, operation, published)
-VALUES ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000e1', 'rent', false);
+INSERT INTO listings (id, org_id, property_id, operation, published)
+VALUES ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e9', 'rent', false);
 
 DO $$
 DECLARE v_published_at TIMESTAMPTZ;

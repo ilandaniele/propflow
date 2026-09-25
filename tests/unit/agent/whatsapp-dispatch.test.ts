@@ -21,6 +21,9 @@ const {
   sendWhatsAppText,
   recordAgentEvent,
   enqueueJob,
+  stopFollowups,
+  scheduleFollowupSequence,
+  getOrCreateSession,
 } = vi.hoisted(() => ({
   callOrder: [] as string[],
   getSessionByConversation: vi.fn(),
@@ -49,6 +52,9 @@ const {
   sendWhatsAppText: vi.fn(async () => ({ ok: true, messageId: 'sent-1' })),
   recordAgentEvent: vi.fn(async () => {}),
   enqueueJob: vi.fn(async () => 'job-1'),
+  stopFollowups: vi.fn(async () => 0),
+  scheduleFollowupSequence: vi.fn(async () => 0),
+  getOrCreateSession: vi.fn(),
 }));
 
 const SESSION = {
@@ -81,7 +87,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/agent/config', () => ({ getOrCreateAgentConfig }));
 
 vi.mock('@/lib/agent/session', () => ({
-  getOrCreateSession: vi.fn(),
+  getOrCreateSession,
   getSessionByConversation,
   getSessionById,
   touchInbound: vi.fn(async () => {}),
@@ -102,6 +108,8 @@ vi.mock('@/lib/agent/lead', () => ({ getLead }));
 vi.mock('@/lib/agent/events', () => ({ recordAgentEvent }));
 
 vi.mock('@/lib/agent/jobs', () => ({ enqueueJob }));
+
+vi.mock('@/lib/leads/followups', () => ({ stopFollowups, scheduleFollowupSequence }));
 
 vi.mock('@/lib/agent/run-turn', () => ({ runAgentTurn }));
 
@@ -128,7 +136,7 @@ vi.mock('@/lib/whatsapp/db', () => ({
   listHumanRepliesSince,
 }));
 
-import { processWhatsAppAgentTurn, sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
+import { processWhatsAppAgentTurn, queueAgentInbound, sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
 
 const CLAIMED = [
   { id: 'm1', body: 'Hola', attachmentKind: null, createdAt: new Date('2026-01-01T00:00:00Z') },
@@ -147,6 +155,8 @@ describe('agent/whatsapp-dispatch — processWhatsAppAgentTurn', () => {
     listStalePendingConversations.mockResolvedValue([]);
     getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false }, shadowMode: false });
     getLead.mockResolvedValue(null);
+    stopFollowups.mockResolvedValue(0);
+    scheduleFollowupSequence.mockResolvedValue(1);
   });
 
   it('no-ops when the session lock is busy', async () => {
@@ -239,6 +249,64 @@ describe('agent/whatsapp-dispatch — processWhatsAppAgentTurn', () => {
     await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
     expect(sendWhatsAppText).toHaveBeenCalledOnce();
     expect(setAssistantMessageSendStatus).not.toHaveBeenCalled();
+  });
+
+  it('(re)anchors the follow-up sequence after a successful live send with a lead and no handoff', async () => {
+    getSessionById.mockResolvedValue({ ...SESSION, mode: 'ai' });
+    runAgentTurn.mockResolvedValue({
+      sessionId: 'session-1', leadId: 'lead-1', replyText: 'hola!', handedOffToHuman: false,
+      handoffReason: null, skipped: false, language: null, assistantMessageId: 'msg-assistant-1',
+    });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+    expect(scheduleFollowupSequence).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-1', leadId: 'lead-1', sessionId: 'session-1' }));
+  });
+
+  it('does not schedule follow-ups when the turn handed off to a human', async () => {
+    getSessionById.mockResolvedValue({ ...SESSION, mode: 'ai' });
+    runAgentTurn.mockResolvedValue({
+      sessionId: 'session-1', leadId: 'lead-1', replyText: 'hola!', handedOffToHuman: true,
+      handoffReason: 'tool', skipped: false, language: null, assistantMessageId: 'msg-assistant-1',
+    });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+    expect(scheduleFollowupSequence).not.toHaveBeenCalled();
+  });
+
+  it('does not schedule follow-ups in shadow mode', async () => {
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false }, shadowMode: true });
+    runAgentTurn.mockResolvedValue({
+      sessionId: 'session-1', leadId: 'lead-1', replyText: 'hola!', handedOffToHuman: false,
+      handoffReason: null, skipped: false, language: null, assistantMessageId: 'msg-assistant-1',
+    });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+    expect(scheduleFollowupSequence).not.toHaveBeenCalled();
+  });
+});
+
+describe('agent/whatsapp-dispatch — queueAgentInbound', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getOrCreateSession.mockResolvedValue({ ...SESSION });
+    stopFollowups.mockResolvedValue(0);
+  });
+
+  it('stops any in-flight follow-up sequence for the session\'s lead on an inbound reply', async () => {
+    getOrCreateSession.mockResolvedValue({ ...SESSION, leadId: 'lead-1' });
+    await queueAgentInbound({ orgId: 'org-1', conversationId: 'conv-1', externalPhone: '+51999999999', text: 'hola', referral: null });
+    expect(stopFollowups).toHaveBeenCalledWith('org-1', 'lead-1', 'replied');
+  });
+
+  it('does not call stopFollowups when the session has no lead yet', async () => {
+    getOrCreateSession.mockResolvedValue({ ...SESSION, leadId: null });
+    await queueAgentInbound({ orgId: 'org-1', conversationId: 'conv-1', externalPhone: '+51999999999', text: 'hola', referral: null });
+    expect(stopFollowups).not.toHaveBeenCalled();
+  });
+
+  it('never breaks the inbound path when stopFollowups throws', async () => {
+    getOrCreateSession.mockResolvedValue({ ...SESSION, leadId: 'lead-1' });
+    stopFollowups.mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      queueAgentInbound({ orgId: 'org-1', conversationId: 'conv-1', externalPhone: '+51999999999', text: 'hola', referral: null })
+    ).resolves.toBe(true);
   });
 });
 

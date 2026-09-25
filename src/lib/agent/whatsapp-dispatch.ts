@@ -26,6 +26,7 @@ import { runAgentTurn } from './run-turn';
 import { createSuggestion } from './suggestions';
 import { sendWhatsAppText } from './outbound';
 import { parseCtwaReferral, extractRefCode } from '@/lib/whatsapp/referral';
+import { scheduleFollowupSequence, stopFollowups } from '@/lib/leads/followups';
 import {
   claimPendingInbound,
   finishClaimedInbound,
@@ -77,6 +78,16 @@ export async function queueAgentInbound(args: QueueAgentInboundArgs): Promise<bo
   });
 
   await touchInbound(session.id);
+
+  // Phase 6, item E: a reply from the lead stops any in-flight follow-up
+  // sequence — never break the inbound path on a follow-ups failure.
+  if (session.leadId) {
+    try {
+      await stopFollowups(args.orgId, session.leadId, 'replied');
+    } catch (err) {
+      log.warn('[whatsapp-dispatch] stopFollowups failed', { orgId: args.orgId, err: (err as Error).message });
+    }
+  }
 
   const ctwa = parseCtwaReferral(args.referral);
   let attribution: Omit<AgentAttribution, 'capturedAt'> | null = ctwa;
@@ -211,6 +222,17 @@ export async function processWhatsAppAgentTurn(payload: WhatsAppAgentTurnPayload
       });
       if (!outcome.ok && outcome.code === 'WINDOW_CLOSED') {
         await recordAgentEvent({ orgId, sessionId: session.id, kind: 'window_closed', data: {} });
+      }
+
+      // Phase 6, item E: (re)anchor the follow-up sequence after every
+      // successful live (non-shadow) send that didn't hand off to a human —
+      // never break the turn on a follow-ups failure.
+      if (outcome.ok && result.leadId && !result.handedOffToHuman) {
+        try {
+          await scheduleFollowupSequence({ orgId, leadId: result.leadId, sessionId: result.sessionId, anchorAt: new Date() });
+        } catch (err) {
+          log.warn('[whatsapp-dispatch] scheduleFollowupSequence failed', { orgId, err: (err as Error).message });
+        }
       }
     }
 

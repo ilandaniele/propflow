@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import { agentSessions, agentMessages } from '@/lib/db/schema';
 import { and, eq, asc, sql, notInArray, or, isNull } from 'drizzle-orm';
 import type Anthropic from '@anthropic-ai/sdk';
+import { log } from '@/lib/log';
 import type { AgentAttribution, AgentLanguage, HandoffReason } from './types';
 
 export type AgentChannel = 'whatsapp' | 'web' | 'voice';
@@ -140,7 +141,7 @@ export async function setSessionMode(
   summary?: string,
   handoffReason?: HandoffReason | null,
 ): Promise<void> {
-  await db
+  const rows = await db
     .update(agentSessions)
     .set({
       mode,
@@ -148,7 +149,22 @@ export async function setSessionMode(
       ...(mode === 'ai' ? { handoffReason: null } : handoffReason !== undefined ? { handoffReason } : {}),
       updatedAt: new Date(),
     })
-    .where(eq(agentSessions.id, sessionId));
+    .where(eq(agentSessions.id, sessionId))
+    .returning({ orgId: agentSessions.orgId, leadId: agentSessions.leadId });
+
+  // Phase 6, item E: any move away from 'ai' (manual takeover, a handoff
+  // tool call, turn cap, budget) stops the lead's in-flight follow-up
+  // sequence. Dynamic import avoids a circular dependency — followups.ts
+  // itself imports this module for appendSystemOutboundToHistory/
+  // getSessionById. Never throws — a follow-ups failure must not break the
+  // mode change.
+  const leadId = rows[0]?.leadId;
+  const orgId = rows[0]?.orgId;
+  if (mode !== 'ai' && leadId && orgId) {
+    import('@/lib/leads/followups')
+      .then(({ stopFollowups }) => stopFollowups(orgId, leadId, 'human_takeover'))
+      .catch((err) => log.warn('[agent/session] stopFollowups failed', { orgId, err: (err as Error).message }));
+  }
 }
 
 const SESSION_LOCK_TTL_MS = 3 * 60 * 1000; // 3 minutes — a turn is up to 8 model iterations

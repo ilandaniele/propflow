@@ -2157,7 +2157,8 @@
     "keepPropflow": "Mantener horario de PropFlow",
     "applyGoogle": "Aplicar horario de Google",
     "detachedBody": "El evento fue eliminado en Google Calendar. La visita sigue activa en PropFlow.",
-    "lastSync": "Última sincronización"
+    "lastSync": "Última sincronización",
+    "resyncNow": "Resincronizar ahora"
   },
   "leadsPipeline": {
     "title": "Pipeline de leads",

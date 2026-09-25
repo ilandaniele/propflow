@@ -2157,7 +2157,8 @@
     "keepPropflow": "Keep PropFlow time",
     "applyGoogle": "Apply Google time",
     "detachedBody": "The event was deleted in Google Calendar. The visit is still active in PropFlow.",
-    "lastSync": "Last sync"
+    "lastSync": "Last sync",
+    "resyncNow": "Resync now"
   },
   "leadsPipeline": {
     "title": "Leads pipeline",
