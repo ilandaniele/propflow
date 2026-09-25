@@ -10,6 +10,7 @@ import { makeBookVisitTool } from './book-visit';
 import { makeGetMyVisitsTool } from './get-my-visits';
 import { makeRescheduleVisitTool } from './reschedule-visit';
 import { makeCancelVisitTool } from './cancel-visit';
+import { makeContinueOnWhatsappTool } from './continue-on-whatsapp';
 
 export type { AgentToolContext } from './context';
 
@@ -27,5 +28,9 @@ export function buildAgentTools(ctx: AgentToolContext) {
     makeGetMyVisitsTool(ctx),
     makeRescheduleVisitTool(ctx),
     makeCancelVisitTool(ctx),
+    // Phase 7: web-only — book_visit already branches on ctx.channel, but
+    // continue_on_whatsapp has no meaningful behaviour on whatsapp/voice
+    // (there's nowhere else to "continue" to), so it's simply not offered there.
+    ...(ctx.channel === 'web' ? [makeContinueOnWhatsappTool(ctx)] : []),
   ];
 }
