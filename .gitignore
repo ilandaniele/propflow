@@ -56,3 +56,7 @@ sbom.cdx.json
 next-env.d.ts
 
 .vercel
+
+# agent eval outputs
+scripts/agent-eval/.eval-results.json
+scripts/agent-eval/report.md
