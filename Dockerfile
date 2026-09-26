@@ -18,6 +18,8 @@ ENV NEXT_PUBLIC_META_APP_ID=${NEXT_PUBLIC_META_APP_ID}
 # Skip DB connection during build
 ENV NEXT_PHASE=phase-production-build
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm run build
+# Standalone migration runner deps (postgres.js has no dependencies); -L resolves pnpm symlinks
+RUN mkdir -p /migrate/node_modules && cp -rL node_modules/postgres /migrate/node_modules/postgres
 
 FROM base AS runner
 WORKDIR /app
@@ -28,6 +30,10 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# SQL migrations + runner, executed by fly.toml [deploy] release_command
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/db/migrations ./src/lib/db/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate.mjs ./scripts/migrate.mjs
+COPY --from=builder --chown=nextjs:nodejs /migrate/node_modules ./scripts/node_modules
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
