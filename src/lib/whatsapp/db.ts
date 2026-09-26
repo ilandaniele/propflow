@@ -11,7 +11,7 @@ import {
   orgChannels,
   tenants,
 } from '@/lib/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, asc, gt, lt, isNotNull, inArray } from 'drizzle-orm';
 import { log } from '@/lib/log';
 
 export interface UpsertConversationArgs {
@@ -31,6 +31,9 @@ export interface InsertMessageArgs {
   classification?: string | null;
   status?: string;
   meta?: Record<string, unknown>;
+  agentStatus?: 'pending' | 'processing' | 'processed' | 'skipped' | null;
+  senderKind?: 'contact' | 'agent' | 'human' | 'system' | null;
+  sentByProfileId?: string | null;
 }
 
 /**
@@ -88,7 +91,8 @@ export async function incrementUnread(
  */
 export async function insertMessage(args: InsertMessageArgs): Promise<string | null> {
   const { orgId, conversationId, direction, providerMessageId, body,
-          attachmentPath, attachmentKind, classification, status = 'received', meta = {} } = args;
+          attachmentPath, attachmentKind, classification, status = 'received', meta = {},
+          agentStatus, senderKind, sentByProfileId } = args;
 
   try {
     const rows = await db
@@ -104,8 +108,13 @@ export async function insertMessage(args: InsertMessageArgs): Promise<string | n
         classification: classification ?? null,
         status,
         meta,
+        agentStatus: agentStatus ?? null,
+        senderKind: senderKind ?? null,
+        sentByProfileId: sentByProfileId ?? null,
       })
-      .onConflictDoNothing()
+      // Plain unique index (migration 0005), not the old deferrable constraint —
+      // matches the arbiter Postgres requires for ON CONFLICT.
+      .onConflictDoNothing({ target: [whatsappMessages.orgId, whatsappMessages.providerMessageId] })
       .returning({ id: whatsappMessages.id });
 
     if (!rows[0]?.id) {
@@ -183,6 +192,146 @@ export async function updateMessageStatusByProviderId(
       eq(whatsappMessages.orgId, orgId),
       eq(whatsappMessages.providerMessageId, providerMessageId),
     ));
+}
+
+/**
+ * Atomically claim every 'pending' inbound message for a conversation
+ * (pending → processing). This IS the turn's debounce: a single turn picks
+ * up every message queued since the last claim. Returned oldest first.
+ */
+export async function claimPendingInbound(
+  orgId: string,
+  conversationId: string
+): Promise<Array<{ id: string; body: string | null; attachmentKind: string | null; createdAt: Date }>> {
+  const rows = await db
+    .update(whatsappMessages)
+    // agentClaimedAt (item 4): stamped here so listStalePendingConversations
+    // can tell a turn still legitimately in flight apart from one whose
+    // process crashed mid-turn, and resurrect the latter back to 'pending'.
+    .set({ agentStatus: 'processing', agentClaimedAt: new Date() })
+    .where(and(
+      eq(whatsappMessages.orgId, orgId),
+      eq(whatsappMessages.conversationId, conversationId),
+      eq(whatsappMessages.agentStatus, 'pending'),
+    ))
+    .returning({
+      id: whatsappMessages.id,
+      body: whatsappMessages.body,
+      attachmentKind: whatsappMessages.attachmentKind,
+      createdAt: whatsappMessages.createdAt,
+    });
+
+  return rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+}
+
+/**
+ * Marks claimed messages 'processed' or 'skipped', or reverts them to
+ * 'pending' on a turn failure so they are retried by the next job/sweep.
+ */
+export async function finishClaimedInbound(
+  ids: string[],
+  status: 'processed' | 'skipped' | 'pending'
+): Promise<void> {
+  if (ids.length === 0) return;
+  await db
+    .update(whatsappMessages)
+    .set({ agentStatus: status })
+    .where(inArray(whatsappMessages.id, ids));
+}
+
+/** True if any message for this conversation is still waiting on a turn. */
+export async function hasPendingInbound(orgId: string, conversationId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: whatsappMessages.id })
+    .from(whatsappMessages)
+    .where(and(
+      eq(whatsappMessages.orgId, orgId),
+      eq(whatsappMessages.conversationId, conversationId),
+      eq(whatsappMessages.agentStatus, 'pending'),
+    ))
+    .limit(1);
+  return rows.length > 0;
+}
+
+// Item 4: mirrors session.ts's SESSION_LOCK_TTL_MS — a turn holding the
+// session lock past this point has crashed, so a 'processing' message it
+// claimed is never coming back on its own and must be resurrected.
+const PROCESSING_STALE_MS = 3 * 60 * 1000;
+
+/**
+ * Item 4: revert 'processing' messages whose claim (agentClaimedAt) is older
+ * than the session lock TTL back to 'pending'. claimPendingInbound() only
+ * ever claims 'pending' rows, so without this a message whose turn crashed
+ * mid-processing (not caught by the try/catch in processWhatsAppAgentTurn —
+ * e.g. the process itself was killed) would stay 'processing' forever and
+ * never be retried by the debounce job, the sweep below, or anything else.
+ */
+async function resurrectStaleProcessing(olderThanMs: number): Promise<void> {
+  await db
+    .update(whatsappMessages)
+    .set({ agentStatus: 'pending', agentClaimedAt: null })
+    .where(and(
+      eq(whatsappMessages.agentStatus, 'processing'),
+      lt(whatsappMessages.agentClaimedAt, new Date(Date.now() - olderThanMs)),
+    ));
+}
+
+/**
+ * Sweeper backstop: conversations with a 'pending' message older than
+ * `olderThanMs` (the debounce job should have claimed it by now) but not so
+ * old it's not worth resurrecting (`newerThanMs`). One row per conversation.
+ * Also resurrects stale 'processing' rows (item 4) first, so a crashed turn's
+ * messages fall right back into this same 'pending' query.
+ */
+export async function listStalePendingConversations(
+  olderThanMs: number,
+  newerThanMs: number,
+  limit: number
+): Promise<Array<{ orgId: string; conversationId: string }>> {
+  await resurrectStaleProcessing(PROCESSING_STALE_MS);
+
+  const now = Date.now();
+  const rows = await db
+    .selectDistinctOn([whatsappMessages.conversationId], {
+      orgId: whatsappMessages.orgId,
+      conversationId: whatsappMessages.conversationId,
+    })
+    .from(whatsappMessages)
+    .where(and(
+      eq(whatsappMessages.agentStatus, 'pending'),
+      lt(whatsappMessages.createdAt, new Date(now - olderThanMs)),
+      gt(whatsappMessages.createdAt, new Date(now - newerThanMs)),
+    ))
+    .limit(limit);
+
+  return rows;
+}
+
+/**
+ * Outbound messages a human advisor sent (sender_kind='human') since the
+ * session's last agent turn — passed to runAgentTurn as volatile turn
+ * context (never cached history).
+ */
+export async function listHumanRepliesSince(
+  orgId: string,
+  conversationId: string,
+  since: Date | null,
+  limit = 10
+): Promise<string[]> {
+  const rows = await db
+    .select({ body: whatsappMessages.body })
+    .from(whatsappMessages)
+    .where(and(
+      eq(whatsappMessages.orgId, orgId),
+      eq(whatsappMessages.conversationId, conversationId),
+      eq(whatsappMessages.senderKind, 'human'),
+      isNotNull(whatsappMessages.body),
+      ...(since ? [gt(whatsappMessages.createdAt, since)] : []),
+    ))
+    .orderBy(asc(whatsappMessages.createdAt))
+    .limit(limit);
+
+  return rows.map((r) => r.body).filter((b): b is string => b != null);
 }
 
 /**

@@ -31,6 +31,7 @@ import {
   findOrgIdByWhatsAppPhoneNumberId,
   updateConversationActivity,
   updateMessageStatusByProviderId,
+  finishClaimedInbound,
 } from '@/lib/whatsapp/db';
 import { toE164 } from '@/lib/whatsapp/phone';
 import {
@@ -44,9 +45,17 @@ import { emit } from '@/lib/events/emit';
 import { registerAllHandlers } from '@/lib/events/handlers';
 import { log } from '@/lib/log';
 import { serverEnv } from '@/lib/env';
+import { getOrCreateAgentConfig } from '@/lib/agent/config';
+import { queueAgentInbound, scheduleAgentDrain } from '@/lib/agent/whatsapp-dispatch';
+import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
+import { dispatchButtonReply } from '@/lib/agent/button-replies';
+import { getSessionByConversation, touchInbound } from '@/lib/agent/session';
 
 // Register event handlers on module load
 registerAllHandlers();
+// Register agent_jobs handlers on module load (drainAgentJobs needs one for
+// AGENT_WHATSAPP_TURN_JOB — see job-handlers.ts / handoffs/phase2-blueprint.md §4).
+registerAgentJobHandlers();
 
 const ATTACHMENT_KINDS = ['image', 'document', 'audio', 'video'] as const;
 type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
@@ -144,6 +153,7 @@ async function handleMetaPayload(
 
   const provider = getWhatsAppProvider();
   const changes = parseMetaWebhookBody(body);
+  let anyQueued = false;
 
   for (const change of changes) {
     const orgId = await findOrgIdByWhatsAppPhoneNumberId(change.phoneNumberId);
@@ -157,18 +167,21 @@ async function handleMetaPayload(
     }
 
     for (const message of change.messages) {
-      await processMetaMessage(orgId, message, provider);
+      if (await processMetaMessage(orgId, message, provider)) anyQueued = true;
     }
   }
+
+  if (anyQueued) scheduleAgentDrain();
 
   return NextResponse.json({ ok: true });
 }
 
+/** Returns true if this message was handed to the agent's debounced turn queue. */
 async function processMetaMessage(
   orgId: string,
   message: NormalizedInboundMessage,
   provider: ReturnType<typeof getWhatsAppProvider>
-): Promise<void> {
+): Promise<boolean> {
   const from = toE164(message.from);
 
   const tenant = await findTenantByPhone(orgId, from);
@@ -194,6 +207,11 @@ async function processMetaMessage(
 
   const classification = await classifyMessage(message.text, attachmentKind, orgId);
 
+  // Tenant wins (decision 4): tenant conversations never get agentStatus, so
+  // the existing tenant flow runs unchanged. Otherwise mark pending only when
+  // the org has WhatsApp agent live — see queueAgentInbound() below.
+  const agentEnabled = !tenant && (await getOrCreateAgentConfig(orgId)).channelsEnabled.whatsapp;
+
   const messageId = await insertMessage({
     orgId,
     conversationId,
@@ -210,9 +228,11 @@ async function processMetaMessage(
       interactive_reply_id: message.interactiveReplyId,
       referral: message.referral,
     },
+    agentStatus: agentEnabled ? 'pending' : null,
+    senderKind: 'contact',
   });
 
-  if (!messageId) return; // duplicate — already processed
+  if (!messageId) return false; // duplicate — already processed
 
   await updateConversationActivity(conversationId, true);
 
@@ -237,6 +257,42 @@ async function processMetaMessage(
       classification: classification.classification,
     }, `whatsapp.attachment.received:${message.providerMessageId}`);
   }
+
+  if (!agentEnabled) return false;
+
+  // EXTENSION POINT (Phase 3-4, see src/lib/agent/button-replies.ts): a
+  // button/list reply is routed to any registered handler BEFORE the agent
+  // turn. A handler that reports it fully handled the reply (e.g. it sent
+  // its own message) skips the normal agent pipeline for this message.
+  if (message.interactiveReplyId) {
+    const handled = await dispatchButtonReply({
+      orgId,
+      conversationId,
+      externalPhone: from,
+      interactiveReplyId: message.interactiveReplyId,
+      text: message.text,
+    });
+    if (handled) {
+      // A button-reply handler short-circuits the normal agent pipeline
+      // (queueAgentInbound, which owns touchInbound), so refresh the 24h
+      // window here too — any inbound on a conversation with a live agent
+      // session counts, regardless of handler path (item 6).
+      const session = await getSessionByConversation(orgId, conversationId);
+      if (session) await touchInbound(session.id);
+      // Handled outside the agent pipeline — clear the 'pending' agentStatus
+      // set by insertMessage() above so the sweeper never resurrects it.
+      await finishClaimedInbound([messageId], 'processed');
+      return false;
+    }
+  }
+
+  return queueAgentInbound({
+    orgId,
+    conversationId,
+    externalPhone: from,
+    text: message.text,
+    referral: message.referral,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -305,6 +361,10 @@ async function handleMockPayload(
   const attachmentKind = isAttachmentKind(type) ? type : null;
   const classification = await classifyMessage(text ?? null, attachmentKind, orgId);
 
+  // Tenant wins (decision 4); otherwise mark pending only when the org has
+  // WhatsApp agent live — mirrors handleMetaPayload above.
+  const agentEnabled = !tenant && (await getOrCreateAgentConfig(orgId)).channelsEnabled.whatsapp;
+
   const messageId = await insertMessage({
     orgId,
     conversationId,
@@ -316,6 +376,8 @@ async function handleMockPayload(
     classification: classification.classification,
     status: 'received',
     meta: { from_provider: true, timestamp, attachment_url: attachment_url ?? null },
+    agentStatus: agentEnabled ? 'pending' : null,
+    senderKind: 'contact',
   });
 
   if (!messageId) {
@@ -345,6 +407,16 @@ async function handleMockPayload(
       attachmentPath: attachment_url, // will be downloaded by handler
       classification: classification.classification,
     }, `whatsapp.attachment.received:${provider_message_id}`);
+  }
+
+  // Mock payloads (dev/tests) never carry a button/list reply, so there's no
+  // button-replies.ts extension point here — see processMetaMessage above.
+  // Item 5: this branch is dev/test-only (the mock-provider signature scheme,
+  // never Meta's). In production it must never feed the live agent — a stray
+  // mock-shaped POST must not create bogus sessions/leads.
+  if (agentEnabled && process.env.NODE_ENV !== 'production') {
+    const queued = await queueAgentInbound({ orgId, conversationId, externalPhone: from, text: text ?? null, referral: null });
+    if (queued) scheduleAgentDrain();
   }
 
   return NextResponse.json({ ok: true });

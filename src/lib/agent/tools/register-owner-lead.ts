@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { createProspectLead } from '../lead';
+import { attributionToSource, createProspectLead } from '../lead';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
@@ -25,6 +25,7 @@ export function makeRegisterOwnerLeadTool(ctx: AgentToolContext) {
       }
 
       const phone = args.phone ?? (ctx.channel === 'whatsapp' || ctx.channel === 'voice' ? ctx.externalId : null);
+      const { sourceRef, sourceMeta } = attributionToSource(ctx.attribution);
 
       await createProspectLead({
         orgId: ctx.orgId,
@@ -35,6 +36,8 @@ export function makeRegisterOwnerLeadTool(ctx: AgentToolContext) {
         zones: args.zone ? [args.zone] : [],
         notes: args.notes ?? null,
         sourceChannel: ctx.channel,
+        sourceRef,
+        sourceMeta,
       });
 
       return 'Propietario registrado. Un asesor va a contactarlo para tasar la propiedad.';

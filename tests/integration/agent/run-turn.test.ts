@@ -1,13 +1,44 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { toolRunnerMock, budgetRows, appendedMessages, sessionRow, getSessionHistoryMock, getLeadMock, setSessionLeadMock } = vi.hoisted(() => ({
+const {
+  toolRunnerMock,
+  budgetRows,
+  appendedMessages,
+  sessionRow,
+  getSessionHistoryMock,
+  getLeadMock,
+  setSessionLeadMock,
+  setSessionModeMock,
+  setSessionLanguageMock,
+  recordAgentTurnMock,
+  recordAgentEventMock,
+} = vi.hoisted(() => ({
   toolRunnerMock: vi.fn(),
   budgetRows: [{ total: '0' }] as { total: string }[],
   appendedMessages: [] as Record<string, unknown>[],
-  sessionRow: { id: 'session-1', orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', leadId: null as string | null, whatsappConversationId: null, mode: 'ai', summary: null },
+  sessionRow: {
+    id: 'session-1',
+    orgId: 'org-1',
+    channel: 'whatsapp',
+    externalId: '+51987654321',
+    leadId: null as string | null,
+    whatsappConversationId: null,
+    mode: 'ai' as 'ai' | 'human' | 'paused',
+    summary: null,
+    agentTurnCount: 0,
+    language: null as 'es' | 'en' | 'pt' | null,
+    attribution: null,
+    handoffReason: null,
+    windowExpiresAt: null,
+    lastAgentTurnAt: null,
+  },
   getSessionHistoryMock: vi.fn(async () => [] as unknown[]),
   getLeadMock: vi.fn(async () => null as unknown),
   setSessionLeadMock: vi.fn(async () => {}),
+  setSessionModeMock: vi.fn(async () => {}),
+  setSessionLanguageMock: vi.fn(async () => {}),
+  recordAgentTurnMock: vi.fn(async () => {}),
+  recordAgentEventMock: vi.fn(async () => {}),
 }));
 
 const CONFIG_FIXTURE = {
@@ -26,6 +57,8 @@ const CONFIG_FIXTURE = {
   dailyTokenBudget: 50_000,
   widgetAllowedOrigins: [],
   channelsEnabled: { whatsapp: true, web: false, voice: false },
+  shadowMode: false,
+  maxAgentTurns: null as number | null,
 };
 
 vi.mock('@/lib/db', () => ({
@@ -52,9 +85,16 @@ vi.mock('@/lib/agent/session', () => ({
   getSessionHistory: getSessionHistoryMock,
   appendSessionMessage: vi.fn(async (args: Record<string, unknown>) => {
     appendedMessages.push(args);
+    return `msg-${appendedMessages.length}`;
   }),
   setSessionLead: setSessionLeadMock,
-  setSessionMode: vi.fn(async () => {}),
+  setSessionMode: setSessionModeMock,
+  setSessionLanguage: setSessionLanguageMock,
+  recordAgentTurn: recordAgentTurnMock,
+}));
+
+vi.mock('@/lib/agent/events', () => ({
+  recordAgentEvent: recordAgentEventMock,
 }));
 
 vi.mock('@/lib/agent/lead', () => ({
@@ -77,6 +117,9 @@ describe('runAgentTurn', () => {
     budgetRows.push({ total: '0' });
     appendedMessages.length = 0;
     sessionRow.leadId = null;
+    sessionRow.mode = 'ai';
+    sessionRow.agentTurnCount = 0;
+    sessionRow.language = null;
     getSessionHistoryMock.mockResolvedValue([]);
     getLeadMock.mockResolvedValue(null);
   });
@@ -94,11 +137,13 @@ describe('runAgentTurn', () => {
     expect(result.replyText).toBe('Hola, ¿en qué te puedo ayudar?');
     expect(result.sessionId).toBe('session-1');
     expect(result.handedOffToHuman).toBe(false);
+    expect(result.skipped).toBe(false);
 
     // Both the new inbound user message AND the assistant reply are persisted — not just the reply.
     expect(appendedMessages).toHaveLength(2);
     expect(appendedMessages[0]).toMatchObject({ role: 'user', content: 'hola' });
     expect(appendedMessages[1]).toMatchObject({ role: 'assistant', inputTokens: 120, outputTokens: 40 });
+    expect(recordAgentTurnMock).toHaveBeenCalledWith('session-1');
   });
 
   it('persists tool_use/tool_result turns in between, not just the final reply', async () => {
@@ -148,9 +193,10 @@ describe('runAgentTurn', () => {
     const result = await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'quiero hablar con alguien' });
 
     expect(result.handedOffToHuman).toBe(true);
+    expect(result.handoffReason).toBe('tool');
   });
 
-  it('short-circuits with a canned reply and never calls the model when the org is over its daily budget', async () => {
+  it('short-circuits with a canned reply, hands off to human, and never calls the model when the org is over its daily budget', async () => {
     budgetRows.length = 0;
     budgetRows.push({ total: '999999' });
 
@@ -158,7 +204,60 @@ describe('runAgentTurn', () => {
 
     expect(toolRunnerMock).not.toHaveBeenCalled();
     expect(result.replyText).toMatch(/asesor/i);
+    expect(result.handedOffToHuman).toBe(true);
+    expect(result.handoffReason).toBe('budget');
     expect(appendedMessages).toHaveLength(0);
+    expect(setSessionModeMock).toHaveBeenCalledWith('session-1', 'human', expect.any(String), 'budget');
+    expect(recordAgentEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-1', kind: 'handoff', data: expect.objectContaining({ reason: 'budget' }) }),
+    );
+  });
+
+  it('skips the model entirely when the session is already handed off to a human', async () => {
+    sessionRow.mode = 'human';
+
+    const result = await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'hola' });
+
+    expect(toolRunnerMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(true);
+    expect(result.handedOffToHuman).toBe(false);
+    expect(appendedMessages).toHaveLength(0);
+  });
+
+  it('hands off once the per-session turn cap is reached', async () => {
+    sessionRow.agentTurnCount = 30;
+    CONFIG_FIXTURE.maxAgentTurns = 30;
+
+    const result = await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'hola' });
+
+    expect(toolRunnerMock).not.toHaveBeenCalled();
+    expect(result.handedOffToHuman).toBe(true);
+    expect(result.handoffReason).toBe('turn_cap');
+    expect(setSessionModeMock).toHaveBeenCalledWith('session-1', 'human', expect.any(String), 'turn_cap');
+    expect(recordAgentEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'handoff', data: expect.objectContaining({ reason: 'turn_cap' }) }),
+    );
+
+    CONFIG_FIXTURE.maxAgentTurns = null;
+  });
+
+  it('persists a detected language change on the session', async () => {
+    const finalContent = [{ type: 'text', text: 'Hi there!' }];
+    const fullMessages = [
+      { role: 'user', content: 'Hello, I want to know the price of the house' },
+      { role: 'assistant', content: finalContent },
+    ];
+    toolRunnerMock.mockReturnValue(fakeRunner(finalContent, fullMessages));
+
+    const result = await runAgentTurn({
+      orgId: 'org-1',
+      channel: 'whatsapp',
+      externalId: '+51987654321',
+      inboundText: 'Hello, I want to know the price of the house',
+    });
+
+    expect(setSessionLanguageMock).toHaveBeenCalledWith('session-1', 'en');
+    expect(result.language).toBe('en');
   });
 
   it('dryRun (playground) never checks or spends the org budget', async () => {
@@ -176,6 +275,30 @@ describe('runAgentTurn', () => {
 
     expect(toolRunnerMock).toHaveBeenCalled();
     expect(result.replyText).toBe('Hola desde el playground');
+    expect(setSessionLanguageMock).not.toHaveBeenCalled();
+    expect(recordAgentTurnMock).not.toHaveBeenCalled();
+  });
+
+  it('dryRun never trips the turn cap, even when the session is already at/over it', async () => {
+    sessionRow.agentTurnCount = 999;
+    sessionRow.mode = 'human'; // would also short-circuit a real turn
+    CONFIG_FIXTURE.maxAgentTurns = 1;
+
+    const finalContent = [{ type: 'text', text: 'Hola desde el playground' }];
+    const fullMessages = [
+      { role: 'user', content: 'hola' },
+      { role: 'assistant', content: finalContent },
+    ];
+    toolRunnerMock.mockReturnValue(fakeRunner(finalContent, fullMessages));
+
+    const result = await runAgentTurn({ orgId: 'org-1', channel: 'web', externalId: 'playground:user-1', inboundText: 'hola', dryRun: true });
+
+    expect(toolRunnerMock).toHaveBeenCalled();
+    expect(result.skipped).toBe(false);
+    expect(result.handedOffToHuman).toBe(false);
+    expect(setSessionModeMock).not.toHaveBeenCalled();
+
+    CONFIG_FIXTURE.maxAgentTurns = null;
   });
 
   it('falls back to a placeholder when the model returns no text blocks', async () => {

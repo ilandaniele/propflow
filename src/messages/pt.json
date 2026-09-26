@@ -70,6 +70,7 @@
     "aiAssistant": "Assistente IA",
     "whatsapp": "WhatsApp",
     "agentPlayground": "Agente IA (playground)",
+    "agentInbox": "Caixa de entrada do agente",
     "tasks": "Tarefas",
     "sanctions": "Sanções",
     "overview": "Visão geral",
@@ -488,6 +489,69 @@
     "handoffBadge": "Esta mensagem teria sido encaminhada a um atendente humano",
     "errorGeneric": "Ocorreu um erro. Tente novamente."
   },
+  "agentInbox": {
+    "title": "Caixa de entrada do agente",
+    "empty": "Sem conversas ainda. As conversas de WhatsApp com o agente IA aparecerão aqui.",
+    "unknownContact": "Contato desconhecido",
+    "mode": {
+      "ai": "IA",
+      "human": "Humano",
+      "paused": "Pausado"
+    },
+    "handoffReason": {
+      "tool": "Solicitou um atendente humano",
+      "budget": "Orçamento diário esgotado",
+      "turn_cap": "Limite de turnos atingido",
+      "manual": "Transferência manual"
+    },
+    "pendingSuggestion": "Sugestão pendente",
+    "unanswered": "Sem resposta",
+    "noMessages": "Sem mensagens",
+    "sender": {
+      "contact": "Cliente",
+      "agent": "IA",
+      "human": "Atendente",
+      "system": "Sistema"
+    },
+    "event": {
+      "handoff": "Transferido para um atendente humano",
+      "mode_change": "Modo alterado",
+      "suggestion_created": "Sugestão gerada pela IA",
+      "suggestion_sent": "Sugestão enviada",
+      "suggestion_discarded": "Sugestão descartada",
+      "attribution": "Origem do contato registrada",
+      "window_closed": "Janela de 24h fechada",
+      "turn_error": "Erro no turno do agente"
+    },
+    "takeOver": "Assumir controle",
+    "returnToAi": "Devolver para IA",
+    "approveSuggestion": "Enviar",
+    "discardSuggestion": "Descartar",
+    "sending": "Enviando...",
+    "send": "Enviar",
+    "replyPlaceholder": "Digite uma resposta...",
+    "windowClosedNotice": "Fora da janela de 24h: apenas modelos aprovados.",
+    "backToInbox": "Voltar para a caixa de entrada",
+    "leadPanel": {
+      "title": "Lead",
+      "phone": "Telefone",
+      "stage": "Etapa",
+      "score": "Pontuação",
+      "intent": "Intenção",
+      "zones": "Zonas",
+      "budget": "Orçamento",
+      "attribution": "Veio de",
+      "language": "Idioma",
+      "noLead": "Nenhum lead vinculado ainda"
+    },
+    "whatsappEnabled": "WhatsApp ao vivo",
+    "shadowMode": "Modo sombra (revisar antes de enviar)",
+    "maxAgentTurns": "Limite de turnos",
+    "unlimited": "Sem limite",
+    "save": "Salvar",
+    "saving": "Salvando...",
+    "savedOk": "Configuração salva."
+  },
   "whatsapp": {
     "title": "WhatsApp",
     "inbox": "Caixa de entrada",
@@ -540,7 +604,13 @@
       "leaseRenewal": "Seu contrato vence em {days} dias ({date}). Por favor entre em contato com seu proprietário para discutir a renovação."
     },
     "messagePlaceholder": "Digite uma mensagem...",
-    "sentOk": "Mensagem enviada."
+    "sentOk": "Mensagem enviada.",
+    "agentMode": {
+      "ai": "IA",
+      "human": "Humano",
+      "paused": "Pausado"
+    },
+    "viewInAgentInbox": "Ver na caixa de entrada do agente"
   },
   "sanctions": {
     "title": "Sanções",

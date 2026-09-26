@@ -9,18 +9,32 @@
  */
 
 const DRAIN_INTERVAL_MS = 30_000;
+const SWEEP_EVERY_N_TICKS = 4; // ~every 2 minutes, alongside the drain
 
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
   const { drainAgentJobs } = await import('@/lib/agent/jobs');
+  const { registerAgentJobHandlers } = await import('@/lib/agent/job-handlers');
+  const { sweepStalePendingInbound } = await import('@/lib/agent/whatsapp-dispatch');
   const { log } = await import('@/lib/log');
 
+  registerAgentJobHandlers();
+
+  let tick = 0;
   setInterval(() => {
+    tick++;
     drainAgentJobs().catch((e) => {
       log.error('[instrumentation] agent job drain failed', {
         error: e instanceof Error ? e.message : 'unknown',
       });
     });
+    if (tick % SWEEP_EVERY_N_TICKS === 0) {
+      sweepStalePendingInbound().catch((e) => {
+        log.error('[instrumentation] stale-inbound sweep failed', {
+          error: e instanceof Error ? e.message : 'unknown',
+        });
+      });
+    }
   }, DRAIN_INTERVAL_MS).unref();
 }

@@ -16,7 +16,12 @@ const { createProspectLead, applyLeadQualification, setSessionLead } = vi.hoiste
   setSessionLead: vi.fn(async () => {}),
 }));
 
-vi.mock('@/lib/agent/lead', () => ({ createProspectLead, applyLeadQualification }));
+vi.mock('@/lib/agent/lead', () => ({
+  createProspectLead,
+  applyLeadQualification,
+  attributionToSource: (a: unknown) =>
+    a ? { sourceRef: 'ref:X', sourceMeta: a as Record<string, unknown> } : { sourceRef: null, sourceMeta: {} },
+}));
 vi.mock('@/lib/agent/session', () => ({ setSessionLead }));
 
 import { makeUpdateLeadProfileTool } from '@/lib/agent/tools/update-lead-profile';
@@ -30,6 +35,7 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): AgentToolContext {
     externalId: '+51987654321',
     dryRun: false,
     leadIdRef: { current: null },
+    attribution: null,
     ...overrides,
   };
 }
@@ -71,6 +77,18 @@ describe('update_lead_profile tool', () => {
     await tool.run({ operationType: 'buy' });
 
     expect(createProspectLead).toHaveBeenCalledWith(expect.objectContaining({ phone: null }));
+  });
+
+  it('derives sourceRef/sourceMeta from the session attribution on lead creation', async () => {
+    const attribution = { type: 'ctwa', sourceId: 'ad-1', capturedAt: '2026-01-01T00:00:00.000Z' };
+    const ctx = makeCtx({ attribution });
+    const tool = makeUpdateLeadProfileTool(ctx);
+
+    await tool.run({ operationType: 'rent' });
+
+    expect(createProspectLead).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceRef: 'ref:X', sourceMeta: attribution }),
+    );
   });
 
   it('reuses the existing leadId instead of creating a new one', async () => {

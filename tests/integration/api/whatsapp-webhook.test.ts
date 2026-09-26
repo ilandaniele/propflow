@@ -6,7 +6,7 @@
  * integration is mocked via vi.mock().
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import crypto from 'crypto';
 
 // Mock @/lib/db — Drizzle
@@ -36,28 +36,62 @@ vi.mock('@/lib/events/handlers', () => ({
 
 // vi.mock factories are hoisted above regular declarations, so any mock fns
 // they close over must be created via vi.hoisted() to avoid a TDZ error.
-const { findOrgIdByWhatsAppPhoneNumberId, updateMessageStatusByProviderId, mockProvider } = vi.hoisted(() => ({
+const {
+  findOrgIdByWhatsAppPhoneNumberId,
+  updateMessageStatusByProviderId,
+  findTenantByPhone,
+  mockProvider,
+  getOrCreateAgentConfig,
+  queueAgentInbound,
+  scheduleAgentDrain,
+  insertMessage,
+  dispatchButtonReply,
+  getSessionByConversation,
+  touchInbound,
+} = vi.hoisted(() => ({
   findOrgIdByWhatsAppPhoneNumberId: vi.fn(async () => null as string | null),
   updateMessageStatusByProviderId: vi.fn(async () => {}),
+  findTenantByPhone: vi.fn(async () => null as { id: string; profile_id: string | null; preferred_language: string } | null),
   mockProvider: {
     sendMessage: vi.fn(),
     validateWebhookSignature: vi.fn(),
     downloadAttachment: vi.fn(async () => ({ storagePath: 'whatsapp/org-1/conv-1/wamid.1' })),
     verifyWebhookToken: vi.fn((token: string) => token === 'correct-verify-token'),
   },
+  getOrCreateAgentConfig: vi.fn(async () => ({ channelsEnabled: { whatsapp: false, web: false, voice: false } })),
+  queueAgentInbound: vi.fn(async () => true),
+  scheduleAgentDrain: vi.fn(),
+  insertMessage: vi.fn(async () => 'msg-1' as string | null),
+  dispatchButtonReply: vi.fn(async () => false),
+  getSessionByConversation: vi.fn(async () => null as { id: string } | null),
+  touchInbound: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/whatsapp/db', () => ({
-  findTenantByPhone: async () => null,
+  findTenantByPhone,
   upsertConversation: async () => 'conv-1',
-  insertMessage: async () => 'msg-1',
+  insertMessage,
   updateConversationActivity: async () => {},
   findOrgIdByWhatsAppPhoneNumberId,
   updateMessageStatusByProviderId,
+  finishClaimedInbound: vi.fn(async () => {}),
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
   getWhatsAppProvider: () => mockProvider,
+}));
+
+vi.mock('@/lib/agent/config', () => ({ getOrCreateAgentConfig }));
+
+vi.mock('@/lib/agent/whatsapp-dispatch', () => ({ queueAgentInbound, scheduleAgentDrain }));
+
+vi.mock('@/lib/agent/job-handlers', () => ({ registerAgentJobHandlers: vi.fn() }));
+
+vi.mock('@/lib/agent/button-replies', () => ({ dispatchButtonReply }));
+
+vi.mock('@/lib/agent/session', () => ({
+  getSessionByConversation,
+  touchInbound,
 }));
 
 const SECRET = 'test-secret-for-webhook-tests-xx';
@@ -137,6 +171,37 @@ describe('POST /api/whatsapp/webhook', () => {
     // 64 zero hex chars — valid format, wrong value
     const response = await callWebhook(body, 'sha256=0000000000000000000000000000000000000000000000000000000000000000');
     expect(response.status).toBe(401);
+  });
+
+  // Item 5: the mock-provider payload shape is dev/test-only — a stray
+  // mock-shaped POST reaching a production deploy must never feed the live
+  // agent (bogus sessions/leads on a signature scheme Meta never uses).
+  describe('mock payload must never queue the agent in production (item 5)', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('does not queue when NODE_ENV=production', async () => {
+      getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+      vi.stubEnv('NODE_ENV', 'production');
+
+      const body = makeWebhookPayload();
+      const response = await callWebhook(body, makeSignature(body));
+
+      expect(response.status).toBe(200);
+      expect(queueAgentInbound).not.toHaveBeenCalled();
+    });
+
+    it('still queues outside production (dev/test)', async () => {
+      getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+      vi.stubEnv('NODE_ENV', 'test');
+
+      const body = makeWebhookPayload();
+      const response = await callWebhook(body, makeSignature(body));
+
+      expect(response.status).toBe(200);
+      expect(queueAgentInbound).toHaveBeenCalledOnce();
+    });
   });
 });
 
@@ -235,5 +300,82 @@ describe('POST /api/whatsapp/webhook (real Meta payload)', () => {
     const response = await callMetaWebhook(body, metaSignature(body));
     expect(response.status).toBe(200);
     expect(updateMessageStatusByProviderId).toHaveBeenCalledWith('org-1', 'wamid.1', 'delivered');
+  });
+
+  it('queues an agent turn for a non-tenant when WhatsApp is enabled, and drains', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue(null);
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    const body = metaBody();
+    const response = await callMetaWebhook(body, metaSignature(body));
+    expect(response.status).toBe(200);
+    expect(queueAgentInbound).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-1', conversationId: 'conv-1' }));
+    expect(scheduleAgentDrain).toHaveBeenCalled();
+  });
+
+  it('does not queue an agent turn for a tenant, even with WhatsApp enabled', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue({ id: 'tenant-1', profile_id: null, preferred_language: 'es' });
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    const body = metaBody();
+    const response = await callMetaWebhook(body, metaSignature(body));
+    expect(response.status).toBe(200);
+    expect(queueAgentInbound).not.toHaveBeenCalled();
+    expect(scheduleAgentDrain).not.toHaveBeenCalled();
+  });
+
+  it('does not queue an agent turn for a duplicate message (insertMessage returns null)', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue(null);
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    insertMessage.mockResolvedValueOnce(null);
+    const body = metaBody();
+    const response = await callMetaWebhook(body, metaSignature(body));
+    expect(response.status).toBe(200);
+    expect(queueAgentInbound).not.toHaveBeenCalled();
+    expect(scheduleAgentDrain).not.toHaveBeenCalled();
+  });
+
+  // Item 6: touchInbound must run for every inbound linked to an agent
+  // session, even when a button-reply handler fully handles the message and
+  // short-circuits before queueAgentInbound (which normally owns the call).
+  it('touches the session window when a button-reply handler short-circuits the agent pipeline', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue(null);
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    dispatchButtonReply.mockResolvedValueOnce(true);
+    getSessionByConversation.mockResolvedValueOnce({ id: 'session-1' });
+
+    const body = metaBody({
+      messages: [{
+        id: 'wamid.2', from: '51987654321', timestamp: '1700000000', type: 'interactive',
+        interactive: { type: 'button_reply', button_reply: { id: 'opt-1', title: 'Sí' } },
+      }],
+    });
+    const response = await callMetaWebhook(body, metaSignature(body));
+
+    expect(response.status).toBe(200);
+    expect(dispatchButtonReply).toHaveBeenCalled();
+    expect(touchInbound).toHaveBeenCalledWith('session-1');
+    expect(queueAgentInbound).not.toHaveBeenCalled(); // handled outside the agent pipeline
+  });
+
+  it('does not touch a session that does not exist for the conversation', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    findTenantByPhone.mockResolvedValue(null);
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    dispatchButtonReply.mockResolvedValueOnce(true);
+    getSessionByConversation.mockResolvedValueOnce(null);
+
+    const body = metaBody({
+      messages: [{
+        id: 'wamid.3', from: '51987654321', timestamp: '1700000000', type: 'interactive',
+        interactive: { type: 'button_reply', button_reply: { id: 'opt-1', title: 'Sí' } },
+      }],
+    });
+    const response = await callMetaWebhook(body, metaSignature(body));
+
+    expect(response.status).toBe(200);
+    expect(touchInbound).not.toHaveBeenCalled();
   });
 });

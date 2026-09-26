@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import { crmLeads } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { computeLeadScore, intentTagForScore, type LeadQualificationInput } from './scoring';
+import type { AgentAttribution } from './types';
 
 export interface LeadRecord {
   id: string;
@@ -62,6 +63,7 @@ export interface CreateProspectLeadArgs {
   phone?: string | null;
   sourceChannel: 'whatsapp' | 'web' | 'voice';
   sourceRef?: string | null;
+  sourceMeta?: Record<string, unknown>;
   pipeline?: 'demand' | 'supply';
   operationType?: string | null;
   zones?: string[];
@@ -81,11 +83,32 @@ export async function createProspectLead(args: CreateProspectLeadArgs): Promise<
       notes: args.notes ?? null,
       sourceChannel: args.sourceChannel,
       sourceRef: args.sourceRef ?? null,
+      ...(args.sourceMeta !== undefined ? { sourceMeta: args.sourceMeta } : {}),
       source: 'agent',
     })
     .returning();
 
   return toLeadRecord(rows[0]);
+}
+
+/**
+ * Pure helper (decision 11 / blueprint §3): turns the session's attribution
+ * into the lead's source_ref + source_meta. No attribution => both null/empty.
+ */
+export function attributionToSource(a: AgentAttribution | null): {
+  sourceRef: string | null;
+  sourceMeta: Record<string, unknown>;
+} {
+  if (!a) return { sourceRef: null, sourceMeta: {} };
+
+  const sourceRef =
+    a.type === 'ctwa' && a.sourceId
+      ? `ctwa:${a.sourceId}`
+      : a.type === 'wa_link' && a.refCode
+        ? `ref:${a.refCode}`
+        : null;
+
+  return { sourceRef, sourceMeta: { ...a } };
 }
 
 /** Only these fields are ever accepted from the model. Score/intentTag/stage/assignedProfileId/doNotContact are computed or staff-only. */

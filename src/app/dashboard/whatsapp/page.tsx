@@ -3,8 +3,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { whatsappConversations, tenants } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { whatsappConversations, tenants, agentSessions } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Badge } from '@/components/ui/Badge';
 
@@ -24,9 +24,14 @@ export default async function WhatsAppInboxPage() {
       unreadCountAdmin: whatsappConversations.unreadCountAdmin,
       tenantId:         whatsappConversations.tenantId,
       tenantFullName:   tenants.fullName,
+      agentMode:        agentSessions.mode,
     })
     .from(whatsappConversations)
     .leftJoin(tenants, eq(tenants.id, whatsappConversations.tenantId))
+    .leftJoin(agentSessions, and(
+      eq(agentSessions.whatsappConversationId, whatsappConversations.id),
+      eq(agentSessions.orgId, ctx.orgId),
+    ))
     .where(eq(whatsappConversations.orgId, ctx.orgId))
     .orderBy(desc(whatsappConversations.lastMessageAt))
     .limit(50);
@@ -66,6 +71,11 @@ export default async function WhatsAppInboxPage() {
                 </p>
                 {conv.tenantFullName && (
                   <p className="text-xs text-slate-400">{conv.externalPhone}</p>
+                )}
+                {conv.agentMode && (
+                  <Badge variant={conv.agentMode === 'ai' ? 'success' : conv.agentMode === 'human' ? 'warning' : 'default'}>
+                    {t(`agentMode.${conv.agentMode}` as Parameters<typeof t>[0])}
+                  </Badge>
                 )}
                 {conv.lastMessageAt && (
                   <p className="text-xs text-slate-400">
