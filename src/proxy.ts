@@ -3,6 +3,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
+  // Agent Phase 7: /widget.js and the /widget/[publicKey] iframe are embedded
+  // by third-party sites. They set their own CSP/CORS/COOP (per-route,
+  // including a per-org frame-ancestors) — the proxy must not add
+  // X-Frame-Options or any other header here that would fight with that.
+  if (path === '/widget.js' || path.startsWith('/widget/')) {
+    return NextResponse.next({ request });
+  }
+
   // Generate nonce for strict CSP
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
@@ -14,7 +22,7 @@ export async function proxy(request: NextRequest) {
     `img-src 'self' data: https: ${process.env.TIGRIS_ENDPOINT ?? 'https://fly.storage.tigris.dev'}`,
     "font-src 'self' data:",
     "frame-ancestors 'none'",
-    "frame-src https://accounts.google.com",           // Google OAuth redirect/popup
+    "frame-src 'self' https://accounts.google.com",     // 'self': /p pages host the widget iframe (Phase 7); accounts.google.com: OAuth redirect/popup
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -26,8 +34,10 @@ export async function proxy(request: NextRequest) {
   // Public routes — skip auth check entirely (no auth needed).
   // These routes either have no auth requirement or handle their own auth guard in-page.
   //
-  // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding.
-  // These routes either have no auth requirement or handle their own auth guard in-page.
+  // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding,
+  // /p (Agent Phase 7 public catalogue pages — stay unframeable themselves,
+  // via the 'none' below XFO/frame-ancestors is still forced on THIS route;
+  // only the widget iframe route above is exempt from those headers).
   const isFullyPublicRoute =
     path === '/' ||
     path === '/login' ||
@@ -35,7 +45,9 @@ export async function proxy(request: NextRequest) {
     path === '/forgot-password' ||
     path.startsWith('/sign/') ||
     path.startsWith('/auth/') ||
-    path === '/onboarding';
+    path === '/onboarding' ||
+    path === '/p' ||
+    path.startsWith('/p/');
 
   if (isFullyPublicRoute) {
     const publicResponse = NextResponse.next({ request });

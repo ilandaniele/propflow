@@ -24,6 +24,9 @@ const {
   stopFollowups,
   scheduleFollowupSequence,
   getOrCreateSession,
+  redeemWebHandoffCode,
+  appendSessionMessage,
+  appendSystemOutboundToHistory,
 } = vi.hoisted(() => ({
   callOrder: [] as string[],
   getSessionByConversation: vi.fn(),
@@ -55,6 +58,9 @@ const {
   stopFollowups: vi.fn(async () => 0),
   scheduleFollowupSequence: vi.fn(async () => 0),
   getOrCreateSession: vi.fn(),
+  redeemWebHandoffCode: vi.fn(async () => ({ kind: 'none' }) as unknown),
+  appendSessionMessage: vi.fn(async () => 'msg-1'),
+  appendSystemOutboundToHistory: vi.fn(async () => 'msg-2'),
 }));
 
 const SESSION = {
@@ -101,6 +107,8 @@ vi.mock('@/lib/agent/session', () => ({
   },
   setSessionAttributionIfEmpty: vi.fn(async () => false),
   setAssistantMessageSendStatus,
+  appendSessionMessage,
+  appendSystemOutboundToHistory,
 }));
 
 vi.mock('@/lib/agent/lead', () => ({ getLead }));
@@ -116,6 +124,8 @@ vi.mock('@/lib/agent/run-turn', () => ({ runAgentTurn }));
 vi.mock('@/lib/agent/suggestions', () => ({ createSuggestion }));
 
 vi.mock('@/lib/agent/outbound', () => ({ sendWhatsAppText }));
+
+vi.mock('@/lib/agent/web-handoff-redeem', () => ({ redeemWebHandoffCode }));
 
 vi.mock('@/lib/whatsapp/referral', () => ({
   parseCtwaReferral: vi.fn(() => null),
@@ -157,6 +167,7 @@ describe('agent/whatsapp-dispatch — processWhatsAppAgentTurn', () => {
     getLead.mockResolvedValue(null);
     stopFollowups.mockResolvedValue(0);
     scheduleFollowupSequence.mockResolvedValue(1);
+    redeemWebHandoffCode.mockResolvedValue({ kind: 'none' });
   });
 
   it('no-ops when the session lock is busy', async () => {
@@ -279,6 +290,57 @@ describe('agent/whatsapp-dispatch — processWhatsAppAgentTurn', () => {
     });
     await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
     expect(scheduleFollowupSequence).not.toHaveBeenCalled();
+  });
+
+  it('a visit_booked web handoff redemption sends the confirmation directly and never calls the model', async () => {
+    redeemWebHandoffCode.mockResolvedValue({ kind: 'visit_booked', replyText: '¡Listo! Confirmamos tu visita.', visitId: 'visit-9' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+
+    expect(runAgentTurn).not.toHaveBeenCalled();
+    expect(sendWhatsAppText).toHaveBeenCalledWith(expect.objectContaining({
+      body: '¡Listo! Confirmamos tu visita.',
+      senderKind: 'agent',
+    }));
+    expect(finishClaimedInbound).toHaveBeenCalledWith(['m1', 'm2'], 'processed');
+  });
+
+  it('a visit_booked redemption appends both the inbound text and the confirmation reply to agent_messages', async () => {
+    redeemWebHandoffCode.mockResolvedValue({ kind: 'visit_booked', replyText: '¡Listo! Confirmamos tu visita.', visitId: 'visit-9' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+
+    expect(appendSessionMessage).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: 'org-1',
+      sessionId: 'session-1',
+      role: 'user',
+      content: [{ type: 'text', text: expect.stringContaining('Hola') }],
+    }));
+    expect(appendSystemOutboundToHistory).toHaveBeenCalledWith({
+      orgId: 'org-1',
+      sessionId: 'session-1',
+      text: '¡Listo! Confirmamos tu visita.',
+    });
+  });
+
+  it('a visit_booked redemption still releases the session lock (finally block)', async () => {
+    redeemWebHandoffCode.mockResolvedValue({ kind: 'visit_booked', replyText: 'listo', visitId: 'visit-9' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+    expect(releaseSessionLock).toHaveBeenCalledWith('session-1');
+  });
+
+  it('a non-"none", non-"visit_booked" redemption outcome is forwarded as extraContextNotes to runAgentTurn', async () => {
+    redeemWebHandoffCode.mockResolvedValue({ kind: 'linked', note: 'El usuario viene del chat web; su perfil ya está cargado.' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+
+    expect(runAgentTurn).toHaveBeenCalledWith(expect.objectContaining({
+      extraContextNotes: ['El usuario viene del chat web; su perfil ya está cargado.'],
+    }));
+    expect(sendWhatsAppText).toHaveBeenCalledOnce(); // the normal AI reply still goes out
+  });
+
+  it('a "none" redemption outcome passes no extraContextNotes', async () => {
+    redeemWebHandoffCode.mockResolvedValue({ kind: 'none' });
+    await processWhatsAppAgentTurn({ conversationId: 'conv-1', externalPhone: '+51999999999' }, 'org-1');
+    expect(runAgentTurn).toHaveBeenCalledWith(expect.objectContaining({ extraContextNotes: undefined }));
   });
 });
 

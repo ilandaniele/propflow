@@ -18,6 +18,7 @@ const {
   createProspectLead,
   setSessionLead,
   applyLeadQualification,
+  createHandoffCode,
   dbSelectRows,
 } = vi.hoisted(() => ({
   getListingDetails: vi.fn(async () => ({ id: LISTING_ID, title: 'Depa Sol' }) as unknown),
@@ -31,6 +32,7 @@ const {
   createProspectLead: vi.fn(async () => ({ id: 'lead-new', fullName: 'x', phone: null, score: 0, intentTag: null })),
   setSessionLead: vi.fn(async () => {}),
   applyLeadQualification: vi.fn(async () => ({ id: 'lead-x', score: 1, intentTag: 'cold' })),
+  createHandoffCode: vi.fn(async () => ({ id: 'code-1', code: 'WEB-ABCDEF', kind: 'visit' }) as unknown),
   dbSelectRows: [] as unknown[],
 }));
 
@@ -44,6 +46,7 @@ vi.mock('@/lib/agent/lead', () => ({
   attributionToSource: (a: unknown) => (a ? { sourceRef: 'ref:X', sourceMeta: a as Record<string, unknown> } : { sourceRef: null, sourceMeta: {} }),
 }));
 vi.mock('@/lib/agent/session', () => ({ setSessionLead }));
+vi.mock('@/lib/widget/handoff-codes', () => ({ createHandoffCode }));
 vi.mock('@/lib/db', () => ({
   db: {
     select: vi.fn(() => ({
@@ -72,6 +75,9 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): AgentToolContext {
     dryRun: false,
     leadIdRef: { current: 'lead-1' },
     attribution: null,
+    // Phase 7 override note (types.ts is item A's file; not touched here):
+    // AgentToolContext.webSessionId is required — null outside the web channel.
+    webSessionId: null,
     ...overrides,
   };
 }
@@ -134,6 +140,7 @@ describe('book_visit tool', () => {
     getOrCreateAgentConfig.mockResolvedValue({ timezone: 'America/Lima' });
     getListingDetails.mockResolvedValue({ id: LISTING_ID, title: 'Depa Sol' });
     isSlotStillAvailable.mockResolvedValue(true);
+    createHandoffCode.mockResolvedValue({ id: 'code-1', code: 'WEB-ABCDEF', kind: 'visit' });
   });
 
   it('rejects an altered slot id without calling bookVisit', async () => {
@@ -157,11 +164,44 @@ describe('book_visit tool', () => {
     expect(bookVisit).not.toHaveBeenCalled();
   });
 
-  it('does not write on the web channel — coordinates by WhatsApp instead', async () => {
-    const tool = makeBookVisitTool(makeCtx({ channel: 'web' }));
+  it('web channel with no webSessionId falls back to the "coordinate by WhatsApp" rejection, without calling bookVisit or createHandoffCode', async () => {
+    const tool = makeBookVisitTool(makeCtx({ channel: 'web', webSessionId: null }));
     const result = await tool.run({ slotId: validSlotId() });
     expect(String(result)).toMatch(/whatsapp/i);
     expect(bookVisit).not.toHaveBeenCalled();
+    expect(createHandoffCode).not.toHaveBeenCalled();
+  });
+
+  it('web channel: issues a visit handoff code and never calls bookVisit directly', async () => {
+    const tool = makeBookVisitTool(makeCtx({ channel: 'web', webSessionId: 'web-session-1', leadIdRef: { current: null } }));
+    const result = await tool.run({ slotId: validSlotId() });
+
+    expect(bookVisit).not.toHaveBeenCalled();
+    expect(createHandoffCode).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: ORG_ID,
+      webSessionId: 'web-session-1',
+      kind: 'visit',
+      listingId: LISTING_ID,
+      profileId: PROFILE_ID,
+      leadId: 'lead-new',
+    }));
+    expect(String(result)).toMatch(/vence en 30 min/i);
+  });
+
+  it('web channel: the daily handoff-code cap (createHandoffCode → null) is handled gracefully', async () => {
+    createHandoffCode.mockResolvedValueOnce(null);
+    const tool = makeBookVisitTool(makeCtx({ channel: 'web', webSessionId: 'web-session-1' }));
+    const result = await tool.run({ slotId: validSlotId() });
+    expect(String(result)).toMatch(/varios pedidos hoy/i);
+    expect(bookVisit).not.toHaveBeenCalled();
+  });
+
+  it('voice channel: rejects with the "coordinate by WhatsApp" message, without calling bookVisit or createHandoffCode', async () => {
+    const tool = makeBookVisitTool(makeCtx({ channel: 'voice' }));
+    const result = await tool.run({ slotId: validSlotId() });
+    expect(String(result)).toMatch(/whatsapp/i);
+    expect(bookVisit).not.toHaveBeenCalled();
+    expect(createHandoffCode).not.toHaveBeenCalled();
   });
 
   it('offers alternatives when the slot was just taken', async () => {

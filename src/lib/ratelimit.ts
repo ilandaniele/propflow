@@ -12,9 +12,17 @@ interface RateLimitEntry {
 
 const store = new Map<string, RateLimitEntry>();
 
-function getClientIp(request: Request): string {
+export function getClientIp(request: Request): string {
+  const flyClientIp = request.headers.get('fly-client-ip');
+  if (flyClientIp) return flyClientIp.trim();
   const xff = request.headers.get('x-forwarded-for');
-  if (xff) return xff.split(',')[0].trim();
+  if (xff) {
+    // Fly appends the connecting peer's IP to the end of the list, so the
+    // last entry is the one closest to the actual client (earlier entries
+    // are client-supplied and can be spoofed).
+    const parts = xff.split(',').map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
   const realIp = request.headers.get('x-real-ip');
   if (realIp) return realIp;
   return 'anonymous';
@@ -119,6 +127,27 @@ export function taskProofRateLimit(userId: string, orgId: string) {
 /** Executive Brief narrative — 10 req/min/user (LLM10, spec §Security) */
 export function aiExecutiveBriefRateLimit(userId: string): { success: boolean; retryAfterMs: number } {
   return actionRateLimit(`executive-brief:${userId}`, 10, ONE_MINUTE_MS);
+}
+
+// ─── Agent Phase 7: web widget (§2.7) ────────────────────────────────────────
+
+/** Creating a web session — 5 / 10 min / IP. */
+export function webSessionCreateRateLimit(ip: string): { success: boolean; retryAfterMs: number } {
+  return checkRateLimit(`widget-session:${ip}`, 5, 10 * ONE_MINUTE_MS);
+}
+
+/** Sending a widget message — 20/min/IP AND 6/min + 120/day per web session. All three must pass. */
+export function webMessageRateLimit(ip: string, webSessionId: string): { success: boolean; retryAfterMs: number } {
+  const perIp = checkRateLimit(`widget-msg:ip:${ip}`, 20, ONE_MINUTE_MS);
+  if (!perIp.success) return perIp;
+  const perSessionMinute = checkRateLimit(`widget-msg:session-min:${webSessionId}`, 6, ONE_MINUTE_MS);
+  if (!perSessionMinute.success) return perSessionMinute;
+  return checkRateLimit(`widget-msg:session-day:${webSessionId}`, 120, ONE_DAY_MS);
+}
+
+/** `/api/public/listing-image/*` and other public assets — 120 / min / IP. */
+export function publicAssetRateLimit(ip: string): { success: boolean; retryAfterMs: number } {
+  return checkRateLimit(`public-asset:${ip}`, 120, ONE_MINUTE_MS);
 }
 
 // Cleanup stale entries periodically (only in non-edge environments)

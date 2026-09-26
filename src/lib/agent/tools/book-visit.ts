@@ -8,6 +8,7 @@ import { decodeSlotId, encodeSlotId, type SlotClaim } from '../visits/slot-id';
 import { formatSlotLabel, pickSlotsForOffer } from '../visits/slots';
 import { MAX_ACTIVE_VISITS_PER_PHONE } from '../visits/types';
 import { ensureLead } from './ensure-lead';
+import { createHandoffCode } from '@/lib/widget/handoff-codes';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
@@ -48,6 +49,27 @@ export function makeBookVisitTool(ctx: AgentToolContext) {
 
       if (ctx.dryRun) {
         return `[SIMULACIÓN — playground] Se reservaría una visita para el ${label}.`;
+      }
+
+      // Phase 7 web branch (decision 6): never writes property_visits directly —
+      // issues a WEB-XXXXXX handoff code instead. The slot is NOT held; it's
+      // only booked once the visitor's own WhatsApp message redeems the code
+      // (web-handoff-redeem.ts), which rechecks availability via bookVisit's
+      // own exclusion constraint.
+      if (ctx.channel === 'web' && ctx.webSessionId) {
+        const leadId = await ensureLead(ctx, args.fullName);
+        const code = await createHandoffCode({
+          orgId: ctx.orgId,
+          webSessionId: ctx.webSessionId,
+          kind: 'visit',
+          leadId,
+          listingId: claim.listingId,
+          profileId: claim.profileId,
+          startsAt: claim.startsAt,
+          visitMinutes: claim.visitMinutes,
+        });
+        if (!code) return 'Ya generaste varios pedidos hoy; seguí por WhatsApp.';
+        return `Pedido listo para ${label}. Para confirmarlo tocá el botón y enviá el mensaje de WhatsApp (vence en 30 min). El horario no queda reservado hasta entonces.`;
       }
 
       if (ctx.channel !== 'whatsapp') {

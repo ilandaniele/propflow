@@ -17,4 +17,6 @@ export interface AgentToolContext {
   leadIdRef: { current: string | null };
   /** The session's stored attribution (decision 11), if any — lead-creating tools derive source_ref/source_meta from it. */
   attribution: AgentAttribution | null;
+  /** Phase 7: the web session id when channel === 'web'; null on every other channel. Web-only tools (continue_on_whatsapp, book_visit's web branch) require this to write agent_web_handoff_codes. */
+  webSessionId: string | null;
 }

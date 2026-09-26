@@ -18,6 +18,8 @@ import {
   releaseSessionLock,
   setSessionAttributionIfEmpty,
   setAssistantMessageSendStatus,
+  appendSessionMessage,
+  appendSystemOutboundToHistory,
 } from './session';
 import { getLead } from './lead';
 import { recordAgentEvent } from './events';
@@ -25,6 +27,7 @@ import { enqueueJob } from './jobs';
 import { runAgentTurn } from './run-turn';
 import { createSuggestion } from './suggestions';
 import { sendWhatsAppText } from './outbound';
+import { redeemWebHandoffCode } from './web-handoff-redeem';
 import { parseCtwaReferral, extractRefCode } from '@/lib/whatsapp/referral';
 import { scheduleFollowupSequence, stopFollowups } from '@/lib/leads/followups';
 import {
@@ -174,6 +177,40 @@ export async function processWhatsAppAgentTurn(payload: WhatsAppAgentTurnPayload
     const inboundText = buildInboundText(claimed);
     const humanRepliesSinceLastTurn = await listHumanRepliesSince(orgId, payload.conversationId, session.lastAgentTurnAt);
 
+    // Phase 7 hook (decision 6/blueprint §4 "WhatsApp redemption"): this
+    // WhatsApp message might be a visitor confirming a web widget handoff
+    // code ("Hola, confirmo mi visita. Código WEB-XXXXXX"). Only reached
+    // once already gated on (whatsapp enabled, not do_not_contact, mode
+    // 'ai') — tenant phones never get here (Phase 2 rule 4).
+    const redeemOutcome = await redeemWebHandoffCode({
+      orgId,
+      phoneE164: session.externalId,
+      text: inboundText,
+      whatsappSession: { id: session.id, leadId: session.leadId },
+    });
+
+    if (redeemOutcome.kind === 'visit_booked') {
+      // This short-circuits runAgentTurn entirely (bookVisit already ran
+      // inside redeemWebHandoffCode), so neither the visitor's confirmation
+      // text nor our reply would otherwise ever land in agent_messages —
+      // record both so the model has this exchange in context next turn.
+      await appendSessionMessage({
+        orgId,
+        sessionId: session.id,
+        role: 'user',
+        content: [{ type: 'text', text: inboundText }],
+      });
+      await sendWhatsAppText({
+        orgId,
+        conversationId: payload.conversationId,
+        body: redeemOutcome.replyText,
+        senderKind: 'agent',
+      });
+      await appendSystemOutboundToHistory({ orgId, sessionId: session.id, text: redeemOutcome.replyText });
+      await finishClaimedInbound(claimedIds, 'processed');
+      return;
+    }
+
     const result = await runAgentTurn({
       orgId,
       channel: 'whatsapp',
@@ -183,6 +220,7 @@ export async function processWhatsAppAgentTurn(payload: WhatsAppAgentTurnPayload
       whatsappConversationId: payload.conversationId,
       inboundText,
       humanRepliesSinceLastTurn,
+      extraContextNotes: redeemOutcome.kind !== 'none' ? [redeemOutcome.note] : undefined,
     });
 
     if (result.skipped) {
