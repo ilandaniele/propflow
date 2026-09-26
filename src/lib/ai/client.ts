@@ -22,5 +22,5 @@ export function resetAnthropicClient(): void {
   _client = null;
 }
 
-export const AGENT_MODEL = process.env.AGENT_MODEL || 'claude-opus-5';
+export const AGENT_MODEL = process.env.AGENT_MODEL || 'claude-opus-5-5';
 export const AGENT_VOICE_MODEL = process.env.AGENT_VOICE_MODEL || AGENT_MODEL;
