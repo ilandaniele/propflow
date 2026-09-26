@@ -1,0 +1,55 @@
+/**
+ * POST /api/cron/agent-dispatch
+ * Backstop drain of agent_jobs — the primary drain is the instrumentation.ts
+ * interval (src/instrumentation.ts), which runs as long as the Fly machine is
+ * warm. This cron exists for the gap right after a machine resumes from
+ * suspend, before the interval has had a chance to run, and as a fallback if
+ * the in-process interval ever dies silently.
+ *
+ * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
+ */
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+import { timingSafeEqual } from 'node:crypto';
+import { NextRequest, NextResponse } from 'next/server';
+import { drainAgentJobs } from '@/lib/agent/jobs';
+import { withDbRetry } from '@/lib/db/retry';
+import { log } from '@/lib/log';
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const authHeader = request.headers.get('authorization') ?? '';
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    log.warn('[cron/agent-dispatch] CRON_SECRET not configured');
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Cron secret not configured' } },
+      { status: 503 }
+    );
+  }
+
+  const expected = Buffer.from(`Bearer ${cronSecret}`, 'utf8');
+  const actual = Buffer.from(authHeader, 'utf8');
+
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+    log.warn('[cron/agent-dispatch] unauthorized attempt');
+    return NextResponse.json(
+      { error: { code: 'UNAUTHORIZED', message: 'Invalid secret' } },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const result = await withDbRetry(() => drainAgentJobs(50), 'cron/agent-dispatch');
+    log.info('[cron/agent-dispatch] run complete', result);
+    return NextResponse.json({ status: 'ok', ...result });
+  } catch (e) {
+    log.error('[cron/agent-dispatch] exception', { error: e instanceof Error ? e.message : 'unknown' });
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Cron failed' } },
+      { status: 500 }
+    );
+  }
+}

@@ -1,63 +1,98 @@
-'use client';
-
-import { useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
-import { useParams } from 'next/navigation';
+import type { Metadata } from 'next';
+import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
-import { sendWhatsappMessage } from '@/app/actions/whatsapp';
-import type { ActionResult } from '@/lib/errors';
+import { getTranslations } from 'next-intl/server';
+import { requireAdmin } from '@/lib/auth/guards';
+import { db } from '@/lib/db';
+import { whatsappConversations, whatsappMessages, tenants } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import { SendMessageForm } from '../_components/SendMessageForm';
+import { MarkReadOnView } from '../_components/MarkReadOnView';
 
-function SendButton() {
-  const t = useTranslations('whatsapp');
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 transition-colors"
-    >
-      {pending ? t('sending') : t('send')}
-    </button>
-  );
-}
+export const metadata: Metadata = { title: 'WhatsApp' };
 
-// Client component since it needs the form action for send
-export default function ConversationPage() {
-  const t = useTranslations('whatsapp');
-  const params = useParams();
-  const conversationId = params.conversationId as string;
-  const [state, action] = useActionState<ActionResult, FormData>(sendWhatsappMessage, {});
+export default async function ConversationPage({
+  params,
+}: {
+  params: Promise<{ conversationId: string }>;
+}) {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+
+  const t = await getTranslations('whatsapp');
+  const { conversationId } = await params;
+
+  // IDOR guard: conversation must belong to this org.
+  const convRows = await db
+    .select({
+      id: whatsappConversations.id,
+      externalPhone: whatsappConversations.externalPhone,
+      tenantId: whatsappConversations.tenantId,
+      tenantFullName: tenants.fullName,
+    })
+    .from(whatsappConversations)
+    .leftJoin(tenants, eq(tenants.id, whatsappConversations.tenantId))
+    .where(and(eq(whatsappConversations.id, conversationId), eq(whatsappConversations.orgId, ctx.orgId)))
+    .limit(1);
+
+  const conversation = convRows[0];
+  if (!conversation) notFound();
+
+  const messages = await db
+    .select({
+      id: whatsappMessages.id,
+      direction: whatsappMessages.direction,
+      body: whatsappMessages.body,
+      classification: whatsappMessages.classification,
+      status: whatsappMessages.status,
+      createdAt: whatsappMessages.createdAt,
+    })
+    .from(whatsappMessages)
+    .where(and(eq(whatsappMessages.conversationId, conversationId), eq(whatsappMessages.orgId, ctx.orgId)))
+    .orderBy(desc(whatsappMessages.createdAt))
+    .limit(100);
+
+  const orderedMessages = [...messages].reverse();
 
   return (
     <div className="max-w-2xl space-y-4">
+      <MarkReadOnView conversationId={conversationId} />
+
       <div className="flex items-center gap-2">
         <Link href="/dashboard/whatsapp" className="text-sm text-brand-600 hover:text-brand-800">
           {t('backToInbox')}
         </Link>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
-        <p className="text-sm text-slate-500 mb-4">{t('messageHistoryNote')}</p>
+      <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
+        <div className="text-sm text-slate-500">
+          {conversation.tenantFullName ?? t('unknownTenant')}
+          <span className="text-slate-400"> — {conversation.externalPhone}</span>
+        </div>
 
-        {/* Send message form */}
-        <form action={action} className="flex gap-2">
-          <input type="hidden" name="conversation_id" value={conversationId} />
-          <input
-            name="body"
-            type="text"
-            placeholder={t('messagePlaceholder')}
-            required
-            className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          <SendButton />
-        </form>
-        {state.error && (
-          <p className="text-xs text-red-600 mt-2">{state.error.message}</p>
+        {orderedMessages.length === 0 ? (
+          <p className="text-sm text-slate-400">{t('noMessages')}</p>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {orderedMessages.map((m) => (
+              <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={[
+                    'max-w-xs px-3 py-2 rounded-lg text-sm',
+                    m.direction === 'outbound' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-900',
+                  ].join(' ')}
+                >
+                  <p className="whitespace-pre-wrap break-words">{m.body ?? `[${m.classification ?? 'attachment'}]`}</p>
+                  <p className={`text-xs mt-1 ${m.direction === 'outbound' ? 'text-brand-200' : 'text-slate-400'}`}>
+                    {m.createdAt ? new Date(m.createdAt).toLocaleString() : '—'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
-        {!state.error && state.data !== undefined && (
-          <p className="text-xs text-green-600 mt-2">{t('sentOk')}</p>
-        )}
+
+        <SendMessageForm conversationId={conversationId} />
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import {
   whatsappConversations,
   whatsappMessages,
+  orgChannels,
   tenants,
 } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
@@ -147,6 +148,41 @@ export async function findTenantByPhone(
     profile_id: rows[0].profileId ?? null,
     preferred_language: rows[0].preferredLanguage ?? 'es',
   };
+}
+
+/**
+ * Resolve the organization that owns a WhatsApp phone_number_id.
+ * Returns null if no org_channels row is configured for it yet — the caller
+ * should log and skip (return 200) rather than guessing an org.
+ */
+export async function findOrgIdByWhatsAppPhoneNumberId(
+  phoneNumberId: string
+): Promise<string | null> {
+  const rows = await db
+    .select({ orgId: orgChannels.orgId })
+    .from(orgChannels)
+    .where(and(eq(orgChannels.channel, 'whatsapp'), eq(orgChannels.externalId, phoneNumberId)))
+    .limit(1);
+
+  return rows[0]?.orgId ?? null;
+}
+
+/**
+ * Update a message's delivery status from a Meta `statuses` webhook entry.
+ * No-op if the provider_message_id is not found (message may not be persisted yet).
+ */
+export async function updateMessageStatusByProviderId(
+  orgId: string,
+  providerMessageId: string,
+  status: 'sent' | 'delivered' | 'read' | 'failed'
+): Promise<void> {
+  await db
+    .update(whatsappMessages)
+    .set({ status })
+    .where(and(
+      eq(whatsappMessages.orgId, orgId),
+      eq(whatsappMessages.providerMessageId, providerMessageId),
+    ));
 }
 
 /**

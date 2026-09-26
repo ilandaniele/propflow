@@ -20,6 +20,7 @@ on:
     - cron: '0 7 * * 1'    # weekly-summary   — 07:00 UTC Monday
     - cron: '0 8 * * *'    # reminders        — 08:00 UTC daily
     - cron: '0 9 * * *'    # task-reminders   — 09:00 UTC daily
+    - cron: '*/10 * * * *' # agent-dispatch   — every 10 min (backstop; primary drain is instrumentation.ts)
   workflow_dispatch:
     inputs:
       job:
@@ -31,6 +32,7 @@ on:
           - weekly-summary
           - reminders
           - task-reminders
+          - agent-dispatch
 
 permissions:
   contents: read
@@ -112,6 +114,26 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             --max-time 90)
+          echo "HTTP $STATUS"
+          cat /tmp/body.json || true
+          [ "$STATUS" = "200" ] || exit 1
+
+  # ── every 10 min (backstop) ─────────────────────────────────────────────────
+  agent-dispatch:
+    name: 'Cron: agent-dispatch (every 10 min, backstop)'
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'agent-dispatch') ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/10 * * * *')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: POST /api/cron/agent-dispatch
+        run: |
+          STATUS=$(curl -fsS -o /tmp/body.json -w "%{http_code}" \
+            -X POST "${{ vars.APP_URL }}/api/cron/agent-dispatch" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 60)
           echo "HTTP $STATUS"
           cat /tmp/body.json || true
           [ "$STATUS" = "200" ] || exit 1
