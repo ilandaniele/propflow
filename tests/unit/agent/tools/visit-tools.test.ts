@@ -19,6 +19,8 @@ const {
   setSessionLead,
   applyLeadQualification,
   createHandoffCode,
+  enqueueJob,
+  recordAgentEvent,
   dbSelectRows,
 } = vi.hoisted(() => ({
   getListingDetails: vi.fn(async () => ({ id: LISTING_ID, title: 'Depa Sol' }) as unknown),
@@ -33,6 +35,8 @@ const {
   setSessionLead: vi.fn(async () => {}),
   applyLeadQualification: vi.fn(async () => ({ id: 'lead-x', score: 1, intentTag: 'cold' })),
   createHandoffCode: vi.fn(async () => ({ id: 'code-1', code: 'WEB-ABCDEF', kind: 'visit' }) as unknown),
+  enqueueJob: vi.fn(async () => 'job-1'),
+  recordAgentEvent: vi.fn(async () => {}),
   dbSelectRows: [] as unknown[],
 }));
 
@@ -46,7 +50,9 @@ vi.mock('@/lib/agent/lead', () => ({
   attributionToSource: (a: unknown) => (a ? { sourceRef: 'ref:X', sourceMeta: a as Record<string, unknown> } : { sourceRef: null, sourceMeta: {} }),
 }));
 vi.mock('@/lib/agent/session', () => ({ setSessionLead }));
-vi.mock('@/lib/widget/handoff-codes', () => ({ createHandoffCode }));
+vi.mock('@/lib/widget/handoff-codes', () => ({ createHandoffCode, VOICE_CODE_TTL_MS: 2 * 3600_000 }));
+vi.mock('@/lib/agent/jobs', () => ({ enqueueJob }));
+vi.mock('@/lib/agent/events', () => ({ recordAgentEvent }));
 vi.mock('@/lib/db', () => ({
   db: {
     select: vi.fn(() => ({
@@ -78,6 +84,10 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): AgentToolContext {
     // Phase 7 override note (types.ts is item A's file; not touched here):
     // AgentToolContext.webSessionId is required — null outside the web channel.
     webSessionId: null,
+    // Phase 8: null outside the voice channel (context.ts, item A).
+    voiceCallId: null,
+    shadowMode: false,
+    whatsappConversationId: null,
     ...overrides,
   };
 }
@@ -137,7 +147,7 @@ describe('book_visit tool', () => {
     vi.clearAllMocks();
     dbSelectRows.length = 0;
     bookVisit.mockResolvedValue({ ok: true, visit: { id: 'visit-1' } });
-    getOrCreateAgentConfig.mockResolvedValue({ timezone: 'America/Lima' });
+    getOrCreateAgentConfig.mockResolvedValue({ timezone: 'America/Lima', channelsEnabled: { whatsapp: true } });
     getListingDetails.mockResolvedValue({ id: LISTING_ID, title: 'Depa Sol' });
     isSlotStillAvailable.mockResolvedValue(true);
     createHandoffCode.mockResolvedValue({ id: 'code-1', code: 'WEB-ABCDEF', kind: 'visit' });
@@ -237,6 +247,69 @@ describe('book_visit tool', () => {
     await tool.run({ slotId: validSlotId(), fullName: 'Juan' });
     expect(createProspectLead).toHaveBeenCalledWith(expect.objectContaining({ orgId: ORG_ID, fullName: 'Juan' }));
     expect(bookVisit).toHaveBeenCalledWith(expect.objectContaining({ leadId: 'lead-new' }));
+  });
+});
+
+describe('book_visit tool — voice branch (item B)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbSelectRows.length = 0;
+    bookVisit.mockResolvedValue({ ok: true, visit: { id: 'visit-1' } });
+    getOrCreateAgentConfig.mockResolvedValue({ timezone: 'America/Lima', channelsEnabled: { whatsapp: true } });
+    getListingDetails.mockResolvedValue({ id: LISTING_ID, title: 'Depa Sol' });
+    isSlotStillAvailable.mockResolvedValue(true);
+    createHandoffCode.mockResolvedValue({ id: 'code-voz-1', code: 'VOZ-ABCDEF', kind: 'visit' });
+  });
+
+  it('with no voiceCallId, falls back to the old "coordinate by WhatsApp" rejection (unrelated to the voice branch)', async () => {
+    const tool = makeBookVisitTool(makeCtx({ channel: 'voice', voiceCallId: null }));
+    const result = await tool.run({ slotId: validSlotId() });
+    expect(String(result)).toMatch(/whatsapp/i);
+    expect(bookVisit).not.toHaveBeenCalled();
+    expect(createHandoffCode).not.toHaveBeenCalled();
+  });
+
+  it('a verified caller phone + WhatsApp enabled: issues a VOZ- handoff code and enqueues the confirmation job, never calling bookVisit', async () => {
+    const tool = makeBookVisitTool(makeCtx({ channel: 'voice', voiceCallId: 'call-1', externalId: '+51987654321', leadIdRef: { current: null } }));
+    const result = await tool.run({ slotId: validSlotId() });
+
+    expect(bookVisit).not.toHaveBeenCalled();
+    expect(createHandoffCode).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: ORG_ID,
+      source: 'voice',
+      kind: 'visit',
+      callId: 'call-1',
+      targetPhone: '+51987654321',
+      leadId: 'lead-new',
+      listingId: LISTING_ID,
+      profileId: PROFILE_ID,
+    }));
+    expect(enqueueJob).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: ORG_ID,
+      kind: 'voice.visit_confirmation_message',
+      payload: { codeId: 'code-voz-1' },
+    }));
+    expect(String(result)).toMatch(/whatsapp/i);
+  });
+
+  it('no verified phone (call:<vapiCallId> externalId) → handoff to a human, no code issued', async () => {
+    const tool = makeBookVisitTool(makeCtx({ channel: 'voice', voiceCallId: 'call-1', externalId: 'call:8f14e45f-ceea' }));
+    const result = await tool.run({ slotId: validSlotId() });
+
+    expect(createHandoffCode).not.toHaveBeenCalled();
+    expect(bookVisit).not.toHaveBeenCalled();
+    expect(enqueueJob).not.toHaveBeenCalled();
+    expect(String(result)).toMatch(/un asesor/i);
+    expect(recordAgentEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: 'handoff', data: { reason: 'voice_booking' } }));
+  });
+
+  it('WhatsApp disabled → handoff to a human even with a verified caller phone', async () => {
+    getOrCreateAgentConfig.mockResolvedValue({ timezone: 'America/Lima', channelsEnabled: { whatsapp: false } });
+    const tool = makeBookVisitTool(makeCtx({ channel: 'voice', voiceCallId: 'call-1', externalId: '+51987654321' }));
+    const result = await tool.run({ slotId: validSlotId() });
+
+    expect(createHandoffCode).not.toHaveBeenCalled();
+    expect(String(result)).toMatch(/un asesor/i);
   });
 });
 

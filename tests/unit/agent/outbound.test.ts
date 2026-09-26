@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { convRows, sendMessageMock, insertMessageMock, updateActivityMock, getSessionMock } = vi.hoisted(() => ({
+const { convRows, sendMessageMock, sendImageMock, insertMessageMock, updateActivityMock, getSessionMock, getWhatsAppProviderMock } = vi.hoisted(() => ({
   convRows: [] as unknown[],
   sendMessageMock: vi.fn(),
+  sendImageMock: vi.fn(),
   insertMessageMock: vi.fn(),
   updateActivityMock: vi.fn(),
   getSessionMock: vi.fn(),
+  getWhatsAppProviderMock: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => ({
@@ -23,7 +25,7 @@ vi.mock('@/lib/log', () => ({
 }));
 
 vi.mock('@/lib/whatsapp', () => ({
-  getWhatsAppProvider: () => ({ sendMessage: sendMessageMock }),
+  getWhatsAppProvider: getWhatsAppProviderMock,
 }));
 
 vi.mock('@/lib/whatsapp/db', () => ({
@@ -37,13 +39,14 @@ vi.mock('@/lib/agent/session', () => ({
     session.windowExpiresAt != null && session.windowExpiresAt.getTime() > now.getTime(),
 }));
 
-import { sendWhatsAppText } from '@/lib/agent/outbound';
+import { sendWhatsAppText, sendWhatsAppImage } from '@/lib/agent/outbound';
 
 describe('agent/outbound sendWhatsAppText', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     convRows.length = 0;
     convRows.push({ id: 'conv-1', externalPhone: '+51999888777' });
+    getWhatsAppProviderMock.mockReturnValue({ sendMessage: sendMessageMock, sendImage: sendImageMock });
   });
 
   it('returns NOT_FOUND when the conversation does not belong to the org', async () => {
@@ -122,5 +125,72 @@ describe('agent/outbound sendWhatsAppText', () => {
 
     expect(result).toEqual({ ok: true, messageId: 'msg-4' });
     expect(getSessionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('agent/outbound sendWhatsAppImage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    convRows.length = 0;
+    convRows.push({ id: 'conv-1', externalPhone: '+51999888777' });
+    getWhatsAppProviderMock.mockReturnValue({ sendMessage: sendMessageMock, sendImage: sendImageMock });
+  });
+
+  it('returns NOT_FOUND when the conversation does not belong to the org', async () => {
+    convRows.length = 0;
+    const result = await sendWhatsAppImage({ orgId: 'org-1', conversationId: 'conv-x', imageUrl: 'https://signed.example/x.jpg', senderKind: 'agent' });
+    expect(result).toEqual({ ok: false, code: 'NOT_FOUND' });
+    expect(sendImageMock).not.toHaveBeenCalled();
+  });
+
+  it('window closed: no provider call, returns WINDOW_CLOSED', async () => {
+    getSessionMock.mockResolvedValue({ windowExpiresAt: new Date(Date.now() - 1000) });
+    const result = await sendWhatsAppImage({ orgId: 'org-1', conversationId: 'conv-1', imageUrl: 'https://signed.example/x.jpg', senderKind: 'agent' });
+    expect(result).toEqual({ ok: false, code: 'WINDOW_CLOSED' });
+    expect(sendImageMock).not.toHaveBeenCalled();
+  });
+
+  it('success: sends the signed URL to the provider, but never persists it — body is the caption only', async () => {
+    getSessionMock.mockResolvedValue({ windowExpiresAt: new Date(Date.now() + 60_000) });
+    sendImageMock.mockResolvedValue({ success: true, providerMessageId: 'wamid-9' });
+    insertMessageMock.mockResolvedValue('msg-9');
+
+    const result = await sendWhatsAppImage({
+      orgId: 'org-1',
+      conversationId: 'conv-1',
+      imageUrl: 'https://signed.example/secret-path.jpg',
+      caption: 'Depa Sol · PEN 1500',
+      senderKind: 'agent',
+      meta: { kind: 'listing_photos', listingId: 'l1' },
+    });
+
+    expect(result).toEqual({ ok: true, messageId: 'msg-9' });
+    expect(sendImageMock).toHaveBeenCalledWith('org-1', expect.objectContaining({ imageUrl: 'https://signed.example/secret-path.jpg' }));
+    expect(insertMessageMock).toHaveBeenCalledWith(expect.objectContaining({
+      attachmentKind: 'image',
+      body: 'Depa Sol · PEN 1500',
+      meta: { kind: 'listing_photos', listingId: 'l1' },
+    }));
+    const insertedArgs = insertMessageMock.mock.calls[0][0];
+    expect(JSON.stringify(insertedArgs)).not.toContain('secret-path.jpg');
+  });
+
+  it('missing provider.sendImage capability returns PROVIDER_ERROR without throwing', async () => {
+    getSessionMock.mockResolvedValue(null);
+    getWhatsAppProviderMock.mockReturnValue({ sendMessage: sendMessageMock }); // no sendImage — e.g. MockWhatsAppProvider gap
+    const result = await sendWhatsAppImage({ orgId: 'org-1', conversationId: 'conv-1', imageUrl: 'https://signed.example/x.jpg', senderKind: 'agent' });
+    expect(result).toEqual({ ok: false, code: 'PROVIDER_ERROR', error: 'sendImage not supported' });
+    expect(insertMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('provider failure: still persists status failed, returns PROVIDER_ERROR', async () => {
+    getSessionMock.mockResolvedValue({ windowExpiresAt: new Date(Date.now() + 60_000) });
+    sendImageMock.mockResolvedValue({ success: false, error: 'boom' });
+    insertMessageMock.mockResolvedValue('msg-10');
+
+    const result = await sendWhatsAppImage({ orgId: 'org-1', conversationId: 'conv-1', imageUrl: 'https://signed.example/x.jpg', senderKind: 'agent' });
+
+    expect(result).toEqual({ ok: false, code: 'PROVIDER_ERROR', error: 'boom' });
+    expect(insertMessageMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }));
   });
 });

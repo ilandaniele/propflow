@@ -8,8 +8,14 @@ import { decodeSlotId, encodeSlotId, type SlotClaim } from '../visits/slot-id';
 import { formatSlotLabel, pickSlotsForOffer } from '../visits/slots';
 import { MAX_ACTIVE_VISITS_PER_PHONE } from '../visits/types';
 import { ensureLead } from './ensure-lead';
-import { createHandoffCode } from '@/lib/widget/handoff-codes';
+import { createHandoffCode, VOICE_CODE_TTL_MS } from '@/lib/widget/handoff-codes';
+import { enqueueJob } from '../jobs';
+import { recordAgentEvent } from '../events';
+import { VOICE_JOB_KINDS } from '../voice/types';
 import type { AgentToolContext } from './context';
+
+/** Blueprint §0.6: only a caller-id-shaped externalId (never 'call:<vapiCallId>') becomes a phone. */
+const E164_RE = /^\+\d{7,15}$/;
 
 const InputSchema = z.object({
   slotId: z.string().max(120).describe('El id exacto de un horario devuelto por get_available_slots en esta misma conversación'),
@@ -70,6 +76,40 @@ export function makeBookVisitTool(ctx: AgentToolContext) {
         });
         if (!code) return 'Ya generaste varios pedidos hoy; seguí por WhatsApp.';
         return `Pedido listo para ${label}. Para confirmarlo tocá el botón y enviá el mensaje de WhatsApp (vence en 30 min). El horario no queda reservado hasta entonces.`;
+      }
+
+      // Phase 8 voice branch (decision 7): never writes property_visits directly
+      // and never holds the slot — issues a VOZ-XXXXXX WhatsApp confirmation
+      // code (Phase 7's handoff codes, generalised) and enqueues the send job.
+      // Redemption happens through web-handoff-redeem.ts, from target_phone only.
+      if (ctx.channel === 'voice' && ctx.voiceCallId) {
+        const targetPhone = E164_RE.test(ctx.externalId) ? ctx.externalId : null;
+        if (!targetPhone || !config.channelsEnabled.whatsapp) {
+          await recordAgentEvent({ orgId: ctx.orgId, sessionId: ctx.sessionId, kind: 'handoff', data: { reason: 'voice_booking' } });
+          return 'Un asesor te va a confirmar por WhatsApp.';
+        }
+
+        const leadId = await ensureLead(ctx, args.fullName);
+        const code = await createHandoffCode({
+          orgId: ctx.orgId,
+          source: 'voice',
+          kind: 'visit',
+          callId: ctx.voiceCallId,
+          targetPhone,
+          ttlMs: VOICE_CODE_TTL_MS,
+          leadId,
+          listingId: claim.listingId,
+          profileId: claim.profileId,
+          startsAt: claim.startsAt,
+          visitMinutes: claim.visitMinutes,
+        });
+        if (!code) {
+          await recordAgentEvent({ orgId: ctx.orgId, sessionId: ctx.sessionId, kind: 'handoff', data: { reason: 'voice_booking_cap' } });
+          return 'Ya generaste varios pedidos hoy; un asesor te puede ayudar directamente.';
+        }
+
+        await enqueueJob({ orgId: ctx.orgId, kind: VOICE_JOB_KINDS.visitConfirmationMessage, payload: { codeId: code.id } });
+        return `Te envié un WhatsApp para confirmar la visita del ${label}. El horario queda reservado recién cuando lo confirmes.`;
       }
 
       if (ctx.channel !== 'whatsapp') {

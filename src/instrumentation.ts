@@ -18,6 +18,7 @@ export async function register(): Promise<void> {
   const { registerAgentJobHandlers } = await import('@/lib/agent/job-handlers');
   const { sweepStalePendingInbound } = await import('@/lib/agent/whatsapp-dispatch');
   const { ensureCalendarSyncJobs } = await import('@/lib/calendar/sync');
+  const { scanSpeedToLead, scanVisitConfirmationCalls } = await import('@/lib/agent/voice/scanners');
   const { log } = await import('@/lib/log');
 
   registerAgentJobHandlers();
@@ -40,6 +41,20 @@ export async function register(): Promise<void> {
       // self-schedules its own next run) — throttled alongside the sweep.
       ensureCalendarSyncJobs().catch((e) => {
         log.error('[instrumentation] calendar sync backstop failed', {
+          error: e instanceof Error ? e.message : 'unknown',
+        });
+      });
+      // Phase 8 (item W): outbound-call scanners are triggers, not hooks —
+      // throttled here alongside the sweep (~every 2 min) since they're
+      // per-org table scans, not a per-tick concern. Both no-op cheaply when
+      // an org has voice disabled or its policy off (the default).
+      scanSpeedToLead().catch((e) => {
+        log.error('[instrumentation] speed-to-lead scan failed', {
+          error: e instanceof Error ? e.message : 'unknown',
+        });
+      });
+      scanVisitConfirmationCalls().catch((e) => {
+        log.error('[instrumentation] visit-confirmation call scan failed', {
           error: e instanceof Error ? e.message : 'unknown',
         });
       });

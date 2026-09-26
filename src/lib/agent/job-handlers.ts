@@ -11,6 +11,8 @@ import { registerVisitJobHandlers } from './visits/register-jobs';
 import { registerVisitButtonReplyHandler } from './visits/button-reply';
 import { registerCalendarJobHandlers } from '@/lib/calendar/register-jobs';
 import { registerLeadJobHandlers } from '@/lib/leads/register-jobs';
+import { registerVoiceOutboundJobHandlers } from './voice/register-jobs-outbound';
+import { registerVoiceConfirmationJobHandlers } from './voice/register-jobs-confirmation';
 
 let registered = false;
 
@@ -33,4 +35,9 @@ export function registerAgentJobHandlers(): void {
   // same agent_jobs queue and must be registered by every drainer too.
   registerCalendarJobHandlers();
   registerLeadJobHandlers();
+
+  // Phase 8 (items B and C): voice visit-confirmation WhatsApp messages and
+  // outbound calls both run through this same agent_jobs queue.
+  registerVoiceConfirmationJobHandlers();
+  registerVoiceOutboundJobHandlers();
 }

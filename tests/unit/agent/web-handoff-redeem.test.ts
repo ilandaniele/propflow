@@ -7,6 +7,7 @@ const PHONE = '+51987654321';
 const {
   claimHandoffCode,
   finishHandoffCode,
+  getLatestPendingVoiceCodeForPhone,
   getOrCreateAgentConfig,
   getListingDetails,
   bookVisit,
@@ -18,6 +19,7 @@ const {
 } = vi.hoisted(() => ({
   claimHandoffCode: vi.fn(),
   finishHandoffCode: vi.fn(async () => {}),
+  getLatestPendingVoiceCodeForPhone: vi.fn(async () => null as unknown),
   getOrCreateAgentConfig: vi.fn(async () => ({ timezone: 'America/Lima' })),
   getListingDetails: vi.fn(async () => ({ id: 'listing-1', title: 'Depa Sol' })),
   bookVisit: vi.fn(),
@@ -34,7 +36,7 @@ function updateWhereImpl(...args: unknown[]) {
 
 vi.mock('@/lib/widget/handoff-codes', async () => {
   const actual = await vi.importActual<typeof import('@/lib/widget/handoff-codes')>('@/lib/widget/handoff-codes');
-  return { ...actual, claimHandoffCode, finishHandoffCode };
+  return { ...actual, claimHandoffCode, finishHandoffCode, getLatestPendingVoiceCodeForPhone };
 });
 vi.mock('@/lib/agent/config', () => ({ getOrCreateAgentConfig }));
 vi.mock('@/lib/agent/listings', () => ({ getListingDetails }));
@@ -74,11 +76,22 @@ const CONTINUE_CODE = {
   visitMinutes: null,
 };
 
+const VOICE_VISIT_CODE = {
+  ...VISIT_CODE,
+  id: 'code-voz-1',
+  code: 'VOZ-ABCDEF',
+  source: 'voice' as const,
+  callId: 'call-1',
+  targetPhone: PHONE,
+  webSessionId: null,
+};
+
 describe('redeemWebHandoffCode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     bookVisit.mockResolvedValue({ ok: true, visit: { id: 'visit-1' } });
     selectLimit.mockResolvedValue([]);
+    getLatestPendingVoiceCodeForPhone.mockResolvedValue(null);
   });
 
   it('returns "none" when the text has no WEB-XXXXXX code', async () => {
@@ -180,9 +193,8 @@ describe('redeemWebHandoffCode', () => {
     expect(updateSet).not.toHaveBeenCalled();
     expect((outcome as { note: string }).note).toMatch(/no se sobrescribió/);
     expect(recordAgentEvent).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        web_handoff_redeemed: expect.objectContaining({ phoneConflictNote: expect.stringContaining('+51900000000') }),
-      }),
+      kind: 'web_handoff_redeemed',
+      data: expect.objectContaining({ phoneConflictNote: expect.stringContaining('+51900000000') }),
     }));
   });
 
@@ -195,5 +207,47 @@ describe('redeemWebHandoffCode', () => {
     });
     expect(outcome).toEqual({ kind: 'linked', note: expect.stringContaining('chat web') });
     expect((outcome as { note: string }).note).not.toMatch(/no se sobrescribió/);
+  });
+
+  it('a voice code claimed from a different phone than target_phone → "none" (claimHandoffCode enforces it, mocked as a miss)', async () => {
+    claimHandoffCode.mockResolvedValue(null);
+    const outcome = await redeemWebHandoffCode({
+      orgId: ORG_ID, phoneE164: '+51900000001', text: 'Confirmo VOZ-ABCDEF',
+      whatsappSession: { id: WA_SESSION_ID, leadId: null },
+    });
+    expect(outcome).toEqual({ kind: 'none' });
+    expect(claimHandoffCode).toHaveBeenCalledWith(ORG_ID, 'VOZ-ABCDEF', '+51900000001', WA_SESSION_ID);
+  });
+
+  it('the bare "Confirmar visita" quick-reply text resolves to the phone\'s latest pending voice code', async () => {
+    getLatestPendingVoiceCodeForPhone.mockResolvedValue(VOICE_VISIT_CODE);
+    claimHandoffCode.mockResolvedValue(VOICE_VISIT_CODE);
+    const outcome = await redeemWebHandoffCode({
+      orgId: ORG_ID, phoneE164: PHONE, text: 'Confirmar visita',
+      whatsappSession: { id: WA_SESSION_ID, leadId: 'lead-1' },
+    });
+    expect(getLatestPendingVoiceCodeForPhone).toHaveBeenCalledWith(ORG_ID, PHONE);
+    expect(claimHandoffCode).toHaveBeenCalledWith(ORG_ID, 'VOZ-ABCDEF', PHONE, WA_SESSION_ID);
+    expect(outcome.kind).toBe('visit_booked');
+  });
+
+  it('unrelated text with no code and no voice quick-reply never calls getLatestPendingVoiceCodeForPhone', async () => {
+    const outcome = await redeemWebHandoffCode({
+      orgId: ORG_ID, phoneE164: PHONE, text: 'hola, buenas tardes',
+      whatsappSession: { id: WA_SESSION_ID, leadId: null },
+    });
+    expect(outcome).toEqual({ kind: 'none' });
+    expect(getLatestPendingVoiceCodeForPhone).not.toHaveBeenCalled();
+    expect(claimHandoffCode).not.toHaveBeenCalled();
+  });
+
+  it('a voice code books the visit with sourceChannel "voice"', async () => {
+    claimHandoffCode.mockResolvedValue(VOICE_VISIT_CODE);
+    const outcome = await redeemWebHandoffCode({
+      orgId: ORG_ID, phoneE164: PHONE, text: 'Confirmo VOZ-ABCDEF',
+      whatsappSession: { id: WA_SESSION_ID, leadId: 'lead-1' },
+    });
+    expect(bookVisit).toHaveBeenCalledWith(expect.objectContaining({ sourceChannel: 'voice', contactPhone: PHONE }));
+    expect(outcome).toEqual(expect.objectContaining({ kind: 'visit_booked', visitId: 'visit-1' }));
   });
 });

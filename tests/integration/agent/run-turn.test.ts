@@ -49,7 +49,7 @@ const CONFIG_FIXTURE = {
   rules: null,
   prohibited: null,
   faq: [],
-  businessHours: {},
+  businessHours: { weekly: [], closedNote: null },
   timezone: 'America/Lima',
   qualificationFields: [],
   followupPolicy: {},
@@ -59,6 +59,22 @@ const CONFIG_FIXTURE = {
   channelsEnabled: { whatsapp: true, web: false, voice: false },
   shadowMode: false,
   maxAgentTurns: null as number | null,
+  publicPagesEnabled: false,
+  voice: {
+    voiceProvider: 'azure' as const,
+    voiceId: 'es-PE-CamilaNeural',
+    language: 'es' as const,
+    recordingEnabled: true,
+    greetingExtra: null,
+    maxCallMinutes: 10,
+    monthlyMinuteCap: 300,
+    callWindow: { weekdays: [1, 2, 3, 4, 5, 6], startMinute: 540, endMinute: 1200 },
+    speedToLead: { enabled: false, delayMinutes: 2, sources: ['manual' as const], staleAfterHours: 12 },
+    visitConfirmation: { enabled: false, hoursBefore: 20 },
+    reactivation: { enabled: false, coldAfterDays: 14, minDaysBetween: 30, maxPerRun: 20 },
+  },
+  maxActiveVisitsPerPhone: 2,
+  maxListingPhotos: 5,
 };
 
 vi.mock('@/lib/db', () => ({
@@ -101,11 +117,36 @@ vi.mock('@/lib/agent/lead', () => ({
   getLead: getLeadMock,
 }));
 
+const buildAgentToolsMock = vi.hoisted(() => vi.fn(() => []));
+vi.mock('@/lib/agent/tools', () => ({
+  buildAgentTools: buildAgentToolsMock,
+}));
+
 import { runAgentTurn } from '@/lib/agent/run-turn';
 
-function fakeRunner(finalContent: Array<{ type: string; [k: string]: unknown }>, fullMessages: Array<{ role: string; content: unknown }>) {
+// Phase 8/9 (item A "Override" note): run-turn.ts now iterates the runner
+// (`for await`) instead of calling `.done()`, to sum usage across every
+// tool-loop iteration — see the cost-fix test below. Defaults to a single
+// iteration with the same 120/40 usage the old `.done()`-based tests expected.
+function fakeRunner(
+  finalContent: Array<{ type: string; [k: string]: unknown }>,
+  fullMessages: Array<{ role: string; content: unknown }>,
+  iterationUsages: Array<{ input_tokens: number; output_tokens: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }> = [
+    { input_tokens: 120, output_tokens: 40 },
+  ],
+) {
   return {
-    done: vi.fn(async () => ({ content: finalContent, usage: { input_tokens: 120, output_tokens: 40 } })),
+    [Symbol.asyncIterator]: () => {
+      let i = 0;
+      return {
+        next: async () => {
+          if (i >= iterationUsages.length) return { done: true, value: undefined };
+          const usage = iterationUsages[i];
+          i += 1;
+          return { done: false, value: { content: finalContent, usage } };
+        },
+      };
+    },
     params: { messages: fullMessages },
   };
 }
@@ -345,5 +386,50 @@ describe('runAgentTurn', () => {
     const result = await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'hola' });
 
     expect(result.replyText.length).toBeGreaterThan(0);
+  });
+
+  it('Phase 8/9 cost fix: sums usage over every tool-loop iteration and persists cost_usd (not just the last API call)', async () => {
+    const toolUseTurn = { role: 'assistant', content: [{ type: 'tool_use', id: 't1', name: 'search_listings', input: {} }] };
+    const toolResultTurn = { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: '[]' }] };
+    const finalContent = [{ type: 'text', text: 'Encontré esto para vos.' }];
+    const fullMessages = [
+      { role: 'user', content: 'busco depa' },
+      toolUseTurn,
+      toolResultTurn,
+      { role: 'assistant', content: finalContent },
+    ];
+    // Two iterations: the tool_use turn's API call, then the final reply's — both must count.
+    toolRunnerMock.mockReturnValue(
+      fakeRunner(finalContent, fullMessages, [
+        { input_tokens: 500, output_tokens: 50 },
+        { input_tokens: 300, output_tokens: 20 },
+      ]),
+    );
+
+    await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'busco depa' });
+
+    const lastMessage = appendedMessages[appendedMessages.length - 1];
+    expect(lastMessage.inputTokens).toBe(800); // 500 + 300, not just the last call's 300
+    expect(lastMessage.outputTokens).toBe(70); // 50 + 20
+    expect(lastMessage.costUsd).toBeDefined();
+    expect(Number(lastMessage.costUsd)).toBeGreaterThan(0);
+  });
+
+  it('Phase 8/9: the tool context carries shadowMode from config', async () => {
+    CONFIG_FIXTURE.shadowMode = true;
+    const finalContent = [{ type: 'text', text: 'Hola' }];
+    const fullMessages = [
+      { role: 'user', content: 'hola' },
+      { role: 'assistant', content: finalContent },
+    ];
+    toolRunnerMock.mockReturnValue(fakeRunner(finalContent, fullMessages));
+
+    await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'hola' });
+
+    const lastMessage = appendedMessages[appendedMessages.length - 1];
+    expect(lastMessage.sendStatus).toBe('shadow_pending');
+    expect(buildAgentToolsMock).toHaveBeenCalledWith(expect.objectContaining({ shadowMode: true, whatsappConversationId: null, voiceCallId: null }));
+
+    CONFIG_FIXTURE.shadowMode = false;
   });
 });

@@ -19,6 +19,7 @@ import { and, asc, eq, gte, inArray, isNull, lt, lte, sql, type SQL } from 'driz
 import { planVisitJobs, VISIT_JOB_KINDS, type VisitJobPayload } from './job-plan';
 import { notifyVisitChanged } from './hooks';
 import { ACTIVE_VISIT_STATUSES, MAX_ACTIVE_VISITS_PER_PHONE, type VisitFeedback, type VisitRecord, type VisitStatus } from './types';
+import { getOrCreateAgentConfig } from '../config';
 
 const ACTIVE_STATUSES: string[] = [...ACTIVE_VISIT_STATUSES];
 
@@ -96,7 +97,14 @@ export function isExclusionViolation(e: unknown): boolean {
 }
 
 /** Steps 2-9 of bookVisit (blueprint §2.8) — shared with rescheduleVisit, which runs them in its own transaction. Never catches 23P01: the caller's transaction must roll back. */
-async function bookVisitInTx(tx: Tx, a: BookVisitArgs, now: Date): Promise<BookVisitResult> {
+async function bookVisitInTx(
+  tx: Tx,
+  a: BookVisitArgs,
+  now: Date,
+  // Phase 9: config-driven cap (loaded by the caller before the tx) — falls
+  // back to MAX_ACTIVE_VISITS_PER_PHONE for callers that don't pass it (reschedule's enforcePhoneCap is always false, so this never matters there).
+  maxActiveVisitsPerPhone: number = MAX_ACTIVE_VISITS_PER_PHONE,
+): Promise<BookVisitResult> {
   if (a.startsAt < now) return { ok: false, reason: 'in_past' };
 
   const contactPhone = a.contactPhone ? toE164(a.contactPhone) : null;
@@ -143,7 +151,7 @@ async function bookVisitInTx(tx: Tx, a: BookVisitArgs, now: Date): Promise<BookV
         inArray(propertyVisits.status, ACTIVE_STATUSES),
         gte(propertyVisits.startsAt, now),
       ));
-    if (activeRows.length >= MAX_ACTIVE_VISITS_PER_PHONE) return { ok: false, reason: 'cap_reached' };
+    if (activeRows.length >= maxActiveVisitsPerPhone) return { ok: false, reason: 'cap_reached' };
   }
 
   const bufferMinutes = a.bufferMinutes ?? advisor.bufferMinutes ?? 15;
@@ -204,9 +212,12 @@ async function bookVisitInTx(tx: Tx, a: BookVisitArgs, now: Date): Promise<BookV
 
 export async function bookVisit(a: BookVisitArgs): Promise<BookVisitResult> {
   const now = new Date();
+  const maxActiveVisitsPerPhone = a.enforcePhoneCap
+    ? (await getOrCreateAgentConfig(a.orgId)).maxActiveVisitsPerPhone
+    : MAX_ACTIVE_VISITS_PER_PHONE;
 
   try {
-    const result = await db.transaction((tx) => bookVisitInTx(tx, a, now));
+    const result = await db.transaction((tx) => bookVisitInTx(tx, a, now, maxActiveVisitsPerPhone));
     if (result.ok) notifyVisitChanged({ orgId: a.orgId, visitId: result.visit.id, profileId: result.visit.profileId, kind: 'created' });
     return result;
   } catch (e) {

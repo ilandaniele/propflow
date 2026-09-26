@@ -286,6 +286,8 @@ export interface PersistMessageArgs {
   content: Anthropic.Beta.Messages.BetaContentBlockParam[] | string;
   inputTokens?: number | null;
   outputTokens?: number | null;
+  /** Phase 8/9 (item A "Override" note, run-turn.ts's cost fix): the turn's estimated USD cost, from pricing.ts's estimateCostUsd — summed across the whole tool loop, not just the last API call. */
+  costUsd?: string | null;
   /** OVERRIDE: defaults to 'sent' for assistant rows, null for user rows — see getSessionHistory(). */
   sendStatus?: 'sent' | 'shadow_pending' | 'shadow_discarded' | null;
 }
@@ -302,6 +304,7 @@ export async function appendSessionMessage(args: PersistMessageArgs): Promise<st
       content: args.content,
       inputTokens: args.inputTokens ?? null,
       outputTokens: args.outputTokens ?? null,
+      costUsd: args.costUsd ?? null,
       sendStatus,
     })
     .returning({ id: agentMessages.id });

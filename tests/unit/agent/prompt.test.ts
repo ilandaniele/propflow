@@ -12,7 +12,7 @@ const CONFIG: AgentConfig = {
   rules: null,
   prohibited: null,
   faq: [],
-  businessHours: {},
+  businessHours: { weekly: [], closedNote: null },
   timezone: 'America/Lima',
   qualificationFields: [],
   followupPolicy: {},
@@ -22,6 +22,22 @@ const CONFIG: AgentConfig = {
   channelsEnabled: { whatsapp: true, web: false, voice: false },
   shadowMode: false,
   maxAgentTurns: null,
+  publicPagesEnabled: false,
+  voice: {
+    voiceProvider: 'azure',
+    voiceId: 'es-PE-CamilaNeural',
+    language: 'es',
+    recordingEnabled: true,
+    greetingExtra: null,
+    maxCallMinutes: 10,
+    monthlyMinuteCap: 300,
+    callWindow: { weekdays: [1, 2, 3, 4, 5, 6], startMinute: 540, endMinute: 1200 },
+    speedToLead: { enabled: false, delayMinutes: 2, sources: ['manual'], staleAfterHours: 12 },
+    visitConfirmation: { enabled: false, hoursBefore: 20 },
+    reactivation: { enabled: false, coldAfterDays: 14, minDaysBetween: 30, maxPerRun: 20 },
+  },
+  maxActiveVisitsPerPhone: 2,
+  maxListingPhotos: 5,
 };
 
 const LEAD: LeadRecord = {

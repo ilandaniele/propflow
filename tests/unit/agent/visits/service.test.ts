@@ -168,6 +168,9 @@ describe('agent/visits/service — bookVisit', () => {
   });
 
   it('enforces the per-phone cap', async () => {
+    // Phase 9: bookVisit now loads agent_configs.max_active_visits_per_phone
+    // before the transaction when enforcePhoneCap is true.
+    pushSelect([{ orgId: 'org-1', maxActiveVisitsPerPhone: MAX_ACTIVE_VISITS_PER_PHONE }]); // getOrCreateAgentConfig
     pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]); // lead
     pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]); // advisor
     const activeVisits = Array.from({ length: MAX_ACTIVE_VISITS_PER_PHONE }, (_, i) => ({ id: `v-${i}` }));

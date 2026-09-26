@@ -23,7 +23,9 @@ import {
   claimHandoffCode,
   extractHandoffCode,
   finishHandoffCode,
+  getLatestPendingVoiceCodeForPhone,
 } from '@/lib/widget/handoff-codes';
+import { isVoiceConfirmText } from './voice/visit-confirmation';
 
 export type RedeemOutcome =
   | { kind: 'none' }
@@ -96,15 +98,6 @@ async function linkLeadFromCode(
   return { leadId: codeLeadId, phoneConflictNote: null };
 }
 
-/**
- * NOTE (item C, staying within its exclusive file list — types.ts is item
- * A's): the blueprint's `recordAgentEvent('web_handoff_redeemed', { kind,
- * outcome })` would need a new AgentEventKind member added to
- * src/lib/agent/types.ts, which item C does not own. Recorded instead under
- * the existing 'handoff' kind, with the same { kind, outcome } shape nested
- * in `data.web_handoff_redeemed` so it stays queryable/distinguishable in
- * the inbox timeline without touching A's file.
- */
 async function recordRedemptionEvent(
   orgId: string,
   sessionId: string,
@@ -115,13 +108,23 @@ async function recordRedemptionEvent(
   await recordAgentEvent({
     orgId,
     sessionId,
-    kind: 'handoff',
-    data: { web_handoff_redeemed: { kind, outcome, ...extra } },
+    kind: 'web_handoff_redeemed',
+    data: { kind, outcome, ...extra },
   });
 }
 
 export async function redeemWebHandoffCode(a: RedeemWebHandoffCodeArgs): Promise<RedeemOutcome> {
-  const code = extractHandoffCode(a.text);
+  let code = extractHandoffCode(a.text);
+
+  // Phase 8 (blueprint §4): the bare "Confirmar visita" quick-reply text (no
+  // typed code) resolves to this phone's latest pending, unexpired VOZ- code
+  // — the caller may not have typed anything, only tapped the button/quick-reply.
+  if (!code && isVoiceConfirmText(a.text)) {
+    const pending = await getLatestPendingVoiceCodeForPhone(a.orgId, a.phoneE164);
+    if (!pending) return { kind: 'none' };
+    code = pending.code;
+  }
+
   if (!code) return { kind: 'none' };
 
   const claimed = await claimHandoffCode(a.orgId, code, a.phoneE164, a.whatsappSession.id);
@@ -178,7 +181,10 @@ export async function redeemWebHandoffCode(a: RedeemWebHandoffCodeArgs): Promise
     visitMinutes: claimed.visitMinutes as number,
     contactPhone: a.phoneE164,
     createdBy: 'agent',
-    sourceChannel: 'web',
+    // Phase 8: a code minted by book_visit's voice branch keeps 'voice' as
+    // the visit's source_channel even though redemption itself always
+    // arrives over WhatsApp (§0.7) — 'web' is only for source='web' codes.
+    sourceChannel: claimed.source === 'voice' ? 'voice' : 'web',
     sessionId: a.whatsappSession.id,
     requirePublishedListing: true,
     enforcePhoneCap: true,

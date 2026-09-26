@@ -19,4 +19,10 @@ export interface AgentToolContext {
   attribution: AgentAttribution | null;
   /** Phase 7: the web session id when channel === 'web'; null on every other channel. Web-only tools (continue_on_whatsapp, book_visit's web branch) require this to write agent_web_handoff_codes. */
   webSessionId: string | null;
+  /** Phase 8/9: this org's shadow mode, evaluated once per turn (run-turn.ts: `!dryRun && config.shadowMode`) — photo/card-sending tools suppress instead of sending. */
+  shadowMode: boolean;
+  /** Phase 9: the whatsapp_conversations id when channel === 'whatsapp'; null otherwise. Required by send_listing_photos (sendWhatsAppImage) and the per-session daily-send cap. */
+  whatsappConversationId: string | null;
+  /** Phase 8: the agent_calls id when channel === 'voice'; null otherwise. Required by book_visit's voice branch to attach a handoff code to the call. */
+  voiceCallId: string | null;
 }

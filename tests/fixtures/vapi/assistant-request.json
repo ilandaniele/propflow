@@ -1,0 +1,24 @@
+{
+  "message": {
+    "type": "assistant-request",
+    "call": {
+      "id": "8f14e45f-ceea-467e-8a0c-ea3d63a3f5b1",
+      "orgId": "11111111-2222-3333-4444-555555555555",
+      "type": "inboundPhoneCall",
+      "status": "ringing",
+      "phoneNumberId": "aa1bb2cc-3333-4444-5555-666677778888",
+      "customer": {
+        "number": "+14155550101"
+      },
+      "phoneCallProviderId": "CA00000000000000000000000000000000",
+      "createdAt": "2026-09-25T14:02:11.000Z",
+      "updatedAt": "2026-09-25T14:02:11.000Z"
+    },
+    "phoneNumber": {
+      "id": "aa1bb2cc-3333-4444-5555-666677778888",
+      "number": "+14155550199",
+      "provider": "twilio"
+    },
+    "timestamp": "2026-09-25T14:02:11.123Z"
+  }
+}

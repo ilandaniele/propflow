@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { searchListings } from '../listings';
+import { rememberSessionListings } from '../session-listings';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
@@ -21,6 +22,9 @@ export function makeSearchListingsTool(ctx: AgentToolContext) {
     run: async (args) => {
       const results = await searchListings(ctx.orgId, args);
       if (results.length === 0) return 'No se encontraron propiedades publicadas que coincidan con esos filtros.';
+      // Phase 9: only ids the session has actually seen may later be shown as
+      // a card or sent as photos — record them here, before the reply goes out.
+      await rememberSessionListings(ctx.orgId, ctx.sessionId, results.map((r) => r.id), 'search');
       return JSON.stringify(results);
     },
   });

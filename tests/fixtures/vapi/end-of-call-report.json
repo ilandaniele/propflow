@@ -1,0 +1,45 @@
+{
+  "message": {
+    "type": "end-of-call-report",
+    "endedReason": "customer-ended-call",
+    "call": {
+      "id": "8f14e45f-ceea-467e-8a0c-ea3d63a3f5b1",
+      "orgId": "11111111-2222-3333-4444-555555555555",
+      "type": "inboundPhoneCall",
+      "status": "ended",
+      "phoneNumberId": "aa1bb2cc-3333-4444-5555-666677778888",
+      "customer": {
+        "number": "+14155550101"
+      },
+      "startedAt": "2026-09-25T14:02:14.000Z",
+      "endedAt": "2026-09-25T14:07:52.000Z",
+      "cost": 0.4123
+    },
+    "artifact": {
+      "recordingUrl": "https://storage.vapi.ai/recordings/8f14e45f-ceea-467e-8a0c-ea3d63a3f5b1.wav",
+      "transcript": "AI: Thanks for calling PropFlow support, how can I help?\nUser: My kitchen faucet is leaking.\nAI: I've logged a maintenance ticket for unit 42, someone will follow up shortly.\nUser: Great, thank you.\nAI: You're welcome, have a good day!",
+      "messages": [
+        { "role": "assistant", "message": "Thanks for calling PropFlow support, how can I help?", "time": 1758808934000 },
+        { "role": "user", "message": "My kitchen faucet is leaking.", "time": 1758808941000 },
+        { "role": "assistant", "message": "I've logged a maintenance ticket for unit 42, someone will follow up shortly.", "time": 1758808946000 },
+        { "role": "user", "message": "Great, thank you.", "time": 1758808950000 },
+        { "role": "assistant", "message": "You're welcome, have a good day!", "time": 1758808952000 }
+      ]
+    },
+    "recordingUrl": "https://storage.vapi.ai/recordings/8f14e45f-ceea-467e-8a0c-ea3d63a3f5b1.wav",
+    "transcript": "AI: Thanks for calling PropFlow support, how can I help?\nUser: My kitchen faucet is leaking.\nAI: I've logged a maintenance ticket for unit 42, someone will follow up shortly.\nUser: Great, thank you.\nAI: You're welcome, have a good day!",
+    "summary": "Tenant reported a leaking kitchen faucet in unit 42; a maintenance ticket was created during the call.",
+    "analysis": {
+      "summary": "Tenant reported a leaking kitchen faucet in unit 42; a maintenance ticket was created during the call.",
+      "successEvaluation": "true"
+    },
+    "cost": 0.4123,
+    "costBreakdown": {
+      "transport": 0.05,
+      "stt": 0.08,
+      "llm": 0.21,
+      "tts": 0.0823
+    },
+    "timestamp": "2026-09-25T14:07:52.900Z"
+  }
+}

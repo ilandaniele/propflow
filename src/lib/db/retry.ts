@@ -31,3 +31,28 @@ export async function withDbRetry<T>(fn: () => Promise<T>, label = 'db'): Promis
   // Unreachable: the loop either returns or throws on the final attempt.
   throw new Error(`[${label}] retry exhausted`);
 }
+
+/**
+ * Same idea as withDbRetry, but for voice webhook paths (blueprint §0.5):
+ * the whole `tool-calls` response is budgeted at 6s and Vapi cuts off at
+ * ~7.5s, so withDbRetry's 2s backoff is too slow. 2 attempts, 150ms apart.
+ */
+export async function withFastDbRetry<T>(fn: () => Promise<T>, label = 'db'): Promise<T> {
+  const MAX_ATTEMPTS = 2;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt < MAX_ATTEMPTS - 1) {
+        log.warn(`[${label}] DB connection failed, fast-retrying`, {
+          attempt,
+          error: err instanceof Error ? err.message : 'unknown',
+        });
+        await new Promise((r) => setTimeout(r, 150));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error(`[${label}] fast retry exhausted`);
+}

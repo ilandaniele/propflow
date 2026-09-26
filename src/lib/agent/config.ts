@@ -7,6 +7,14 @@
 import { db } from '@/lib/db';
 import { agentConfigs } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
+import {
+  parseBusinessHours,
+  parseVoiceConfig,
+  type BusinessHours,
+  type QualificationField,
+  type VoiceConfig,
+} from './config-schema';
+import type { FollowupPolicy } from '@/lib/leads/types';
 
 export interface AgentConfig {
   id: string;
@@ -16,7 +24,7 @@ export interface AgentConfig {
   rules: string | null;
   prohibited: string | null;
   faq: Array<{ question: string; answer: string }>;
-  businessHours: Record<string, unknown>;
+  businessHours: BusinessHours;
   timezone: string;
   qualificationFields: string[];
   followupPolicy: Record<string, unknown>;
@@ -28,6 +36,11 @@ export interface AgentConfig {
   maxAgentTurns: number | null;
   /** Phase 7: public catalogue pages (/p/<orgSlug>) are opt-in — see 0009's migration comment for why. */
   publicPagesEnabled: boolean;
+  /** Phase 8: voice AI (Vapi) config — see config-schema.ts's VoiceConfig. */
+  voice: VoiceConfig;
+  /** Phase 9: settings/metrics limits. */
+  maxActiveVisitsPerPhone: number;
+  maxListingPhotos: number;
 }
 
 function toAgentConfig(row: typeof agentConfigs.$inferSelect): AgentConfig {
@@ -39,7 +52,7 @@ function toAgentConfig(row: typeof agentConfigs.$inferSelect): AgentConfig {
     rules: row.rules,
     prohibited: row.prohibited,
     faq: (row.faq as AgentConfig['faq']) ?? [],
-    businessHours: (row.businessHours as Record<string, unknown>) ?? {},
+    businessHours: parseBusinessHours(row.businessHours),
     timezone: row.timezone,
     qualificationFields: (row.qualificationFields as string[]) ?? [],
     followupPolicy: (row.followupPolicy as Record<string, unknown>) ?? {},
@@ -54,6 +67,9 @@ function toAgentConfig(row: typeof agentConfigs.$inferSelect): AgentConfig {
     shadowMode: row.shadowMode,
     maxAgentTurns: row.maxAgentTurns,
     publicPagesEnabled: row.publicPagesEnabled,
+    voice: parseVoiceConfig(row.voiceConfig),
+    maxActiveVisitsPerPhone: row.maxActiveVisitsPerPhone,
+    maxListingPhotos: row.maxListingPhotos,
   };
 }
 
@@ -120,4 +136,77 @@ export async function setPublicPagesEnabled(orgId: string, enabled: boolean): Pr
     .update(agentConfigs)
     .set({ publicPagesEnabled: enabled, updatedAt: sql`now()` })
     .where(eq(agentConfigs.orgId, orgId));
+}
+
+/**
+ * Phase 8/9: general-purpose patch for /dashboard/agent/settings (item D).
+ * Every field here is already validated by the caller against config-schema.ts
+ * (or leads/types.ts's FollowupPolicySchema) — this function does no
+ * validation of its own, only merging.
+ */
+export type AgentConfigPatch = Partial<{
+  persona: string;
+  tone: AgentConfig['tone'];
+  timezone: string;
+  rules: string | null;
+  prohibited: string | null;
+  faq: AgentConfig['faq'];
+  qualificationFields: QualificationField[];
+  businessHours: BusinessHours;
+  followupPolicy: FollowupPolicy;
+  routingMode: AgentConfig['routingMode'];
+  dailyTokenBudget: number;
+  shadowMode: boolean;
+  maxAgentTurns: number | null;
+  maxActiveVisitsPerPhone: number;
+  maxListingPhotos: number;
+  voice: VoiceConfig;
+  channels: { whatsapp?: boolean; voice?: boolean };
+}>;
+
+/**
+ * getOrCreate then UPDATE. `channels` merges into channels_enabled and never
+ * touches `web` (that's item B's widget settings, not this form). `voice`
+ * and `followupPolicy` are full replaces — the caller has already validated
+ * the whole object, so a partial merge here would silently resurrect stale
+ * sub-fields.
+ */
+export async function updateAgentConfig(orgId: string, patch: AgentConfigPatch): Promise<AgentConfig> {
+  const current = await getOrCreateAgentConfig(orgId);
+
+  const channelsEnabled = patch.channels
+    ? {
+        ...current.channelsEnabled,
+        ...(patch.channels.whatsapp !== undefined ? { whatsapp: patch.channels.whatsapp } : {}),
+        ...(patch.channels.voice !== undefined ? { voice: patch.channels.voice } : {}),
+      }
+    : undefined;
+
+  const rows = await db
+    .update(agentConfigs)
+    .set({
+      ...(patch.persona !== undefined ? { persona: patch.persona } : {}),
+      ...(patch.tone !== undefined ? { tone: patch.tone } : {}),
+      ...(patch.timezone !== undefined ? { timezone: patch.timezone } : {}),
+      ...(patch.rules !== undefined ? { rules: patch.rules } : {}),
+      ...(patch.prohibited !== undefined ? { prohibited: patch.prohibited } : {}),
+      ...(patch.faq !== undefined ? { faq: patch.faq } : {}),
+      ...(patch.qualificationFields !== undefined ? { qualificationFields: patch.qualificationFields } : {}),
+      ...(patch.businessHours !== undefined ? { businessHours: patch.businessHours } : {}),
+      ...(patch.followupPolicy !== undefined ? { followupPolicy: patch.followupPolicy } : {}),
+      ...(patch.routingMode !== undefined ? { routingMode: patch.routingMode } : {}),
+      ...(patch.dailyTokenBudget !== undefined ? { dailyTokenBudget: patch.dailyTokenBudget } : {}),
+      ...(patch.shadowMode !== undefined ? { shadowMode: patch.shadowMode } : {}),
+      ...(patch.maxAgentTurns !== undefined ? { maxAgentTurns: patch.maxAgentTurns } : {}),
+      ...(patch.maxActiveVisitsPerPhone !== undefined ? { maxActiveVisitsPerPhone: patch.maxActiveVisitsPerPhone } : {}),
+      ...(patch.maxListingPhotos !== undefined ? { maxListingPhotos: patch.maxListingPhotos } : {}),
+      ...(patch.voice !== undefined ? { voiceConfig: patch.voice } : {}),
+      ...(channelsEnabled ? { channelsEnabled } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(agentConfigs.orgId, orgId))
+    .returning();
+
+  if (!rows[0]) throw new Error('[agent/config] updateAgentConfig: org has no agent_configs row');
+  return toAgentConfig(rows[0]);
 }

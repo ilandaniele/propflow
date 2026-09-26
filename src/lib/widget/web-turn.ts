@@ -19,6 +19,7 @@ import {
 import { incrementWebUsage } from './usage';
 import { resolveListingRef } from './listing-ref';
 import { computeWebCta } from './cta';
+import { rememberSessionListings } from '@/lib/agent/session-listings';
 
 export interface HandleWebMessageArgs {
   channel: WebChannel;
@@ -88,6 +89,7 @@ export async function handleWebMessage(a: HandleWebMessageArgs): Promise<HandleW
     });
 
     await recordWebMessage(a.session.id, result.sessionId);
+    if (pageContext) await rememberSessionListings(a.channel.orgId, result.sessionId, [pageContext.listingId], 'page');
 
     const mode: WebTurnResponse['mode'] = result.skipped || result.handedOffToHuman ? 'handoff' : 'ai';
     const cta = await computeWebCta({
