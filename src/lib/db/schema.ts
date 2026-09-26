@@ -22,6 +22,7 @@ import {
   primaryKey,
   uniqueIndex,
   index,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 // import type only — avoids a circular runtime import (types.ts has no runtime deps on schema.ts).
@@ -1643,4 +1644,96 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   profile:  one(profiles, { fields: [users.id], references: [profiles.userId] }),
   accounts: many(accounts),
   sessions: many(sessions),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Phase 3-4: internal agenda, visit booking, reminders, post-visit.
+// See src/lib/db/migrations/0006_agent_visits.sql (applied by hand).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentAdvisorSettings = pgTable('agent_advisor_settings', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  orgId:            uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  profileId:        uuid('profile_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  acceptsVisits:    boolean('accepts_visits').notNull().default(true),
+  visitMinutes:     integer('visit_minutes').notNull().default(45),
+  bufferMinutes:    integer('buffer_minutes').notNull().default(15),
+  minNoticeMinutes: integer('min_notice_minutes').notNull().default(120),
+  daysAhead:        integer('days_ahead').notNull().default(14),
+  slotStepMinutes:  integer('slot_step_minutes').notNull().default(30),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgProfileUniq: uniqueIndex('agent_advisor_settings_org_profile_uidx').on(t.orgId, t.profileId),
+}));
+
+export const agentAvailability = pgTable('agent_availability', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  orgId:       uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  profileId:   uuid('profile_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  weekday:     integer('weekday').notNull(),      // 0 = Sunday, same as Date#getDay — SMALLINT in SQL
+  startMinute: integer('start_minute').notNull(), // minutes since local midnight
+  endMinute:   integer('end_minute').notNull(),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgProfileIdx: index('idx_agent_availability_org_profile').on(t.orgId, t.profileId),
+}));
+
+export const agentAvailabilityExceptions = pgTable('agent_availability_exceptions', {
+  id:                  uuid('id').primaryKey().defaultRandom(),
+  orgId:               uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  profileId:           uuid('profile_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  startsAt:            timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt:              timestamp('ends_at', { withTimezone: true }).notNull(),
+  kind:                text('kind').notNull(), // 'block' | 'extra'
+  reason:              text('reason'),
+  createdByProfileId:  uuid('created_by_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:           timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgProfileStartsIdx: index('idx_agent_availability_exceptions_org_profile_starts').on(t.orgId, t.profileId, t.startsAt),
+}));
+
+// NOTE: the `property_visits_no_overlap` EXCLUDE USING gist constraint is
+// declared only in 0006_agent_visits.sql — Drizzle has no EXCLUDE constraint
+// builder, and this table must NEVER be pushed with `drizzle-kit push`
+// (it would silently drop the constraint).
+export const propertyVisits = pgTable('property_visits', {
+  id:                   uuid('id').primaryKey().defaultRandom(),
+  orgId:                uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  leadId:               uuid('lead_id').notNull().references(() => crmLeads.id, { onDelete: 'cascade' }),
+  listingId:            uuid('listing_id').references(() => listings.id, { onDelete: 'set null' }),
+  profileId:            uuid('profile_id').notNull().references(() => profiles.id, { onDelete: 'restrict' }),
+  sessionId:            uuid('session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
+  contactPhone:         text('contact_phone'),
+  startsAt:             timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt:               timestamp('ends_at', { withTimezone: true }).notNull(),
+  blockedUntil:         timestamp('blocked_until', { withTimezone: true }).notNull(),
+  status:               text('status').notNull().default('scheduled'),
+  // 'scheduled'|'confirmed'|'completed'|'no_show'|'cancelled'|'rescheduled'
+  createdBy:            text('created_by').notNull(), // 'agent'|'human'
+  createdByProfileId:   uuid('created_by_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  sourceChannel:        text('source_channel').notNull(), // 'whatsapp'|'web'|'voice'|'manual'
+  rescheduledFromId:    uuid('rescheduled_from_id').references((): AnyPgColumn => propertyVisits.id, { onDelete: 'set null' }),
+  googleEventId:        text('google_event_id'), // Phase 5
+  notes:                text('notes'),
+  cancelReason:         text('cancel_reason'),
+  feedback:             text('feedback'), // 'interested'|'not_interested'|'wants_more'
+  outcomeSource:        text('outcome_source'), // 'staff'|'lead'
+  confirmedAt:          timestamp('confirmed_at', { withTimezone: true }),
+  cancelledAt:          timestamp('cancelled_at', { withTimezone: true }),
+  completedAt:          timestamp('completed_at', { withTimezone: true }),
+  reminder24hSentAt:    timestamp('reminder_24h_sent_at', { withTimezone: true }),
+  reminder2hSentAt:     timestamp('reminder_2h_sent_at', { withTimezone: true }),
+  advisorRemindedAt:    timestamp('advisor_reminded_at', { withTimezone: true }),
+  postCheckSentAt:      timestamp('post_check_sent_at', { withTimezone: true }),
+  feedbackRequestedAt:  timestamp('feedback_requested_at', { withTimezone: true }),
+  reofferSentAt:        timestamp('reoffer_sent_at', { withTimezone: true }),
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgStartsIdx:       index('idx_property_visits_org_starts').on(t.orgId, t.startsAt),
+  orgProfileStartsIdx: index('idx_property_visits_org_profile_starts').on(t.orgId, t.profileId, t.startsAt),
+  leadIdx:            index('idx_property_visits_lead').on(t.leadId),
+  orgPhoneStatusIdx:  index('idx_property_visits_org_phone_status').on(t.orgId, t.contactPhone, t.status),
+  orgCreatedIdx:      index('idx_property_visits_org_created').on(t.orgId, t.createdAt),
 }));

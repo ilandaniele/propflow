@@ -37,7 +37,8 @@ vi.mock('@/lib/log', () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { enqueueJob, drainAgentJobs, registerAgentJobHandler } from '@/lib/agent/jobs';
+import { db } from '@/lib/db';
+import { enqueueJob, drainAgentJobs, registerAgentJobHandler, registeredJobKinds, _resetAgentJobHandlers } from '@/lib/agent/jobs';
 
 describe('agent/jobs', () => {
   beforeEach(() => {
@@ -75,5 +76,18 @@ describe('agent/jobs', () => {
     selectForUpdate.mockResolvedValueOnce([]);
     const result = await drainAgentJobs(10);
     expect(result).toEqual({ processed: 0, failed: 0 });
+  });
+
+  // Placed last: clears every registered handler, so it must not run before
+  // the tests above that rely on 'noop' already being registered.
+  it('a kind with no registered handler is never claimed — drainAgentJobs short-circuits before querying', async () => {
+    _resetAgentJobHandlers();
+    expect(registeredJobKinds()).toEqual([]);
+
+    const result = await drainAgentJobs(10);
+
+    expect(result).toEqual({ processed: 0, failed: 0 });
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(selectForUpdate).not.toHaveBeenCalled();
   });
 });

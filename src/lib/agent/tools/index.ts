@@ -5,6 +5,11 @@ import { makeSendListingCardTool } from './send-listing-card';
 import { makeUpdateLeadProfileTool } from './update-lead-profile';
 import { makeHandoffToHumanTool } from './handoff-to-human';
 import { makeRegisterOwnerLeadTool } from './register-owner-lead';
+import { makeGetAvailableSlotsTool } from './get-available-slots';
+import { makeBookVisitTool } from './book-visit';
+import { makeGetMyVisitsTool } from './get-my-visits';
+import { makeRescheduleVisitTool } from './reschedule-visit';
+import { makeCancelVisitTool } from './cancel-visit';
 
 export type { AgentToolContext } from './context';
 
@@ -17,5 +22,10 @@ export function buildAgentTools(ctx: AgentToolContext) {
     makeUpdateLeadProfileTool(ctx),
     makeHandoffToHumanTool(ctx),
     makeRegisterOwnerLeadTool(ctx),
+    makeGetAvailableSlotsTool(ctx),
+    makeBookVisitTool(ctx),
+    makeGetMyVisitsTool(ctx),
+    makeRescheduleVisitTool(ctx),
+    makeCancelVisitTool(ctx),
   ];
 }

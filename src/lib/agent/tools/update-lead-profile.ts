@@ -1,8 +1,8 @@
 import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { applyLeadQualification, attributionToSource, createProspectLead } from '../lead';
-import { setSessionLead } from '../session';
+import { applyLeadQualification } from '../lead';
 import { computeLeadScore, intentTagForScore } from '../scoring';
+import { ensureLead } from './ensure-lead';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
@@ -15,10 +15,6 @@ const InputSchema = z.object({
   timeline: z.enum(['immediate', '1_3_months', '3_6_months', 'flexible']).optional().describe('Urgencia de la búsqueda'),
   pets: z.boolean().optional().describe('true si mencionó que tiene mascotas'),
 });
-
-function defaultFullName(channel: string): string {
-  return channel === 'whatsapp' ? 'Prospecto WhatsApp' : channel === 'voice' ? 'Prospecto llamada' : 'Prospecto web';
-}
 
 export function makeUpdateLeadProfileTool(ctx: AgentToolContext) {
   return betaZodTool({
@@ -33,22 +29,7 @@ export function makeUpdateLeadProfileTool(ctx: AgentToolContext) {
         return `[SIMULACIÓN — playground] Se guardaría: ${JSON.stringify(args)}. Score estimado: ${score} (${intentTagForScore(score)}).`;
       }
 
-      let leadId = ctx.leadIdRef.current;
-      if (!leadId) {
-        const phone = ctx.channel === 'whatsapp' || ctx.channel === 'voice' ? ctx.externalId : null;
-        const { sourceRef, sourceMeta } = attributionToSource(ctx.attribution);
-        const lead = await createProspectLead({
-          orgId: ctx.orgId,
-          fullName: args.fullName ?? defaultFullName(ctx.channel),
-          phone,
-          sourceChannel: ctx.channel,
-          sourceRef,
-          sourceMeta,
-        });
-        leadId = lead.id;
-        ctx.leadIdRef.current = leadId;
-        await setSessionLead(ctx.sessionId, leadId);
-      }
+      const leadId = await ensureLead(ctx, args.fullName);
 
       const updated = await applyLeadQualification(ctx.orgId, leadId, args);
       return `Perfil actualizado. Score: ${updated.score} (${updated.intentTag}).`;
