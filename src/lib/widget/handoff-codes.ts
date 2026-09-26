@@ -8,7 +8,7 @@
 import { randomBytes } from 'node:crypto';
 import { db } from '@/lib/db';
 import { agentWebHandoffCodes } from '@/lib/db/schema';
-import { and, eq, gt, count, sql, or } from 'drizzle-orm';
+import { and, eq, gt, lte, count, sql, or } from 'drizzle-orm';
 
 export const HANDOFF_CODE_TTL_MS = 30 * 60_000;
 export const MAX_CODES_PER_SESSION_PER_DAY = 5;
@@ -125,7 +125,8 @@ export async function createHandoffCode(args: CreateHandoffCodeArgs): Promise<Ha
   const dailyCapCondition =
     source === 'web'
       ? eq(agentWebHandoffCodes.webSessionId, args.webSessionId!)
-      : eq(agentWebHandoffCodes.targetPhone, args.targetPhone!);
+      // A phone number isn't unique to one org — scope the voice cap to this org too.
+      : and(eq(agentWebHandoffCodes.orgId, args.orgId), eq(agentWebHandoffCodes.targetPhone, args.targetPhone!));
   const dailyCap = source === 'web' ? MAX_CODES_PER_SESSION_PER_DAY : MAX_VOICE_CODES_PER_PHONE_PER_DAY;
 
   const [{ value: todayCount }] = await db
@@ -137,7 +138,12 @@ export async function createHandoffCode(args: CreateHandoffCodeArgs): Promise<Ha
   const supersedeCondition =
     source === 'web'
       ? and(eq(agentWebHandoffCodes.webSessionId, args.webSessionId!), eq(agentWebHandoffCodes.kind, args.kind), eq(agentWebHandoffCodes.status, 'pending'))
-      : and(eq(agentWebHandoffCodes.targetPhone, args.targetPhone!), eq(agentWebHandoffCodes.kind, args.kind), eq(agentWebHandoffCodes.status, 'pending'));
+      : and(
+          eq(agentWebHandoffCodes.orgId, args.orgId),
+          eq(agentWebHandoffCodes.targetPhone, args.targetPhone!),
+          eq(agentWebHandoffCodes.kind, args.kind),
+          eq(agentWebHandoffCodes.status, 'pending'),
+        );
 
   const ttlMs = args.ttlMs ?? (source === 'voice' ? VOICE_CODE_TTL_MS : HANDOFF_CODE_TTL_MS);
 
@@ -237,6 +243,10 @@ export async function claimHandoffCode(
     .returning();
   if (redeemed[0]) return toRow(redeemed[0]);
 
+  // Only an ACTUALLY-expired pending code becomes 'expired' here — a pending,
+  // unexpired code that merely failed the target-phone check above (a
+  // non-target phone trying a valid voice code) must fall through to the
+  // generic not-found below, untouched.
   const expired = await db
     .update(agentWebHandoffCodes)
     .set({ status: 'expired' })
@@ -244,6 +254,7 @@ export async function claimHandoffCode(
       eq(agentWebHandoffCodes.orgId, orgId),
       eq(agentWebHandoffCodes.code, code),
       eq(agentWebHandoffCodes.status, 'pending'),
+      lte(agentWebHandoffCodes.expiresAt, new Date()),
     ))
     .returning({ id: agentWebHandoffCodes.id });
   if (expired[0]) return 'expired';

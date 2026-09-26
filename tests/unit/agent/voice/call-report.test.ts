@@ -1,6 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import endOfCallFixture from '../../../fixtures/vapi/end-of-call-report.json';
-import { mapEndedReason } from '@/lib/agent/voice/call-report';
+import { mapEndedReason, isHttpsUrl } from '@/lib/agent/voice/call-report';
+
+describe('agent/voice/call-report — isHttpsUrl', () => {
+  it('accepts https URLs', () => {
+    expect(isHttpsUrl('https://storage.vapi.ai/recordings/x.wav')).toBe(true);
+  });
+
+  it('rejects http (non-https) URLs', () => {
+    expect(isHttpsUrl('http://storage.vapi.ai/recordings/x.wav')).toBe(false);
+  });
+
+  it('rejects garbage that is not a URL at all', () => {
+    expect(isHttpsUrl('not-a-url')).toBe(false);
+  });
+
+  it('rejects null/undefined/empty', () => {
+    expect(isHttpsUrl(null)).toBe(false);
+    expect(isHttpsUrl(undefined)).toBe(false);
+    expect(isHttpsUrl('')).toBe(false);
+  });
+});
 
 describe('agent/voice/call-report — mapEndedReason', () => {
   it('customer-busy → busy', () => {
@@ -131,6 +151,20 @@ describe('agent/voice/call-report — handleEndOfCallReport', () => {
     await handleEndOfCallReport(endOfCallFixture.message as never);
     const leadUpdate = dbUpdateCalls.find((c) => (c as { patch: Record<string, unknown> }).patch.stage === 'contacted');
     expect(leadUpdate).toBeUndefined();
+  });
+
+  it('persists recordingUrl as null when it is not https', async () => {
+    const httpFixture = {
+      ...endOfCallFixture.message,
+      recordingUrl: 'http://insecure.example.com/rec.wav',
+      artifact: { ...endOfCallFixture.message.artifact, recordingUrl: 'http://insecure.example.com/rec.wav' },
+    };
+    await handleEndOfCallReport(httpFixture as never);
+    expect(transitionCall).toHaveBeenCalledWith(
+      'call-row-1',
+      ['queued', 'dialing', 'in_progress'],
+      expect.objectContaining({ recordingUrl: null }),
+    );
   });
 
   it('records a voice_call event on the session', async () => {

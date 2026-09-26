@@ -95,7 +95,7 @@ export interface VapiAssistant {
   maxDurationSeconds: number;
   endCallFunctionEnabled?: boolean;
   serverMessages?: string[];
-  server?: { url: string };
+  server?: { url: string; secret?: string };
   metadata?: Record<string, string>;
   analysisPlan?: { summaryPrompt?: string };
 }

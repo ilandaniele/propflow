@@ -123,9 +123,18 @@ function emptyByChannel(): Record<MetricsChannel, ChannelMetrics> {
   return { whatsapp: emptyChannelMetrics(), web: emptyChannelMetrics(), voice: emptyChannelMetrics(), all: emptyChannelMetrics() };
 }
 
-/** channel column value -> the bucket key it feeds, or null (rollup / unknown values still land in `all` via the SQL-side GROUPING SETS total row, not here). */
-function bucketFor(channel: string | null): MetricsChannel | null {
-  if (channel === null) return 'all';
+/**
+ * channel column value + Postgres' `GROUPING(col)` flag -> the bucket key it
+ * feeds, or null. `GROUPING(col) = 1` marks the `()` rollup row of a
+ * `GROUP BY GROUPING SETS ((col), ())` query — that's the only row that
+ * belongs in `all`. A `channel IS NULL` row that ISN'T the rollup (a real
+ * row whose channel column is genuinely NULL/unknown) is dropped instead of
+ * being mistaken for the total, which `channel === null` alone can't tell
+ * apart.
+ */
+function bucketForRow(channel: string | null, isTotal: unknown): MetricsChannel | null {
+  if (toNum(isTotal) === 1) return 'all';
+  if (channel === null) return null;
   return (CHANNELS as readonly string[]).includes(channel) ? (channel as MetricsChannel) : null;
 }
 
@@ -145,23 +154,44 @@ function ratio(numerator: number, denominator: number): number | null {
   return denominator > 0 ? numerator / denominator : null;
 }
 
+/**
+ * A stored org timezone can be empty/garbage (hand-edited config, a stale
+ * default, etc.) — `AT TIME ZONE <bad tz>` throws inside Postgres, which
+ * would 500 the whole metrics page. Validate once via Intl (same check
+ * config-schema.ts's IdentitySchema uses) and fall back to 'UTC' before it
+ * ever reaches resolveRange or getDailySeries.
+ */
+export function safeTimezone(tz: string): string {
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return tz;
+  } catch {
+    return 'UTC';
+  }
+}
+
 export async function getAgentMetrics(orgId: string, r: { from: Date; to: Date }): Promise<AgentMetrics> {
   const { from, to } = r;
   const config = await getOrCreateAgentConfig(orgId);
-  const tz = config.timezone;
+  const tz = safeTimezone(config.timezone);
 
   const byChannel = emptyByChannel();
+  // Populated from visitRows below, consumed by the derived-ratios loop —
+  // leadToVisitRate must be computed there (once leads totals are final for
+  // every bucket) rather than inline, so a bucket with visited leads but no
+  // separately-reported leads row (or vice versa) still gets ratio(0, leads).
+  const visitedLeadsByBucket: Partial<Record<MetricsChannel, number>> = {};
 
   // ── conversations (agent_sessions, excluding playground) ─────────────────
   const conversationRows = (await db.execute(sql`
-    SELECT channel, COUNT(*) AS n
+    SELECT channel, COUNT(*) AS n, GROUPING(channel) AS is_total
     FROM agent_sessions
     WHERE org_id = ${orgId} AND created_at >= ${from} AND created_at < ${to}
       AND external_id NOT LIKE 'playground:%'
     GROUP BY GROUPING SETS ((channel), ())
-  `)) as unknown as Array<{ channel: string | null; n: unknown }>;
+  `)) as unknown as Array<{ channel: string | null; n: unknown; is_total: unknown }>;
   for (const row of conversationRows) {
-    const bucket = bucketFor(row.channel);
+    const bucket = bucketForRow(row.channel, row.is_total);
     if (bucket) byChannel[bucket].conversations = toNum(row.n);
   }
 
@@ -171,13 +201,14 @@ export async function getAgentMetrics(orgId: string, r: { from: Date; to: Date }
       COUNT(*) FILTER (
         WHERE intent_tag IN ('qualified', 'high_intent')
            OR stage IN ('qualified', 'visit_scheduled', 'visited', 'negotiating', 'won')
-      ) AS qualified
+      ) AS qualified,
+      GROUPING(source_channel) AS is_total
     FROM crm_leads
     WHERE org_id = ${orgId} AND created_at >= ${from} AND created_at < ${to}
     GROUP BY GROUPING SETS ((source_channel), ())
-  `)) as unknown as Array<{ channel: string | null; n: unknown; qualified: unknown }>;
+  `)) as unknown as Array<{ channel: string | null; n: unknown; qualified: unknown; is_total: unknown }>;
   for (const row of leadRows) {
-    const bucket = bucketFor(row.channel);
+    const bucket = bucketForRow(row.channel, row.is_total);
     if (bucket) {
       byChannel[bucket].leads = toNum(row.n);
       byChannel[bucket].qualifiedLeads = toNum(row.qualified);
@@ -191,34 +222,35 @@ export async function getAgentMetrics(orgId: string, r: { from: Date; to: Date }
       COUNT(*) FILTER (WHERE created_at >= ${from} AND created_at < ${to} AND status <> 'rescheduled') AS booked,
       COUNT(*) FILTER (WHERE starts_at >= ${from} AND starts_at < ${to} AND status = 'completed') AS completed,
       COUNT(*) FILTER (WHERE starts_at >= ${from} AND starts_at < ${to} AND status = 'no_show') AS no_show,
-      COUNT(DISTINCT lead_id) FILTER (WHERE created_at >= ${from} AND created_at < ${to} AND status <> 'rescheduled') AS visited_leads
+      COUNT(DISTINCT lead_id) FILTER (WHERE created_at >= ${from} AND created_at < ${to} AND status <> 'rescheduled') AS visited_leads,
+      GROUPING(source_channel) AS is_total
     FROM property_visits
     WHERE org_id = ${orgId}
       AND ((created_at >= ${from} AND created_at < ${to}) OR (starts_at >= ${from} AND starts_at < ${to}))
     GROUP BY GROUPING SETS ((source_channel), ())
-  `)) as unknown as Array<{ channel: string | null; booked: unknown; completed: unknown; no_show: unknown; visited_leads: unknown }>;
+  `)) as unknown as Array<{ channel: string | null; booked: unknown; completed: unknown; no_show: unknown; visited_leads: unknown; is_total: unknown }>;
   for (const row of visitRows) {
-    const bucket = bucketFor(row.channel);
+    const bucket = bucketForRow(row.channel, row.is_total);
     if (bucket) {
       byChannel[bucket].visitsBooked = toNum(row.booked);
       byChannel[bucket].visitsCompleted = toNum(row.completed);
       byChannel[bucket].visitsNoShow = toNum(row.no_show);
-      byChannel[bucket].leadToVisitRate = ratio(toNum(row.visited_leads), byChannel[bucket].leads);
+      visitedLeadsByBucket[bucket] = toNum(row.visited_leads);
     }
   }
 
   // ── handoffs (agent_events linked to sessions in range) ───────────────────
   const handoffRows = (await db.execute(sql`
-    SELECT s.channel AS channel, COUNT(DISTINCT s.id) AS handoffs
+    SELECT s.channel AS channel, COUNT(DISTINCT s.id) AS handoffs, GROUPING(s.channel) AS is_total
     FROM agent_sessions s
     JOIN agent_events e ON e.session_id = s.id
     WHERE s.org_id = ${orgId} AND s.created_at >= ${from} AND s.created_at < ${to}
       AND s.external_id NOT LIKE 'playground:%'
       AND (e.kind = 'handoff' OR (e.kind = 'mode_change' AND e.data ->> 'to' = 'human'))
     GROUP BY GROUPING SETS ((s.channel), ())
-  `)) as unknown as Array<{ channel: string | null; handoffs: unknown }>;
+  `)) as unknown as Array<{ channel: string | null; handoffs: unknown; is_total: unknown }>;
   for (const row of handoffRows) {
-    const bucket = bucketFor(row.channel);
+    const bucket = bucketForRow(row.channel, row.is_total);
     if (bucket) {
       byChannel[bucket].handoffs = toNum(row.handoffs);
       byChannel[bucket].handoffRate = ratio(byChannel[bucket].handoffs, byChannel[bucket].conversations);
@@ -233,15 +265,16 @@ export async function getAgentMetrics(orgId: string, r: { from: Date; to: Date }
         am.cost_usd,
         (COALESCE(am.input_tokens, 0) * ${COST_SQL_RATES.inPerMtok} / 1000000.0)
           + (COALESCE(am.output_tokens, 0) * ${COST_SQL_RATES.outPerMtok} / 1000000.0)
-      )) AS cost
+      )) AS cost,
+      GROUPING(s.channel) AS is_total
     FROM agent_messages am
     JOIN agent_sessions s ON s.id = am.session_id
     WHERE am.org_id = ${orgId} AND am.created_at >= ${from} AND am.created_at < ${to}
       AND s.external_id NOT LIKE 'playground:%'
     GROUP BY GROUPING SETS ((s.channel), ())
-  `)) as unknown as Array<{ channel: string | null; cost: unknown }>;
+  `)) as unknown as Array<{ channel: string | null; cost: unknown; is_total: unknown }>;
   for (const row of costRows) {
-    const bucket = bucketFor(row.channel);
+    const bucket = bucketForRow(row.channel, row.is_total);
     if (bucket) byChannel[bucket].aiCostUsd += toNum(row.cost);
   }
 
@@ -317,12 +350,13 @@ export async function getAgentMetrics(orgId: string, r: { from: Date; to: Date }
       FROM web_first_user fu JOIN web_first_assistant fa ON fa.session_id = fu.session_id
     )
     SELECT channel, percentile_cont(0.5) WITHIN GROUP (ORDER BY delta_sec) AS p50,
-      percentile_cont(0.9) WITHIN GROUP (ORDER BY delta_sec) AS p90
+      percentile_cont(0.9) WITHIN GROUP (ORDER BY delta_sec) AS p90,
+      GROUPING(channel) AS is_total
     FROM deltas
     GROUP BY GROUPING SETS ((channel), ())
-  `)) as unknown as Array<{ channel: string | null; p50: unknown; p90: unknown }>;
+  `)) as unknown as Array<{ channel: string | null; p50: unknown; p90: unknown; is_total: unknown }>;
   for (const row of firstResponseRows) {
-    const bucket = bucketFor(row.channel);
+    const bucket = bucketForRow(row.channel, row.is_total);
     if (bucket) {
       byChannel[bucket].firstResponseP50Sec = toNumOrNull(row.p50);
       byChannel[bucket].firstResponseP90Sec = toNumOrNull(row.p90);
@@ -334,6 +368,7 @@ export async function getAgentMetrics(orgId: string, r: { from: Date; to: Date }
     const m = byChannel[bucket];
     m.costPerConversation = ratio(m.aiCostUsd, m.conversations);
     m.costPerVisit = ratio(m.aiCostUsd, m.visitsBooked);
+    m.leadToVisitRate = ratio(visitedLeadsByBucket[bucket] ?? 0, m.leads);
   }
 
   const daily = await getDailySeries(orgId, from, to, tz);
@@ -355,27 +390,33 @@ async function getDailySeries(
 ): Promise<Array<{ day: string; conversations: number; leads: number; visitsBooked: number }>> {
   const [sessionRows, leadRows, visitRows] = await Promise.all([
     db.execute(sql`
-      SELECT date_trunc('day', created_at AT TIME ZONE ${tz})::date AS day, COUNT(*) AS n
+      SELECT to_char(date_trunc('day', created_at AT TIME ZONE ${tz}), 'YYYY-MM-DD') AS day, COUNT(*) AS n
       FROM agent_sessions
       WHERE org_id = ${orgId} AND created_at >= ${from} AND created_at < ${to}
         AND external_id NOT LIKE 'playground:%'
       GROUP BY day
-    `) as unknown as Promise<Array<{ day: string; n: unknown }>>,
+    `) as unknown as Promise<Array<{ day: Date | string; n: unknown }>>,
     db.execute(sql`
-      SELECT date_trunc('day', created_at AT TIME ZONE ${tz})::date AS day, COUNT(*) AS n
+      SELECT to_char(date_trunc('day', created_at AT TIME ZONE ${tz}), 'YYYY-MM-DD') AS day, COUNT(*) AS n
       FROM crm_leads
       WHERE org_id = ${orgId} AND created_at >= ${from} AND created_at < ${to}
       GROUP BY day
-    `) as unknown as Promise<Array<{ day: string; n: unknown }>>,
+    `) as unknown as Promise<Array<{ day: Date | string; n: unknown }>>,
     db.execute(sql`
-      SELECT date_trunc('day', created_at AT TIME ZONE ${tz})::date AS day, COUNT(*) AS n
+      SELECT to_char(date_trunc('day', created_at AT TIME ZONE ${tz}), 'YYYY-MM-DD') AS day, COUNT(*) AS n
       FROM property_visits
       WHERE org_id = ${orgId} AND created_at >= ${from} AND created_at < ${to} AND status <> 'rescheduled'
       GROUP BY day
-    `) as unknown as Promise<Array<{ day: string; n: unknown }>>,
+    `) as unknown as Promise<Array<{ day: Date | string; n: unknown }>>,
   ]);
 
-  const dayKey = (v: string): string => v.slice(0, 10);
+  // `to_char` already returns a plain string, but postgres.js can still hand
+  // back a JS Date for date/timestamp-typed columns depending on the driver
+  // path — accept both defensively instead of assuming `.slice` exists.
+  const dayKey = (v: Date | string): string => {
+    if (v instanceof Date) return v.toISOString().slice(0, 10);
+    return String(v).slice(0, 10);
+  };
   const conversationsByDay = new Map(sessionRows.map((r) => [dayKey(r.day), toNum(r.n)]));
   const leadsByDay = new Map(leadRows.map((r) => [dayKey(r.day), toNum(r.n)]));
   const visitsByDay = new Map(visitRows.map((r) => [dayKey(r.day), toNum(r.n)]));

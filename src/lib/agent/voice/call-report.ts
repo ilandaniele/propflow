@@ -23,6 +23,16 @@ const SUMMARY_MAX_CHARS = 2000;
  * heuristic (blueprint §4): customer-busy→busy, no-answer→no_answer,
  * voicemail→voicemail, error*→failed, <5s→abandoned, else answered.
  */
+/** Pure. `new URL()` guards against non-URL garbage; only https is trusted for persistence/display. */
+export function isHttpsUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function mapEndedReason(r: string | null, durationSeconds: number | null): CallOutcome {
   const reason = (r ?? '').toLowerCase();
   if (reason.includes('busy')) return 'busy';
@@ -61,7 +71,8 @@ export async function handleEndOfCallReport(msg: VapiServerMessage): Promise<voi
   const callExtra = (msg.call ?? {}) as VapiCallExtra;
   const extra = msg as VapiServerMessage & VapiEndOfCallExtra;
 
-  const recordingUrl = msg.recordingUrl ?? extra.artifact?.recordingUrl ?? null;
+  const recordingUrlRaw = msg.recordingUrl ?? extra.artifact?.recordingUrl ?? null;
+  const recordingUrl = isHttpsUrl(recordingUrlRaw) ? recordingUrlRaw : null;
   const transcriptRaw = msg.transcript ?? extra.artifact?.transcript ?? null;
   const summaryRaw = msg.summary ?? extra.analysis?.summary ?? null;
   const cost = msg.cost ?? callExtra.cost ?? null;

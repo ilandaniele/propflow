@@ -19,6 +19,7 @@ import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
 import { sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
 import { ensureCalendarSyncJobs } from '@/lib/calendar/sync';
 import { scanSpeedToLead, scanVisitConfirmationCalls } from '@/lib/agent/voice/scanners';
+import { failStaleCalls } from '@/lib/agent/voice/usage';
 import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
@@ -60,6 +61,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       log.error('[cron/agent-dispatch] voice scan failed', { error: e instanceof Error ? e.message : 'unknown' });
     }
 
+    let staleCallsFailed = 0;
+    try {
+      staleCallsFailed = await withDbRetry(() => failStaleCalls(), 'cron/agent-dispatch:voice-stale-calls');
+    } catch (e) {
+      log.error('[cron/agent-dispatch] failStaleCalls failed', { error: e instanceof Error ? e.message : 'unknown' });
+    }
+
     const result = await withDbRetry(() => drainAgentJobs(50), 'cron/agent-dispatch');
     const swept = await withDbRetry(() => sweepStalePendingInbound(), 'cron/agent-dispatch:sweep');
     let calendarSyncsEnqueued = 0;
@@ -68,8 +76,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } catch (e) {
       log.error('[cron/agent-dispatch] ensureCalendarSyncJobs failed', { error: e instanceof Error ? e.message : 'unknown' });
     }
-    log.info('[cron/agent-dispatch] run complete', { ...result, swept, calendarSyncsEnqueued, voiceScanned });
-    return NextResponse.json({ status: 'ok', ...result, swept, calendarSyncsEnqueued, voiceScanned });
+    log.info('[cron/agent-dispatch] run complete', { ...result, swept, calendarSyncsEnqueued, voiceScanned, staleCallsFailed });
+    return NextResponse.json({ status: 'ok', ...result, swept, calendarSyncsEnqueued, voiceScanned, staleCallsFailed });
   } catch (e) {
     log.error('[cron/agent-dispatch] exception', { error: e instanceof Error ? e.message : 'unknown' });
     return NextResponse.json(

@@ -58,18 +58,40 @@ export function makeSendListingPhotosTool(ctx: AgentToolContext) {
       if (!known) return 'Primero buscá la propiedad con search_listings.';
 
       if (!ctx.whatsappConversationId) return 'Las fotos solo se pueden enviar por WhatsApp.';
+      const conversationId = ctx.whatsappConversationId;
 
-      const sentToday = await db
-        .select({ batch: sql<string>`${whatsappMessages.meta}->>'batch'` })
-        .from(whatsappMessages)
-        .where(and(
-          eq(whatsappMessages.conversationId, ctx.whatsappConversationId),
-          eq(whatsappMessages.direction, 'outbound'),
-          sql`${whatsappMessages.meta}->>'kind' = 'listing_photos'`,
-          gte(whatsappMessages.createdAt, utcDayStart()),
-        ));
-      const callsToday = new Set(sentToday.map((r) => r.batch)).size;
-      if (callsToday >= MAX_CALLS_PER_SESSION_PER_DAY) {
+      // Race-safe daily cap: two concurrent tool calls for the same
+      // conversation could otherwise both read `callsToday < MAX` before
+      // either one recorded its batch. Serialize the count-then-reserve step
+      // behind a per-conversation advisory lock and reserve this call's batch
+      // slot (insert the marker row) before releasing the lock/sending
+      // anything, so a concurrent call always sees it.
+      const batch = randomUUID();
+      const capped = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'photos:' + conversationId}))`);
+        const sentToday = await tx
+          .select({ batch: sql<string>`${whatsappMessages.meta}->>'batch'` })
+          .from(whatsappMessages)
+          .where(and(
+            eq(whatsappMessages.conversationId, conversationId),
+            eq(whatsappMessages.direction, 'outbound'),
+            sql`${whatsappMessages.meta}->>'kind' = 'listing_photos'`,
+            gte(whatsappMessages.createdAt, utcDayStart()),
+          ));
+        const callsToday = new Set(sentToday.map((r) => r.batch)).size;
+        if (callsToday >= MAX_CALLS_PER_SESSION_PER_DAY) return true;
+
+        await tx.insert(whatsappMessages).values({
+          orgId: ctx.orgId,
+          conversationId,
+          direction: 'outbound',
+          status: 'queued',
+          senderKind: 'agent',
+          meta: { kind: 'listing_photos', batch, listingId: args.listingId, reserved: true },
+        });
+        return false;
+      });
+      if (capped) {
         return 'Ya enviamos fotos varias veces hoy en esta conversación; seguimos por texto.';
       }
 
@@ -104,7 +126,6 @@ export function makeSendListingPhotosTool(ctx: AgentToolContext) {
       if (images.length === 0) return 'Todavía no hay fotos cargadas de esa propiedad.';
 
       const bucket = listing.unitId ? 'unit-images' : 'listing-images';
-      const batch = randomUUID();
       const caption = `${listing.title ?? 'Propiedad'} · ${priceText(listing.price, listing.currency)}`;
       let sent = 0;
 
@@ -112,7 +133,7 @@ export function makeSendListingPhotosTool(ctx: AgentToolContext) {
         const imageUrl = await getSignedUrl(bucket, image.path, 600);
         const result = await sendWhatsAppImage({
           orgId: ctx.orgId,
-          conversationId: ctx.whatsappConversationId,
+          conversationId,
           imageUrl,
           caption: sent === 0 ? caption : null,
           senderKind: 'agent',

@@ -36,6 +36,25 @@ export function toVapiFunctionTools(tools: VoiceCompatibleTool[]): VapiFunctionT
 /** Shown to the caller when a tool times out — kept as one constant so B's webhook and the prompt (VOICE_RULES) agree on the wording. */
 export const VOICE_TOOL_TIMEOUT = 'No pude verificarlo ahora; ofrecé que un asesor lo llame';
 
+/**
+ * Tools with side effects. Racing these against a timeout is unsafe — if the
+ * timeout "wins" the race, the underlying mutation (book/cancel a visit, opt
+ * a lead out of calls, hand off to a human, etc.) may still complete in the
+ * background with nobody able to observe or react to its actual result. They
+ * are still bounded by the overall per-call budget (checked before starting),
+ * but once started they're awaited to completion instead of raced.
+ */
+const MUTATING_TOOL_NAMES = new Set([
+  'book_visit',
+  'reschedule_visit',
+  'cancel_visit',
+  'handoff_to_human',
+  'opt_out_of_calls',
+  'confirm_my_visit',
+  'update_lead_profile',
+  'register_owner_lead',
+]);
+
 function toolResultText(result: string | Array<{ type: string; text?: string }>): string {
   if (typeof result === 'string') return result;
   return result
@@ -77,7 +96,26 @@ export async function runVoiceToolCall(
   }
 
   const budget = Math.max(0, deadlineMs);
-  const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), budget));
+
+  if (MUTATING_TOOL_NAMES.has(call.name)) {
+    // Bounded by the overall budget check up front, but never raced once
+    // started — a mutation must run to completion, win or lose.
+    if (budget <= 0) {
+      return { toolCallId: call.id, result: VOICE_TOOL_TIMEOUT };
+    }
+    try {
+      const outcome = await tool.run(parsedArgs);
+      return { toolCallId: call.id, result: toolResultText(outcome) };
+    } catch (err) {
+      log.error('[agent/voice/tool-adapter] tool run failed', { name: call.name, error: err instanceof Error ? err.message : 'unknown' });
+      return { toolCallId: call.id, result: 'No pude completar esa acción ahora. Un asesor puede ayudarte.' };
+    }
+  }
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timeoutHandle = setTimeout(() => resolve('timeout'), budget);
+  });
 
   try {
     const outcome = await Promise.race([tool.run(parsedArgs), timeout]);
@@ -88,5 +126,7 @@ export async function runVoiceToolCall(
   } catch (err) {
     log.error('[agent/voice/tool-adapter] tool run failed', { name: call.name, error: err instanceof Error ? err.message : 'unknown' });
     return { toolCallId: call.id, result: 'No pude completar esa acción ahora. Un asesor puede ayudarte.' };
+  } finally {
+    clearTimeout(timeoutHandle);
   }
 }

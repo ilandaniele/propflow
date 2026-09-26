@@ -91,10 +91,20 @@ describe('agent/voice/scanners — scanSpeedToLead', () => {
     expect(text.toLowerCase()).not.toMatch(/\blimit\b/);
   });
 
-  it('a very short staleAfterHours narrows the window so old rows never appear in the query range', async () => {
-    push([VOICE_ENABLED_CONFIG_ROW({ speedToLead: { enabled: true, delayMinutes: 2, sources: ['manual'], staleAfterHours: 0.001 } })]);
-    // staleAfterHours=0.001h (3.6s) makes effectiveStart > windowEnd (delayMinutes=2min in the past)
-    // for "now" — so the scanner must skip the org entirely without issuing the leads query.
+  it('item 6: the eligible-leads query only targets the demand pipeline', async () => {
+    push([VOICE_ENABLED_CONFIG_ROW({ speedToLead: { enabled: true, delayMinutes: 2, sources: ['manual'], staleAfterHours: 12 } })]);
+    push([]);
+
+    await scanSpeedToLead();
+
+    const leadsQuery = executedQueries.find((q) => sqlText(q).includes('FROM crm_leads'));
+    expect(sqlText(leadsQuery!)).toContain("pipeline = 'demand'");
+  });
+
+  it('a delay that closes the window (delayMinutes=60 >= 60-min hard window) skips the org', async () => {
+    push([VOICE_ENABLED_CONFIG_ROW({ speedToLead: { enabled: true, delayMinutes: 60, sources: ['manual'], staleAfterHours: 1 } })]);
+    // effectiveStart (now-60min) >= windowEnd (now-60min): the scanner must skip the org
+    // entirely without issuing the leads query.
     const n = await scanSpeedToLead();
 
     expect(n).toBe(0);

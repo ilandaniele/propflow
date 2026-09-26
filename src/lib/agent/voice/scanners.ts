@@ -74,6 +74,7 @@ export async function scanSpeedToLead(now: Date = new Date()): Promise<number> {
       WHERE org_id = ${orgId}
         AND created_at >= ${effectiveStart} AND created_at <= ${windowEnd}
         AND source_channel = ANY(${sql.raw(`ARRAY[${voice.speedToLead.sources.map((s) => `'${s}'`).join(',')}]`)})
+        AND pipeline = 'demand'
         AND phone IS NOT NULL
         AND do_not_contact IS FALSE
         AND (source_meta ->> 'phoneVerified') IS DISTINCT FROM 'false'

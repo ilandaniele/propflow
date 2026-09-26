@@ -109,6 +109,13 @@ vi.mock('@/lib/agent/events', () => ({ recordAgentEvent: vi.fn(async () => {}) }
 vi.mock('@/lib/agent/voice/assistant', () => ({
   buildVapiAssistant,
   buildRefusalAssistant,
+  buildTimeoutFallbackAssistant: () => ({
+    firstMessage: 'Estamos con demoras técnicas — te transfiero con un asesor humano.',
+    model: { provider: 'anthropic', model: 'x', maxTokens: 60, messages: [], tools: [] },
+    voice: { provider: 'azure', voiceId: 'x' },
+    transcriber: { provider: 'deepgram', model: 'nova-3', language: 'es' },
+    maxDurationSeconds: 20,
+  }),
   vapiServerUrl: () => 'https://app.example.com/api/agent/voice/vapi',
 }));
 vi.mock('@/lib/agent/tools', () => ({ buildAgentTools }));
@@ -234,6 +241,34 @@ describe('POST /api/agent/voice/vapi', () => {
       expect(getOrCreateSession).toHaveBeenCalledWith(expect.objectContaining({ orgId: ORG_ID, channel: 'voice', externalId: '+14155550101' }));
       expect(createCallRow).toHaveBeenCalledWith(expect.objectContaining({ orgId: ORG_ID, direction: 'inbound', purpose: 'inbound', vapiCallId: VAPI_CALL_ID }));
     });
+
+    it('item 9: passes buildVapiAssistant the already-loaded config/session/orgName instead of forcing it to reload them', async () => {
+      await POST(makeRequest(assistantRequestFixture, { 'x-vapi-secret': SECRET }));
+      expect(buildVapiAssistant).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          preloaded: expect.objectContaining({
+            config: expect.objectContaining({ persona: 'Ana' }),
+            session: expect.objectContaining({ id: 'session-1' }),
+            orgName: 'Inmobiliaria Test',
+          }),
+        }),
+      );
+    });
+
+    it('item 9: falls back to a refusal/handoff assistant if the handler is too slow (budget exceeded)', async () => {
+      vi.useFakeTimers();
+      buildVapiAssistant.mockImplementation(() => new Promise(() => {})); // never resolves
+
+      const promise = POST(makeRequest(assistantRequestFixture, { 'x-vapi-secret': SECRET }));
+      await vi.advanceTimersByTimeAsync(6000);
+      const res = await promise;
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.assistant.model.tools).toEqual([]);
+      expect(body.assistant.firstMessage.toLowerCase()).toMatch(/asesor humano|demoras/);
+    });
   });
 
   describe('tool-calls', () => {
@@ -273,6 +308,27 @@ describe('POST /api/agent/voice/vapi', () => {
       const body = await res.json();
       expect(body.results).toHaveLength(2);
       for (const r of body.results) expect(r.result).toMatch(/no pude verificarlo ahora/i);
+    });
+
+    it('item 10: a tool that resolves a lead mid-call persists it onto agent_calls when it was null before', async () => {
+      await seedInProgressCall();
+      // Production wiring hands each tool a shared toolCtx (including leadIdRef)
+      // via buildAgentTools' ctx argument — a tool mutates ctx.leadIdRef.current
+      // to report a lead it just created/resolved. Simulated here at the same
+      // seam: buildAgentTools receives the real toolCtx built by the handler.
+      buildAgentTools.mockImplementation((ctx: { leadIdRef: { current: string | null } }) => {
+        ctx.leadIdRef.current = 'lead-99';
+        return [
+          { type: 'custom', name: 'lookup_tenant_by_phone', description: 'x', input_schema: { type: 'object', properties: {} }, parse: (a: unknown) => a, run: async () => 'inquilino: Maria' },
+          { type: 'custom', name: 'create_maintenance_ticket', description: 'x', input_schema: { type: 'object', properties: {} }, parse: (a: unknown) => a, run: async () => 'ticket creado' },
+        ];
+      });
+
+      const res = await POST(makeRequest(toolCallsFixture, { 'x-vapi-secret': SECRET }));
+      expect(res.status).toBe(200);
+
+      const callRow = [...calls.values()].find((r) => r.vapiCallId === VAPI_CALL_ID);
+      expect(callRow?.leadId).toBe('lead-99');
     });
   });
 

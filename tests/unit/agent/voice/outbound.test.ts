@@ -111,6 +111,24 @@ describe('agent/voice/outbound — queueOutboundCall', () => {
     expect(id).toBeNull();
     expect(enqueueJobMock).not.toHaveBeenCalled();
   });
+
+  it('normalizes a phone missing the leading + before storing it', async () => {
+    getLeadMock.mockResolvedValue({ phone: '51999888777' });
+    createCallRowMock.mockResolvedValue({ id: 'call-1' });
+
+    await queueOutboundCall({ orgId: 'org-1', leadId: 'lead-1', purpose: 'speed_to_lead', dedupeKey: 'stl:lead-1' });
+
+    expect(createCallRowMock).toHaveBeenCalledWith(expect.objectContaining({ customerPhone: '+51999888777' }));
+  });
+
+  it('stores a null customerPhone for an unshapeable phone (too short/garbage)', async () => {
+    getLeadMock.mockResolvedValue({ phone: 'abc' });
+    createCallRowMock.mockResolvedValue({ id: 'call-1' });
+
+    await queueOutboundCall({ orgId: 'org-1', leadId: 'lead-1', purpose: 'speed_to_lead', dedupeKey: 'stl:lead-1' });
+
+    expect(createCallRowMock).toHaveBeenCalledWith(expect.objectContaining({ customerPhone: null }));
+  });
 });
 
 describe('agent/voice/outbound — runOutboundCallJob', () => {
@@ -204,5 +222,43 @@ describe('agent/voice/outbound — runOutboundCallJob', () => {
     await expect(runOutboundCallJob({ callId: 'call-1' }, 'org-1')).resolves.toBeUndefined();
 
     expect(transitionCallMock).toHaveBeenCalledWith('call-1', ['dialing'], { status: 'failed', blockReason: 'vapi_error_400' });
+  });
+
+  it('dial: a network/timeout error (status 0) marks the call failed as dial_uncertain and never retries', async () => {
+    const call = fakeCall();
+    getCallByIdMock.mockResolvedValue(call);
+    evaluateOutboundCallMock.mockResolvedValue({ action: 'dial' });
+    transitionCallMock.mockResolvedValue(call);
+    getOrgVoiceChannelMock.mockResolvedValue({ phoneNumberId: 'pn-1' });
+    getOrCreateSessionMock.mockResolvedValue({ id: 'session-1' });
+    buildVapiAssistantMock.mockResolvedValue({ firstMessage: 'hola' });
+    createVapiCallMock.mockRejectedValue(new VapiApiError(0, 'network_or_timeout'));
+
+    await expect(runOutboundCallJob({ callId: 'call-1' }, 'org-1')).resolves.toBeUndefined();
+
+    expect(transitionCallMock).toHaveBeenCalledWith('call-1', ['dialing'], { status: 'failed', blockReason: 'dial_uncertain' });
+  });
+
+  it('an invalid/unshapeable customerPhone is blocked as no_number before compliance ever runs', async () => {
+    getCallByIdMock.mockResolvedValue(fakeCall({ customerPhone: 'not-a-phone' }));
+
+    await runOutboundCallJob({ callId: 'call-1' }, 'org-1');
+
+    expect(evaluateOutboundCallMock).not.toHaveBeenCalled();
+    expect(transitionCallMock).toHaveBeenCalledWith('call-1', ['queued'], { status: 'blocked', blockReason: 'no_number' });
+  });
+
+  it('a setup failure before dialing (e.g. session lookup throws) reverts to queued and rethrows', async () => {
+    const call = fakeCall();
+    getCallByIdMock.mockResolvedValue(call);
+    evaluateOutboundCallMock.mockResolvedValue({ action: 'dial' });
+    transitionCallMock.mockResolvedValue(call);
+    getOrgVoiceChannelMock.mockResolvedValue({ phoneNumberId: 'pn-1' });
+    getOrCreateSessionMock.mockRejectedValue(new Error('db hiccup'));
+
+    await expect(runOutboundCallJob({ callId: 'call-1' }, 'org-1')).rejects.toThrow('db hiccup');
+
+    expect(transitionCallMock).toHaveBeenCalledWith('call-1', ['dialing'], { status: 'queued' });
+    expect(createVapiCallMock).not.toHaveBeenCalled();
   });
 });

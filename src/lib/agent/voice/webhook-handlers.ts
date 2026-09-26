@@ -21,6 +21,7 @@ import { buildAgentTools } from '../tools';
 import { isToolEnabledForChannel } from '../tools/channels';
 import {
   buildRefusalAssistant,
+  buildTimeoutFallbackAssistant,
   buildVapiAssistant,
   vapiServerUrl,
 } from './assistant';
@@ -32,6 +33,8 @@ import type { VapiAssistant, VapiServerMessage } from './vapi-types';
 
 /** Blueprint §0.5: the whole tool-calls response is budgeted at 6.0s (Vapi cuts off ~7.5s). */
 const TOOL_CALLS_BUDGET_MS = 6000;
+/** Item 9: assistant-request must also answer within Vapi's window — race the whole handler and fall back if it's slow. */
+const ASSISTANT_REQUEST_BUDGET_MS = 6000;
 /** Blueprint §0.6: only a caller-id-shaped externalId becomes a phone; anything else ('call:<vapiCallId>') stays a session key only. */
 const E164_RE = /^\+\d{7,15}$/;
 
@@ -73,6 +76,15 @@ function extractToolCalls(msg: VapiServerMessage): Array<{ id: string; name: str
  * something coherent (blueprint §0.9).
  */
 export async function handleAssistantRequest(msg: VapiServerMessage): Promise<{ assistant: VapiAssistant }> {
+  return Promise.race([
+    handleAssistantRequestInner(msg),
+    new Promise<{ assistant: VapiAssistant }>((resolve) => {
+      setTimeout(() => resolve({ assistant: buildTimeoutFallbackAssistant() }), ASSISTANT_REQUEST_BUDGET_MS);
+    }),
+  ]);
+}
+
+async function handleAssistantRequestInner(msg: VapiServerMessage): Promise<{ assistant: VapiAssistant }> {
   const call = msg.call;
   const phoneNumberId = call?.phoneNumberId ?? null;
 
@@ -83,15 +95,18 @@ export async function handleAssistantRequest(msg: VapiServerMessage): Promise<{ 
     return { assistant: buildRefusalAssistant({ persona: 'Asistente', orgName: '', reason: 'disabled' }) };
   }
 
-  const config = await withFastDbRetry(() => getOrCreateAgentConfig(channel.orgId), 'agent-voice-vapi:assistant-request');
-  const orgName = await withFastDbRetry(() => getOrgName(channel.orgId), 'agent-voice-vapi:assistant-request');
+  // Independent reads (both keyed by channel.orgId only) — fired together.
+  const [config, orgName] = await Promise.all([
+    withFastDbRetry(() => getOrCreateAgentConfig(channel.orgId), 'agent-voice-vapi:assistant-request'),
+    withFastDbRetry(() => getOrgName(channel.orgId), 'agent-voice-vapi:assistant-request'),
+  ]);
 
   if (!config.channelsEnabled.voice) {
     return { assistant: buildRefusalAssistant({ persona: config.persona, orgName, reason: 'disabled' }) };
   }
 
   const usage = await withFastDbRetry(
-    () => getMonthlyVoiceUsage(channel.orgId, config.timezone),
+    () => getMonthlyVoiceUsage(channel.orgId, config.timezone, config.voice.maxCallMinutes),
     'agent-voice-vapi:assistant-request',
   );
   const capOk = checkMinuteCap({
@@ -137,7 +152,7 @@ export async function handleAssistantRequest(msg: VapiServerMessage): Promise<{ 
 
   const assistant = await buildVapiAssistant(
     { orgId: channel.orgId, callId: callRow.id, sessionId: session.id, leadId: session.leadId, customerPhone, purpose: 'inbound', visitId: null },
-    { serverUrl: vapiServerUrl(), notes },
+    { serverUrl: vapiServerUrl(), notes, preloaded: { config, session, orgName } },
   );
 
   return { assistant };
@@ -164,13 +179,15 @@ export async function handleToolCalls(
     return { results: toolCalls.map((t) => ({ toolCallId: t.id, result: VOICE_TOOL_TIMEOUT })) };
   }
 
+  const leadIdRef = { current: session.leadId ?? callRow.leadId };
+
   const toolCtx = {
     orgId: callRow.orgId,
     sessionId: session.id,
     channel: 'voice' as const,
     externalId: session.externalId,
     dryRun: false,
-    leadIdRef: { current: callRow.leadId },
+    leadIdRef,
     shadowMode: false,
     whatsappConversationId: null,
     voiceCallId: callRow.id,
@@ -188,6 +205,17 @@ export async function handleToolCalls(
     const remaining = TOOL_CALLS_BUDGET_MS - elapsed;
     results.push(await runVoiceToolCall(tools, call, remaining));
   }
+
+  // A tool (e.g. register_owner_lead/update_lead_profile) may have created or
+  // resolved a lead mid-call — persist it onto agent_calls so downstream
+  // reporting (call-report.ts, dashboards) sees the same lead this session did.
+  if (leadIdRef.current && !callRow.leadId) {
+    await withFastDbRetry(
+      () => transitionCall(callRow.id, [callRow.status], { leadId: leadIdRef.current }),
+      'agent-voice-vapi:tool-calls:lead-id',
+    );
+  }
+
   return { results };
 }
 

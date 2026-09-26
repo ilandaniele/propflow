@@ -80,6 +80,43 @@ describe('agent/voice/tool-adapter — runVoiceToolCall', () => {
     expect(result.result).not.toContain('sensitive internal detail');
   });
 
+  it('item 7: a mutating tool (book_visit) is awaited to completion, never raced against the timeout', async () => {
+    vi.useFakeTimers();
+    const run = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // slower than the 500ms budget
+      return 'visita reservada';
+    });
+    const tool = fakeTool({ name: 'book_visit', run });
+
+    const promise = runVoiceToolCall([tool as never], { id: 't1', name: 'book_visit', arguments: {} }, 500);
+    await vi.advanceTimersByTimeAsync(2000);
+    const result = await promise;
+
+    expect(result).toEqual({ toolCallId: 't1', result: 'visita reservada' });
+    vi.useRealTimers();
+  });
+
+  it('item 7: a mutating tool never starts once the budget is already exhausted', async () => {
+    const run = vi.fn(async () => 'should not run');
+    const tool = fakeTool({ name: 'cancel_visit', run });
+
+    const result = await runVoiceToolCall([tool as never], { id: 't1', name: 'cancel_visit', arguments: {} }, 0);
+
+    expect(result).toEqual({ toolCallId: 't1', result: VOICE_TOOL_TIMEOUT });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('item 7: a mutating tool that throws still maps to the generic spoken-safe error', async () => {
+    const run = vi.fn(async () => {
+      throw new Error('db exploded');
+    });
+    const tool = fakeTool({ name: 'update_lead_profile', run });
+
+    const result = await runVoiceToolCall([tool as never], { id: 't1', name: 'update_lead_profile', arguments: {} }, 6000);
+
+    expect(result.result).not.toContain('db exploded');
+  });
+
   it('joins text content blocks from an array result', async () => {
     const run = vi.fn(async () => [
       { type: 'text', text: 'primera línea' },

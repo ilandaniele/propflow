@@ -34,7 +34,7 @@ export default async function AgentSettingsPage({ searchParams }: AgentSettingsP
   ]);
 
   const followupPolicy = parseFollowupPolicy(config.followupPolicy);
-  const monthlyUsage = await getMonthlyVoiceUsage(ctx.orgId, config.timezone);
+  const monthlyUsage = await getMonthlyVoiceUsage(ctx.orgId, config.timezone, config.voice.maxCallMinutes);
 
   return (
     <div className="max-w-3xl space-y-4">

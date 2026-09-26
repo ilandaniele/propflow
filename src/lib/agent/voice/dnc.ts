@@ -6,6 +6,7 @@
 import { db } from '@/lib/db';
 import { voiceDoNotCall } from '@/lib/db/schema';
 import { and, count, eq, ilike, or, sql } from 'drizzle-orm';
+import { toE164 } from '@/lib/whatsapp/phone';
 
 const PAGE_SIZE = 50;
 
@@ -13,7 +14,7 @@ export async function isOnDoNotCallList(orgId: string, phoneE164: string): Promi
   const rows = await db
     .select({ phoneE164: voiceDoNotCall.phoneE164 })
     .from(voiceDoNotCall)
-    .where(and(eq(voiceDoNotCall.orgId, orgId), eq(voiceDoNotCall.phoneE164, phoneE164)))
+    .where(and(eq(voiceDoNotCall.orgId, orgId), eq(voiceDoNotCall.phoneE164, toE164(phoneE164))))
     .limit(1);
   return rows.length > 0;
 }
@@ -31,7 +32,7 @@ export async function addDoNotCall(a: AddDoNotCallArgs): Promise<void> {
     .insert(voiceDoNotCall)
     .values({
       orgId: a.orgId,
-      phoneE164: a.phoneE164,
+      phoneE164: toE164(a.phoneE164),
       source: a.source,
       reason: a.reason ?? null,
       addedByProfileId: a.profileId ?? null,
@@ -43,16 +44,17 @@ export type RemoveDoNotCallResult = 'removed' | 'not_found' | 'protected';
 
 /** 'protected': a caller_request entry can't be removed from the settings UI — only the caller themselves (via opt-in on a later call, out of scope here) can undo it. */
 export async function removeDoNotCall(orgId: string, phoneE164: string): Promise<RemoveDoNotCallResult> {
+  const normalized = toE164(phoneE164);
   const rows = await db
     .select({ source: voiceDoNotCall.source })
     .from(voiceDoNotCall)
-    .where(and(eq(voiceDoNotCall.orgId, orgId), eq(voiceDoNotCall.phoneE164, phoneE164)))
+    .where(and(eq(voiceDoNotCall.orgId, orgId), eq(voiceDoNotCall.phoneE164, normalized)))
     .limit(1);
   const row = rows[0];
   if (!row) return 'not_found';
   if (row.source === 'caller_request') return 'protected';
 
-  await db.delete(voiceDoNotCall).where(and(eq(voiceDoNotCall.orgId, orgId), eq(voiceDoNotCall.phoneE164, phoneE164)));
+  await db.delete(voiceDoNotCall).where(and(eq(voiceDoNotCall.orgId, orgId), eq(voiceDoNotCall.phoneE164, normalized)));
   return 'removed';
 }
 

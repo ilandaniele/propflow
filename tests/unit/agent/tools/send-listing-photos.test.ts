@@ -21,18 +21,32 @@ function makeChain(): unknown {
   return chain;
 }
 
-vi.mock('@/lib/db', () => ({
-  db: {
-    select: vi.fn(() => makeChain()),
-  },
-}));
-
-const { getOrCreateAgentConfig, isListingKnownToSession, sendWhatsAppImage, getSignedUrl, recordAgentEvent } = vi.hoisted(() => ({
+const { getOrCreateAgentConfig, isListingKnownToSession, sendWhatsAppImage, getSignedUrl, recordAgentEvent, txExecute, txInsertValues } = vi.hoisted(() => ({
   getOrCreateAgentConfig: vi.fn(async () => ({ maxListingPhotos: 5 }) as unknown),
   isListingKnownToSession: vi.fn(async () => true),
   sendWhatsAppImage: vi.fn(async () => ({ ok: true, messageId: 'm1' }) as unknown),
   getSignedUrl: vi.fn(async (_b: string, path: string) => `https://signed.example/${path}`),
   recordAgentEvent: vi.fn(async () => {}),
+  // db.transaction's callback receives a tx that exposes the same
+  // select-chain surface as `db`, plus execute() (the advisory lock) and
+  // insert().values() (the batch-reservation marker row).
+  txExecute: vi.fn(async () => []),
+  txInsertValues: vi.fn(async () => undefined),
+}));
+
+function makeTx(): unknown {
+  return {
+    select: vi.fn(() => makeChain()),
+    execute: txExecute,
+    insert: vi.fn(() => ({ values: txInsertValues })),
+  };
+}
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => makeChain()),
+    transaction: vi.fn(async (cb: (tx: unknown) => unknown) => cb(makeTx())),
+  },
 }));
 
 vi.mock('@/lib/agent/config', () => ({ getOrCreateAgentConfig }));
@@ -126,6 +140,30 @@ describe('send_listing_photos tool', () => {
     expect(result).toMatch(/envié 2 fotos/i);
     expect(result).not.toContain('https://signed.example');
     expect(recordAgentEvent).not.toHaveBeenCalled();
+  });
+
+  it('takes the per-conversation advisory lock and reserves a batch marker before sending, inside one transaction', async () => {
+    setQueue([
+      [], // daily count
+      [{ id: LISTING_ID, title: 'Depa Sol', price: '1500', currency: 'PEN', unitId: 'unit-1' }],
+      [{ path: 'unit-1/cover.jpg' }],
+    ]);
+    const tool = makeSendListingPhotosTool(makeCtx());
+    await tool.run({ listingId: LISTING_ID });
+    expect(txExecute).toHaveBeenCalledTimes(1);
+    expect(txInsertValues).toHaveBeenCalledTimes(1);
+    const reserved = (txInsertValues.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>;
+    expect(reserved).toMatchObject({ conversationId: 'conv-1', direction: 'outbound' });
+    expect((reserved.meta as Record<string, unknown>)?.kind).toBe('listing_photos');
+    // the reservation must be inserted before any image is actually sent
+    expect(txInsertValues.mock.invocationCallOrder[0]).toBeLessThan(sendWhatsAppImage.mock.invocationCallOrder[0]);
+  });
+
+  it('never reserves a batch marker once the daily cap is already hit', async () => {
+    setQueue([[{ batch: 'a' }, { batch: 'b' }, { batch: 'c' }]]);
+    const tool = makeSendListingPhotosTool(makeCtx());
+    await tool.run({ listingId: LISTING_ID });
+    expect(txInsertValues).not.toHaveBeenCalled();
   });
 
   it('respects an explicit lower max than config.maxListingPhotos', async () => {

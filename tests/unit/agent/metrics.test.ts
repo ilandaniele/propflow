@@ -43,7 +43,7 @@ function sqlText(q: SQL): string {
     .join('');
 }
 
-import { getAgentMetrics, resolveRange } from '@/lib/agent/metrics';
+import { getAgentMetrics, resolveRange, safeTimezone } from '@/lib/agent/metrics';
 
 function push(rows: unknown[]): void {
   resultQueue.push(rows);
@@ -97,7 +97,7 @@ describe('agent/metrics — getAgentMetrics', () => {
         { channel: 'whatsapp', n: '3' },
         { channel: 'web', n: '2' },
         { channel: 'voice', n: '1' },
-        { channel: null, n: '6' },
+        { channel: null, n: '6', is_total: '1' },
       ],
     });
     const metrics = await getAgentMetrics(ORG_ID, RANGE);
@@ -126,14 +126,14 @@ describe('agent/metrics — getAgentMetrics', () => {
 
   it('computes leadToVisitRate, handoffRate and cost-per-* ratios per channel', async () => {
     queueDefaults({
-      leads: [{ channel: 'whatsapp', n: '10', qualified: '4' }, { channel: null, n: '10', qualified: '4' }],
+      leads: [{ channel: 'whatsapp', n: '10', qualified: '4' }, { channel: null, n: '10', qualified: '4', is_total: '1' }],
       visits: [
         { channel: 'whatsapp', booked: '5', completed: '2', no_show: '1', visited_leads: '5' },
-        { channel: null, booked: '5', completed: '2', no_show: '1', visited_leads: '5' },
+        { channel: null, booked: '5', completed: '2', no_show: '1', visited_leads: '5', is_total: '1' },
       ],
-      conversations: [{ channel: 'whatsapp', n: '20' }, { channel: null, n: '20' }],
-      handoffs: [{ channel: 'whatsapp', handoffs: '2' }, { channel: null, handoffs: '2' }],
-      cost: [{ channel: 'whatsapp', cost: '10' }, { channel: null, cost: '10' }],
+      conversations: [{ channel: 'whatsapp', n: '20' }, { channel: null, n: '20', is_total: '1' }],
+      handoffs: [{ channel: 'whatsapp', handoffs: '2' }, { channel: null, handoffs: '2', is_total: '1' }],
+      cost: [{ channel: 'whatsapp', cost: '10' }, { channel: null, cost: '10', is_total: '1' }],
     });
     const metrics = await getAgentMetrics(ORG_ID, RANGE);
     const wa = metrics.byChannel.whatsapp;
@@ -167,6 +167,43 @@ describe('agent/metrics — getAgentMetrics', () => {
     const metrics = await getAgentMetrics(ORG_ID, { from: new Date('2026-01-01T05:00:00Z'), to: new Date('2026-01-04T05:00:00Z') });
     expect(metrics.daily).toHaveLength(3);
     expect(metrics.daily.every((d) => d.conversations === 0 && d.leads === 0 && d.visitsBooked === 0)).toBe(true);
+  });
+
+  it('daily series tolerates a driver that hands back Date objects for `day` instead of strings', async () => {
+    queueDefaults();
+    // Replace the 3 trailing daily-series pushes queueDefaults already queued
+    // with Date-valued rows — postgres.js can do this for date/timestamp
+    // columns depending on the query path, even though to_char() returns text.
+    resultQueue[resultQueue.length - 3] = [{ day: new Date('2026-01-01T00:00:00Z'), n: '2' }];
+    resultQueue[resultQueue.length - 2] = [{ day: new Date('2026-01-02T00:00:00Z'), n: '1' }];
+    resultQueue[resultQueue.length - 1] = [];
+    const metrics = await getAgentMetrics(ORG_ID, { from: new Date('2026-01-01T00:00:00Z'), to: new Date('2026-01-03T00:00:00Z') });
+    expect(metrics.daily.find((d) => d.day === '2026-01-01')?.conversations).toBe(2);
+    expect(metrics.daily.find((d) => d.day === '2026-01-02')?.leads).toBe(1);
+  });
+
+  it('a real (non-rollup) NULL channel row is dropped, not mistaken for the `all` total', async () => {
+    queueDefaults({
+      conversations: [
+        { channel: 'whatsapp', n: '3' },
+        { channel: null, n: '99', is_total: '0' }, // e.g. a legacy row with no channel recorded
+        { channel: null, n: '3', is_total: '1' }, // the real GROUPING SETS rollup
+      ],
+    });
+    const metrics = await getAgentMetrics(ORG_ID, RANGE);
+    expect(metrics.byChannel.whatsapp.conversations).toBe(3);
+    expect(metrics.byChannel.all.conversations).toBe(3);
+  });
+
+  it('leadToVisitRate is computed for every bucket from leads + visited leads, even without a matching visits row', async () => {
+    queueDefaults({
+      leads: [{ channel: 'whatsapp', n: '10', qualified: '0' }, { channel: null, n: '10', qualified: '0', is_total: '1' }],
+      // No visits row at all for 'whatsapp' or 'all' — leadToVisitRate must still be ratio(0, leads), not null.
+      visits: [],
+    });
+    const metrics = await getAgentMetrics(ORG_ID, RANGE);
+    expect(metrics.byChannel.whatsapp.leadToVisitRate).toBe(0);
+    expect(metrics.byChannel.all.leadToVisitRate).toBe(0);
   });
 });
 
@@ -206,5 +243,24 @@ describe('agent/metrics — resolveRange', () => {
   it('falls back to the 30d default on an invalid timezone', () => {
     const { from, to } = resolveRange({ range: 'custom', from: '2026-01-01', to: '2026-01-02' }, 'Not/AZone', now);
     expect(to.getTime() - from.getTime()).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+});
+
+describe('agent/metrics — safeTimezone', () => {
+  it('returns a valid IANA timezone unchanged', () => {
+    expect(safeTimezone('America/Lima')).toBe('America/Lima');
+  });
+
+  it('falls back to UTC for garbage/empty timezones', () => {
+    expect(safeTimezone('Not/AZone')).toBe('UTC');
+    expect(safeTimezone('')).toBe('UTC');
+  });
+
+  it('getAgentMetrics never lets a corrupt stored timezone reach the SQL layer', async () => {
+    const { getOrCreateAgentConfig } = await import('@/lib/agent/config');
+    vi.mocked(getOrCreateAgentConfig).mockResolvedValueOnce({ timezone: 'Not/AZone' } as never);
+    queueDefaults();
+    const metrics = await getAgentMetrics(ORG_ID, RANGE);
+    expect(metrics.timezone).toBe('UTC');
   });
 });

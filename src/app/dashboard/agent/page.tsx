@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { getOrCreateAgentConfig } from '@/lib/agent/config';
-import { getAgentMetrics, resolveRange, type MetricsChannel, type ChannelMetrics } from '@/lib/agent/metrics';
+import { getAgentMetrics, resolveRange, safeTimezone, type MetricsChannel, type ChannelMetrics } from '@/lib/agent/metrics';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { DailyBars } from './_components/DailyBars';
 import { MetricTile } from './_components/MetricTile';
@@ -46,7 +46,7 @@ export default async function AgentMetricsPage({
   // Spanish strings for that reason, not new i18n keys.
 
   const config = await getOrCreateAgentConfig(ctx.orgId);
-  const range = resolveRange(params, config.timezone);
+  const range = resolveRange(params, safeTimezone(config.timezone));
   const metrics = await getAgentMetrics(ctx.orgId, range);
 
   const all = metrics.byChannel.all;

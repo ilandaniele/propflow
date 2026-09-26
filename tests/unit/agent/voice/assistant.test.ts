@@ -117,6 +117,33 @@ describe('agent/voice/assistant — buildVapiAssistant', () => {
     expect(assistant.server?.url).toBe('https://app.example.com/api/agent/voice/vapi');
     expect(assistant.maxDurationSeconds).toBe(600); // 10 min * 60
   });
+
+  it('includes the shared webhook secret on server so the vapi route can authenticate deliveries', async () => {
+    const prev = process.env.VAPI_WEBHOOK_SECRET;
+    process.env.VAPI_WEBHOOK_SECRET = 'test-secret';
+    try {
+      const assistant = await buildVapiAssistant(ctx, { serverUrl: 'https://app.example.com/api/agent/voice/vapi' });
+      expect(assistant.server?.secret).toBe('test-secret');
+    } finally {
+      process.env.VAPI_WEBHOOK_SECRET = prev;
+    }
+  });
+
+  it('reuses preloaded config/session/orgName instead of re-fetching them', async () => {
+    const { getOrCreateAgentConfig } = await import('@/lib/agent/config');
+    const { getSessionById } = await import('@/lib/agent/session');
+    vi.mocked(getOrCreateAgentConfig).mockClear();
+    vi.mocked(getSessionById).mockClear();
+
+    const preloadedSession = { id: 'session-1', externalId: '+51987654321' };
+    await buildVapiAssistant(ctx, {
+      serverUrl: 'https://app.example.com/api/agent/voice/vapi',
+      preloaded: { config: CONFIG_FIXTURE as never, session: preloadedSession as never, orgName: 'Preloaded Org' },
+    });
+
+    expect(getOrCreateAgentConfig).not.toHaveBeenCalled();
+    expect(getSessionById).not.toHaveBeenCalled();
+  });
 });
 
 describe('agent/voice/assistant — VOICE_DISCLOSURE', () => {

@@ -6,6 +6,7 @@ import {
   nextWindowStart,
   isWithinWeeklyRanges,
   IdentitySchema,
+  VoiceConfigSchema,
 } from '@/lib/agent/config-schema';
 
 describe('agent/config-schema — parseBusinessHours', () => {
@@ -59,6 +60,55 @@ describe('agent/config-schema — clampCallWindow', () => {
   it('drops weekday 0 (Sunday) and 7+ — outbound weekdays are 1..6', () => {
     expect(clampCallWindow({ weekdays: [0, 1, 7], startMinute: 540, endMinute: 1200 }).weekdays).toEqual([1]);
   });
+
+  it('dedupes weekdays and never returns more than 7', () => {
+    expect(clampCallWindow({ weekdays: [1, 1, 2, 2, 3], startMinute: 540, endMinute: 1200 }).weekdays).toEqual([1, 2, 3]);
+  });
+
+  it('forces endMinute strictly after startMinute even if the stored value is inverted/equal', () => {
+    const { startMinute, endMinute } = clampCallWindow({ weekdays: [1], startMinute: 900, endMinute: 900 });
+    expect(endMinute).toBeGreaterThan(startMinute);
+  });
+});
+
+describe('agent/config-schema — VoiceConfigSchema', () => {
+  const base = {
+    voiceProvider: 'azure' as const,
+    voiceId: 'es-PE-CamilaNeural',
+    language: 'es' as const,
+    recordingEnabled: true,
+    greetingExtra: null,
+    maxCallMinutes: 10,
+    monthlyMinuteCap: 300,
+    callWindow: { weekdays: [1, 2, 3], startMinute: 540, endMinute: 1140 },
+    speedToLead: { enabled: false, delayMinutes: 2, sources: ['manual'] as const, staleAfterHours: 12 },
+    visitConfirmation: { enabled: false, hoursBefore: 20 },
+    reactivation: { enabled: false, coldAfterDays: 14, minDaysBetween: 30, maxPerRun: 20 },
+  };
+
+  it('accepts a well-formed config', () => {
+    expect(VoiceConfigSchema.safeParse(base).success).toBe(true);
+  });
+
+  it('rejects callWindow.weekdays with duplicates or more than 7 entries', () => {
+    expect(VoiceConfigSchema.safeParse({ ...base, callWindow: { ...base.callWindow, weekdays: [1, 1] } }).success).toBe(false);
+    expect(VoiceConfigSchema.safeParse({ ...base, callWindow: { ...base.callWindow, weekdays: [1, 2, 3, 4, 5, 6, 1] } }).success).toBe(false);
+  });
+
+  it('rejects callWindow.endMinute <= startMinute', () => {
+    expect(VoiceConfigSchema.safeParse({ ...base, callWindow: { weekdays: [1], startMinute: 600, endMinute: 600 } }).success).toBe(false);
+    expect(VoiceConfigSchema.safeParse({ ...base, callWindow: { weekdays: [1], startMinute: 600, endMinute: 500 } }).success).toBe(false);
+  });
+
+  it('rejects speedToLead.sources with duplicates or more than 5 entries', () => {
+    expect(VoiceConfigSchema.safeParse({ ...base, speedToLead: { ...base.speedToLead, sources: ['manual', 'manual'] } }).success).toBe(false);
+  });
+
+  it('rejects staleAfterHours/coldAfterDays/minDaysBetween beyond their max bounds', () => {
+    expect(VoiceConfigSchema.safeParse({ ...base, speedToLead: { ...base.speedToLead, staleAfterHours: 8761 } }).success).toBe(false);
+    expect(VoiceConfigSchema.safeParse({ ...base, reactivation: { ...base.reactivation, coldAfterDays: 366 } }).success).toBe(false);
+    expect(VoiceConfigSchema.safeParse({ ...base, reactivation: { ...base.reactivation, minDaysBetween: 366 } }).success).toBe(false);
+  });
 });
 
 describe('agent/config-schema — parseVoiceConfig', () => {
@@ -78,6 +128,26 @@ describe('agent/config-schema — parseVoiceConfig', () => {
   it('falls back speedToLead.sources to ["manual"] when empty/invalid', () => {
     const parsed = parseVoiceConfig({ speedToLead: { sources: ['bogus'] } });
     expect(parsed.speedToLead.sources).toEqual(['manual']);
+  });
+
+  it('dedupes speedToLead.sources and caps it at 5', () => {
+    const parsed = parseVoiceConfig({ speedToLead: { sources: ['manual', 'manual', 'web', 'whatsapp'] } });
+    expect(parsed.speedToLead.sources).toEqual(['manual', 'web', 'whatsapp']);
+  });
+
+  it('clamps staleAfterHours/coldAfterDays/minDaysBetween into their max bounds', () => {
+    const parsed = parseVoiceConfig({
+      speedToLead: { staleAfterHours: 999_999 },
+      reactivation: { coldAfterDays: 999_999, minDaysBetween: 999_999 },
+    });
+    expect(parsed.speedToLead.staleAfterHours).toBe(8760);
+    expect(parsed.reactivation.coldAfterDays).toBe(365);
+    expect(parsed.reactivation.minDaysBetween).toBe(365);
+  });
+
+  it('dedupes callWindow.weekdays via clampCallWindow', () => {
+    const parsed = parseVoiceConfig({ callWindow: { weekdays: [1, 1, 2] } });
+    expect(parsed.callWindow.weekdays).toEqual([1, 2]);
   });
 });
 

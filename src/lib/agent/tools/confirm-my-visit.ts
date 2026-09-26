@@ -18,11 +18,22 @@ export function makeConfirmMyVisitTool(ctx: AgentToolContext) {
       const visit = leadId ? await getVisit(ctx.orgId, args.visitId) : null;
       if (!visit || visit.leadId !== leadId) return 'No encontré esa visita.';
 
+      // Only 'scheduled' is actually confirmable — check this before dryRun
+      // too, so the simulation reply reflects what would really happen
+      // instead of always claiming success.
+      if (visit.status === 'confirmed') return 'Esa visita ya está confirmada.';
+      if (visit.status !== 'scheduled') {
+        return 'Esa visita ya no está activa, así que no se puede confirmar.';
+      }
+
       if (ctx.dryRun) {
         return '[SIMULACIÓN — playground] Se confirmaría esa visita.';
       }
 
-      await confirmVisit(ctx.orgId, args.visitId);
+      const updated = await confirmVisit(ctx.orgId, args.visitId);
+      // confirmVisit is idempotent and only flips scheduled -> confirmed; say
+      // "confirmed" only when it actually made that change.
+      if (!updated || updated.status !== 'confirmed') return 'No pude confirmar esa visita.';
       return 'Listo, confirmé tu visita.';
     },
   });

@@ -98,7 +98,7 @@ export async function evaluateOutboundCall(call: AgentCallRecord, now: Date = ne
 
   const [onDnc, usage, visitActive] = await Promise.all([
     phone ? isOnDoNotCallList(call.orgId, phone) : Promise.resolve(false),
-    getMonthlyVoiceUsage(call.orgId, config.timezone, now),
+    getMonthlyVoiceUsage(call.orgId, config.timezone, config.voice.maxCallMinutes, now),
     call.purpose === 'visit_confirmation' && call.visitId ? isVisitStillActive(call.orgId, call.visitId) : Promise.resolve(null),
   ]);
 

@@ -23,6 +23,24 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
+const eqSpy = vi.fn();
+const lteSpy = vi.fn();
+vi.mock('drizzle-orm', async () => {
+  const actual = await vi.importActual<typeof import('drizzle-orm')>('drizzle-orm');
+  return {
+    ...actual,
+    eq: (...args: Parameters<typeof actual.eq>) => {
+      eqSpy(...args);
+      return actual.eq(...args);
+    },
+    lte: (...args: Parameters<typeof actual.lte>) => {
+      lteSpy(...args);
+      return actual.lte(...args);
+    },
+  };
+});
+
+import { agentWebHandoffCodes } from '@/lib/db/schema';
 import {
   generateHandoffCode,
   extractHandoffCode,
@@ -32,7 +50,11 @@ import {
   MAX_CODES_PER_SESSION_PER_DAY,
 } from '@/lib/widget/handoff-codes';
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  eqSpy.mockClear();
+  lteSpy.mockClear();
+});
 
 describe('widget/handoff-codes — pure helpers', () => {
   it('generateHandoffCode never uses 0/O/1/I', () => {
@@ -103,6 +125,42 @@ describe('widget/handoff-codes — createHandoffCode', () => {
     expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'superseded' }));
   });
 
+  it('item 11: the voice daily-cap check is scoped to this org (not just the phone)', async () => {
+    mockSelect.mockReturnValueOnce(makeChain([{ value: 0 }]));
+    const txUpdate = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) }));
+    const txInsert = vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(async () => [{ id: 'code-v', orgId: 'org-1', webSessionId: null, code: 'VOZ-AB2K9M', kind: 'visit', leadId: null, listingId: null, profileId: null, startsAt: null, visitMinutes: null, status: 'pending', expiresAt: new Date(), source: 'voice', callId: 'call-1', targetPhone: '+51987654321' }]),
+      })),
+    }));
+    mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn({ update: txUpdate, insert: txInsert }));
+
+    await createHandoffCode({ orgId: 'org-1', kind: 'visit', leadId: null, source: 'voice', callId: 'call-1', targetPhone: '+51987654321' });
+
+    const orgIdCalls = eqSpy.mock.calls.filter((c) => c[0] === agentWebHandoffCodes.orgId);
+    expect(orgIdCalls.length).toBeGreaterThanOrEqual(1);
+    expect(orgIdCalls.every((c) => c[1] === 'org-1')).toBe(true);
+  });
+
+  it('item 11: the voice supersede condition is scoped to this org', async () => {
+    mockSelect.mockReturnValueOnce(makeChain([{ value: 0 }]));
+    const txUpdateSet = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
+    const txUpdate = vi.fn(() => ({ set: txUpdateSet }));
+    const txInsert = vi.fn(() => ({
+      values: vi.fn(() => ({
+        returning: vi.fn(async () => [{ id: 'code-v2', orgId: 'org-1', webSessionId: null, code: 'VOZ-ZZ9988', kind: 'visit', leadId: null, listingId: null, profileId: null, startsAt: null, visitMinutes: null, status: 'pending', expiresAt: new Date(), source: 'voice', callId: 'call-1', targetPhone: '+51987654321' }]),
+      })),
+    }));
+    mockTransaction.mockImplementationOnce(async (fn: (tx: unknown) => Promise<unknown>) => fn({ update: txUpdate, insert: txInsert }));
+
+    await createHandoffCode({ orgId: 'org-1', kind: 'visit', leadId: null, source: 'voice', callId: 'call-1', targetPhone: '+51987654321' });
+
+    expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'superseded' }));
+    const orgIdCalls = eqSpy.mock.calls.filter((c) => c[0] === agentWebHandoffCodes.orgId);
+    // At least two eq(orgId, ...) checks: the daily-cap read + the supersede update.
+    expect(orgIdCalls.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('retries with a fresh code on a unique-constraint collision', async () => {
     mockSelect.mockReturnValueOnce(makeChain([{ value: 0 }]));
 
@@ -164,6 +222,17 @@ describe('widget/handoff-codes — claimHandoffCode', () => {
 
     const result = await claimHandoffCode('org-1', 'WEB-NOPE99', '+51987654321', 'wa-session-1');
     expect(result).toBeNull();
+  });
+
+  it('item 12: the fallback "mark expired" update only matches codes whose expiresAt has actually passed', async () => {
+    mockUpdate.mockReturnValueOnce(makeChain([])); // redeem attempt: no match
+    mockUpdate.mockReturnValueOnce(makeChain([])); // mark-expired attempt: no match either (not actually expired)
+
+    const result = await claimHandoffCode('org-1', 'WEB-NOPE99', '+51987654321', 'wa-session-1');
+
+    expect(result).toBeNull();
+    const expiresAtLteCalls = lteSpy.mock.calls.filter((c) => c[0] === agentWebHandoffCodes.expiresAt);
+    expect(expiresAtLteCalls.length).toBe(1);
   });
 
   it('Phase 8: a voice code redeemed from another phone fails the claim (falls through to the not-found/expired path)', async () => {

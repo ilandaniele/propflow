@@ -103,11 +103,16 @@ export const BusinessHoursSchema: z.ZodType<BusinessHours> = z.object({
   closedNote: z.string().max(300).nullable(),
 });
 
-const CallWindowSchema = z.object({
-  weekdays: z.array(z.number().int().min(1).max(6)),
-  startMinute: z.number().int().min(0).max(1439),
-  endMinute: z.number().int().min(1).max(1440),
-});
+const CallWindowSchema = z
+  .object({
+    weekdays: z
+      .array(z.number().int().min(1).max(6))
+      .max(7)
+      .refine((arr) => new Set(arr).size === arr.length, { message: 'weekdays must be unique' }),
+    startMinute: z.number().int().min(0).max(1439),
+    endMinute: z.number().int().min(1).max(1440),
+  })
+  .refine((w) => w.endMinute > w.startMinute, { message: 'endMinute must be after startMinute' });
 
 export const VoiceConfigSchema: z.ZodType<VoiceConfig> = z.object({
   voiceProvider: z.enum(['azure', '11labs', 'openai']),
@@ -121,8 +126,11 @@ export const VoiceConfigSchema: z.ZodType<VoiceConfig> = z.object({
   speedToLead: z.object({
     enabled: z.boolean(),
     delayMinutes: z.number().int().min(1).max(60),
-    sources: z.array(z.enum(['manual', 'web', 'whatsapp'])),
-    staleAfterHours: z.number().int().positive(),
+    sources: z
+      .array(z.enum(['manual', 'web', 'whatsapp']))
+      .max(5)
+      .refine((arr) => new Set(arr).size === arr.length, { message: 'sources must be unique' }),
+    staleAfterHours: z.number().int().positive().max(8760),
   }),
   visitConfirmation: z.object({
     enabled: z.boolean(),
@@ -130,8 +138,8 @@ export const VoiceConfigSchema: z.ZodType<VoiceConfig> = z.object({
   }),
   reactivation: z.object({
     enabled: z.boolean(),
-    coldAfterDays: z.number().int().positive(),
-    minDaysBetween: z.number().int().positive(),
+    coldAfterDays: z.number().int().positive().max(365),
+    minDaysBetween: z.number().int().positive().max(365),
     maxPerRun: z.number().int().min(1).max(200),
   }),
 });
@@ -202,11 +210,14 @@ export function parseBusinessHours(raw: unknown): BusinessHours {
 
 /** Hard clamp: 08:00-21:00 local, whatever the config says (blueprint §0.9 — never bypassable by org config). */
 export function clampCallWindow(w: VoiceConfig['callWindow']): VoiceConfig['callWindow'] {
-  return {
-    weekdays: w.weekdays.filter((d) => d >= 1 && d <= 6),
-    startMinute: Math.min(Math.max(w.startMinute, 480), 1260),
-    endMinute: Math.min(Math.max(w.endMinute, 480), 1260),
-  };
+  const weekdays = [...new Set(w.weekdays.filter((d) => d >= 1 && d <= 6))].slice(0, 7);
+  const startMinute = Math.min(Math.max(w.startMinute, 480), 1260);
+  let endMinute = Math.min(Math.max(w.endMinute, 480), 1260);
+  // endMinute must stay strictly after startMinute even after clamping —
+  // otherwise a malformed/legacy stored value could clamp to an empty or
+  // inverted window (see VoiceConfigSchema's matching refine).
+  if (endMinute <= startMinute) endMinute = Math.min(startMinute + 1, 1260);
+  return { weekdays, startMinute, endMinute };
 }
 
 export function parseVoiceConfig(raw: unknown): VoiceConfig {
@@ -231,12 +242,9 @@ export function parseVoiceConfig(raw: unknown): VoiceConfig {
       enabled: typeof r.speedToLead?.enabled === 'boolean' ? r.speedToLead.enabled : DEFAULT_VOICE_CONFIG.speedToLead.enabled,
       delayMinutes: clampInt(r.speedToLead?.delayMinutes, 1, 60, DEFAULT_VOICE_CONFIG.speedToLead.delayMinutes),
       sources: Array.isArray(r.speedToLead?.sources)
-        ? r.speedToLead!.sources.filter((s): s is 'manual' | 'web' | 'whatsapp' => ['manual', 'web', 'whatsapp'].includes(s))
+        ? [...new Set(r.speedToLead!.sources.filter((s): s is 'manual' | 'web' | 'whatsapp' => ['manual', 'web', 'whatsapp'].includes(s)))].slice(0, 5)
         : DEFAULT_VOICE_CONFIG.speedToLead.sources,
-      staleAfterHours:
-        typeof r.speedToLead?.staleAfterHours === 'number' && r.speedToLead.staleAfterHours > 0
-          ? r.speedToLead.staleAfterHours
-          : DEFAULT_VOICE_CONFIG.speedToLead.staleAfterHours,
+      staleAfterHours: clampInt(r.speedToLead?.staleAfterHours, 1, 8760, DEFAULT_VOICE_CONFIG.speedToLead.staleAfterHours),
     },
     visitConfirmation: {
       enabled: typeof r.visitConfirmation?.enabled === 'boolean' ? r.visitConfirmation.enabled : DEFAULT_VOICE_CONFIG.visitConfirmation.enabled,
@@ -244,14 +252,8 @@ export function parseVoiceConfig(raw: unknown): VoiceConfig {
     },
     reactivation: {
       enabled: typeof r.reactivation?.enabled === 'boolean' ? r.reactivation.enabled : DEFAULT_VOICE_CONFIG.reactivation.enabled,
-      coldAfterDays:
-        typeof r.reactivation?.coldAfterDays === 'number' && r.reactivation.coldAfterDays > 0
-          ? r.reactivation.coldAfterDays
-          : DEFAULT_VOICE_CONFIG.reactivation.coldAfterDays,
-      minDaysBetween:
-        typeof r.reactivation?.minDaysBetween === 'number' && r.reactivation.minDaysBetween > 0
-          ? r.reactivation.minDaysBetween
-          : DEFAULT_VOICE_CONFIG.reactivation.minDaysBetween,
+      coldAfterDays: clampInt(r.reactivation?.coldAfterDays, 1, 365, DEFAULT_VOICE_CONFIG.reactivation.coldAfterDays),
+      minDaysBetween: clampInt(r.reactivation?.minDaysBetween, 1, 365, DEFAULT_VOICE_CONFIG.reactivation.minDaysBetween),
       maxPerRun: clampInt(r.reactivation?.maxPerRun, 1, 200, DEFAULT_VOICE_CONFIG.reactivation.maxPerRun),
     },
   };

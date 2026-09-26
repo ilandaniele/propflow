@@ -4,6 +4,8 @@
  *   - a call belonging to a different org -> 404 (IDOR guard)
  *   - not authenticated -> 404 (no detail leaked)
  *   - a call with no recording_url -> 404
+ *   - a recording_url that isn't https, isn't parseable, or isn't on the
+ *     Vapi/S3/R2 host allowlist -> 404 (never an open redirect)
  *   - happy path -> 302 + Cache-Control: no-store
  */
 
@@ -72,10 +74,47 @@ describe('GET /api/agent/voice/recording/[callId]', () => {
   });
 
   it('happy path -> 302 redirect with Cache-Control: no-store', async () => {
-    selectQueue.push([{ recordingUrl: 'https://vapi.example/recordings/abc.mp3' }]);
+    selectQueue.push([{ recordingUrl: 'https://storage.vapi.ai/recordings/abc.mp3' }]);
     const res = await GET(new Request('http://localhost/x'), callParams());
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe('https://vapi.example/recordings/abc.mp3');
+    expect(res.headers.get('location')).toBe('https://storage.vapi.ai/recordings/abc.mp3');
     expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('a *.vapi.ai subdomain and S3/R2 hosts are also allowed', async () => {
+    for (const url of [
+      'https://call-123.vapi.ai/rec.mp3',
+      'https://my-bucket.s3.amazonaws.com/rec.mp3',
+      'https://acct.r2.cloudflarestorage.com/rec.mp3',
+    ]) {
+      selectQueue.push([{ recordingUrl: url }]);
+      const res = await GET(new Request('http://localhost/x'), callParams());
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe(url);
+    }
+  });
+
+  it('an unrelated host -> 404, never redirected (no open redirect)', async () => {
+    selectQueue.push([{ recordingUrl: 'https://evil.example.com/steal' }]);
+    const res = await GET(new Request('http://localhost/x'), callParams());
+    expect(res.status).toBe(404);
+  });
+
+  it('a host that merely ends with an allowed suffix without the dot -> 404', async () => {
+    selectQueue.push([{ recordingUrl: 'https://notvapi.ai/rec.mp3' }]);
+    const res = await GET(new Request('http://localhost/x'), callParams());
+    expect(res.status).toBe(404);
+  });
+
+  it('non-https recording_url -> 404', async () => {
+    selectQueue.push([{ recordingUrl: 'http://storage.vapi.ai/rec.mp3' }]);
+    const res = await GET(new Request('http://localhost/x'), callParams());
+    expect(res.status).toBe(404);
+  });
+
+  it('an unparseable recording_url -> 404 instead of throwing', async () => {
+    selectQueue.push([{ recordingUrl: 'not a url' }]);
+    const res = await GET(new Request('http://localhost/x'), callParams());
+    expect(res.status).toBe(404);
   });
 });
