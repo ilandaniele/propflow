@@ -31,6 +31,10 @@ primary_region = "iad"
     NEXT_PUBLIC_SITE_URL = "https://propflow-app.fly.dev"
     NEXT_PUBLIC_META_APP_ID = ""
 
+[deploy]
+  # Applies pending SQL migrations before new machines start; failure aborts the deploy.
+  release_command = "node scripts/migrate.mjs"
+
 [http_service]
   internal_port = 3000
   force_https = true
