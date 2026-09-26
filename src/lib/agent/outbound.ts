@@ -88,3 +88,76 @@ export async function sendWhatsAppText(args: SendWhatsAppTextArgs): Promise<Send
 
   return { ok: true, messageId };
 }
+
+export interface SendWhatsAppImageArgs {
+  orgId: string;
+  conversationId: string;
+  /** A short-lived signed Tigris URL — never persisted, never logged. */
+  imageUrl: string;
+  caption?: string | null;
+  senderKind: 'agent' | 'human' | 'system';
+  meta?: Record<string, unknown>;
+}
+
+/** Phase 9: send_listing_photos' only send path. Same 24h-window rule as sendWhatsAppText. */
+export async function sendWhatsAppImage(args: SendWhatsAppImageArgs): Promise<SendOutcome> {
+  const convRows = await db
+    .select({ id: whatsappConversations.id, externalPhone: whatsappConversations.externalPhone })
+    .from(whatsappConversations)
+    .where(and(eq(whatsappConversations.id, args.conversationId), eq(whatsappConversations.orgId, args.orgId)))
+    .limit(1);
+
+  const conv = convRows[0];
+  if (!conv) return { ok: false, code: 'NOT_FOUND' };
+
+  const session = await getSessionByConversation(args.orgId, args.conversationId);
+  if (session && !isWindowOpen(session)) {
+    return { ok: false, code: 'WINDOW_CLOSED' };
+  }
+
+  const provider = getWhatsAppProvider();
+  if (!provider.sendImage) {
+    log.error('[agent/outbound] provider has no sendImage capability', { orgId: args.orgId });
+    return { ok: false, code: 'PROVIDER_ERROR', error: 'sendImage not supported' };
+  }
+
+  const sendResult = await provider.sendImage(args.orgId, {
+    to: conv.externalPhone, // PII — never logged
+    imageUrl: args.imageUrl, // signed URL — never logged, never persisted
+    caption: args.caption ?? undefined,
+  });
+
+  if (!sendResult.success) {
+    log.error('[agent/outbound] provider sendImage failed', { orgId: args.orgId, error: sendResult.error });
+  }
+
+  let messageId: string | null = null;
+  try {
+    messageId = await insertMessage({
+      orgId: args.orgId,
+      conversationId: args.conversationId,
+      direction: 'outbound',
+      providerMessageId: sendResult.providerMessageId ?? null,
+      body: args.caption ?? null, // the image URL itself is never stored
+      attachmentKind: 'image',
+      status: sendResult.success ? 'sent' : 'failed',
+      senderKind: args.senderKind,
+      meta: args.meta ?? {},
+    });
+  } catch (err) {
+    log.error('[agent/outbound] insertMessage failed', { orgId: args.orgId, err: (err as Error).message });
+    return { ok: false, code: 'PROVIDER_ERROR', error: (err as Error).message };
+  }
+
+  if (!sendResult.success) {
+    return { ok: false, code: 'PROVIDER_ERROR', error: sendResult.error };
+  }
+
+  if (!messageId) {
+    return { ok: false, code: 'PROVIDER_ERROR', error: 'duplicate provider_message_id' };
+  }
+
+  await updateConversationActivity(args.conversationId, false);
+
+  return { ok: true, messageId };
+}

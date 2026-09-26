@@ -18,6 +18,7 @@ import { drainAgentJobs } from '@/lib/agent/jobs';
 import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
 import { sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
 import { ensureCalendarSyncJobs } from '@/lib/calendar/sync';
+import { scanSpeedToLead, scanVisitConfirmationCalls } from '@/lib/agent/voice/scanners';
 import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
@@ -47,6 +48,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    // Phase 8 (item W): outbound-call scanners are triggers, not hooks — run
+    // them before draining so anything they queue gets picked up in this
+    // same invocation. No-op cheaply when voice/the policy is off (default).
+    let voiceScanned = { speedToLead: 0, visitConfirmation: 0 };
+    try {
+      const speedToLead = await withDbRetry(() => scanSpeedToLead(), 'cron/agent-dispatch:voice-scan-stl');
+      const visitConfirmation = await withDbRetry(() => scanVisitConfirmationCalls(), 'cron/agent-dispatch:voice-scan-vc');
+      voiceScanned = { speedToLead, visitConfirmation };
+    } catch (e) {
+      log.error('[cron/agent-dispatch] voice scan failed', { error: e instanceof Error ? e.message : 'unknown' });
+    }
+
     const result = await withDbRetry(() => drainAgentJobs(50), 'cron/agent-dispatch');
     const swept = await withDbRetry(() => sweepStalePendingInbound(), 'cron/agent-dispatch:sweep');
     let calendarSyncsEnqueued = 0;
@@ -55,8 +68,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } catch (e) {
       log.error('[cron/agent-dispatch] ensureCalendarSyncJobs failed', { error: e instanceof Error ? e.message : 'unknown' });
     }
-    log.info('[cron/agent-dispatch] run complete', { ...result, swept, calendarSyncsEnqueued });
-    return NextResponse.json({ status: 'ok', ...result, swept, calendarSyncsEnqueued });
+    log.info('[cron/agent-dispatch] run complete', { ...result, swept, calendarSyncsEnqueued, voiceScanned });
+    return NextResponse.json({ status: 'ok', ...result, swept, calendarSyncsEnqueued, voiceScanned });
   } catch (e) {
     log.error('[cron/agent-dispatch] exception', { error: e instanceof Error ? e.message : 'unknown' });
     return NextResponse.json(

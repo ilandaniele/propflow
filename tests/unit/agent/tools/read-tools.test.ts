@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { searchListings, getListingDetails } = vi.hoisted(() => ({
+const { searchListings, getListingDetails, rememberSessionListings, isListingKnownToSession } = vi.hoisted(() => ({
   searchListings: vi.fn(async () => [] as unknown[]),
   getListingDetails: vi.fn(async () => null as unknown),
+  rememberSessionListings: vi.fn(async () => {}),
+  isListingKnownToSession: vi.fn(async () => true),
 }));
 
 vi.mock('@/lib/agent/listings', () => ({ searchListings, getListingDetails }));
+vi.mock('@/lib/agent/session-listings', () => ({ rememberSessionListings, isListingKnownToSession }));
 
 import { makeSearchListingsTool } from '@/lib/agent/tools/search-listings';
 import { makeGetListingDetailsTool } from '@/lib/agent/tools/get-listing-details';
@@ -20,6 +23,11 @@ function makeCtx(): AgentToolContext {
     externalId: '+51987654321',
     dryRun: false,
     leadIdRef: { current: null },
+    attribution: null,
+    webSessionId: null,
+    shadowMode: false,
+    whatsappConversationId: 'conv-1',
+    voiceCallId: null,
   };
 }
 
@@ -44,6 +52,13 @@ describe('search_listings tool', () => {
     const tool = makeSearchListingsTool(makeCtx());
     const result = await tool.run({});
     expect(JSON.parse(String(result))).toEqual([{ id: 'l1', title: 'Depa' }]);
+  });
+
+  it('remembers every returned id against the session, so send_listing_card/photos can later act on them', async () => {
+    searchListings.mockResolvedValueOnce([{ id: 'l1' }, { id: 'l2' }]);
+    const tool = makeSearchListingsTool(makeCtx());
+    await tool.run({});
+    expect(rememberSessionListings).toHaveBeenCalledWith('org-1', 'session-1', ['l1', 'l2'], 'search');
   });
 });
 
@@ -79,5 +94,13 @@ describe('send_listing_card tool', () => {
     const tool = makeSendListingCardTool(makeCtx());
     const card = String(await tool.run({ listingId: 'l1' }));
     expect(card).toMatch(/a consultar/);
+  });
+
+  it('rejects an id the session never saw with search_listings, without even calling getListingDetails', async () => {
+    isListingKnownToSession.mockResolvedValueOnce(false);
+    const tool = makeSendListingCardTool(makeCtx());
+    const result = await tool.run({ listingId: 'guessed-id' });
+    expect(getListingDetails).not.toHaveBeenCalled();
+    expect(String(result)).toMatch(/primero buscá/i);
   });
 });

@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { getListingDetails, type ListingDetail } from '../listings';
+import { isListingKnownToSession } from '../session-listings';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
@@ -28,6 +29,11 @@ export function makeSendListingCardTool(ctx: AgentToolContext) {
       'Usalo cuando quieras presentar una propiedad puntual, no para listar varias — para eso usá search_listings.',
     inputSchema: InputSchema,
     run: async (args) => {
+      // Phase 9: closes the Phase 2 gap — the model could otherwise ask for
+      // any guessed listing id, not just ones this session has actually seen.
+      const known = await isListingKnownToSession(ctx.orgId, ctx.sessionId, args.listingId);
+      if (!known) return 'Primero buscá la propiedad con search_listings.';
+
       const listing = await getListingDetails(ctx.orgId, args.listingId);
       if (!listing) return 'No se encontró esa propiedad, o ya no está publicada.';
       return formatCard(listing);

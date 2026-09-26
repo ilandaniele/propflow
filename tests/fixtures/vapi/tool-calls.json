@@ -1,0 +1,112 @@
+{
+  "message": {
+    "type": "tool-calls",
+    "call": {
+      "id": "8f14e45f-ceea-467e-8a0c-ea3d63a3f5b1",
+      "phoneNumberId": "aa1bb2cc-3333-4444-5555-666677778888",
+      "customer": {
+        "number": "+14155550101"
+      },
+      "status": "in-progress"
+    },
+    "toolCallList": [
+      {
+        "id": "toolcall-01hz3n8k9qxjq0a1b2c3d4e5f6",
+        "type": "function",
+        "function": {
+          "name": "lookup_tenant_by_phone",
+          "arguments": {
+            "phone": "+14155550101"
+          }
+        }
+      },
+      {
+        "id": "toolcall-01hz3n8k9qxjq0a1b2c3d4e5f7",
+        "type": "function",
+        "function": {
+          "name": "create_maintenance_ticket",
+          "arguments": {
+            "unit_id": "unit_00042",
+            "description": "Kitchen faucet leaking",
+            "priority": "medium"
+          }
+        }
+      }
+    ],
+    "toolWithToolCallList": [
+      {
+        "type": "function",
+        "function": {
+          "name": "lookup_tenant_by_phone",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "phone": { "type": "string" }
+            },
+            "required": ["phone"]
+          }
+        },
+        "server": {
+          "url": "https://example-propflow.test/api/vapi/tools/lookup-tenant"
+        },
+        "toolCall": {
+          "id": "toolcall-01hz3n8k9qxjq0a1b2c3d4e5f6",
+          "type": "function",
+          "function": {
+            "name": "lookup_tenant_by_phone",
+            "arguments": {
+              "phone": "+14155550101"
+            }
+          }
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "create_maintenance_ticket",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "unit_id": { "type": "string" },
+              "description": { "type": "string" },
+              "priority": { "type": "string", "enum": ["low", "medium", "high"] }
+            },
+            "required": ["unit_id", "description"]
+          }
+        },
+        "server": {
+          "url": "https://example-propflow.test/api/vapi/tools/create-ticket"
+        },
+        "toolCall": {
+          "id": "toolcall-01hz3n8k9qxjq0a1b2c3d4e5f7",
+          "type": "function",
+          "function": {
+            "name": "create_maintenance_ticket",
+            "arguments": {
+              "unit_id": "unit_00042",
+              "description": "Kitchen faucet leaking",
+              "priority": "medium"
+            }
+          }
+        }
+      }
+    ],
+    "timestamp": "2026-09-25T14:03:47.512Z"
+  },
+  "_expectedResponse": {
+    "results": [
+      {
+        "toolCallId": "toolcall-01hz3n8k9qxjq0a1b2c3d4e5f6",
+        "result": {
+          "tenant_id": "tenant_00931",
+          "name": "Maria Gonzalez",
+          "unit_id": "unit_00042"
+        }
+      },
+      {
+        "toolCallId": "toolcall-01hz3n8k9qxjq0a1b2c3d4e5f7",
+        "error": "unit_id not found in active contracts"
+      }
+    ]
+  }
+}

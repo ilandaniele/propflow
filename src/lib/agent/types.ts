@@ -18,7 +18,13 @@ export type AgentEventKind =
   | 'attribution'
   | 'window_closed'
   | 'turn_error'
-  | 'reply_dropped';
+  | 'reply_dropped'
+  /** Phase 9 (item T): send_listing_photos suppressed by shadow mode. */
+  | 'photos_suppressed'
+  /** Phase 8 (item C): a Phase 7 web/voice handoff code was redeemed on WhatsApp. */
+  | 'web_handoff_redeemed'
+  /** Phase 8 (item B): end-of-call-report persisted for an agent_calls row. */
+  | 'voice_call';
 
 export interface AgentAttribution {
   type: 'ctwa' | 'wa_link';
