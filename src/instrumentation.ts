@@ -17,6 +17,7 @@ export async function register(): Promise<void> {
   const { drainAgentJobs } = await import('@/lib/agent/jobs');
   const { registerAgentJobHandlers } = await import('@/lib/agent/job-handlers');
   const { sweepStalePendingInbound } = await import('@/lib/agent/whatsapp-dispatch');
+  const { ensureCalendarSyncJobs } = await import('@/lib/calendar/sync');
   const { log } = await import('@/lib/log');
 
   registerAgentJobHandlers();
@@ -32,6 +33,13 @@ export async function register(): Promise<void> {
     if (tick % SWEEP_EVERY_N_TICKS === 0) {
       sweepStalePendingInbound().catch((e) => {
         log.error('[instrumentation] stale-inbound sweep failed', {
+          error: e instanceof Error ? e.message : 'unknown',
+        });
+      });
+      // ensureCalendarSyncJobs is a cheap safety net (syncCalendarConnection
+      // self-schedules its own next run) — throttled alongside the sweep.
+      ensureCalendarSyncJobs().catch((e) => {
+        log.error('[instrumentation] calendar sync backstop failed', {
           error: e instanceof Error ? e.message : 'unknown',
         });
       });

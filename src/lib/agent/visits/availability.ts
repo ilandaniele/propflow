@@ -144,6 +144,11 @@ export async function getAvailableSlotsForOrg(a: {
   profileIds?: string[];
   now?: Date;
 }): Promise<{ timezone: string; slots: Slot[]; loadByProfile: Record<string, number> }> {
+  // Dynamic import avoids the circular-init/TDZ problem (calendar -> visits ->
+  // calendar) and registers Phase 5's Google free/busy provider in every
+  // bundle (instrumentation vs routes) the first time slots are computed.
+  (await import('@/lib/calendar/freebusy')).registerGoogleFreeBusyProvider();
+
   const config = await getOrCreateAgentConfig(a.orgId);
   const timezone = config.timezone;
   const now = a.now ?? new Date();

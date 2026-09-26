@@ -537,12 +537,20 @@ export const crmLeads = pgTable('crm_leads', {
   intentTag:          text('intent_tag'), // 'high_intent'|'under_analysis'|'qualified'|'cold'
   assignedProfileId:  uuid('assigned_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
   stage:              text('stage').notNull().default('new'),
-  // 'new'|'contacted'|'qualified'|'visit_scheduled'|'visited'|'negotiating'|'won'|'lost'
+  // Phase 6 (0008): free-form per-org stage key (CHECK crm_leads_stage_format
+  // in SQL — matches /^[a-z][a-z0-9_]{1,39}$/), no longer a fixed enum. See
+  // src/lib/leads/types.ts SYSTEM_STAGES for the seeded defaults per pipeline.
   nextFollowupAt:     timestamp('next_followup_at', { withTimezone: true }),
   doNotContact:       boolean('do_not_contact').notNull().default(false),
   sourceChannel:      text('source_channel'), // 'whatsapp'|'web'|'voice'|'manual'
   sourceRef:          text('source_ref'),
   sourceMeta:         jsonb('source_meta').notNull().default({}).$type<Record<string, unknown>>(),
+  // Phase 6 (0008): routing/pipeline bookkeeping.
+  assignedAt:         timestamp('assigned_at', { withTimezone: true }),
+  stageChangedAt:     timestamp('stage_changed_at', { withTimezone: true }),
+  followupState:      text('followup_state').notNull().default('idle'), // 'idle'|'active'|'stopped'|'completed'
+  followupStopReason: text('followup_stop_reason'),
+  lastListingAlertAt: timestamp('last_listing_alert_at', { withTimezone: true }),
   createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -550,6 +558,8 @@ export const crmLeads = pgTable('crm_leads', {
   orgStatusIdx: index('idx_crm_leads_org_status').on(t.orgId, t.status),
   orgStageIdx:      index('idx_crm_leads_org_stage').on(t.orgId, t.stage),
   orgFollowupIdx:   index('idx_crm_leads_org_followup').on(t.orgId, t.nextFollowupAt),
+  orgPipelineStageIdx: index('idx_crm_leads_org_pipeline_stage').on(t.orgId, t.pipeline, t.stage),
+  orgAssignedIdx:      index('idx_crm_leads_org_assigned').on(t.orgId, t.assignedProfileId),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -962,6 +972,9 @@ export const listings = pgTable('listings', {
   petsAllowed:     boolean('pets_allowed'),
   publicSlug:      text('public_slug'),
   published:       boolean('published').notNull().default(false),
+  // Phase 6 (0008): set by the trg_listings_published_at trigger + CHECK,
+  // only in SQL — never write this column from app code.
+  publishedAt:     timestamp('published_at', { withTimezone: true }),
   refCode:         text('ref_code'),
   createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:       timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1715,6 +1728,15 @@ export const propertyVisits = pgTable('property_visits', {
   sourceChannel:        text('source_channel').notNull(), // 'whatsapp'|'web'|'voice'|'manual'
   rescheduledFromId:    uuid('rescheduled_from_id').references((): AnyPgColumn => propertyVisits.id, { onDelete: 'set null' }),
   googleEventId:        text('google_event_id'), // Phase 5
+  // Phase 5 (0007): Google Calendar sync bookkeeping.
+  googleConnectionId:   uuid('google_connection_id').references((): AnyPgColumn => calendarConnections.id, { onDelete: 'set null' }),
+  googleSyncStatus:     text('google_sync_status').notNull().default('none'),
+  // 'none'|'pending'|'synced'|'error'|'detached'|'drift'
+  googleEventEtag:      text('google_event_etag'),
+  googleSyncedAt:       timestamp('google_synced_at', { withTimezone: true }),
+  googleSyncError:      text('google_sync_error'),
+  googleDriftStartsAt:  timestamp('google_drift_starts_at', { withTimezone: true }),
+  googleDriftEndsAt:    timestamp('google_drift_ends_at', { withTimezone: true }),
   notes:                text('notes'),
   cancelReason:         text('cancel_reason'),
   feedback:             text('feedback'), // 'interested'|'not_interested'|'wants_more'
@@ -1736,4 +1758,169 @@ export const propertyVisits = pgTable('property_visits', {
   leadIdx:            index('idx_property_visits_lead').on(t.leadId),
   orgPhoneStatusIdx:  index('idx_property_visits_org_phone_status').on(t.orgId, t.contactPhone, t.status),
   orgCreatedIdx:      index('idx_property_visits_org_created').on(t.orgId, t.createdAt),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: calendar_connections — Phase 5, item A. One Google Calendar
+// OAuth connection per (org, advisor profile). Tokens are AES-GCM ciphertext
+// (src/lib/crypto/encrypt.ts) and never plaintext at rest.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const calendarConnections = pgTable('calendar_connections', {
+  id:                    uuid('id').primaryKey().defaultRandom(),
+  orgId:                 uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  profileId:             uuid('profile_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  provider:              text('provider').notNull().default('google'), // 'google'
+  googleEmail:           text('google_email').notNull(),
+  calendarId:            text('calendar_id').notNull().default('primary'),
+  scopes:                text('scopes').array().notNull().default([]),
+  refreshTokenEnc:       text('refresh_token_enc').notNull(),
+  accessTokenEnc:        text('access_token_enc'),
+  accessTokenExpiresAt:  timestamp('access_token_expires_at', { withTimezone: true }),
+  status:                text('status').notNull().default('active'), // 'active'|'revoked'|'error'
+  lastError:             text('last_error'),
+  freebusyEnabled:       boolean('freebusy_enabled').notNull().default(true),
+  writeEvents:           boolean('write_events').notNull().default(true),
+  syncToken:             text('sync_token'),
+  syncPageToken:         text('sync_page_token'),
+  lastSyncedAt:          timestamp('last_synced_at', { withTimezone: true }),
+  lastFullSyncAt:        timestamp('last_full_sync_at', { withTimezone: true }),
+  createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgProfileUniq: uniqueIndex('calendar_connections_org_profile_uidx').on(t.orgId, t.profileId),
+  orgStatusIdx:   index('idx_calendar_connections_org_status').on(t.orgId, t.status),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: lead_pipeline_stages — Phase 6, item A. Per-org, per-pipeline
+// stage list, replacing the fixed CHECK enum on crm_leads.stage. System
+// stages (SYSTEM_STAGES in src/lib/leads/types.ts) are seeded lazily by
+// getPipelineStages(), not by a migration.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const leadPipelineStages = pgTable('lead_pipeline_stages', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  orgId:      uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  pipeline:   text('pipeline').notNull(), // 'demand'|'supply'
+  key:        text('key').notNull(),
+  label:      text('label').notNull(),
+  position:   integer('position').notNull(),
+  kind:       text('kind').notNull(), // 'open'|'won'|'lost'
+  color:      text('color'),
+  isSystem:   boolean('is_system').notNull().default(false),
+  archived:   boolean('archived').notNull().default(false),
+  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:  timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgPipelineKeyUniq: uniqueIndex('lead_pipeline_stages_org_pipeline_key_uniq').on(t.orgId, t.pipeline, t.key),
+  orgPipelinePositionIdx: index('idx_lead_pipeline_stages_org_pipeline').on(t.orgId, t.pipeline, t.position),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: lead_routing_members — Phase 6, item A. Advisors eligible for
+// round-robin/weighted lead assignment.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const leadRoutingMembers = pgTable('lead_routing_members', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  orgId:           uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  profileId:       uuid('profile_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  pipeline:        text('pipeline').notNull().default('both'), // 'demand'|'supply'|'both'
+  weight:          integer('weight').notNull().default(1),
+  active:          boolean('active').notNull().default(true),
+  maxOpenLeads:    integer('max_open_leads'),
+  assignedCount:   integer('assigned_count').notNull().default(0),
+  lastAssignedAt:  timestamp('last_assigned_at', { withTimezone: true }),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgProfileUniq: uniqueIndex('lead_routing_members_org_profile_uniq').on(t.orgId, t.profileId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: lead_assignments — Phase 6, item A. Audit trail of every
+// (re)assignment.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const leadAssignments = pgTable('lead_assignments', {
+  id:                  uuid('id').primaryKey().defaultRandom(),
+  orgId:               uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  leadId:              uuid('lead_id').notNull().references(() => crmLeads.id, { onDelete: 'cascade' }),
+  profileId:           uuid('profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  previousProfileId:   uuid('previous_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  method:              text('method'), // 'round_robin'|'weighted'|'manual'|'visit'|'reassign'
+  assignedByProfileId: uuid('assigned_by_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:           timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgCreatedIdx: index('idx_lead_assignments_org_created').on(t.orgId, t.createdAt),
+  leadIdx:       index('idx_lead_assignments_lead').on(t.leadId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: lead_followups — Phase 6, item A. A scheduled follow-up
+// sequence, re-anchored on every new live agent reply.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const leadFollowups = pgTable('lead_followups', {
+  id:                uuid('id').primaryKey().defaultRandom(),
+  orgId:             uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  leadId:            uuid('lead_id').notNull().references(() => crmLeads.id, { onDelete: 'cascade' }),
+  sessionId:         uuid('session_id').references(() => agentSessions.id, { onDelete: 'set null' }),
+  sequenceAnchorAt:  timestamp('sequence_anchor_at', { withTimezone: true }).notNull(),
+  step:              integer('step').notNull(),
+  kind:              text('kind').notNull(), // 'text'|'template'
+  templateName:      text('template_name'),
+  scheduledFor:      timestamp('scheduled_for', { withTimezone: true }).notNull(),
+  status:            text('status').notNull().default('scheduled'),
+  // 'scheduled'|'sending'|'sent'|'skipped'|'cancelled'|'failed'
+  stopReason:        text('stop_reason'),
+  sentAt:            timestamp('sent_at', { withTimezone: true }),
+  createdAt:         timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:         timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  leadAnchorStepUniq: uniqueIndex('lead_followups_lead_anchor_step_uniq').on(t.leadId, t.sequenceAnchorAt, t.step),
+  orgStatusScheduledIdx: index('idx_lead_followups_org_status_scheduled').on(t.orgId, t.status, t.scheduledFor),
+  leadStatusIdx:         index('idx_lead_followups_lead_status').on(t.leadId, t.status),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: lead_listing_alerts — Phase 6, item A. Claim table for
+// cold-lead new-listing notifications; UNIQUE(lead_id, listing_id) is the
+// send-once guarantee.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const leadListingAlerts = pgTable('lead_listing_alerts', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  orgId:      uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  leadId:     uuid('lead_id').notNull().references(() => crmLeads.id, { onDelete: 'cascade' }),
+  listingId:  uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  status:     text('status'), // 'sent'|'skipped'|'failed'
+  reason:     text('reason'),
+  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  leadListingUniq: uniqueIndex('lead_listing_alerts_lead_listing_uniq').on(t.leadId, t.listingId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: qa_exports — Phase 6, item A. One row per (org, ISO week) of
+// handoffs/complaints/takeovers, with the generated CSV cached inline.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const qaExports = pgTable('qa_exports', {
+  id:                   uuid('id').primaryKey().defaultRandom(),
+  orgId:                uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  weekStart:            date('week_start').notNull(),
+  periodStart:          timestamp('period_start', { withTimezone: true }),
+  periodEnd:            timestamp('period_end', { withTimezone: true }),
+  rowCount:             integer('row_count'),
+  handoffCount:         integer('handoff_count'),
+  complaintCount:       integer('complaint_count'),
+  takeoverCount:        integer('takeover_count'),
+  csv:                  text('csv').notNull(),
+  emailedAt:            timestamp('emailed_at', { withTimezone: true }),
+  emailRecipientCount:  integer('email_recipient_count').notNull().default(0),
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgWeekUniq: uniqueIndex('qa_exports_org_week_uniq').on(t.orgId, t.weekStart),
 }));

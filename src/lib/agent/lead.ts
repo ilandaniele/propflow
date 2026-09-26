@@ -7,6 +7,8 @@
 import { db } from '@/lib/db';
 import { crmLeads } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
+import { log } from '@/lib/log';
+import { routeLead } from '@/lib/leads/routing';
 import { computeLeadScore, intentTagForScore, type LeadQualificationInput } from './scoring';
 import type { AgentAttribution } from './types';
 
@@ -61,7 +63,7 @@ export interface CreateProspectLeadArgs {
   orgId: string;
   fullName: string;
   phone?: string | null;
-  sourceChannel: 'whatsapp' | 'web' | 'voice';
+  sourceChannel: 'whatsapp' | 'web' | 'voice' | 'manual';
   sourceRef?: string | null;
   sourceMeta?: Record<string, unknown>;
   pipeline?: 'demand' | 'supply';
@@ -88,7 +90,18 @@ export async function createProspectLead(args: CreateProspectLeadArgs): Promise<
     })
     .returning();
 
-  return toLeadRecord(rows[0]);
+  const lead = toLeadRecord(rows[0]);
+
+  // Best-effort: the model never assigns advisors (no tool for it) — this is
+  // the only trigger for round-robin/weighted routing. Routing failure must
+  // never fail lead creation.
+  try {
+    await routeLead({ orgId: args.orgId, leadId: lead.id });
+  } catch (err) {
+    log.warn('[agent/lead] routeLead failed', { orgId: args.orgId, leadId: lead.id, err: (err as Error).message });
+  }
+
+  return lead;
 }
 
 /**

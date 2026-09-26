@@ -9,6 +9,7 @@ import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { listVisitsInRange } from '@/lib/agent/visits/service';
 import { resolveWeekRange } from './_lib/week';
 import { VisitsWeekClient } from './VisitsWeekClient';
+import { CalendarDriftBanner } from './_components/CalendarDriftBanner';
 
 export const metadata: Metadata = { title: 'Visitas' };
 
@@ -53,25 +54,28 @@ export default async function VisitsPage({
   ]);
 
   return (
-    <VisitsWeekClient
-      timezone={config.timezone}
-      weekStart={week.weekStart}
-      days={week.days}
-      visits={visits.map((v) => ({
-        id: v.id,
-        startsAt: v.startsAt.toISOString(),
-        endsAt: v.endsAt.toISOString(),
-        status: v.status,
-        profileId: v.profileId,
-        advisorName: v.advisorName,
-        listingTitle: v.listingTitle,
-        leadName: v.leadName,
-      }))}
-      advisors={advisorRows.map((a) => ({ id: a.id, fullName: a.fullName ?? a.id }))}
-      listings={listingRows.map((l) => ({ id: l.id, title: l.title ?? l.id }))}
-      recentLeads={leadRows.map((l) => ({ id: l.id, fullName: l.fullName, phone: l.phone }))}
-      selectedAdvisor={params.advisor ?? 'all'}
-      availabilityLabel={tNav('visitsAvailability')}
-    />
+    <>
+      <CalendarDriftBanner orgId={ctx.orgId} weekFromUtc={week.fromUtc} weekToUtc={week.toUtc} />
+      <VisitsWeekClient
+        timezone={config.timezone}
+        weekStart={week.weekStart}
+        days={week.days}
+        visits={visits.map((v) => ({
+          id: v.id,
+          startsAt: v.startsAt.toISOString(),
+          endsAt: v.endsAt.toISOString(),
+          status: v.status,
+          profileId: v.profileId,
+          advisorName: v.advisorName,
+          listingTitle: v.listingTitle,
+          leadName: v.leadName,
+        }))}
+        advisors={advisorRows.map((a) => ({ id: a.id, fullName: a.fullName ?? a.id }))}
+        listings={listingRows.map((l) => ({ id: l.id, title: l.title ?? l.id }))}
+        recentLeads={leadRows.map((l) => ({ id: l.id, fullName: l.fullName, phone: l.phone }))}
+        selectedAdvisor={params.advisor ?? 'all'}
+        availabilityLabel={tNav('visitsAvailability')}
+      />
+    </>
   );
 }

@@ -127,6 +127,11 @@ const { db: dbMock, pushSelect, pushUpdateReturn, getInserted, getUpdated, reset
 
 vi.mock('@/lib/db', () => ({ db: dbMock }));
 
+// Phase 5 item B: service.ts fires this after commit on every visit change.
+// It's fire-and-forget in real code, but it still touches the calendar
+// module (which isn't under test here), so it's mocked to a no-op.
+vi.mock('@/lib/agent/visits/hooks', () => ({ notifyVisitChanged: vi.fn() }));
+
 import { bookVisit, cancelVisit, markVisitOutcome, rescheduleVisit } from '@/lib/agent/visits/service';
 import { VISIT_JOB_KINDS } from '@/lib/agent/visits/job-plan';
 import { MAX_ACTIVE_VISITS_PER_PHONE } from '@/lib/agent/visits/types';

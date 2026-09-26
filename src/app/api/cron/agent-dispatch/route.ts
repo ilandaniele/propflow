@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { drainAgentJobs } from '@/lib/agent/jobs';
 import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
 import { sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
+import { ensureCalendarSyncJobs } from '@/lib/calendar/sync';
 import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
@@ -48,8 +49,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const result = await withDbRetry(() => drainAgentJobs(50), 'cron/agent-dispatch');
     const swept = await withDbRetry(() => sweepStalePendingInbound(), 'cron/agent-dispatch:sweep');
-    log.info('[cron/agent-dispatch] run complete', { ...result, swept });
-    return NextResponse.json({ status: 'ok', ...result, swept });
+    let calendarSyncsEnqueued = 0;
+    try {
+      calendarSyncsEnqueued = await withDbRetry(() => ensureCalendarSyncJobs(), 'cron/agent-dispatch:calendar-sync');
+    } catch (e) {
+      log.error('[cron/agent-dispatch] ensureCalendarSyncJobs failed', { error: e instanceof Error ? e.message : 'unknown' });
+    }
+    log.info('[cron/agent-dispatch] run complete', { ...result, swept, calendarSyncsEnqueued });
+    return NextResponse.json({ status: 'ok', ...result, swept, calendarSyncsEnqueued });
   } catch (e) {
     log.error('[cron/agent-dispatch] exception', { error: e instanceof Error ? e.message : 'unknown' });
     return NextResponse.json(

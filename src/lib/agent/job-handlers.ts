@@ -9,6 +9,8 @@ import { registerAgentJobHandler } from './jobs';
 import { AGENT_WHATSAPP_TURN_JOB, processWhatsAppAgentTurn, type WhatsAppAgentTurnPayload } from './whatsapp-dispatch';
 import { registerVisitJobHandlers } from './visits/register-jobs';
 import { registerVisitButtonReplyHandler } from './visits/button-reply';
+import { registerCalendarJobHandlers } from '@/lib/calendar/register-jobs';
+import { registerLeadJobHandlers } from '@/lib/leads/register-jobs';
 
 let registered = false;
 
@@ -26,4 +28,9 @@ export function registerAgentJobHandlers(): void {
   // the webhook route is also the only place that dispatches button replies.
   registerVisitJobHandlers();
   registerVisitButtonReplyHandler();
+
+  // Item H: calendar (push/sync) and lead (followup) job handlers share the
+  // same agent_jobs queue and must be registered by every drainer too.
+  registerCalendarJobHandlers();
+  registerLeadJobHandlers();
 }

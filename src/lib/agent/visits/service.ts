@@ -17,6 +17,7 @@ import {
 } from '@/lib/db/schema';
 import { and, asc, eq, gte, inArray, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
 import { planVisitJobs, VISIT_JOB_KINDS, type VisitJobPayload } from './job-plan';
+import { notifyVisitChanged } from './hooks';
 import { ACTIVE_VISIT_STATUSES, MAX_ACTIVE_VISITS_PER_PHONE, type VisitFeedback, type VisitRecord, type VisitStatus } from './types';
 
 const ACTIVE_STATUSES: string[] = [...ACTIVE_VISIT_STATUSES];
@@ -205,7 +206,9 @@ export async function bookVisit(a: BookVisitArgs): Promise<BookVisitResult> {
   const now = new Date();
 
   try {
-    return await db.transaction((tx) => bookVisitInTx(tx, a, now));
+    const result = await db.transaction((tx) => bookVisitInTx(tx, a, now));
+    if (result.ok) notifyVisitChanged({ orgId: a.orgId, visitId: result.visit.id, profileId: result.visit.profileId, kind: 'created' });
+    return result;
   } catch (e) {
     if (isExclusionViolation(e)) return { ok: false, reason: 'slot_taken' };
     throw e;
@@ -228,7 +231,7 @@ export async function rescheduleVisit(
   a: RescheduleVisitArgs,
 ): Promise<BookVisitResult | { ok: false; reason: 'not_found' | 'not_active' }> {
   try {
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const now = new Date();
       // Atomic claim: UPDATE ... WHERE status IN (active) RETURNING * doubles
       // as the row lock and the active-status check — no separate SELECT that
@@ -272,10 +275,16 @@ export async function rescheduleVisit(
       // rolls the old visit back to its original status.
       if (!result.ok) throw new RescheduleFailed(result.reason);
 
-      await tx.update(propertyVisits).set({ rescheduledFromId: old.id }).where(eq(propertyVisits.id, result.visit.id));
+      await tx.update(propertyVisits).set({ rescheduledFromId: old.id, updatedAt: now }).where(eq(propertyVisits.id, result.visit.id));
 
-      return { ok: true as const, visit: { ...result.visit, rescheduledFromId: old.id } };
+      return { ok: true as const, visit: { ...result.visit, rescheduledFromId: old.id }, oldProfileId: old.profileId };
     });
+    if (result.ok) {
+      notifyVisitChanged({ orgId: a.orgId, visitId: a.visitId, profileId: result.oldProfileId, kind: 'rescheduled_from' });
+      notifyVisitChanged({ orgId: a.orgId, visitId: result.visit.id, profileId: result.visit.profileId, kind: 'rescheduled_to' });
+      return { ok: true, visit: result.visit };
+    }
+    return result;
   } catch (e) {
     if (e instanceof RescheduleFailed) return { ok: false, reason: e.reason };
     if (isExclusionViolation(e)) return { ok: false, reason: 'slot_taken' };
@@ -295,7 +304,7 @@ export async function cancelVisit(a: CancelVisitArgs): Promise<{ ok: true } | { 
   const conditions = [eq(propertyVisits.id, a.visitId), eq(propertyVisits.orgId, a.orgId)];
   if (a.leadId) conditions.push(eq(propertyVisits.leadId, a.leadId));
 
-  const rows = await db.select({ id: propertyVisits.id, status: propertyVisits.status }).from(propertyVisits).where(and(...conditions)).limit(1);
+  const rows = await db.select({ id: propertyVisits.id, status: propertyVisits.status, profileId: propertyVisits.profileId }).from(propertyVisits).where(and(...conditions)).limit(1);
   const visit = rows[0];
   if (!visit) return { ok: false, reason: 'not_found' };
   if (!ACTIVE_STATUSES.includes(visit.status)) return { ok: false, reason: 'not_active' };
@@ -305,6 +314,7 @@ export async function cancelVisit(a: CancelVisitArgs): Promise<{ ok: true } | { 
     .set({ status: 'cancelled', cancelledAt: new Date(), cancelReason: a.reason ?? null, updatedAt: new Date() })
     .where(eq(propertyVisits.id, visit.id));
 
+  notifyVisitChanged({ orgId: a.orgId, visitId: visit.id, profileId: visit.profileId, kind: 'cancelled' });
   return { ok: true };
 }
 
@@ -321,6 +331,7 @@ export async function confirmVisit(orgId: string, visitId: string): Promise<Visi
     .where(eq(propertyVisits.id, visitId))
     .returning();
 
+  notifyVisitChanged({ orgId, visitId: updated[0].id, profileId: updated[0].profileId, kind: 'status' });
   return toVisitRecord(updated[0]);
 }
 
@@ -336,7 +347,7 @@ const OUTCOME_ELIGIBLE_STATUSES: string[] = ['scheduled', 'confirmed'];
 
 /** Atomic claim + guard: only a scheduled/confirmed visit whose time has already passed can have its outcome recorded. Anything else (already marked, cancelled, rescheduled, or still in the future) returns null — the caller surfaces this as an error rather than silently overwriting an outcome. */
 export async function markVisitOutcome(a: MarkVisitOutcomeArgs): Promise<VisitRecord | null> {
-  return db.transaction(async (tx) => {
+  const visit = await db.transaction(async (tx) => {
     const now = new Date();
     const updated = await tx
       .update(propertyVisits)
@@ -367,8 +378,12 @@ export async function markVisitOutcome(a: MarkVisitOutcomeArgs): Promise<VisitRe
       });
     }
 
-    return toVisitRecord(visit);
+    return visit;
   });
+  if (!visit) return null;
+
+  notifyVisitChanged({ orgId: a.orgId, visitId: visit.id, profileId: visit.profileId, kind: 'status' });
+  return toVisitRecord(visit);
 }
 
 export async function recordVisitFeedback(orgId: string, visitId: string, f: VisitFeedback): Promise<VisitRecord | null> {
