@@ -52,6 +52,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@playwright/test": "^1.60.0",
     "@swc/helpers": "^0.5.23",
     "@tailwindcss/postcss": "^4",
