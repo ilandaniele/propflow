@@ -19,6 +19,7 @@ import { RECONCILABLE_ENTITIES, isEntityReconcilable, RECONCILE_GRACE_HOURS } fr
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
 import { withDbRetry } from '@/lib/db/retry';
+import { syncListingsFromUnits } from '@/lib/agent/listings';
 
 // ---------------------------------------------------------------------------
 // Sync target lists
@@ -240,6 +241,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'unknown error';
       console.error('[cron/airtable-sync] tenant unit_id derivation failed', { orgId, error: msg });
+    }
+  }
+
+  // ── Phase 3.5: Derive agent listings from vacant/occupied units ───────────
+  // Best-effort — insert-only + availability updates, never touches price or
+  // marketing copy (see src/lib/agent/listings.ts). Never fails the sync; a
+  // transient failure just retries on tomorrow's run, so no withDbRetry here.
+  for (const orgId of orgIds) {
+    try {
+      const result = await syncListingsFromUnits(orgId);
+      if (result.inserted > 0 || result.updated > 0) {
+        console.info('[cron/airtable-sync] listings synced from units', { orgId, ...result });
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'unknown error';
+      console.error('[cron/airtable-sync] listings sync failed', { orgId, error: msg });
     }
   }
 

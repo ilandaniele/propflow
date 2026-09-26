@@ -69,6 +69,7 @@
     "visitors": "Visitors",
     "aiAssistant": "AI Assistant",
     "whatsapp": "WhatsApp",
+    "agentPlayground": "AI Agent (playground)",
     "tasks": "Tasks",
     "sanctions": "Sanctions",
     "overview": "Overview",
@@ -476,6 +477,16 @@
     "newTaskSubtitle": "Create and assign a task to a tenant.",
     "createTask": "Create Task",
     "creating": "Creating..."
+  },
+  "agentPlayground": {
+    "title": "AI Agent (playground)",
+    "disclaimer": "Test mode: replies are not sent to real WhatsApp and lead data is not saved.",
+    "placeholder": "Type as if you were a prospect...",
+    "send": "Send",
+    "sending": "Sending...",
+    "emptyState": "Try typing something like \"Hi, I'm looking for a 2-bedroom apartment in Miraflores\".",
+    "handoffBadge": "This message would have handed off to a human agent",
+    "errorGeneric": "Something went wrong. Please try again."
   },
   "whatsapp": {
     "title": "WhatsApp",

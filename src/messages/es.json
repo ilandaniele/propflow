@@ -69,6 +69,7 @@
     "visitors": "Visitantes",
     "aiAssistant": "Asistente IA",
     "whatsapp": "WhatsApp",
+    "agentPlayground": "Agente IA (playground)",
     "tasks": "Tareas",
     "sanctions": "Sanciones",
     "overview": "Resumen",
@@ -476,6 +477,16 @@
     "newTaskSubtitle": "Crea y asigna una tarea a un inquilino.",
     "createTask": "Crear Tarea",
     "creating": "Creando..."
+  },
+  "agentPlayground": {
+    "title": "Agente IA (playground)",
+    "disclaimer": "Modo de prueba: las respuestas no se envían a WhatsApp real y los datos del prospecto no se guardan.",
+    "placeholder": "Escribí como si fueras un prospecto...",
+    "send": "Enviar",
+    "sending": "Enviando...",
+    "emptyState": "Probá escribiendo algo como \"Hola, busco un depa de 2 dormitorios en Miraflores\".",
+    "handoffBadge": "Este mensaje habría derivado a un asesor humano",
+    "errorGeneric": "Ocurrió un error. Intentá de nuevo."
   },
   "whatsapp": {
     "title": "WhatsApp",

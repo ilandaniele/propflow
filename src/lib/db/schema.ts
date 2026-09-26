@@ -518,11 +518,34 @@ export const crmLeads = pgTable('crm_leads', {
   source:           text('source'),
   status:           text('status').notNull().default('new'),  // 'new'|'contacted'|'qualified'|'lost'
   notes:            text('notes'),
+  // Agent qualification fields (Phase 1). `status` above is left untouched —
+  // dashboard/leads still reads it; `stage` is the agent's richer pipeline.
+  operationType:      text('operation_type'),      // 'rent'|'buy'|'owner_sell'|'owner_rent'
+  pipeline:           text('pipeline').notNull().default('demand'), // 'demand'|'supply'
+  budgetMin:          numeric('budget_min', { precision: 12, scale: 2 }),
+  budgetMax:          numeric('budget_max', { precision: 12, scale: 2 }),
+  currency:           text('currency').notNull().default('PEN'),
+  zones:              jsonb('zones').notNull().default([]).$type<string[]>(),
+  bedroomsMin:        integer('bedrooms_min'),
+  moveInDate:         date('move_in_date'),
+  timeline:           text('timeline'), // 'immediate'|'1_3_months'|'3_6_months'|'flexible'
+  pets:               boolean('pets'),
+  score:              integer('score').notNull().default(0),
+  intentTag:          text('intent_tag'), // 'high_intent'|'under_analysis'|'qualified'|'cold'
+  assignedProfileId:  uuid('assigned_profile_id').references(() => profiles.id, { onDelete: 'set null' }),
+  stage:              text('stage').notNull().default('new'),
+  // 'new'|'contacted'|'qualified'|'visit_scheduled'|'visited'|'negotiating'|'won'|'lost'
+  nextFollowupAt:     timestamp('next_followup_at', { withTimezone: true }),
+  doNotContact:       boolean('do_not_contact').notNull().default(false),
+  sourceChannel:      text('source_channel'), // 'whatsapp'|'web'|'voice'|'manual'
+  sourceRef:          text('source_ref'),
   createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgIdx:       index('idx_crm_leads_org').on(t.orgId),
   orgStatusIdx: index('idx_crm_leads_org_status').on(t.orgId, t.status),
+  orgStageIdx:      index('idx_crm_leads_org_stage').on(t.orgId, t.stage),
+  orgFollowupIdx:   index('idx_crm_leads_org_followup').on(t.orgId, t.nextFollowupAt),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -806,6 +829,143 @@ export const agentJobs = pgTable('agent_jobs', {
 }, (t) => ({
   dueIdx: index('idx_agent_jobs_due').on(t.status, t.runAt),
   orgIdx: index('idx_agent_jobs_org').on(t.orgId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_configs — one row per org. Seeded with defaults by the
+// app on first read (src/lib/agent/config.ts), not by inserting a row here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentConfigs = pgTable('agent_configs', {
+  id:                    uuid('id').primaryKey().defaultRandom(),
+  orgId:                 uuid('org_id').notNull().unique().references(() => organizations.id, { onDelete: 'cascade' }),
+  persona:               text('persona').notNull().default('Asistente inmobiliario'),
+  tone:                  text('tone').notNull().default('profesional'), // 'profesional'|'cercano'|'formal'
+  rules:                 text('rules'),
+  prohibited:            text('prohibited'),
+  faq:                   jsonb('faq').notNull().default([]),
+  businessHours:         jsonb('business_hours').notNull().default({}),
+  timezone:              text('timezone').notNull().default('America/Lima'),
+  qualificationFields:   jsonb('qualification_fields').notNull()
+    .default(['operation_type', 'zones', 'budget_max', 'bedrooms_min', 'timeline']),
+  followupPolicy:        jsonb('followup_policy').notNull().default({}),
+  routingMode:           text('routing_mode').notNull().default('round_robin'), // 'round_robin'|'weighted'|'manual'
+  dailyTokenBudget:      integer('daily_token_budget').notNull().default(50_000),
+  widgetAllowedOrigins:  jsonb('widget_allowed_origins').notNull().default([]),
+  channelsEnabled:       jsonb('channels_enabled').notNull()
+    .default({ whatsapp: false, web: false, voice: false }),
+  createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_sessions — one conversational thread per (org, channel,
+// external_id). Links to whatsapp_conversations so the inbox and the agent
+// share one history instead of drifting apart.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentSessions = pgTable('agent_sessions', {
+  id:                     uuid('id').primaryKey().defaultRandom(),
+  orgId:                  uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  channel:                text('channel').notNull(), // 'whatsapp'|'web'|'voice'
+  externalId:             text('external_id').notNull(),
+  leadId:                 uuid('lead_id').references(() => crmLeads.id, { onDelete: 'set null' }),
+  whatsappConversationId: uuid('whatsapp_conversation_id').references(() => whatsappConversations.id, { onDelete: 'set null' }),
+  mode:                   text('mode').notNull().default('ai'), // 'ai'|'human'|'paused'
+  summary:                text('summary'),
+  windowExpiresAt:        timestamp('window_expires_at', { withTimezone: true }),
+  processingLockedUntil:  timestamp('processing_locked_until', { withTimezone: true }),
+  createdAt:              timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:              timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  channelExternalUniq: uniqueIndex('uq_agent_sessions_channel_external').on(t.orgId, t.channel, t.externalId),
+  orgIdx:              index('idx_agent_sessions_org').on(t.orgId),
+  leadIdx:             index('idx_agent_sessions_lead').on(t.leadId),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: agent_messages — full Anthropic content-block history per
+// session, append-only. Separate from whatsapp_messages (the inbox's source
+// of truth) so LLM context (tool_use/tool_result blocks) never round-trips
+// through it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const agentMessages = pgTable('agent_messages', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  orgId:        uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  sessionId:    uuid('session_id').notNull().references(() => agentSessions.id, { onDelete: 'cascade' }),
+  role:         text('role').notNull(), // 'user'|'assistant'
+  content:      jsonb('content').notNull(),
+  inputTokens:  integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  costUsd:      numeric('cost_usd', { precision: 10, scale: 4 }),
+  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  sessionIdx: index('idx_agent_messages_session').on(t.sessionId, t.createdAt),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: listings — unified rent + sale inventory. Owns price and
+// marketing copy; the unit-derivation job (src/lib/agent/listings.ts) only
+// inserts missing rows and updates availability, never price or text.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const listings = pgTable('listings', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  orgId:           uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  unitId:          uuid('unit_id').references(() => units.id, { onDelete: 'set null' }),
+  propertyId:      uuid('property_id').references(() => properties.id, { onDelete: 'set null' }),
+  operation:       text('operation').notNull(), // 'rent'|'sale'
+  price:           numeric('price', { precision: 14, scale: 2 }),
+  currency:        text('currency').notNull().default('PEN'),
+  status:          text('status').notNull().default('available'), // 'available'|'reserved'|'closed'
+  statusOverride:  boolean('status_override').notNull().default(false),
+  title:           text('title'),
+  description:     text('description'),
+  zone:            text('zone'),
+  bedrooms:        integer('bedrooms'),
+  bathrooms:       integer('bathrooms'),
+  areaM2:          numeric('area_m2'),
+  parking:         boolean('parking').notNull().default(false),
+  maintenanceFee:  numeric('maintenance_fee', { precision: 12, scale: 2 }),
+  petsAllowed:     boolean('pets_allowed'),
+  publicSlug:      text('public_slug'),
+  published:       boolean('published').notNull().default(false),
+  refCode:         text('ref_code'),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx:          index('idx_listings_org').on(t.orgId),
+  orgPublishedIdx: index('idx_listings_org_published').on(t.orgId, t.published, t.status),
+  unitUniq:        uniqueIndex('listings_org_unit_uniq').on(t.orgId, t.unitId).where(sql`unit_id IS NOT NULL`),
+  slugUniq:        uniqueIndex('listings_org_slug_uniq').on(t.orgId, t.publicSlug).where(sql`public_slug IS NOT NULL`),
+  refCodeUniq:     uniqueIndex('listings_org_ref_code_uniq').on(t.orgId, t.refCode).where(sql`ref_code IS NOT NULL`),
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain table: listing_images — for listings without a unit (standalone sale
+// listings). Unit-backed listings reuse unit_images instead.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const listingImages = pgTable('listing_images', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  orgId:       uuid('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  listingId:   uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  storagePath: text('storage_path').notNull(),
+  filename:    text('filename').notNull(),
+  mimeType:    text('mime_type').notNull(),
+  sizeBytes:   integer('size_bytes').notNull(),
+  width:       integer('width'),
+  height:      integer('height'),
+  caption:     text('caption'),
+  sortOrder:   integer('sort_order').notNull().default(0),
+  isCover:     boolean('is_cover').notNull().default(false),
+  uploadedBy:  uuid('uploaded_by').references(() => profiles.id),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  listingSortIdx: index('idx_listing_images_listing').on(t.listingId, t.sortOrder),
+  orgIdx:         index('idx_listing_images_org').on(t.orgId),
+  coverUniq:      uniqueIndex('listing_images_cover_idx').on(t.listingId).where(sql`is_cover = true`),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
