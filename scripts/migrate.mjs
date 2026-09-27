@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Applies pending SQL migrations from src/lib/db/migrations (or MIGRATIONS_DIR)
 // in filename order. Runs as the Fly `release_command`, before new machines
 // start, so code never ships ahead of its schema. A failure aborts the deploy

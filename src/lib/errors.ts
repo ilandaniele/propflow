@@ -17,6 +17,23 @@ export type ActionResult<T = void> = {
   };
 };
 
+/**
+ * Human-readable message for an ActionResult error. VALIDATION_ERROR's
+ * top-level `message` is always the generic "Validation failed" — the real
+ * reason lives in `details.formErrors`/`details.fieldErrors` (zod's
+ * `.flatten()` shape, also used by hand-built VALIDATION_ERROR calls). Falls
+ * back to `error.message` for every other error code.
+ */
+export function actionErrorMessage(error: NonNullable<ActionResult['error']>): string {
+  const details = error.details as { formErrors?: string[]; fieldErrors?: Record<string, string[]> } | undefined;
+  if (details?.formErrors?.length) return details.formErrors.join(' ');
+  if (details?.fieldErrors) {
+    const fieldMessages = Object.values(details.fieldErrors).flat().filter(Boolean);
+    if (fieldMessages.length > 0) return fieldMessages.join(' ');
+  }
+  return error.message;
+}
+
 export function ok<T>(data: T): ActionResult<T> {
   return { data };
 }

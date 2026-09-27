@@ -32,8 +32,10 @@ import type {
   ImageMessageOpts,
 } from './provider';
 
-const META_API_HOST = 'https://graph.facebook.com';
-const META_API_VERSION = 'v22.0';
+// Exported so meta-templates-api.ts (Graph API template management, not message
+// sending) hits the same host/version instead of hardcoding a second copy.
+export const META_API_HOST = 'https://graph.facebook.com';
+export const META_API_VERSION = 'v22.0';
 const REQUEST_TIMEOUT_MS = 15_000;
 const RETRY_DELAYS_MS = [250, 1_000, 4_000] as const;
 
