@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ActionResult } from '@/lib/errors';
+import { actionErrorMessage, type ActionResult } from '@/lib/errors';
 
 /**
  * Shared "call a server action, surface its error, refresh on success" glue
@@ -16,17 +16,18 @@ export function useSettingsAction() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const run = useCallback(
-    async (action: () => Promise<ActionResult<unknown>>) => {
+    async <T,>(action: () => Promise<ActionResult<T>>) => {
       setSaving(true);
       setError(null);
       try {
         const result = await action();
         if (result.error) {
-          setError(result.error.message);
+          setError(actionErrorMessage(result.error));
         } else {
           setSavedAt(Date.now());
           router.refresh();
         }
+        return result;
       } finally {
         setSaving(false);
       }

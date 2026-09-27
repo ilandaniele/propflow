@@ -835,6 +835,9 @@ export const orgChannels = pgTable('org_channels', {
   // Agent Phase 7: resolveWebChannel()/getOrgWebChannel() assume exactly one
   // 'web' row per org.
   oneWebPerOrgUniq:    uniqueIndex('org_channels_one_web_per_org').on(t.orgId).where(sql`channel = 'web'`),
+  // saveWhatsAppChannel() (src/app/actions/agent-setup.ts) assumes exactly one
+  // 'whatsapp' row per org (migration 0012).
+  oneWhatsappPerOrgUniq: uniqueIndex('org_channels_one_whatsapp_per_org').on(t.orgId).where(sql`channel = 'whatsapp'`),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────

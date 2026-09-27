@@ -37,7 +37,9 @@ export async function proxy(request: NextRequest) {
   // Covered: landing page, login, forgot-password, sign pages, auth callback, onboarding,
   // /p (Agent Phase 7 public catalogue pages — stay unframeable themselves,
   // via the 'none' below XFO/frame-ancestors is still forced on THIS route;
-  // only the widget iframe route above is exempt from those headers).
+  // only the widget iframe route above is exempt from those headers),
+  // /privacidad and /terminos (required by Meta app review and Google OAuth
+  // verification — plain static legal pages, no auth needed).
   const isFullyPublicRoute =
     path === '/' ||
     path === '/login' ||
@@ -47,7 +49,9 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/auth/') ||
     path === '/onboarding' ||
     path === '/p' ||
-    path.startsWith('/p/');
+    path.startsWith('/p/') ||
+    path === '/privacidad' ||
+    path === '/terminos';
 
   if (isFullyPublicRoute) {
     const publicResponse = NextResponse.next({ request });
