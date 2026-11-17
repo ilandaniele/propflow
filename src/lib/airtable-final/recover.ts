@@ -138,7 +138,7 @@ export async function loadFailedItems(failed: Record<string, string>): Promise<F
   }
 
   const items: FailedItem[] = [];
-  for (const [key, reason] of Object.entries(failed).sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [key, reason] of Object.entries(failed).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (key.startsWith(COLUMN_PREFIX)) {
       const parsed = parseColumnKey(key);
       const row = parsed && columnRows.get(`${parsed.col.dbTable}#${parsed.rowId}`);

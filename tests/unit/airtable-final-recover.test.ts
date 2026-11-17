@@ -188,6 +188,25 @@ describe('runRecoverBatch', () => {
     expect(second).toMatchObject({ processed: 1, nextAfter: null });
   });
 
+  it('pages through keys whose locale order differs from code-unit order without overlap or gaps', async () => {
+    withFailures({
+      'propiedades/reca/Planos/att1': 'record_not_found',
+      'propiedades/recB/Planos/att2': 'record_not_found',
+      'propiedades/recB/Planos y otros/att3': 'record_not_found',
+      'propiedades/recB/Planos/att4': 'record_not_found',
+    });
+    mockNetwork({ records: {} });
+
+    let after: string | null = null;
+    let processed = 0;
+    do {
+      const page = await runRecoverBatch({ mode: 'report', limit: 1, after });
+      processed += page.processed;
+      after = page.nextAfter;
+    } while (after);
+    expect(processed).toBe(4);
+  });
+
   it('only reads from Airtable', async () => {
     withFailures({ 'propiedades/rec1/Planos/att1': 'unsupported_type' });
     const fetchMock = mockNetwork({ records: { rec1: { Planos: [att('att1')] } }, files: { [FRESH_URL]: ZIP } });
