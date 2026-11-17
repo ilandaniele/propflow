@@ -38,7 +38,7 @@ export const users = pgTable('users', {
   email:         text('email').unique(),
   emailVerified: timestamp('email_verified', { withTimezone: true }),
   image:         text('image'),
-  // Credentials provider: bcrypt hash stored here (never in plain text)
+  // Credentials provider: PBKDF2 hash (legacy bcrypt rows are rehashed at login) stored here (never in plain text)
   passwordHash:  text('password_hash'),
 });
 
