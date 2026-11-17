@@ -30,6 +30,7 @@ process.env['NEXT_PUBLIC_SUPABASE_URL'] = 'https://placeholder.supabase.co';
 process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY'] = 'placeholder_anon_key';
 process.env['SUPABASE_SERVICE_ROLE_KEY'] = 'placeholder_service_role_key';
 process.env['AIRTABLE_PAT'] = 'pat.service_payments_v2_test_token';
+process.env['AIRTABLE_ORG_ID'] = ORG_ID;
 process.env['AIRTABLE_BASE_ID'] = 'apphwPe2oIkGRSTkb';
 process.env['AIRTABLE_TABLE_PROPIEDADES'] = 'tblPROPIEDADES';
 process.env['AIRTABLE_TABLE_PAGO_SERVICIOS'] = 'tblPAGO_SERVICIOS';

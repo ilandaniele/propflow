@@ -36,6 +36,7 @@ import { log } from '@/lib/log';
 import { actionRateLimit } from '@/lib/ratelimit';
 import { AirtableAttachmentSchema } from '@/lib/schemas/airtable';
 import { resolvePhotoFieldName } from '@/lib/airtable/normalize';
+import { isAirtableOrg } from '@/lib/airtable/org-binding';
 import { z } from 'zod';
 
 const ONE_MINUTE_MS = 60_000;
@@ -85,6 +86,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // Tenant access returns 404 (not 403 — prevents enumeration per IC4)
   if (ctx.role !== 'admin') {
+    return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
+  }
+
+  // Airtable data belongs to a single org — everyone else gets 404 (SA-1)
+  if (!(await isAirtableOrg(ctx.orgId))) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }
 

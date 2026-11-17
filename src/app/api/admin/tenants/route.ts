@@ -13,6 +13,7 @@ import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
 import { upsertAirtableResidente } from '@/lib/airtable/write';
+import { isAirtableOrg } from '@/lib/airtable/org-binding';
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
@@ -160,7 +161,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let syncStatus: 'synced' | 'failed' | 'skipped' = 'skipped';
   const tableName = process.env['AIRTABLE_TABLE_RESIDENTES'] ?? null;
 
-  if (tableName) {
+  // Write-back only for the org bound to the Airtable base (SA-1) — silently skipped otherwise.
+  if (tableName && (await isAirtableOrg(ctx.orgId))) {
     try {
       const result = await upsertAirtableResidente({
         first_name:              data.first_name,

@@ -17,8 +17,11 @@ import { profiles, tenants } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
 import { log } from '@/lib/log';
+import { actionRateLimit, getClientIp } from '@/lib/ratelimit';
+import { isAirtableOrg } from '@/lib/airtable/org-binding';
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
+const ONE_MINUTE_MS = 60_000;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Step 1: verify session (NextAuth — never trust client-supplied userId)
@@ -29,6 +32,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       { error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } },
       { status: 401 }
+    );
+  }
+
+  // Rate limit: 5 / min per user and per IP (creates records in the owner's Airtable)
+  const ip = getClientIp(request);
+  const rlUser = actionRateLimit(`tenant-register:user:${user.id}`, 5, ONE_MINUTE_MS);
+  const rlIp = actionRateLimit(`tenant-register:ip:${ip}`, 5, ONE_MINUTE_MS);
+  if (!rlUser.success || !rlIp.success) {
+    return NextResponse.json(
+      { error: { code: 'RATE_LIMITED', message: 'Too many requests. Please wait.' } },
+      { status: 429 }
     );
   }
 
@@ -55,7 +69,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Resolve org_id from profile (may not exist yet for new users) — Drizzle (AC1)
   const profileRows = await db
-    .select({ id: profiles.id, orgId: profiles.orgId })
+    .select({ id: profiles.id, orgId: profiles.orgId, role: profiles.role })
     .from(profiles)
     .where(eq(profiles.userId, user.id))
     .limit(1);
@@ -71,6 +85,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const orgId = profileRow.orgId;
+
+  // Only tenant-role users of the org bound to the Airtable base may self-register:
+  // the endpoint writes into the owner's Airtable (SA-5). Admins create tenants
+  // through /api/admin/tenants instead.
+  if (profileRow.role !== 'tenant' || !(await isAirtableOrg(orgId))) {
+    return NextResponse.json(
+      { error: { code: 'FORBIDDEN', message: 'Tenant self-registration is not available for this account.' } },
+      { status: 403 }
+    );
+  }
 
   // Step 3: check for duplicate tenant in this org — Drizzle (AC1, AC8: org scoped)
   const existingRows = await db

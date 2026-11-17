@@ -12,6 +12,7 @@ import { db } from '@/lib/db';
 import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
 import { upsertAirtableResidente } from '@/lib/airtable/write';
+import { isAirtableOrg } from '@/lib/airtable/org-binding';
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
@@ -140,7 +141,8 @@ export async function PATCH(
   let syncStatus: 'synced' | 'failed' | 'skipped' = 'skipped';
   let airtableSynced = false;
 
-  if (tableName) {
+  // Write-back only for the org bound to the Airtable base (SA-1) — silently skipped otherwise.
+  if (tableName && (await isAirtableOrg(ctx.orgId))) {
     try {
       const result = await upsertAirtableResidente(
         {
