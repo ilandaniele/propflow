@@ -221,6 +221,21 @@ describe('runCopyBatch: columns', () => {
     expect(manifestApi.writeManifest).not.toHaveBeenCalled();
   });
 
+  it('reports the storage error of a failed upload without the object path', async () => {
+    emptyColumnsExcept({ tenants: [{ id: 'row-1', orgId: ORG, recordId: 'recT1', value: OLD_URL }] });
+    mockNetwork({ records: { recT1: { 'Foto DNI': [att('attA')] } }, files: { [FRESH_URL]: PNG } });
+    uploadFile.mockRejectedValue(
+      new Error(`[storage.uploadFile] bucket=tenant-avatars path=${ORG}/row-1/x.png error=PutObject failed: HTTP 403 AccessDenied`),
+    );
+
+    const summary = await runCopyBatch({ mode: 'apply', limit: 10 });
+
+    expect(summary.errors).toEqual([
+      { ref: 'tenants.photo_url#row-1', reason: 'upload_failed: PutObject failed: HTTP 403 AccessDenied' },
+    ]);
+    expect(store.setColumnValue).not.toHaveBeenCalled();
+  });
+
   it('rejects unsupported file types and reports them', async () => {
     emptyColumnsExcept({ tenants: [{ id: 'row-1', orgId: ORG, recordId: 'recT1', value: OLD_URL }] });
     mockNetwork({ records: { recT1: { 'Foto DNI': [att('attA')] } }, files: { [FRESH_URL]: EXE } });

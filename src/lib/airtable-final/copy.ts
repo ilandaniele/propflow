@@ -103,11 +103,16 @@ async function fetchFresh(
   }
 }
 
+function uploadFailureReason(err: unknown): string {
+  const storageError = err instanceof Error ? /error=(.+)$/.exec(err.message)?.[1] : undefined;
+  return storageError ? `upload_failed: ${storageError.slice(0, 80)}` : 'upload_failed';
+}
+
 async function store(bucket: string, path: string, file: DownloadedFile, upsert = false): Promise<void> {
   try {
     await uploadFile(bucket, path, file.body, file.contentType, upsert);
-  } catch {
-    throw new CopyError('upload_failed');
+  } catch (err) {
+    throw new CopyError(uploadFailureReason(err));
   }
 }
 
