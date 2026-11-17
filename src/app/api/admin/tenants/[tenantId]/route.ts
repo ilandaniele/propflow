@@ -1,6 +1,6 @@
 /**
  * GET   /api/admin/tenants/[tenantId]  — fetch single tenant detail
- * PATCH /api/admin/tenants/[tenantId]  — update tenant + sync to Airtable
+ * PATCH /api/admin/tenants/[tenantId]  — update tenant
  */
 
 export const dynamic = 'force-dynamic';
@@ -11,8 +11,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
-import { upsertAirtableResidente } from '@/lib/airtable/write';
-import { isAirtableOrg } from '@/lib/airtable/org-binding';
+import { resolveStoredFileUrl } from '@/lib/storage/resolve';
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
@@ -38,7 +37,9 @@ export async function GET(
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant not found.' } }, { status: 404 });
   }
 
-  return NextResponse.json({ tenant });
+  const photoSignedUrl = await resolveStoredFileUrl('tenant-avatars', tenant.photoUrl);
+
+  return NextResponse.json({ tenant, photo_signed_url: photoSignedUrl });
 }
 
 // ── PATCH ─────────────────────────────────────────────────────────────────────
@@ -86,16 +87,8 @@ export async function PATCH(
   // Verify tenant belongs to admin's org
   const existing = await db
     .select({
-      id:                   tenants.id,
-      fullName:             tenants.fullName,
-      email:                tenants.email,
-      phone:                tenants.phone,
-      documentNumber:       tenants.documentNumber,
-      dateOfBirth:          tenants.dateOfBirth,
-      emergencyContactName: tenants.emergencyContactName,
-      emergencyContactPhone: tenants.emergencyContactPhone,
-      airtableExternalId:   tenants.airtableExternalId,
-      syncStatus:           tenants.syncStatus,
+      id:       tenants.id,
+      fullName: tenants.fullName,
     })
     .from(tenants)
     .where(and(eq(tenants.id, tenantId), eq(tenants.orgId, ctx.orgId)))
@@ -136,46 +129,5 @@ export async function PATCH(
     return NextResponse.json({ error: { code: 'UPDATE_FAILED', message: 'Failed to update tenant.' } }, { status: 500 });
   }
 
-  // Attempt Airtable sync (soft failure)
-  const tableName = process.env['AIRTABLE_TABLE_RESIDENTES'] ?? null;
-  let syncStatus: 'synced' | 'failed' | 'skipped' = 'skipped';
-  let airtableSynced = false;
-
-  // Write-back only for the org bound to the Airtable base (SA-1) — silently skipped otherwise.
-  if (tableName && (await isAirtableOrg(ctx.orgId))) {
-    try {
-      const result = await upsertAirtableResidente(
-        {
-          first_name:              newFirst,
-          last_name:               newLast,
-          email:                   (data.email ?? prev.email) ?? '',
-          phone:                   (data.phone ?? prev.phone) ?? '',
-          dni:                     data.dni !== undefined ? data.dni : prev.documentNumber,
-          birth_date:              data.birth_date !== undefined ? data.birth_date : prev.dateOfBirth,
-          emergency_contact_name:  data.emergency_contact_name !== undefined
-            ? data.emergency_contact_name
-            : prev.emergencyContactName,
-          emergency_contact_phone: data.emergency_contact_phone !== undefined
-            ? data.emergency_contact_phone
-            : prev.emergencyContactPhone,
-        },
-        prev.airtableExternalId ?? null
-      );
-
-      await db
-        .update(tenants)
-        .set({ airtableExternalId: result.airtableRecordId, syncStatus: 'synced', lastSyncedAt: new Date() })
-        .where(eq(tenants.id, tenantId));
-
-      syncStatus = 'synced';
-      airtableSynced = true;
-    } catch (err) {
-      const errName = err instanceof Error ? err.name : 'unknown';
-      console.warn('[api/admin/tenants PATCH] Airtable sync failed', { errName, tenantId });
-      await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, tenantId));
-      syncStatus = 'failed';
-    }
-  }
-
-  return NextResponse.json({ tenant: updatedTenant, syncStatus, airtableSynced });
+  return NextResponse.json({ tenant: updatedTenant });
 }

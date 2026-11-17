@@ -21,7 +21,6 @@ interface TenantDetail {
   portal_access: string | null;
   sync_status: string | null;
   last_synced_at: string | null;
-  airtable_external_id: string | null;
   preferred_language: string | null;
   notes: string | null;
   responsable_id: string | null;
@@ -69,11 +68,11 @@ export default function AdminTenantDetailPage({
   const creating = isNew(tenantId);
 
   const [tenant, setTenant]     = useState<TenantDetail | null>(null);
+  const [photoSignedUrl, setPhotoSignedUrl] = useState<string | null>(null);
   const [loadedId, setLoadedId]   = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [success, setSuccess]   = useState<string | null>(null);
-  const [syncWarning, setSyncWarning] = useState(false);
   const [inviting, setInviting]     = useState(false);
   const [inviteResult, setInviteResult] = useState<{ inviteUrl: string; emailSent: boolean; expiresAt: string } | null>(null);
   const [inviteError, setInviteError]   = useState<string | null>(null);
@@ -100,10 +99,11 @@ export default function AdminTenantDetailPage({
     if (creating) return;
     void fetch(`/api/admin/tenants/${tenantId}`)
       .then(r => r.json())
-      .then((json: { tenant?: TenantDetail; error?: unknown }) => {
+      .then((json: { tenant?: TenantDetail; photo_signed_url?: string | null; error?: unknown }) => {
         if (json.tenant) {
           const ten = json.tenant;
           setTenant(ten);
+          setPhotoSignedUrl(json.photo_signed_url ?? null);
           setForm({
             first_name:               ten.first_name               ?? '',
             last_name:                ten.last_name                ?? '',
@@ -159,7 +159,6 @@ export default function AdminTenantDetailPage({
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    setSyncWarning(false);
     setSaving(true);
 
     try {
@@ -193,17 +192,12 @@ export default function AdminTenantDetailPage({
       });
       const json = await res.json() as {
         tenant?: TenantDetail;
-        syncStatus?: string;
         error?: { message?: string };
       };
 
       if (!res.ok) {
         setError(json.error?.message ?? t('errorLoading'));
         return;
-      }
-
-      if (json.syncStatus === 'failed') {
-        setSyncWarning(true);
       }
 
       if (creating && json.tenant) {
@@ -253,12 +247,6 @@ export default function AdminTenantDetailPage({
           {success}
         </div>
       )}
-      {syncWarning && (
-        <div role="alert" className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg px-4 py-3">
-          {t('syncWarning')}
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {/* Section 1: Personal Information */}
@@ -355,9 +343,9 @@ export default function AdminTenantDetailPage({
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
             <h2 className="text-base font-semibold text-slate-800">{t('sectionPhoto')}</h2>
             <div className="flex items-start gap-4">
-              {form.photo_url ? (
+              {photoSignedUrl ? (
                 <img
-                  src={form.photo_url}
+                  src={photoSignedUrl}
                   alt={t('photoAlt')}
                   className="w-16 h-16 rounded-full object-cover border border-slate-200 flex-shrink-0"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -487,11 +475,6 @@ export default function AdminTenantDetailPage({
               {tenant.last_synced_at && (
                 <p className="text-xs text-slate-400">
                   {t('lastSync', { date: new Date(tenant.last_synced_at).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) })}
-                </p>
-              )}
-              {tenant.airtable_external_id && (
-                <p className="text-xs text-slate-400">
-                  {t('airtableId')} <span className="font-mono">{tenant.airtable_external_id}</span>
                 </p>
               )}
               <div className="flex items-center gap-3 flex-wrap">

@@ -114,8 +114,6 @@ export default async function ResponsablesPage() {
           </table>
         </div>
       )}
-
-      <p className="text-xs text-slate-400">{t('syncNote')}</p>
     </div>
   );
 }
