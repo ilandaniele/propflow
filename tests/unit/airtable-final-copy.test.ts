@@ -332,6 +332,22 @@ describe('runCopyBatch: snapshots', () => {
     }));
   });
 
+  it('fetches every field so a field removed in Airtable fails only its own items, as permanent', async () => {
+    store.listSnapshotRows.mockResolvedValue([
+      snapshotRow('propiedades', 'recP1', { Planos: [att('attX', OLD_URL, 'plano.pdf', 'application/pdf')], Viejo: [att('attOld')] }),
+    ]);
+    const fetchMock = mockNetwork({ records: { recP1: { Planos: [att('attX', FRESH_URL, 'plano.pdf', 'application/pdf')] } }, files: { [FRESH_URL]: PDF } });
+
+    const summary = await runCopyBatch({ mode: 'apply', limit: 10 });
+
+    const airtableUrl = new URL(String(fetchMock.mock.calls.find(([input]) => String(input).startsWith('https://api.airtable.com/'))![0]));
+    expect(airtableUrl.searchParams.getAll('fields[]')).toEqual([]);
+    expect(summary).toMatchObject({ copied: 1, failed: 1, remaining: 0, permanentFailures: 1 });
+    expect(summary.errors).toEqual([{ ref: 'snapshot.propiedades.Viejo#recP1', reason: 'attachment_not_found' }]);
+    const written = manifestApi.writeManifest.mock.calls[0][0];
+    expect(written.failed).toEqual({ 'propiedades/recP1/Viejo/attOld': 'attachment_not_found' });
+  });
+
   it('dry-run over snapshots writes nothing', async () => {
     store.listSnapshotRows.mockResolvedValue([snapshotRow('portafolio', 'recU1', { Fotos: [att('attU')] })]);
     store.findUnitIds.mockResolvedValue(new Map([['recU1', 'unit-1']]));
