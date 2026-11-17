@@ -4,10 +4,14 @@
 # our own storage, by calling the protected route on the live app (Airtable and
 # storage credentials only exist as Fly secrets). Run `dry-run` first, then
 # `apply`. After `apply` the workflow runs one final dry-run and fails unless
-# it reports remaining == 0.
+# it reports remaining == 0. Permanent failures (file gone, type not allowed)
+# are reported but do not fail the run.
 #
-# Only batch counters and failure reason codes are printed — never response
-# bodies, refs or URLs.
+# `report` diagnoses those permanent failures against Airtable today; `recover`
+# copies every one that can still be found. Both only read Airtable.
+#
+# Only counters, table/field names and reason codes are printed — never
+# response bodies, refs, file names or URLs.
 #
 # Required GitHub settings:
 #   vars.APP_URL        — https://propflow-app.fly.dev
@@ -26,6 +30,8 @@ on:
         options:
           - dry-run
           - apply
+          - report
+          - recover
 
 permissions:
   contents: read
@@ -70,6 +76,36 @@ jobs:
             fi
           }
 
+          # post_recover <mode> <after>: sets NEXT_AFTER and prints grouped counts only
+          post_recover() {
+            STATUS=$(curl -sS -o "$BODY" -w "%{http_code}" -G \
+              -X POST "$APP_URL/api/cron/airtable-final-copy" \
+              --data-urlencode "mode=$1" --data-urlencode "limit=50" --data-urlencode "after=$2" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              --max-time 900)
+            if [ "$STATUS" -ge 400 ]; then
+              echo "HTTP $STATUS" >&2
+              exit 1
+            fi
+            jq -r '"mode=\(.mode) total=\(.total) processed=\(.processed) recovered=\(.recovered) errors=\(.errors | length)"' "$BODY"
+            jq -r '.groups[] | "  table=\(.table) field=\(.field) reason=\(.reason) verdict=\(.verdict) count=\(.count)"' "$BODY"
+            jq -r '.errors | group_by(.reason)[] | "  error reason=\(.[0].reason) count=\(length)"' "$BODY"
+            NEXT_AFTER=$(jq -r '.nextAfter // ""' "$BODY")
+          }
+
+          if [ "$MODE" = "report" ] || [ "$MODE" = "recover" ]; then
+            AFTER=""
+            BATCH=0
+            while :; do
+              BATCH=$((BATCH + 1))
+              echo "batch $BATCH"
+              post_recover "$MODE" "$AFTER"
+              [ -z "$NEXT_AFTER" ] && break
+              AFTER=$NEXT_AFTER
+            done
+            exit 0
+          fi
+
           if [ "$MODE" = "dry-run" ]; then
             post_batch dry-run 100
             [ "$FAILED" -eq 0 ]
@@ -90,11 +126,12 @@ jobs:
             fi
           done
 
-          LAST_FAILED=$FAILED
           echo "verification (dry-run)"
           post_batch dry-run 1
           if [ "$REMAINING" -ne 0 ]; then
             echo "remaining=$REMAINING after apply" >&2
             exit 1
           fi
-          [ "$LAST_FAILED" -eq 0 ]
+          if [ "$PERMANENT" -gt 0 ]; then
+            echo "::warning::$PERMANENT permanent failures; run mode=report to diagnose them"
+          fi

@@ -121,13 +121,16 @@ function uploadFailureReason(err: unknown): string {
   return storageError ? `upload_failed: ${storageError.slice(0, 80)}` : 'upload_failed';
 }
 
-async function store(bucket: string, path: string, file: DownloadedFile, upsert = false): Promise<void> {
+export async function storeBytes(bucket: string, path: string, body: Buffer, contentType: string, upsert = false): Promise<void> {
   try {
-    await uploadFile(bucket, path, file.body, file.contentType, upsert);
+    await uploadFile(bucket, path, body, contentType, upsert);
   } catch (err) {
     throw new CopyError(uploadFailureReason(err));
   }
 }
+
+const store = (bucket: string, path: string, file: DownloadedFile, upsert = false) =>
+  storeBytes(bucket, path, file.body, file.contentType, upsert);
 
 // ---------------------------------------------------------------------------
 // Phase 1: DB columns

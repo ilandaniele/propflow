@@ -20,6 +20,17 @@ export interface DownloadedFile {
  * Errors carry a short reason code only — never the URL.
  */
 export async function downloadAttachment(url: string): Promise<DownloadedFile> {
+  const body = await downloadBytes(url);
+  const contentType = sniffCopyMime(body);
+  if (!contentType) throw new CopyError('unsupported_type');
+  return { body, contentType };
+}
+
+/**
+ * Same checks as `downloadAttachment` (Airtable hosts only, no redirects, size cap)
+ * but any file type: the bytes are returned as they are, for archiving.
+ */
+export async function downloadBytes(url: string): Promise<Buffer> {
   if (!isAirtableUrl(url)) throw new CopyError('url_host_not_allowed');
 
   let res: Response;
@@ -33,10 +44,23 @@ export async function downloadAttachment(url: string): Promise<DownloadedFile> {
   const declaredLength = Number(res.headers.get('content-length') ?? 0);
   if (declaredLength > MAX_DOWNLOAD_BYTES) throw new CopyError('too_large');
 
-  const body = await readCapped(res);
-  const contentType = sniffCopyMime(body);
-  if (!contentType) throw new CopyError('unsupported_type');
-  return { body, contentType };
+  return readCapped(res);
+}
+
+/** True when an Airtable URL still serves the file. Reads one byte at most. */
+export async function isUrlAlive(url: string): Promise<boolean> {
+  if (!isAirtableUrl(url)) return false;
+  try {
+    const res = await fetch(url, {
+      redirect: 'manual',
+      headers: { Range: 'bytes=0-0' },
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    });
+    await res.body?.cancel().catch(() => undefined);
+    return res.status === 200 || res.status === 206;
+  } catch {
+    return false;
+  }
 }
 
 async function readCapped(res: Response): Promise<Buffer> {

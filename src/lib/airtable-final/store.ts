@@ -65,6 +65,18 @@ export async function countPendingColumnRows(col: AttachmentColumn, excludeIds: 
   return Number((rows as unknown as Array<{ n: number }>)[0]?.n ?? 0);
 }
 
+/** Column rows by id, whatever their current value. */
+export async function findColumnRows(col: AttachmentColumn, rowIds: readonly string[]): Promise<ColumnRow[]> {
+  if (rowIds.length === 0) return [];
+  const { table, value, recordId } = columnRefs(col);
+  const rows = await db.execute(sql`
+    SELECT id, org_id AS "orgId", ${recordId} AS "recordId", ${value} AS value
+    FROM ${table}
+    WHERE id::text IN (${inList(rowIds)})
+  `);
+  return rows as unknown as ColumnRow[];
+}
+
 /** Replaces the Airtable URL with the storage path; false when the row changed meanwhile. */
 export async function setColumnValue(
   col: AttachmentColumn,

@@ -1,7 +1,7 @@
 import { getSignedUrl, uploadFile } from '@/lib/storage';
 import { ARCHIVE_BUCKET, MANIFEST_PATH } from './fields';
 
-export type ManifestStatus = 'column' | 'archived' | 'unit_image' | 'duplicate';
+export type ManifestStatus = 'column' | 'archived' | 'unit_image' | 'duplicate' | 'recovered';
 
 export interface ManifestEntry {
   status: ManifestStatus;
@@ -10,6 +10,8 @@ export interface ManifestEntry {
   path?: string;
   size?: number;
   contentType?: string;
+  /** For `recovered`: how the file was found again (a `FailedVerdict` from recover.ts). */
+  via?: string;
 }
 
 export interface Manifest {

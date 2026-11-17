@@ -6,8 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const runCopyBatch = vi.hoisted(() => vi.fn());
+const runRecoverBatch = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/airtable-final/copy', () => ({ runCopyBatch }));
+vi.mock('@/lib/airtable-final/recover', () => ({ runRecoverBatch }));
 vi.mock('@/lib/db', () => ({ db: { execute: vi.fn().mockResolvedValue([]) } }));
 vi.mock('@/lib/log', () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
@@ -27,6 +29,7 @@ describe('POST /api/cron/airtable-final-copy', () => {
     vi.clearAllMocks();
     vi.stubEnv('CRON_SECRET', SECRET);
     runCopyBatch.mockResolvedValue({ copied: 2, skipped: 1, failed: 0, remaining: 5, errors: [] });
+    runRecoverBatch.mockResolvedValue({ total: 3, processed: 3, recovered: 1, nextAfter: null, groups: [], errors: [] });
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -58,6 +61,20 @@ describe('POST /api/cron/airtable-final-copy', () => {
   it('passes mode=apply and caps limit at 200', async () => {
     await POST(request('?mode=apply&limit=999', `Bearer ${SECRET}`));
     expect(runCopyBatch).toHaveBeenCalledWith({ mode: 'apply', limit: 200 });
+  });
+
+  it.each(['report', 'recover'])('routes mode=%s to the recovery pass with the cursor', async (mode) => {
+    const res = await POST(request(`?mode=${mode}&limit=20&after=${encodeURIComponent('pagos/rec1/Comprobante/att1')}`, `Bearer ${SECRET}`));
+    expect(res.status).toBe(200);
+    expect(runRecoverBatch).toHaveBeenCalledWith({ mode, limit: 20, after: 'pagos/rec1/Comprobante/att1' });
+    expect(runCopyBatch).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ status: 'ok', mode, recovered: 1, nextAfter: null });
+  });
+
+  it('rejects an oversized cursor with 400', async () => {
+    const res = await POST(request(`?mode=report&after=${'x'.repeat(501)}`, `Bearer ${SECRET}`));
+    expect(res.status).toBe(400);
+    expect(runRecoverBatch).not.toHaveBeenCalled();
   });
 
   it('rejects invalid mode or limit with 400', async () => {
