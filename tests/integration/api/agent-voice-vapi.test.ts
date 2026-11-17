@@ -146,7 +146,7 @@ function makeRequest(body: unknown, headers: Record<string, string> = {}): NextR
 
 describe('POST /api/agent/voice/vapi', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     calls.clear();
     logCalls.length = 0;
     toolRun.slow = false;

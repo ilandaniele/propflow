@@ -42,8 +42,10 @@ import { enqueueJob, drainAgentJobs, registerAgentJobHandler, registeredJobKinds
 
 describe('agent/jobs', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     selectForUpdate.mockResolvedValue(dueRows);
+    _resetAgentJobHandlers();
+    registerAgentJobHandler('noop', vi.fn(async () => {}));
   });
 
   it('enqueueJob inserts a row and returns its id', async () => {
@@ -78,8 +80,6 @@ describe('agent/jobs', () => {
     expect(result).toEqual({ processed: 0, failed: 0 });
   });
 
-  // Placed last: clears every registered handler, so it must not run before
-  // the tests above that rely on 'noop' already being registered.
   it('a kind with no registered handler is never claimed — drainAgentJobs short-circuits before querying', async () => {
     _resetAgentJobHandlers();
     expect(registeredJobKinds()).toEqual([]);
