@@ -66,3 +66,6 @@ scripts/agent-eval/report.md
 .wrangler/
 .migration/
 .dev.vars
+# crear-app handoffs (local only)
+.claude/handoff/
+tests/load/results/
