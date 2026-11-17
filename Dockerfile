@@ -4,7 +4,7 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm install --frozen-lockfile
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
@@ -17,7 +17,7 @@ ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 ENV NEXT_PUBLIC_META_APP_ID=${NEXT_PUBLIC_META_APP_ID}
 # Skip DB connection during build
 ENV NEXT_PHASE=phase-production-build
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate && pnpm run build
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm run build
 # Standalone migration runner deps (postgres.js has no dependencies); -L resolves pnpm symlinks
 RUN mkdir -p /migrate/node_modules && cp -rL node_modules/postgres /migrate/node_modules/postgres
 
