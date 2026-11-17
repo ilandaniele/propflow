@@ -69,7 +69,7 @@ export default function AdminTenantDetailPage({
   const creating = isNew(tenantId);
 
   const [tenant, setTenant]     = useState<TenantDetail | null>(null);
-  const [loading, setLoading]   = useState(!creating);
+  const [loadedId, setLoadedId]   = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [success, setSuccess]   = useState<string | null>(null);
@@ -77,6 +77,9 @@ export default function AdminTenantDetailPage({
   const [inviting, setInviting]     = useState(false);
   const [inviteResult, setInviteResult] = useState<{ inviteUrl: string; emailSent: boolean; expiresAt: string } | null>(null);
   const [inviteError, setInviteError]   = useState<string | null>(null);
+
+  // Loading is derived: an existing tenant is loading until it has been fetched.
+  const loading = !creating && loadedId !== tenantId;
 
   const [form, setForm] = useState<FormState>({
     first_name: '',
@@ -95,7 +98,6 @@ export default function AdminTenantDetailPage({
 
   useEffect(() => {
     if (creating) return;
-    setLoading(true);
     void fetch(`/api/admin/tenants/${tenantId}`)
       .then(r => r.json())
       .then((json: { tenant?: TenantDetail; error?: unknown }) => {
@@ -119,7 +121,7 @@ export default function AdminTenantDetailPage({
         }
       })
       .catch(() => setError(t('errorLoading')))
-      .finally(() => setLoading(false));
+      .finally(() => setLoadedId(tenantId));
   }, [tenantId, creating, t]);
 
   async function handleSendInvite() {

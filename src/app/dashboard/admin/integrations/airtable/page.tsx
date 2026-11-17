@@ -52,13 +52,12 @@ export default function AirtableSyncPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
 
   const fetchStatus = useCallback(async () => {
-    setLoading(true);
     try {
-      const res  = await fetch('/api/admin/integrations/airtable/status');
-      const json = await res.json() as StatusData;
-      setStatus(json);
-    } catch {
-      // silent
+      // Failures are silent — the page keeps showing the last known status.
+      const json = await fetch('/api/admin/integrations/airtable/status')
+        .then(res => res.json() as Promise<StatusData>)
+        .catch(() => null);
+      if (json) setStatus(json);
     } finally {
       setLoading(false);
     }
@@ -69,6 +68,7 @@ export default function AirtableSyncPage() {
   async function handleSync() {
     setSyncing(true);
     setSyncResult(null);
+    setLoading(true);
     try {
       const res  = await fetch('/api/admin/integrations/airtable/sync', { method: 'POST' });
       const json = await res.json() as { triggered?: boolean; results?: Array<{ entity: string; count: number; status: string }> };
