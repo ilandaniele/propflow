@@ -11,6 +11,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
+import { resolveStoredFileUrl } from '@/lib/storage/resolve';
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,9 @@ export async function GET(
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Tenant not found.' } }, { status: 404 });
   }
 
-  return NextResponse.json({ tenant });
+  const photoSignedUrl = await resolveStoredFileUrl('tenant-avatars', tenant.photoUrl);
+
+  return NextResponse.json({ tenant, photo_signed_url: photoSignedUrl });
 }
 
 // ── PATCH ─────────────────────────────────────────────────────────────────────
