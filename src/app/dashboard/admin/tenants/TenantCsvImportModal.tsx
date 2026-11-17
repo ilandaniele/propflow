@@ -37,7 +37,6 @@ export function TenantCsvImportModal({ open, onClose, onSuccess }: TenantCsvImpo
   const [checking, setChecking] = useState(false);
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [errors, setErrors] = useState<{ rowNumber: number; field: string; message: string }[]>([]);
-  const [warnings, setWarnings] = useState<{ rowNumber: number; field: string; message: string }[]>([]);
   const [counts, setCounts] = useState({ create: 0, update: 0, invalid: 0, warning: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
   const [errorsExpanded, setErrorsExpanded] = useState(false);
@@ -48,7 +47,6 @@ export function TenantCsvImportModal({ open, onClose, onSuccess }: TenantCsvImpo
     setFile(null);
     setPreviewRows([]);
     setErrors([]);
-    setWarnings([]);
     setCounts({ create: 0, update: 0, invalid: 0, warning: 0 });
     setResult(null);
     setErrorsExpanded(false);
@@ -73,7 +71,6 @@ export function TenantCsvImportModal({ open, onClose, onSuccess }: TenantCsvImpo
       } else {
         setPreviewRows(data.preview_rows ?? []);
         setErrors(data.errors ?? []);
-        setWarnings(data.warnings ?? []);
         setCounts({
           create: data.rows_create ?? 0,
           update: data.rows_update ?? 0,

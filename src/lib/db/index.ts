@@ -4,9 +4,7 @@ import * as schema from './schema';
 
 // Singleton pattern: reuse connection across hot-reloads in development
 declare global {
-  // eslint-disable-next-line no-var
   var __pgPool: ReturnType<typeof postgres> | undefined;
-  // eslint-disable-next-line no-var
   var __db: ReturnType<typeof drizzle<typeof schema>> | undefined;
 }
 

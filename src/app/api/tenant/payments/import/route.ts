@@ -9,8 +9,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { profiles, tenants, importLogs, payments } from '@/lib/db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { profiles, tenants, importLogs } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 

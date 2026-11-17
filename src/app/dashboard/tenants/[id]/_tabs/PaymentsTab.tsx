@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { payments, charges, paymentReceipts, contracts } from '@/lib/db/schema';
+import { payments, charges, paymentReceipts } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';

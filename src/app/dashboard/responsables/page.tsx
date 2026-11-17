@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { responsables, tenants } from '@/lib/db/schema';
-import { eq, asc, isNotNull } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';

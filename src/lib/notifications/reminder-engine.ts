@@ -20,14 +20,12 @@ import {
   contracts,
   tenants,
   units,
-  properties,
   charges,
   reminders,
   notificationInbox,
   tenantTasks,
 } from '@/lib/db/schema';
-import { eq, and, gte, lte, inArray, lt } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray } from 'drizzle-orm';
 import { sendEmail, buildReminderEmail } from './email';
 import { log } from '@/lib/log';
 import { buildWhatsAppTemplate } from '@/lib/whatsapp/templates';

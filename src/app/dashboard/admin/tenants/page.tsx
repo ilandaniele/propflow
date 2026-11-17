@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -47,6 +48,7 @@ const TEMPLATE_HREF = '/api/admin/tenants/import/template';
 
 export default function AdminTenantsPage() {
   const t = useTranslations('adminTenants');
+  const router = useRouter();
   const [tenants, setTenants]       = useState<TenantRow[]>([]);
   const [total, setTotal]           = useState(0);
   const [page, setPage]             = useState(1);
@@ -181,7 +183,7 @@ export default function AdminTenantsPage() {
                   <tr
                     key={tenant.id}
                     className="hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => window.location.href = `/dashboard/admin/tenants/${tenant.id}`}
+                    onClick={() => router.push(`/dashboard/admin/tenants/${tenant.id}`)}
                   >
                     <td className="px-5 py-4 font-medium text-slate-900 text-sm">
                       {tenant.full_name ?? '—'}

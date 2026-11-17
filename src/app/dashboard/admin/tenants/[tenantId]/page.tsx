@@ -344,6 +344,7 @@ export default function AdminTenantDetailPage({
             <h2 className="text-base font-semibold text-slate-800">{t('sectionPhoto')}</h2>
             <div className="flex items-start gap-4">
               {photoSignedUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- short-lived signed storage URL; next/image optimization would proxy/cache it
                 <img
                   src={photoSignedUrl}
                   alt={t('photoAlt')}

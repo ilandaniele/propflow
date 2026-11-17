@@ -39,7 +39,6 @@ export function CsvImportModal({
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [checking, setChecking] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [errors, setErrors] = useState<{ rowNumber: number; field: string; message: string }[]>([]);
   const [warnings, setWarnings] = useState<{ rowNumber: number; field: string; message: string }[]>([]);
@@ -98,7 +97,6 @@ export function CsvImportModal({
   async function handleImport() {
     if (!file) return;
     setStep('progress');
-    setImporting(true);
     const fd = new FormData();
     fd.append('file', file);
     try {
@@ -113,7 +111,6 @@ export function CsvImportModal({
     } catch {
       setResult({ created: 0, updated: 0, skipped: 0, failed: 1 });
     } finally {
-      setImporting(false);
       setStep('result');
     }
   }
