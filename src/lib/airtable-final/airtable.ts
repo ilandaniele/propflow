@@ -8,6 +8,7 @@ const MIN_REQUEST_INTERVAL_MS = 250;
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_ATTEMPTS = 3;
 const IDS_PER_REQUEST = 10;
+const PAGE_SIZE = 100;
 
 export interface AirtableAttachment {
   id: string;
@@ -15,6 +16,11 @@ export interface AirtableAttachment {
   filename?: string;
   type?: string;
   size?: number;
+}
+
+export interface AirtableRecord {
+  id: string;
+  fields?: Record<string, unknown>;
 }
 
 /** recordId -> field name -> attachments (the requested fields, or every field when none are requested). */
@@ -89,15 +95,33 @@ export class AttachmentFetcher {
     return result;
   }
 
+  /** Every record of a table, 100 per request, following Airtable's `offset` cursor. */
+  async listAllRecords(tableId: string): Promise<AirtableRecord[]> {
+    const records: AirtableRecord[] = [];
+    let offset: string | undefined;
+    do {
+      const params = new URLSearchParams({ pageSize: String(PAGE_SIZE) });
+      if (offset) params.set('offset', offset);
+      const page = await this.get(tableId, params);
+      records.push(...(page.records ?? []));
+      offset = page.offset;
+    } while (offset);
+    return records;
+  }
+
   private async listChunk(
     tableId: string,
     recordIds: readonly string[],
     fieldNames: readonly string[] = [],
-  ): Promise<Array<{ id: string; fields?: Record<string, unknown> }>> {
+  ): Promise<AirtableRecord[]> {
     const params = new URLSearchParams();
     params.set('filterByFormula', `OR(${recordIds.map((id) => `RECORD_ID()='${id.replace(/'/g, '')}'`).join(',')})`);
     params.set('pageSize', String(IDS_PER_REQUEST));
     for (const name of fieldNames) params.append('fields[]', name);
+    return (await this.get(tableId, params)).records ?? [];
+  }
+
+  private async get(tableId: string, params: URLSearchParams): Promise<{ records?: AirtableRecord[]; offset?: string }> {
     const url = `${API_BASE}/${this.credentials.baseId}/${encodeURIComponent(tableId)}?${params.toString()}`;
 
     for (let attempt = 1; ; attempt++) {
@@ -106,10 +130,7 @@ export class AttachmentFetcher {
         headers: { Authorization: `Bearer ${this.credentials.pat}` },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
-      if (res.ok) {
-        const body = (await res.json()) as { records?: Array<{ id: string; fields?: Record<string, unknown> }> };
-        return body.records ?? [];
-      }
+      if (res.ok) return (await res.json()) as { records?: AirtableRecord[]; offset?: string };
       const retryable = res.status === 429 || res.status >= 500;
       if (!retryable || attempt >= MAX_ATTEMPTS) throw new AirtableFetchError(res.status, await airtableErrorType(res));
       await sleep(1000 * 2 ** (attempt - 1));

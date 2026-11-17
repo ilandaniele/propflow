@@ -7,9 +7,11 @@ import { NextRequest } from 'next/server';
 
 const runCopyBatch = vi.hoisted(() => vi.fn());
 const runRecoverBatch = vi.hoisted(() => vi.fn());
+const runVerifyTable = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/airtable-final/copy', () => ({ runCopyBatch }));
 vi.mock('@/lib/airtable-final/recover', () => ({ runRecoverBatch }));
+vi.mock('@/lib/airtable-final/verify', () => ({ runVerifyTable }));
 vi.mock('@/lib/db', () => ({ db: { execute: vi.fn().mockResolvedValue([]) } }));
 vi.mock('@/lib/log', () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
@@ -30,6 +32,7 @@ describe('POST /api/cron/airtable-final-copy', () => {
     vi.stubEnv('CRON_SECRET', SECRET);
     runCopyBatch.mockResolvedValue({ copied: 2, skipped: 1, failed: 0, remaining: 5, errors: [] });
     runRecoverBatch.mockResolvedValue({ total: 3, processed: 3, recovered: 1, nextAfter: null, groups: [], errors: [] });
+    runVerifyTable.mockResolvedValue({ table: null, columnsOnAirtable: {}, nextAfter: 'eecc' });
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -61,6 +64,14 @@ describe('POST /api/cron/airtable-final-copy', () => {
   it('passes mode=apply and caps limit at 200', async () => {
     await POST(request('?mode=apply&limit=999', `Bearer ${SECRET}`));
     expect(runCopyBatch).toHaveBeenCalledWith({ mode: 'apply', limit: 200 });
+  });
+
+  it('routes mode=verify to the table check with the cursor', async () => {
+    const res = await POST(request('?mode=verify&after=adicionales', `Bearer ${SECRET}`));
+    expect(res.status).toBe(200);
+    expect(runVerifyTable).toHaveBeenCalledWith({ after: 'adicionales' });
+    expect(runCopyBatch).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ status: 'ok', mode: 'verify', nextAfter: 'eecc' });
   });
 
   it.each(['report', 'recover'])('routes mode=%s to the recovery pass with the cursor', async (mode) => {

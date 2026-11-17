@@ -32,7 +32,7 @@ Actualizado: 2026-11-17. La app está en producción en `https://propflow-app.fl
 - #81 (spike OpenNext) cerrado: cubierto por #94.
 
 ## Copia final de Airtable (W-CF-02)
-Terminada el 2026-11-17: `remaining: 0` (run 44167931927, verificación dry-run sin pendientes). 369 adjuntos no se pueden copiar; quedan en `manifest.failed` con su motivo: casi todos `attachment_not_found` (campo o adjunto que ya no existe en Airtable), algunos `record_not_found` y `unsupported_type`. Decisión del owner: aceptarlos como perdidos o recuperarlos a mano antes de cerrar la cuenta de Airtable.
+Terminada el 2026-11-17: `remaining: 0` (run 44167931927, verificación dry-run sin pendientes). 369 adjuntos no se pueden copiar; quedan en `manifest.failed` con su motivo: casi todos `attachment_not_found` (campo o adjunto que ya no existe en Airtable), algunos `record_not_found` y `unsupported_type`. Segunda pasada (modo `recover`, solo lectura de Airtable, run 44191623623): 252 recuperados a nuestro storage. Quedan 117 en `manifest.failed`: 43 `record_deleted` (el registro ya no existe en Airtable), 73 `not_found` (el adjunto ya no está en el registro) y 1 foto archivada cuyo tipo no sirve para la columna. Decisión del owner (2026-11-17): se dan por perdidos. Airtable no se modificó.
 
 ## Bloqueos que dependen del owner
 - `flyctl auth login` con la cuenta dueña de `propflow-app`.

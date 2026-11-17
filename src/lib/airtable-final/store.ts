@@ -104,6 +104,16 @@ export async function listSnapshotRows(): Promise<SnapshotRow[]> {
   return rows as unknown as SnapshotRow[];
 }
 
+/** Every snapshot row of one Airtable table, whatever it contains. */
+export async function listSnapshotTable(table: string): Promise<Array<{ recordId: string; data: unknown }>> {
+  const rows = await db.execute(sql`
+    SELECT external_id AS "recordId", data
+    FROM airtable_snapshots
+    WHERE table_name = ${table}
+  `);
+  return rows as unknown as Array<{ recordId: string; data: unknown }>;
+}
+
 /** airtable_external_id -> units.id */
 export async function findUnitIds(orgId: string, airtableIds: readonly string[]): Promise<Map<string, string>> {
   if (airtableIds.length === 0) return new Map();
