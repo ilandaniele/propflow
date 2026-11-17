@@ -1,0 +1,93 @@
+# .github/workflows/airtable-final-copy.yml
+#
+# One-off: copies every file still referenced by an expiring Airtable URL into
+# our own storage, by calling the protected route on the live app (Airtable and
+# storage credentials only exist as Fly secrets). Run `dry-run` first, then
+# `apply`. After `apply` the workflow runs one final dry-run and fails unless
+# it reports remaining == 0.
+#
+# Only batch counters are printed — never response bodies, refs or URLs.
+#
+# Required GitHub settings:
+#   vars.APP_URL        — https://propflow-app.fly.dev
+#   secrets.CRON_SECRET — same value as the Fly secret CRON_SECRET
+
+name: Airtable final copy
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run validates without writing; apply copies files and updates the DB'
+        required: true
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - apply
+
+permissions:
+  contents: read
+
+concurrency:
+  group: airtable-final-copy
+  cancel-in-progress: false
+
+jobs:
+  copy:
+    name: 'Copy attachments (${{ github.event.inputs.mode }})'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Run batches
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          MODE: ${{ github.event.inputs.mode }}
+        run: |
+          set -u
+          BODY="$RUNNER_TEMP/batch.json"
+
+          # post_batch <mode> <limit>: sets STATUS and leaves the JSON body in $BODY
+          post_batch() {
+            STATUS=$(curl -sS -o "$BODY" -w "%{http_code}" \
+              -X POST "$APP_URL/api/cron/airtable-final-copy?mode=$1&limit=$2" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              --max-time 900)
+            if [ "$STATUS" -ge 400 ]; then
+              echo "HTTP $STATUS" >&2
+              exit 1
+            fi
+            COPIED=$(jq -r '.copied' "$BODY")
+            SKIPPED=$(jq -r '.skipped' "$BODY")
+            FAILED=$(jq -r '.failed' "$BODY")
+            REMAINING=$(jq -r '.remaining' "$BODY")
+            echo "mode=$1 copied=$COPIED skipped=$SKIPPED failed=$FAILED remaining=$REMAINING"
+          }
+
+          if [ "$MODE" = "dry-run" ]; then
+            post_batch dry-run 100
+            [ "$FAILED" -eq 0 ]
+            exit 0
+          fi
+
+          BATCH=0
+          while :; do
+            BATCH=$((BATCH + 1))
+            echo "batch $BATCH"
+            post_batch apply 100
+            [ "$REMAINING" -eq 0 ] && break
+            if [ $((COPIED + SKIPPED)) -eq 0 ]; then
+              echo "No progress in this batch, stopping"
+              break
+            fi
+          done
+
+          LAST_FAILED=$FAILED
+          echo "verification (dry-run)"
+          post_batch dry-run 1
+          if [ "$REMAINING" -ne 0 ]; then
+            echo "remaining=$REMAINING after apply" >&2
+            exit 1
+          fi
+          [ "$LAST_FAILED" -eq 0 ]

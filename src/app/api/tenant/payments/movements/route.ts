@@ -14,6 +14,7 @@ import { requireTenant } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { payments, tenants, contracts, properties, units } from '@/lib/db/schema';
 import { eq, and, asc, desc, gte, lte } from 'drizzle-orm';
+import { resolveStoredFileUrl } from '@/lib/storage/resolve';
 
 const QuerySchema = z.object({
   status:    z.string().optional(),
@@ -134,7 +135,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   });
 
   const total     = withBalance.length;
-  const page_rows = withBalance.slice(offset, offset + limit);
+  const page_rows = await Promise.all(
+    withBalance.slice(offset, offset + limit).map(async (m) => ({
+      ...m,
+      receipt_url: await resolveStoredFileUrl('receipts', m.receipt_url),
+    })),
+  );
 
   return NextResponse.json({ movements: page_rows, total, page });
 }
