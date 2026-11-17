@@ -9,7 +9,7 @@ Actualizado: 2026-11-17. La app está en producción en `https://propflow-app.fl
 | 2 Documentos | Hecha | `docs/01..07` |
 | 3 Arquitectura | Hecha | Plan Cloudflare en `docs/07` (Workers + D1 + R2) |
 | 4 Infra | Pendiente | Necesita al owner: cuenta, token, D1, R2 (`docs/07` §13) |
-| 5 Desarrollo | En curso | Ola de seguridad 1 mergeada; salida de Airtable en curso |
+| 5 Desarrollo | En curso | Ola de seguridad 1 mergeada; salida de Airtable hecha (copia final + código removido) |
 | 6 Seguridad | Hecha (auditoría) | `docs/security-report.md`; plan de corrección W-01..W-54 en `docs/06` |
 | 7 Tests y performance | Hecha (baseline) | k6 local en `tests/load/` (p95 < 90 ms hasta 50 VUs). La cobertura está por debajo del gate (74,7 % de líneas) |
 | 8 Verificación y entrega | Pendiente | |
@@ -22,11 +22,17 @@ Actualizado: 2026-11-17. La app está en producción en `https://propflow-app.fl
 - #80: zod 4.
 - #82: endurecimiento de CI (W-02).
 - #94: el bundle del worker entra en Workers Free (3,14 MB gzip).
+- #97: W-CF-02, copia final de los adjuntos de Airtable.
+- #99: `pnpm audit` ignora solo un GHSA sin fix (decisión del owner).
+- #101: el motivo de un upload fallido incluye el error de storage (sin el path).
+- #102: fix de regresión de #94: `PutObject` devolvía `411 MissingContentLength` (el fetch parcheado de Next re-streamea el body de un `Request`). Todos los uploads de producción fallaban.
+- #103: fallas permanentes de la copia quedan en el manifest y se saltean.
+- #104: la fase de snapshots pide todos los campos; un campo renombrado en Airtable ya no rompe la tabla entera (`422 UNKNOWN_FIELD_NAME`).
+- #96: Airtable removido (W-CF-03..06). Sin migraciones; `src/lib/airtable-final` queda para auditoría.
+- #81 (spike OpenNext) cerrado: cubierto por #94.
 
-## En curso
-1. #97, W-CF-02 (copia final de los adjuntos de Airtable). Después del merge: correr el workflow `Airtable final copy` en `dry-run` y después en `apply` hasta `remaining: 0`.
-2. #96, remover Airtable (W-CF-03..06). Se mergea solo después de `remaining: 0`.
-3. #81, spike de OpenNext: ya cubierto por #94; cerrar.
+## Copia final de Airtable (W-CF-02)
+Terminada el 2026-11-17: `remaining: 0` (run 44167931927, verificación dry-run sin pendientes). 369 adjuntos no se pueden copiar; quedan en `manifest.failed` con su motivo: casi todos `attachment_not_found` (campo o adjunto que ya no existe en Airtable), algunos `record_not_found` y `unsupported_type`. Decisión del owner: aceptarlos como perdidos o recuperarlos a mano antes de cerrar la cuenta de Airtable.
 
 ## Bloqueos que dependen del owner
 - `flyctl auth login` con la cuenta dueña de `propflow-app`.
