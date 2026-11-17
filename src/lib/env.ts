@@ -11,12 +11,6 @@
  *   Only available at request time — NEVER in the build container. Always lazy.
  */
 
-function required(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`[env] Missing required env var: ${name}`);
-  return v;
-}
-
 function optional(name: string, fallback = ''): string {
   return process.env[name] ?? fallback;
 }

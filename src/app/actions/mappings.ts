@@ -12,7 +12,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { phantomRooms, propertyMappings, accountMappings } from '@/lib/db/schema';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';

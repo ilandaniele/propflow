@@ -17,13 +17,6 @@ import { signIn as nextAuthSignIn } from 'next-auth/react';
 import { signInWithPassword } from '@/app/actions/auth';
 import { Button } from '@/components/ui/Button';
 
-function maskEmail(email: string): string {
-  const [local, domain] = email.split('@');
-  if (!domain) return '***';
-  const visible = local.length > 2 ? local.slice(0, 2) : local.slice(0, 1);
-  return `${visible}***@${domain}`;
-}
-
 type InviteState =
   | { phase: 'loading' }
   | { phase: 'ready'; maskedEmail: string; orgName: string }

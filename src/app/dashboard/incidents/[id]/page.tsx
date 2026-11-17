@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { incidents, incidentComments, profiles, tenants } from '@/lib/db/schema';
+import { incidents, incidentComments, profiles } from '@/lib/db/schema';
 import { eq, and, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';

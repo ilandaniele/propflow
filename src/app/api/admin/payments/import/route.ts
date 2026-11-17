@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { importLogs, tenants, payments } from '@/lib/db/schema';
+import { importLogs, tenants } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 

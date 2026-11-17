@@ -11,7 +11,7 @@
 
 import { db } from '@/lib/db';
 import { tenants, properties, payments, contracts } from '@/lib/db/schema';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 
 export type EntityName = 'tenants' | 'properties' | 'payments' | 'contracts';
 

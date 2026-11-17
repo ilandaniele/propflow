@@ -331,7 +331,7 @@ export async function uploadImage(
  * @param path        Storage key / path
  * @param body        Raw bytes
  * @param contentType MIME type
- * @param upsert      If false (default), the upload is a new object; if true, overwrites
+ * @param _upsert     If false (default), the upload is a new object; if true, overwrites
  * @returns           Object with { path } on success — throws on failure
  */
 export async function uploadFile(
@@ -339,7 +339,7 @@ export async function uploadFile(
   path: string,
   body: Buffer | ArrayBuffer | Uint8Array,
   contentType: string,
-  upsert: boolean = false,
+  _upsert: boolean = false,
 ): Promise<{ path: string }> {
   const physicalBucket = resolveBucket(bucket);
   let buffer: Buffer;

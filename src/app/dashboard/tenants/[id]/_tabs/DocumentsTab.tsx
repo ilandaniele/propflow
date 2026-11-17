@@ -1,7 +1,7 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { contracts, signatureRequests } from '@/lib/db/schema';
-import { eq, and, inArray, desc, sql } from 'drizzle-orm';
+import { eq, and, inArray, desc } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';

@@ -1,7 +1,7 @@
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { communityPosts } from '@/lib/db/schema';
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CommunityAdminClient } from './CommunityAdminClient';
