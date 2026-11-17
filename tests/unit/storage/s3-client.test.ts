@@ -12,7 +12,7 @@ const ENV_KEYS = [
   'TIGRIS_BUCKET_RECEIPTS',
 ] as const;
 
-type FetchMock = ReturnType<typeof vi.fn<(request: Request) => Promise<Response>>>;
+type FetchMock = ReturnType<typeof vi.fn<(input: RequestInfo, init?: RequestInit) => Promise<Response>>>;
 
 async function loadStorage() {
   vi.resetModules();
@@ -20,8 +20,8 @@ async function loadStorage() {
 }
 
 function lastRequest(fetchMock: FetchMock): Request {
-  const [request] = fetchMock.mock.calls.at(-1)!;
-  return request;
+  const [input, init] = fetchMock.mock.calls.at(-1)!;
+  return new Request(input, init);
 }
 
 describe('storage S3 client (aws4fetch)', () => {
@@ -38,7 +38,7 @@ describe('storage S3 client (aws4fetch)', () => {
     process.env.TIGRIS_SECRET_ACCESS_KEY = 'test-secret';
     process.env.STORAGE_BUCKET = 'propflow-bucket';
 
-    fetchMock = vi.fn<(request: Request) => Promise<Response>>().mockResolvedValue(new Response(null, { status: 200 }));
+    fetchMock = vi.fn<(input: RequestInfo, init?: RequestInit) => Promise<Response>>().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
   });
 
@@ -66,6 +66,18 @@ describe('storage S3 client (aws4fetch)', () => {
       expect(request.headers.get('authorization')).toMatch(
         /^AWS4-HMAC-SHA256 Credential=AKIATESTKEY\/\d{8}\/auto\/s3\/aws4_request, SignedHeaders=.*host.*, Signature=[0-9a-f]{64}$/,
       );
+    });
+
+    it('passes the body to fetch as raw bytes so Content-Length is kept', async () => {
+      const { uploadFile } = await loadStorage();
+      const body = Buffer.from([1, 2, 3]);
+
+      await uploadFile('receipts', 'org/r.pdf', body, 'application/pdf');
+
+      const [input, init] = fetchMock.mock.calls.at(-1)!;
+      expect(input).not.toBeInstanceOf(Request);
+      expect(init?.body).toBeInstanceOf(Uint8Array);
+      expect(init?.body).toEqual(new Uint8Array(body));
     });
 
     it('resolves the per-bucket env var before STORAGE_BUCKET', async () => {
