@@ -8,7 +8,7 @@ import { formatSlotLabel } from '../visits/slots';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
-  visitId: z.string().uuid().describe('Id de la visita a reprogramar, de las que devolvió get_my_visits'),
+  visitId: z.string().guid().describe('Id de la visita a reprogramar, de las que devolvió get_my_visits'),
   slotId: z.string().max(120).describe('El id exacto de un horario nuevo, devuelto por get_available_slots en esta misma conversación'),
 });
 

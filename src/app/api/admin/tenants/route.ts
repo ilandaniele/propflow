@@ -90,7 +90,7 @@ const CreateTenantSchema = tenantRegistrationSchema
   .omit({ terms_accepted: true, privacy_accepted: true })
   .extend({
     notes:          z.string().max(5000).optional(),
-    responsable_id: z.string().uuid().optional(),
+    responsable_id: z.string().guid().optional(),
   });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

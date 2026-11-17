@@ -29,7 +29,7 @@ export type TaskProofVerifyResult = z.infer<typeof TaskProofVerifySchema>;
 
 // Send message schema
 export const SendWhatsAppMessageSchema = z.object({
-  conversation_id: z.string().uuid(),
+  conversation_id: z.string().guid(),
   body: z.string().min(1).max(4096),
 });
 export type SendWhatsAppMessageInput = z.infer<typeof SendWhatsAppMessageSchema>;

@@ -5,7 +5,7 @@ import { isListingKnownToSession } from '../session-listings';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
-  listingId: z.string().uuid().describe('Id de la propiedad a mostrar, devuelto por search_listings'),
+  listingId: z.string().guid().describe('Id de la propiedad a mostrar, devuelto por search_listings'),
 });
 
 function formatCard(listing: ListingDetail): string {

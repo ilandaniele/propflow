@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const CreateContractSchema = z.object({
-  tenant_id: z.string().uuid(),
-  unit_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
+  unit_id: z.string().guid(),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   monthly_rent: z.coerce.number().positive('Rent must be positive').max(9_999_999),
@@ -13,7 +13,7 @@ export const CreateContractSchema = z.object({
 );
 
 export const UpdateContractStatusSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   status: z.enum(['active', 'expired', 'terminated']),
 });
 

@@ -11,7 +11,7 @@ import { formatSlotLabel, pickSlotsForOffer, zonedWallTimeToUtc } from '../visit
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
-  listingId: z.string().uuid().describe('Id de la propiedad a visitar, devuelto por search_listings o get_listing_details'),
+  listingId: z.string().guid().describe('Id de la propiedad a visitar, devuelto por search_listings o get_listing_details'),
   fromDate: z.string().optional().describe('Fecha desde la cual buscar horarios, formato YYYY-MM-DD'),
   partOfDay: z.enum(['morning', 'afternoon', 'evening', 'any']).optional().describe('Preferencia de franja del día, si el usuario la mencionó'),
 });
