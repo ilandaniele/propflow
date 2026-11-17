@@ -12,6 +12,7 @@ import { eq, and, count as sqlCount, asc, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { payments, tenants, contracts, properties, units } from '@/lib/db/schema';
 import { requireTenant } from '@/lib/auth/guards';
+import { resolveStoredFileUrl } from '@/lib/storage/resolve';
 
 const QuerySchema = z.object({
   status:    z.string().optional(),
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const total = Number(countRows[0]?.value ?? 0);
 
-  const paymentList = rows.map(row => ({
+  const paymentList = await Promise.all(rows.map(async row => ({
     id:           row.id,
     amount:       row.amount,
     currency:     row.currency,
@@ -101,14 +102,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     status:       row.status,
     method:       row.method,
     reference:    row.reference,
-    receipt_url:  row.receiptUrl,
+    receipt_url:  await resolveStoredFileUrl('receipts', row.receiptUrl),
     movement_type: row.movementType,
     orgId:        row.orgId,
     created_at:   row.createdAt,
     updated_at:   row.updatedAt,
     property_name: row.propertyName ?? null,
     unit_label:   row.unitLabel ?? null,
-  }));
+  })));
 
   return NextResponse.json({ payments: paymentList, total, page });
 }

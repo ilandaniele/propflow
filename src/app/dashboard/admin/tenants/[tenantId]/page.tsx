@@ -69,6 +69,7 @@ export default function AdminTenantDetailPage({
   const creating = isNew(tenantId);
 
   const [tenant, setTenant]     = useState<TenantDetail | null>(null);
+  const [photoSignedUrl, setPhotoSignedUrl] = useState<string | null>(null);
   const [loadedId, setLoadedId]   = useState<string | null>(null);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
@@ -100,10 +101,11 @@ export default function AdminTenantDetailPage({
     if (creating) return;
     void fetch(`/api/admin/tenants/${tenantId}`)
       .then(r => r.json())
-      .then((json: { tenant?: TenantDetail; error?: unknown }) => {
+      .then((json: { tenant?: TenantDetail; photo_signed_url?: string | null; error?: unknown }) => {
         if (json.tenant) {
           const ten = json.tenant;
           setTenant(ten);
+          setPhotoSignedUrl(json.photo_signed_url ?? null);
           setForm({
             first_name:               ten.first_name               ?? '',
             last_name:                ten.last_name                ?? '',
@@ -355,9 +357,9 @@ export default function AdminTenantDetailPage({
           <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
             <h2 className="text-base font-semibold text-slate-800">{t('sectionPhoto')}</h2>
             <div className="flex items-start gap-4">
-              {form.photo_url ? (
+              {photoSignedUrl ? (
                 <img
-                  src={form.photo_url}
+                  src={photoSignedUrl}
                   alt={t('photoAlt')}
                   className="w-16 h-16 rounded-full object-cover border border-slate-200 flex-shrink-0"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
