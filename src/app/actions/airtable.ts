@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth/guards';
 import { syncAirtableTable } from '@/lib/airtable/sync';
+import { isAirtableOrg } from '@/lib/airtable/org-binding';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import type { ActionResult } from '@/lib/errors';
@@ -63,6 +64,9 @@ export async function runAirtableSync(
     return Errors.UNAUTHORIZED();
   }
 
+  // Airtable is bound to a single org — others behave as "not configured" (SA-1)
+  if (!(await isAirtableOrg(ctx.orgId))) return Errors.FORBIDDEN();
+
   // 2. Rate limit — 10 sync triggers / minute / user
   const rl = mutationRateLimit(ctx.userId, 'runAirtableSync');
   if (!rl.success) return Errors.RATE_LIMITED();
@@ -109,6 +113,9 @@ export async function runAllAirtableSyncs(): Promise<ActionResult<SyncSummary[]>
   } catch {
     return Errors.UNAUTHORIZED();
   }
+
+  // Airtable is bound to a single org — others behave as "not configured" (SA-1)
+  if (!(await isAirtableOrg(ctx.orgId))) return Errors.FORBIDDEN();
 
   // 2. Rate limit — treated as a heavier operation (5 / minute / user)
   const rl = mutationRateLimit(ctx.userId, 'runAllAirtableSyncs');

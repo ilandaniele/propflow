@@ -12,6 +12,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { tenants, airtableSyncLogs } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { isAirtableOrg } from '@/lib/airtable/org-binding';
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
@@ -33,6 +34,20 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
       { error: { code: 'UNAUTHORIZED', message: 'Admin access required.' } },
       { status: 401 }
     );
+  }
+
+  // Orgs other than the bound one get a "not configured" status — never the
+  // global base id/name, table env names or connectivity of the owner's base.
+  if (!(await isAirtableOrg(ctx.orgId))) {
+    return NextResponse.json({
+      base_id:           null,
+      base_name:         null,
+      connectivity:      { connected: false, latency_ms: null, error: 'Airtable not enabled for this organization' },
+      tenant_sync_stats: { synced: 0, pending: 0, failed: 0, needs_review: 0 },
+      recent_sync_logs:  [],
+      env_vars:          KNOWN_TABLE_VARS.map(name => ({ name, configured: false })),
+      checked_at:        new Date().toISOString(),
+    });
   }
 
   const pat      = process.env['AIRTABLE_PAT'];

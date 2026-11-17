@@ -1,6 +1,7 @@
 /**
  * POST /api/cron/airtable-sync
- * Fly scheduled machine (replaces Vercel Cron) — syncs all configured Airtable tables.
+ * Fly scheduled machine (replaces Vercel Cron) — syncs all configured Airtable tables
+ * into the single organization bound to the Airtable integration (see org-binding.ts).
  *
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
  */
@@ -11,13 +12,13 @@ export const runtime = 'nodejs';
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { organizations } from '@/lib/db/schema';
 import { sql } from 'drizzle-orm';
 import { syncAirtableTable } from '@/lib/airtable/sync';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { RECONCILABLE_ENTITIES, isEntityReconcilable, RECONCILE_GRACE_HOURS } from '@/lib/airtable/reconcile';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
+import { getAirtableOrgId } from '@/lib/airtable/org-binding';
 import { withDbRetry } from '@/lib/db/retry';
 import { syncListingsFromUnits } from '@/lib/agent/listings';
 
@@ -83,26 +84,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // ── Determine which orgs to sync — Drizzle query (AC1) ───────────────────
+  // ── Determine which org to sync ───────────────────────────────────────────
+  // The Airtable base holds ONE owner's data — it is synced into the single
+  // bound org only, never into every organization (SA-1).
   let orgIds: string[];
   try {
     // First query after a Fly machine resume can hit a stale connection — retry.
-    const rows = await withDbRetry(
-      () => db.select({ id: organizations.id }).from(organizations),
-      'cron/airtable-sync',
-    );
-    orgIds = rows.map(r => r.id);
+    const boundOrgId = await withDbRetry(() => getAirtableOrgId(), 'cron/airtable-sync');
+    orgIds = boundOrgId ? [boundOrgId] : [];
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown';
-    console.error('[cron/airtable-sync] Failed to fetch orgs:', msg);
+    console.error('[cron/airtable-sync] Failed to resolve Airtable org:', msg);
     return NextResponse.json(
-      { error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch organizations' } },
+      { error: { code: 'INTERNAL_ERROR', message: 'Failed to resolve Airtable organization' } },
       { status: 500 }
     );
   }
 
   if (orgIds.length === 0) {
-    console.info('[cron/airtable-sync] No organizations found — nothing to sync');
+    console.info('[cron/airtable-sync] No Airtable-bound organization — nothing to sync');
     return NextResponse.json({ status: 'ok', snapshotResults: [], entityResults: [] });
   }
 

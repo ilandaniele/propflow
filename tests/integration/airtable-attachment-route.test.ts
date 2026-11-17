@@ -144,6 +144,7 @@ function makeRequest(snapshotId: string, attId: string): NextRequest {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
+  process.env['AIRTABLE_ORG_ID'] = 'org-acme';
   resetMockState();
   rateLimitCallCount = 0;
   rateLimitMax = 9999;
@@ -220,6 +221,20 @@ describe('AC15 — cross-org snapshot access returns 404', () => {
       makeRequest('cccccccc-0000-0000-0000-000000000003', 'attABC123')
     );
     expect(response.status).toBe(404);
+  });
+});
+
+// ── SA-1: admin of an org that is not the Airtable-bound org gets 404 ────────
+
+describe('SA-1 — admin of a non-bound org gets 404', () => {
+  it('returns 404 even for a snapshot id that would resolve', async () => {
+    mockState.orgId = 'org-other';
+    const response = await GET(
+      makeRequest('dddddddd-0000-0000-0000-000000000004', 'attABC123')
+    );
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error?.code).toBe('NOT_FOUND');
   });
 });
 

@@ -13,6 +13,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { syncEntityTable, type EntityName, type IdMap } from '@/lib/airtable/sync-entities';
 import { resolveEntityTableEnvKey } from '@/lib/airtable/env';
 import { getAirtableClient } from '@/lib/airtable/client';
+import { isAirtableOrg, AIRTABLE_NOT_ENABLED_ERROR } from '@/lib/airtable/org-binding';
 
 const ENTITY_SYNC_TARGETS: Array<{ tableEnvKey: string; entity: EntityName }> = [
   { tableEnvKey: 'AIRTABLE_TABLE_PROPIEDADES',      entity: 'properties' },
@@ -41,6 +42,11 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       { error: { code: 'UNAUTHORIZED', message: 'Admin access required.' } },
       { status: 401 }
     );
+  }
+
+  // The global Airtable base belongs to one org only (SA-1).
+  if (!(await isAirtableOrg(ctx.orgId))) {
+    return NextResponse.json(AIRTABLE_NOT_ENABLED_ERROR, { status: 403 });
   }
 
   let airtableClient;
