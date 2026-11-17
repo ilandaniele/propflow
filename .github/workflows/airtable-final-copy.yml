@@ -6,7 +6,8 @@
 # `apply`. After `apply` the workflow runs one final dry-run and fails unless
 # it reports remaining == 0.
 #
-# Only batch counters are printed — never response bodies, refs or URLs.
+# Only batch counters and failure reason codes are printed — never response
+# bodies, refs or URLs.
 #
 # Required GitHub settings:
 #   vars.APP_URL        — https://propflow-app.fly.dev
@@ -63,6 +64,9 @@ jobs:
             FAILED=$(jq -r '.failed' "$BODY")
             REMAINING=$(jq -r '.remaining' "$BODY")
             echo "mode=$1 copied=$COPIED skipped=$SKIPPED failed=$FAILED remaining=$REMAINING"
+            if [ "$FAILED" -gt 0 ]; then
+              jq -r '.errors | group_by(.reason)[] | "  failed reason=\(.[0].reason) count=\(length)"' "$BODY"
+            fi
           }
 
           if [ "$MODE" = "dry-run" ]; then
