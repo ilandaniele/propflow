@@ -5,6 +5,9 @@ import { getTranslations } from 'next-intl/server';
 import { getPublicOrg, getPublicListing } from '@/lib/public/catalog';
 import { getWhatsAppDisplayPhone } from '@/lib/widget/channel';
 import { buildWhatsAppDeepLink } from '@/lib/widget/handoff-codes';
+import { getAppOrigin } from '@/lib/widget/origins';
+
+const DEFAULT_OG_IMAGE_PATH = '/og-default.png';
 
 interface PageProps {
   params: Promise<{ orgSlug: string; listingSlug: string }>;
@@ -26,11 +29,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = `${listing.title ?? 'Propiedad'} — ${org.name}`;
   const description = plainTextExcerpt(listing.description, 160);
 
+  // WhatsApp/social crawlers fetch this long after render, so it points at the
+  // stable cover redirect route (fresh signed URL per fetch), not a signed URL.
+  const imagePath = listing.coverImageUrl ?? DEFAULT_OG_IMAGE_PATH;
+
   return {
     title,
     description,
     alternates: { canonical: `/p/${org.slug}/${listing.slug}` },
-    openGraph: { title, description, type: 'website' },
+    openGraph: { title, description, type: 'website', images: [`${getAppOrigin()}${imagePath}`] },
     robots: { index: true, follow: true },
   };
 }

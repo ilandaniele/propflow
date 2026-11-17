@@ -22,11 +22,18 @@ import {
   ContractTemplateSchema,
   UpdateContractTemplateSchema,
   GeneratePdfSchema,
+  SaveContractPdfSchema,
   SendSignatureSchema,
 } from '@/lib/schemas/contractDoc';
-import { generateContractPdfBuffer, type ContractVariables } from '@/lib/contracts/pdf.tsx';
+import type { ContractPdfSource, ContractVariables } from '@/lib/contracts/pdf.tsx';
 import { sendEmail, buildSignatureRequestEmail } from '@/lib/notifications/email';
 import { env } from '@/lib/env';
+
+const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
+
+function hasPdfSignature(bytes: Uint8Array): boolean {
+  return PDF_SIGNATURE.every((byte, i) => bytes[i] === byte);
+}
 
 export async function createContractTemplate(
   _prev: ActionResult,
@@ -105,10 +112,10 @@ export async function updateContractTemplate(
   return ok(undefined);
 }
 
-export async function generateContractPdf(
+export async function getContractPdfSource(
   _prev: ActionResult,
   formData: FormData
-): Promise<ActionResult> {
+): Promise<ActionResult<ContractPdfSource>> {
   let ctx;
   try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
 
@@ -176,13 +183,40 @@ export async function generateContractPdf(
     generated_date:   new Date().toLocaleDateString('en-US'),
   };
 
-  try {
-    const pdfBytes = await generateContractPdfBuffer({
-      templateName: template.name,
-      bodyMarkdown: template.bodyMarkdown,
-      variables,
-    });
+  return ok({ templateName: template.name, bodyMarkdown: template.bodyMarkdown, variables });
+}
 
+/**
+ * Stores a contract PDF rendered in the browser (see lib/contracts/pdf-client.ts).
+ * The renderer is client-side only so it stays out of the server bundle.
+ */
+export async function saveContractPdf(
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+
+  const rl = generatePdfRateLimit(ctx.userId);
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  const parsed = SaveContractPdfSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
+
+  const pdfBytes = new Uint8Array(await parsed.data.file.arrayBuffer());
+  if (!hasPdfSignature(pdfBytes)) {
+    return Errors.VALIDATION_ERROR({ formErrors: ['File is not a PDF'], fieldErrors: {} });
+  }
+
+  const contractRows = await db
+    .select({ id: contracts.id })
+    .from(contracts)
+    .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
+    .limit(1);
+
+  if (!contractRows[0]) return Errors.NOT_FOUND();
+
+  try {
     // Upload to contracts bucket via unified storage lib
     const filePath = `${ctx.orgId}/${parsed.data.contract_id}/contract.pdf`;
     await uploadFile('contracts', filePath, Buffer.from(pdfBytes), 'application/pdf', false);
@@ -194,7 +228,7 @@ export async function generateContractPdf(
       .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)));
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'unknown';
-    log.error('[generateContractPdf] exception', { error: msg });
+    log.error('[saveContractPdf] exception', { error: msg });
     return Errors.INTERNAL();
   }
 

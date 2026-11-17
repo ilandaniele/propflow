@@ -60,3 +60,9 @@ next-env.d.ts
 # agent eval outputs
 scripts/agent-eval/.eval-results.json
 scripts/agent-eval/report.md
+
+# cloudflare / opennext
+.open-next/
+.wrangler/
+.migration/
+.dev.vars

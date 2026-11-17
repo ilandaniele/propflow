@@ -34,15 +34,17 @@
     "test:e2e:ui": "playwright test --ui",
     "test": "npm run test:unit",
     "seed": "npx tsx scripts/seed.ts",
-    "agent:eval": "tsx scripts/agent-eval/run.ts"
+    "agent:eval": "tsx scripts/agent-eval/run.ts",
+    "cf:build": "PROPFLOW_TARGET=cloudflare opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare preview",
+    "cf:size": "node scripts/check-worker-size.mjs .open-next"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
     "@auth/drizzle-adapter": "^1.11.3",
-    "@aws-sdk/client-s3": "^3.1073.0",
-    "@aws-sdk/s3-request-presigner": "^3.1073.0",
     "@react-pdf/renderer": "^4.5.1",
     "@types/papaparse": "^5.5.2",
+    "aws4fetch": "^1.0.20",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "next": "^16.4.1",
@@ -54,11 +56,11 @@
     "react-dom": "19.2.4",
     "react-markdown": "^9.1.0",
     "rehype-sanitize": "^6.0.0",
-    "resend": "^6.12.4",
     "zod": "^4.6.6"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@opennextjs/cloudflare": "^1.20.17",
     "@playwright/test": "^1.60.0",
     "@swc/helpers": "^0.5.23",
     "@tailwindcss/postcss": "^4",
@@ -74,7 +76,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
     "typescript": "^5",
-    "vitest": "5.0.0-beta.4"
+    "vitest": "5.0.0-beta.4",
+    "wrangler": "^4.164.0"
   },
   "allowScripts": {
     "esbuild@0.18.20": true,

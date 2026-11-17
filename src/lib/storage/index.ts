@@ -28,15 +28,9 @@
  *   resolves the physical Tigris bucket.
  */
 
-import {
-  S3Client,
-  PutObjectCommand,
-  DeleteObjectCommand,
-  GetObjectCommand,
-} from '@aws-sdk/client-s3';
-import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { AwsClient } from 'aws4fetch';
 import { sniffMimeType } from '@/lib/storage/mime-sniff';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -98,10 +92,21 @@ function resolveBucket(logicalName: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// S3 client (singleton — one per process, thread-safe)
+// S3 client (SigV4 over fetch — runs on Node and Cloudflare Workers)
 // ---------------------------------------------------------------------------
 
-function buildS3Client(): S3Client {
+/** Same retry budget the AWS SDK used by default (3 attempts) */
+const S3_RETRIES = 2;
+
+/** Upper bound for a single S3 request */
+const S3_REQUEST_TIMEOUT_MS = 30_000;
+
+interface S3Backend {
+  client: AwsClient;
+  endpoint: URL;
+}
+
+function buildS3Backend(): S3Backend {
   // Accept both TIGRIS_* (new) and STORAGE_* (existing Fly deployment) env var names
   const endpoint      = process.env.TIGRIS_ENDPOINT      ?? process.env.STORAGE_ENDPOINT;
   const region        = process.env.AWS_REGION            ?? process.env.STORAGE_REGION ?? 'auto';
@@ -114,20 +119,66 @@ function buildS3Client(): S3Client {
     );
   }
 
-  return new S3Client({
-    endpoint,
-    region,
-    credentials: { accessKeyId, secretAccessKey },
-    // Tigris is S3-compatible with path-style addressing
-    forcePathStyle: false,
-  });
+  return {
+    client: new AwsClient({ accessKeyId, secretAccessKey, region, service: 's3', retries: S3_RETRIES }),
+    endpoint: new URL(endpoint),
+  };
 }
 
 // Lazy singleton — only instantiated when first storage call is made
-let _s3: S3Client | null = null;
-function s3(): S3Client {
-  if (!_s3) _s3 = buildS3Client();
+let _s3: S3Backend | null = null;
+function s3(): S3Backend {
+  if (!_s3) _s3 = buildS3Backend();
   return _s3;
+}
+
+/** Virtual-hosted-style object URL: https://{bucket}.{endpoint-host}/{key} */
+function objectUrl(bucket: string, key: string): URL {
+  const { endpoint } = s3();
+  const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+  return new URL(`${endpoint.protocol}//${bucket}.${endpoint.host}/${encodedKey}`);
+}
+
+async function s3Error(operation: string, res: Response): Promise<Error> {
+  const body = await res.text().catch(() => '');
+  const code = /<Code>([^<]+)<\/Code>/.exec(body)?.[1];
+  return new Error(`${operation} failed: HTTP ${res.status}${code ? ` ${code}` : ''}`);
+}
+
+async function s3PutObject(
+  bucket: string,
+  key: string,
+  body: Buffer,
+  contentType: string
+): Promise<void> {
+  const { client } = s3();
+  const res = await client.fetch(objectUrl(bucket, key), {
+    method: 'PUT',
+    body: new Uint8Array(body),
+    headers: {
+      'Content-Type': contentType,
+      'X-Amz-Content-Sha256': createHash('sha256').update(body).digest('hex'),
+    },
+    signal: AbortSignal.timeout(S3_REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) throw await s3Error('PutObject', res);
+}
+
+async function s3DeleteObject(bucket: string, key: string): Promise<void> {
+  const { client } = s3();
+  const res = await client.fetch(objectUrl(bucket, key), {
+    method: 'DELETE',
+    signal: AbortSignal.timeout(S3_REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) throw await s3Error('DeleteObject', res);
+}
+
+async function s3PresignGetObject(bucket: string, key: string, expiresIn: number): Promise<string> {
+  const { client } = s3();
+  const url = objectUrl(bucket, key);
+  url.searchParams.set('X-Amz-Expires', String(expiresIn));
+  const signed = await client.sign(url.toString(), { method: 'GET', aws: { signQuery: true } });
+  return signed.url;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,12 +307,7 @@ export async function uploadImage(
   const physicalBucket = resolveBucket(bucket);
 
   try {
-    await s3().send(new PutObjectCommand({
-      Bucket: physicalBucket,
-      Key: path,
-      Body: buffer,
-      ContentType: mimeType,
-    }));
+    await s3PutObject(physicalBucket, path, buffer, mimeType);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.uploadImage] bucket=${bucket} path=${path} error=${msg}`);
@@ -299,15 +345,10 @@ export async function uploadFile(
   }
 
   try {
-    await s3().send(new PutObjectCommand({
-      Bucket: physicalBucket,
-      Key: path,
-      Body: buffer,
-      ContentType: contentType,
-      // Tigris does not have a native "upsert=false" guard; if the caller wants
-      // strict "no overwrite" semantics, they should check existence first.
-      // The upsert param is kept for API compatibility with the legacy storage seam.
-    }));
+    // Tigris does not have a native "upsert=false" guard; if the caller wants
+    // strict "no overwrite" semantics, they should check existence first.
+    // The upsert param is kept for API compatibility with the legacy storage seam.
+    await s3PutObject(physicalBucket, path, buffer, contentType);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.uploadFile] bucket=${bucket} path=${path} error=${msg}`);
@@ -337,13 +378,8 @@ export async function getSignedUrl(
   const safeTtl = Math.min(ttl, DEFAULT_SIGNED_URL_TTL_S);
   const physicalBucket = resolveBucket(bucket);
 
-  const command = new GetObjectCommand({
-    Bucket: physicalBucket,
-    Key: path,
-  });
-
   try {
-    return await awsGetSignedUrl(s3(), command, { expiresIn: safeTtl });
+    return await s3PresignGetObject(physicalBucket, path, safeTtl);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.getSignedUrl] bucket=${bucket} path=${path} error=${msg}`);
@@ -367,10 +403,7 @@ export async function deleteImage(
   const physicalBucket = resolveBucket(bucket);
 
   try {
-    await s3().send(new DeleteObjectCommand({
-      Bucket: physicalBucket,
-      Key: path,
-    }));
+    await s3DeleteObject(physicalBucket, path);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.deleteImage] bucket=${bucket} path=${path} error=${msg}`);

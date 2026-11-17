@@ -9,13 +9,14 @@
  * Email send failures are logged and retried on the next cron run (bounded).
  */
 
-import { Resend } from 'resend';
 import { assertServerEnv } from '@/lib/env';
 import { log } from '@/lib/log';
 
-function getResend(): Resend {
-  const apiKey = assertServerEnv('RESEND_API_KEY', 'email sending');
-  return new Resend(apiKey);
+const RESEND_EMAILS_URL = 'https://api.resend.com/emails';
+const RESEND_TIMEOUT_MS = 10_000;
+
+function getApiKey(): string {
+  return assertServerEnv('RESEND_API_KEY', 'email sending');
 }
 
 function getFromAddress(): string {
@@ -41,18 +42,20 @@ export interface SendEmailResult {
  */
 export async function sendEmail(opts: SendEmailOptions): Promise<SendEmailResult> {
   try {
-    const resend = getResend();
+    const apiKey = getApiKey();
     const from = getFromAddress();
-    const { error } = await resend.emails.send({
-      from,
-      to: opts.to,
-      subject: opts.subject,
-      html: opts.html,
+    const response = await fetch(RESEND_EMAILS_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: opts.to, subject: opts.subject, html: opts.html }),
+      signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
     });
 
-    if (error) {
-      log.error('[email] send failed', { context: opts.context, code: error.name });
-      return { success: false, error: error.name };
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { name?: string } | null;
+      const code = body?.name ?? 'application_error';
+      log.error('[email] send failed', { context: opts.context, code });
+      return { success: false, error: code };
     }
 
     log.info('[email] sent', { context: opts.context, toDomain: opts.to.split('@')[1] });
