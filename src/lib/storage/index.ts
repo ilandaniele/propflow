@@ -152,13 +152,20 @@ async function s3PutObject(
   contentType: string
 ): Promise<void> {
   const { client } = s3();
-  const res = await client.fetch(objectUrl(bucket, key), {
+  const bytes = new Uint8Array(body);
+  const signed = await client.sign(objectUrl(bucket, key).toString(), {
     method: 'PUT',
-    body: new Uint8Array(body),
+    body: bytes,
     headers: {
       'Content-Type': contentType,
       'X-Amz-Content-Sha256': createHash('sha256').update(body).digest('hex'),
     },
+  });
+  // Raw bytes, not the signed Request: Next's patched fetch re-streams a Request body, dropping Content-Length (S3 then answers 411).
+  const res = await fetch(signed.url, {
+    method: 'PUT',
+    headers: signed.headers,
+    body: bytes,
     signal: AbortSignal.timeout(S3_REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) throw await s3Error('PutObject', res);
