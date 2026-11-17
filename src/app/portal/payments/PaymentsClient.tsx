@@ -76,7 +76,7 @@ export function PaymentsClient() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loadingSummary, setLoadingSummary] = useState(true);
-  const [loadingMovements, setLoadingMovements] = useState(true);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
   // Filters
@@ -89,8 +89,11 @@ export function PaymentsClient() {
 
   const LIMIT = 20;
 
+  // Loading is derived: movements are loading until fetched for the current query.
+  const queryKey = `${page}|${sortBy}|${sortDir}|${filterStatus}|${filterPeriod}|${filterDateFrom}|${filterDateTo}`;
+  const loadingMovements = loadedKey !== queryKey;
+
   const fetchSummary = useCallback(async () => {
-    setLoadingSummary(true);
     try {
       const res = await fetch('/api/tenant/payments/summary');
       if (res.ok) setSummary(await res.json());
@@ -100,7 +103,6 @@ export function PaymentsClient() {
   }, []);
 
   const fetchMovements = useCallback(async () => {
-    setLoadingMovements(true);
     try {
       const q = new URLSearchParams({
         page: String(page),
@@ -120,9 +122,9 @@ export function PaymentsClient() {
         setTotal(data.total ?? 0);
       }
     } finally {
-      setLoadingMovements(false);
+      setLoadedKey(queryKey);
     }
-  }, [page, sortBy, sortDir, filterStatus, filterPeriod, filterDateFrom, filterDateTo]);
+  }, [page, sortBy, sortDir, filterStatus, filterPeriod, filterDateFrom, filterDateTo, queryKey]);
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
   useEffect(() => { fetchMovements(); }, [fetchMovements]);
@@ -342,7 +344,7 @@ export function PaymentsClient() {
       <CsvImportModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onSuccess={() => { fetchSummary(); fetchMovements(); }}
+        onSuccess={() => { setLoadingSummary(true); setLoadedKey(null); fetchSummary(); fetchMovements(); }}
         checkUrl="/api/tenant/payments/import/check"
         importUrl="/api/tenant/payments/import"
         importType="payment"

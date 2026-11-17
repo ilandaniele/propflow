@@ -150,7 +150,7 @@ export async function updateIncident(
 
   if (!existing[0]) return Errors.NOT_FOUND();
 
-  const updateData: Record<string, unknown> = {
+  const updateData: Partial<typeof incidents.$inferInsert> = {
     ...updates,
     assignedTo: updates.assigned_to || null,
     updatedAt: new Date(),
@@ -161,10 +161,9 @@ export async function updateIncident(
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic update object built from validated schema fields
     await db
       .update(incidents)
-      .set(updateData as any)
+      .set(updateData)
       .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)));
   } catch (e) {
     log.error('[updateIncident] db error', { code: e instanceof Error ? e.message : String(e) });

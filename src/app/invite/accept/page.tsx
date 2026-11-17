@@ -42,17 +42,16 @@ export default function InviteAcceptPage() {
   // no <SessionProvider> (it uses server-side database sessions), so useSession()
   // returned undefined and 500'd this page. Read /api/auth/session directly.
   const [alreadySignedIn, setAlreadySignedIn] = useState(false);
-  const [state, setState] = useState<InviteState>({ phase: 'loading' });
+  const [state, setState] = useState<InviteState>(() =>
+    token ? { phase: 'loading' } : { phase: 'error', message: t('invalidLink') }
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [signInErr, setSignInErr] = useState<string | null>(null);
 
   // On mount: peek at the invitation (public metadata — no auth required)
   useEffect(() => {
-    if (!token) {
-      setState({ phase: 'error', message: t('invalidLink') });
-      return;
-    }
+    if (!token) return;
     void fetch(`/api/invite/peek?token=${encodeURIComponent(token)}`)
       .then(r => r.json())
       .then((json: { maskedEmail?: string; orgName?: string; error?: { message?: string } }) => {

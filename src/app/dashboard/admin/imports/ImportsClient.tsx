@@ -47,15 +47,18 @@ export function ImportsClient() {
   const [logs, setLogs] = useState<ImportLog[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedDetail, setExpandedDetail] = useState<Record<string, unknown> | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // Loading is derived: the list is loading until it has been fetched for the current query.
+  const queryKey = `${page}|${filterType}|${filterStatus}`;
+  const loading = loadedKey !== queryKey;
+
   const fetchLogs = useCallback(async () => {
-    setLoading(true);
     try {
       const q = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
       if (filterType) q.set('import_type', filterType);
@@ -67,9 +70,9 @@ export function ImportsClient() {
         setTotal(data.total ?? 0);
       }
     } finally {
-      setLoading(false);
+      setLoadedKey(queryKey);
     }
-  }, [page, filterType, filterStatus]);
+  }, [page, filterType, filterStatus, queryKey]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 

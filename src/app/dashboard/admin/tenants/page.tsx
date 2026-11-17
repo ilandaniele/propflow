@@ -42,12 +42,15 @@ function tenantStatusVariant(s: string | null): 'success' | 'default' | 'warning
   }
 }
 
+// Template download is an API route, not a page, so it is referenced via a constant.
+const TEMPLATE_HREF = '/api/admin/tenants/import/template';
+
 export default function AdminTenantsPage() {
   const t = useTranslations('adminTenants');
   const [tenants, setTenants]       = useState<TenantRow[]>([]);
   const [total, setTotal]           = useState(0);
   const [page, setPage]             = useState(1);
-  const [loading, setLoading]       = useState(true);
+  const [loadedKey, setLoadedKey]   = useState<string | null>(null);
   const [search, setSearch]         = useState('');
   const [statusFilter, setStatus]   = useState('');
   const [syncFilter, setSyncFilter] = useState('');
@@ -55,8 +58,11 @@ export default function AdminTenantsPage() {
 
   const LIMIT = 20;
 
+  // Loading is derived: the list is loading until it has been fetched for the current query.
+  const queryKey = `${search}|${statusFilter}|${syncFilter}|${page}`;
+  const loading = loadedKey !== queryKey;
+
   const fetchTenants = useCallback(async () => {
-    setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search)      params.set('search',      search);
@@ -65,21 +71,20 @@ export default function AdminTenantsPage() {
       params.set('page',  String(page));
       params.set('limit', String(LIMIT));
 
-      const res  = await fetch(`/api/admin/tenants?${params.toString()}`);
-      const json = await res.json() as { tenants: TenantRow[]; total: number };
-      setTenants(json.tenants ?? []);
-      setTotal(json.total ?? 0);
-    } catch {
-      // silent — UI shows empty state
+      // Failures are silent — UI shows empty state
+      const json = await fetch(`/api/admin/tenants?${params.toString()}`)
+        .then(res => res.json() as Promise<{ tenants: TenantRow[]; total: number }>)
+        .catch(() => null);
+      if (json) {
+        setTenants(json.tenants ?? []);
+        setTotal(json.total ?? 0);
+      }
     } finally {
-      setLoading(false);
+      setLoadedKey(queryKey);
     }
-  }, [search, statusFilter, syncFilter, page]);
+  }, [search, statusFilter, syncFilter, page, queryKey]);
 
   useEffect(() => { void fetchTenants(); }, [fetchTenants]);
-
-  // Reset to page 1 when filters change
-  useEffect(() => { setPage(1); }, [search, statusFilter, syncFilter]);
 
   const totalPages = Math.ceil(total / LIMIT);
 
@@ -93,7 +98,7 @@ export default function AdminTenantsPage() {
         </div>
         <div className="flex gap-2">
           <a
-            href="/api/admin/tenants/import/template"
+            href={TEMPLATE_HREF}
             className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           >
             {t('downloadTemplate')}
@@ -116,12 +121,12 @@ export default function AdminTenantsPage() {
           type="search"
           placeholder={t('searchPlaceholder')}
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1); }}
           className="flex-1 min-w-[180px] rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         <select
           value={statusFilter}
-          onChange={e => setStatus(e.target.value)}
+          onChange={e => { setStatus(e.target.value); setPage(1); }}
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">{t('allStatuses')}</option>
@@ -131,7 +136,7 @@ export default function AdminTenantsPage() {
         </select>
         <select
           value={syncFilter}
-          onChange={e => setSyncFilter(e.target.value)}
+          onChange={e => { setSyncFilter(e.target.value); setPage(1); }}
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">{t('allSync')}</option>
@@ -212,7 +217,7 @@ export default function AdminTenantsPage() {
       <TenantCsvImportModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onSuccess={() => { void fetchTenants(); }}
+        onSuccess={() => { setLoadedKey(null); void fetchTenants(); }}
       />
 
       {/* Pagination */}
