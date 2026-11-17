@@ -187,6 +187,21 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    # Shared by the build AND the server LHCI starts. The server needs the
+    # same stubs as the build: src/instrumentation.ts imports @/lib/db at
+    # startup, which throws without DATABASE_URL and turns every request
+    # (including the public / and /login) into a 500.
+    env:
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+      AUTH_SECRET: placeholder_auth_secret_32chars_minimum_length
+      AUTH_GOOGLE_ID: placeholder_google_id
+      AUTH_GOOGLE_SECRET: placeholder_google_secret
+      NEXTAUTH_URL: http://localhost:3000
+      ANTHROPIC_API_KEY: placeholder_anthropic_key
+      RESEND_API_KEY: placeholder_resend_key
+      CRON_SECRET: placeholder_cron_secret
+      NEXT_PUBLIC_META_APP_ID: placeholder_meta_app_id
 
     steps:
       - name: Checkout
@@ -205,33 +220,14 @@ jobs:
 
       - name: Build
         run: pnpm run build
-        env:
-          NEXT_PUBLIC_SITE_URL: http://localhost:3000
-          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
-          AUTH_SECRET: placeholder_auth_secret_32chars_minimum_length
-          AUTH_GOOGLE_ID: placeholder_google_id
-          AUTH_GOOGLE_SECRET: placeholder_google_secret
-          NEXTAUTH_URL: http://localhost:3000
-          ANTHROPIC_API_KEY: placeholder_anthropic_key
-          RESEND_API_KEY: placeholder_resend_key
-          CRON_SECRET: placeholder_cron_secret
-          NEXT_PUBLIC_META_APP_ID: placeholder_meta_app_id
 
       - name: Run Lighthouse CI
         # `npm run start` boots the Next.js server (port 3000) from the build
         # output. lighthouserc.json's startServerCommand handles startup; LHCI
         # waits for the server to be ready before collecting.
-        # The server env vars below are stubs — enough to prevent 500 errors on
-        # public routes (/, /login) that don't actually call these services at
-        # render time.
         run: pnpm dlx @lhci/cli@0.16.1 autorun --config=./lighthouserc.json
         env:
           LHCI_BUILD_CONTEXT__CURRENT_BRANCH: ${{ github.head_ref }}
-          NEXT_PUBLIC_SITE_URL: http://localhost:3000
-          ANTHROPIC_API_KEY: placeholder_anthropic_key
-          RESEND_API_KEY: placeholder_resend_key
-          CRON_SECRET: placeholder_cron_secret
-          NEXT_PUBLIC_META_APP_ID: placeholder_meta_app_id
 
   # ---------------------------------------------------------------------------
   # E2E (Playwright) — optional gated job; runs on PRs and main pushes.

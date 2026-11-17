@@ -130,7 +130,7 @@ async function callWebhook(body: string, signature: string) {
 describe('POST /api/whatsapp/webhook', () => {
   beforeEach(() => {
     process.env.WHATSAPP_WEBHOOK_SECRET = SECRET;
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it('returns 401 for invalid signature', async () => {
@@ -277,7 +277,7 @@ describe('POST /api/whatsapp/webhook (real Meta payload)', () => {
 
   beforeEach(() => {
     process.env.META_APP_SECRET = META_SECRET;
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue(null);
   });
 
