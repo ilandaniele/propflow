@@ -6,7 +6,7 @@
  *
  * Email/password auth does NOT use a NextAuth Credentials provider: under the
  * database session strategy that provider can't mint a session, and leaving it
- * wired only exposed an unthrottled bcrypt/enumeration oracle at
+ * wired only exposed an unthrottled password/enumeration oracle at
  * /api/auth/callback/credentials. Password login/sign-up go through the rate-
  * limited server actions in src/app/actions/auth.ts, which validate the password
  * and create the session directly (src/lib/auth/session.ts).

@@ -35,6 +35,11 @@ primary_region = "iad"
   # Applies pending SQL migrations before new machines start; failure aborts the deploy.
   release_command = "node scripts/migrate.mjs"
 
+[env]
+  # Not a secret. Lets bcrypt-hashed users log in once so their hash is rehashed to
+  # PBKDF2 (see src/lib/auth/password.ts). Remove after no `$2%` hashes remain.
+  LEGACY_BCRYPT_VERIFY = "1"
+
 [http_service]
   internal_port = 3000
   force_https = true
