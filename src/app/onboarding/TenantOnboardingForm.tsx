@@ -4,8 +4,6 @@
  * TenantOnboardingForm — multi-field form for new tenant self-registration.
  *
  * Submits to POST /api/tenant/register. On success, redirects to /portal.
- * On airtable_failed (syncStatus='failed'), shows a partial-success banner
- * and still redirects — the admin can complete the sync later.
  *
  * Fields match tenantRegistrationSchema (see src/lib/schemas/tenantRegistration.ts).
  * Admin-only fields (property, unit, contract, rent, deposit) are intentionally absent.
@@ -19,21 +17,19 @@ interface FieldErrors {
   [field: string]: string[];
 }
 
-type FormStatus = 'idle' | 'loading' | 'success' | 'airtable_failed' | 'error';
+type FormStatus = 'idle' | 'loading' | 'success' | 'error';
 
 export function TenantOnboardingForm() {
   const router = useRouter();
   const [status, setStatus] = useState<FormStatus>('idle');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
-  const [syncWarning, setSyncWarning] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus('loading');
     setFieldErrors({});
     setGlobalError(null);
-    setSyncWarning(null);
 
     const form = e.currentTarget;
     const formData = new FormData(form);
@@ -60,8 +56,6 @@ export function TenantOnboardingForm() {
 
       const json = await res.json() as {
         tenant?: { id: string; email: string; full_name: string };
-        syncStatus?: string;
-        syncError?: string;
         error?: { code: string; message: string; details?: { fieldErrors?: Record<string, string[]> } };
       };
 
@@ -76,16 +70,8 @@ export function TenantOnboardingForm() {
         return;
       }
 
-      if (json.syncStatus === 'failed') {
-        setSyncWarning('Tu cuenta fue creada. La sincronización con Airtable falló y será reintentada por el administrador.');
-        setStatus('airtable_failed');
-      } else {
-        setStatus('success');
-      }
-
-      // Redirect to portal regardless of sync status
+      setStatus('success');
       router.push('/portal');
-
     } catch {
       setGlobalError('Error de red. Verifica tu conexión e inténtalo de nuevo.');
       setStatus('error');
@@ -96,13 +82,6 @@ export function TenantOnboardingForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-
-      {/* Partial success warning */}
-      {syncWarning && (
-        <div role="alert" className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-          {syncWarning}
-        </div>
-      )}
 
       {/* Global error */}
       {globalError && (

@@ -21,7 +21,6 @@ interface TenantDetail {
   portal_access: string | null;
   sync_status: string | null;
   last_synced_at: string | null;
-  airtable_external_id: string | null;
   preferred_language: string | null;
   notes: string | null;
   responsable_id: string | null;
@@ -73,7 +72,6 @@ export default function AdminTenantDetailPage({
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [success, setSuccess]   = useState<string | null>(null);
-  const [syncWarning, setSyncWarning] = useState(false);
   const [inviting, setInviting]     = useState(false);
   const [inviteResult, setInviteResult] = useState<{ inviteUrl: string; emailSent: boolean; expiresAt: string } | null>(null);
   const [inviteError, setInviteError]   = useState<string | null>(null);
@@ -159,7 +157,6 @@ export default function AdminTenantDetailPage({
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    setSyncWarning(false);
     setSaving(true);
 
     try {
@@ -193,17 +190,12 @@ export default function AdminTenantDetailPage({
       });
       const json = await res.json() as {
         tenant?: TenantDetail;
-        syncStatus?: string;
         error?: { message?: string };
       };
 
       if (!res.ok) {
         setError(json.error?.message ?? t('errorLoading'));
         return;
-      }
-
-      if (json.syncStatus === 'failed') {
-        setSyncWarning(true);
       }
 
       if (creating && json.tenant) {
@@ -253,12 +245,6 @@ export default function AdminTenantDetailPage({
           {success}
         </div>
       )}
-      {syncWarning && (
-        <div role="alert" className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg px-4 py-3">
-          {t('syncWarning')}
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {/* Section 1: Personal Information */}
@@ -487,11 +473,6 @@ export default function AdminTenantDetailPage({
               {tenant.last_synced_at && (
                 <p className="text-xs text-slate-400">
                   {t('lastSync', { date: new Date(tenant.last_synced_at).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' }) })}
-                </p>
-              )}
-              {tenant.airtable_external_id && (
-                <p className="text-xs text-slate-400">
-                  {t('airtableId')} <span className="font-mono">{tenant.airtable_external_id}</span>
                 </p>
               )}
               <div className="flex items-center gap-3 flex-wrap">

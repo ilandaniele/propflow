@@ -65,15 +65,6 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '*.fly.storage.tigris.dev',
       },
-      // Airtable CDN — Room attachment URLs are served directly from Airtable CDN (IC-1).
-      {
-        protocol: 'https',
-        hostname: 'dl.airtable.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'v5.airtableusercontent.com',
-      },
     ],
   },
 

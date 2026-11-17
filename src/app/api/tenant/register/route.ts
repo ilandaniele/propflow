@@ -6,7 +6,6 @@
  *
  * Security:
  * - User identity derived from server-side NextAuth session — NEVER from request body.
- * - AIRTABLE_PAT is server-only; never included in any response.
  * - No stack traces in error responses.
  */
 
@@ -18,9 +17,7 @@ import { eq, and } from 'drizzle-orm';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
 import { log } from '@/lib/log';
 import { actionRateLimit, getClientIp } from '@/lib/ratelimit';
-import { isAirtableOrg } from '@/lib/airtable/org-binding';
 
-const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 const ONE_MINUTE_MS = 60_000;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -35,7 +32,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Rate limit: 5 / min per user and per IP (creates records in the owner's Airtable)
+  // Rate limit: 5 / min per user and per IP
   const ip = getClientIp(request);
   const rlUser = actionRateLimit(`tenant-register:user:${user.id}`, 5, ONE_MINUTE_MS);
   const rlIp = actionRateLimit(`tenant-register:ip:${ip}`, 5, ONE_MINUTE_MS);
@@ -86,10 +83,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const orgId = profileRow.orgId;
 
-  // Only tenant-role users of the org bound to the Airtable base may self-register:
-  // the endpoint writes into the owner's Airtable (SA-5). Admins create tenants
+  // Only tenant-role users may self-register. Admins create tenants
   // through /api/admin/tenants instead.
-  if (profileRow.role !== 'tenant' || !(await isAirtableOrg(orgId))) {
+  if (profileRow.role !== 'tenant') {
     return NextResponse.json(
       { error: { code: 'FORBIDDEN', message: 'Tenant self-registration is not available for this account.' } },
       { status: 403 }
@@ -158,76 +154,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     })
     .where(eq(profiles.userId, user.id));
 
-  // Step 6: attempt Airtable sync (soft failure)
-  const pat       = process.env['AIRTABLE_PAT'];
-  const baseId    = process.env['AIRTABLE_BASE_ID'];
-  const tableName = process.env['AIRTABLE_TABLE_RESIDENTES'] ?? null;
-
-  let syncStatus: 'synced' | 'failed' | 'skipped' = 'skipped';
-  let syncError: string | null = null;
-
-  if (pat && baseId && tableName) {
-    try {
-      const airtableRes = await fetch(
-        `${AIRTABLE_API_BASE}/${baseId}/${encodeURIComponent(tableName)}`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${pat}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fields: {
-              'Nombre(s)':           data.first_name,
-              'Apellidos':           data.last_name,
-              'Correo electrónico':  data.email,
-              'Número celular':      data.phone,
-              'N° DNI':             data.dni,
-              'Fecha de nacimiento': data.birth_date,
-            },
-          }),
-          cache: 'no-store',
-        }
-      );
-
-      if (airtableRes.ok) {
-        const airtableData = await airtableRes.json() as { id?: string };
-        const recordId = airtableData?.id;
-        if (recordId) {
-          await db
-            .update(tenants)
-            .set({
-              airtableExternalId: recordId,
-              syncStatus:         'synced',
-              lastSyncedAt:       new Date(),
-            })
-            .where(eq(tenants.id, insertedTenant.id));
-        }
-        syncStatus = 'synced';
-      } else {
-        const httpStatus = airtableRes.status;
-        log.warn('[tenant/register] Airtable sync failed', { status: httpStatus, tenantId: insertedTenant.id });
-        await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, insertedTenant.id));
-        syncStatus = 'failed';
-        syncError = `Airtable returned HTTP ${httpStatus}`;
-      }
-    } catch (err) {
-      const errName = err instanceof Error ? err.name : 'unknown';
-      log.error('[tenant/register] Airtable error', { errName, tenantId: insertedTenant.id });
-      await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, insertedTenant.id));
-      syncStatus = 'failed';
-      syncError = errName;
-    }
-  }
-
-  // Step 7: respond — always 200 even if Airtable failed (local record is valid)
+  // Step 6: respond
   return NextResponse.json({
     tenant: {
       id:        insertedTenant.id,
       email:     insertedTenant.email,
       full_name: insertedTenant.fullName,
     },
-    syncStatus,
-    ...(syncError ? { syncError } : {}),
   });
 }

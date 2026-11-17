@@ -12,8 +12,6 @@ import { db } from '@/lib/db';
 import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
-import { upsertAirtableResidente } from '@/lib/airtable/write';
-import { isAirtableOrg } from '@/lib/airtable/org-binding';
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 
@@ -157,41 +155,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: { code: 'INSERT_FAILED', message: 'Failed to create tenant.' } }, { status: 500 });
   }
 
-  // Attempt Airtable sync (soft failure — local record is kept regardless)
-  let syncStatus: 'synced' | 'failed' | 'skipped' = 'skipped';
-  const tableName = process.env['AIRTABLE_TABLE_RESIDENTES'] ?? null;
-
-  // Write-back only for the org bound to the Airtable base (SA-1) — silently skipped otherwise.
-  if (tableName && (await isAirtableOrg(ctx.orgId))) {
-    try {
-      const result = await upsertAirtableResidente({
-        first_name:              data.first_name,
-        last_name:               data.last_name,
-        email:                   data.email,
-        phone:                   data.phone,
-        dni:                     data.dni,
-        birth_date:              data.birth_date,
-        emergency_contact_name:  data.emergency_contact_name ?? null,
-        emergency_contact_phone: data.emergency_contact_phone ?? null,
-      });
-
-      await db
-        .update(tenants)
-        .set({
-          airtableExternalId: result.airtableRecordId,
-          syncStatus:         'synced',
-          lastSyncedAt:       new Date(),
-        })
-        .where(eq(tenants.id, tenant.id));
-
-      syncStatus = 'synced';
-    } catch (err) {
-      const errName = err instanceof Error ? err.name : 'unknown';
-      console.warn('[api/admin/tenants POST] Airtable sync failed', { errName, tenantId: tenant.id });
-      await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, tenant.id));
-      syncStatus = 'failed';
-    }
-  }
-
-  return NextResponse.json({ tenant, syncStatus }, { status: 201 });
+  return NextResponse.json({ tenant }, { status: 201 });
 }

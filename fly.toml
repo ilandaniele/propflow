@@ -10,8 +10,6 @@
 #   CRON_SECRET             — shared bearer token for /api/cron/* routes
 #   RESEND_API_KEY          — Resend email API key
 #   ANTHROPIC_API_KEY       — Anthropic API key (AI features)
-#   AIRTABLE_PAT            — Airtable personal access token
-#   AIRTABLE_BASE_ID        — Airtable base ID (apphwPe2oIkGRSTkb)
 #   TIGRIS_ACCESS_KEY_ID    — Tigris S3-compatible storage access key
 #   TIGRIS_SECRET_ACCESS_KEY — Tigris secret key
 #   TIGRIS_BUCKET_NAME      — Tigris bucket name
