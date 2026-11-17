@@ -43,7 +43,7 @@ function uploadedFiles(dir) {
 }
 
 function gzipSize(file) {
-  return gzipSync(readFileSync(file), { level: 9 }).length;
+  return gzipSync(readFileSync(file)).length;
 }
 
 function findMetafiles(dir) {
