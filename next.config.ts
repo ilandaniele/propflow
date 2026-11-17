@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
+  // Build-time constant so the bundler can drop Fly-only code (see src/instrumentation.ts).
+  env: {
+    PROPFLOW_TARGET: process.env.PROPFLOW_TARGET ?? 'node',
+  },
+
   // Security headers — CSP is nonce-based (generated in middleware.ts per request).
   // Static headers here provide non-CSP security headers as a base layer.
   // The nonce-based CSP in middleware.ts takes precedence and overrides the static one.
