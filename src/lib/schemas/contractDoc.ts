@@ -18,6 +18,16 @@ export const GeneratePdfSchema = z.object({
 });
 export type GeneratePdfInput = z.infer<typeof GeneratePdfSchema>;
 
+const MAX_CONTRACT_PDF_BYTES = 5 * 1024 * 1024;
+
+export const SaveContractPdfSchema = z.object({
+  contract_id: z.string().guid(),
+  file: z
+    .instanceof(File)
+    .refine((f) => f.size > 0 && f.size <= MAX_CONTRACT_PDF_BYTES, 'PDF must be between 1 byte and 5 MB'),
+});
+export type SaveContractPdfInput = z.infer<typeof SaveContractPdfSchema>;
+
 export const SendSignatureSchema = z.object({
   contract_id: z.string().guid(),
 });
