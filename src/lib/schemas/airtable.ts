@@ -22,7 +22,7 @@ export const AirtableFieldValueSchema = z.union([
   z.boolean(),
   z.null(),
   z.array(z.unknown()),
-  z.record(z.unknown()),
+  z.record(z.string(), z.unknown()),
 ]);
 
 export const AirtableRecordSchema = z.object({

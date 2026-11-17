@@ -15,22 +15,22 @@ export const UNIT_IMAGE_MAX_CAPTION_LENGTH = 280;
 export const UNIT_IMAGE_MAX_PER_UNIT = 20;
 
 export const UnitImageUploadSchema = z.object({
-  unit_id: z.string().uuid(),
+  unit_id: z.string().guid(),
 });
 
 export const SetCoverImageSchema = z.object({
-  image_id: z.string().uuid(),
-  unit_id: z.string().uuid(),
+  image_id: z.string().guid(),
+  unit_id: z.string().guid(),
 });
 
 export const DeleteUnitImageSchema = z.object({
-  image_id: z.string().uuid(),
-  unit_id: z.string().uuid(),
+  image_id: z.string().guid(),
+  unit_id: z.string().guid(),
 });
 
 export const ReorderUnitImagesSchema = z.object({
-  unit_id: z.string().uuid(),
-  ordered_ids: z.array(z.string().uuid()).min(1),
+  unit_id: z.string().guid(),
+  ordered_ids: z.array(z.string().guid()).min(1),
 });
 
 export type UnitImageUploadInput = z.infer<typeof UnitImageUploadSchema>;

@@ -24,8 +24,8 @@ export const tenantRegistrationSchema = z.object({
   emergency_contact_phone: z.string().max(20).optional(),
 
   // Terms acceptance (mandatory — must be exactly true)
-  terms_accepted:   z.literal(true, { errorMap: () => ({ message: 'Debes aceptar los términos' }) }),
-  privacy_accepted: z.literal(true, { errorMap: () => ({ message: 'Debes aceptar la política de privacidad' }) }),
+  terms_accepted:   z.literal(true, { error: 'Debes aceptar los términos' }),
+  privacy_accepted: z.literal(true, { error: 'Debes aceptar la política de privacidad' }),
 });
 
 export type TenantRegistrationInput = z.infer<typeof tenantRegistrationSchema>;

@@ -5,7 +5,7 @@ import { z } from 'zod';
  * Admin-only: sets tenants.profile_id after verifying org ownership.
  */
 export const LinkTenantPortalAccountSchema = z.object({
-  tenantId: z.string().uuid('tenantId must be a UUID'),
+  tenantId: z.string().guid('tenantId must be a UUID'),
   profileEmail: z.string().email('profileEmail must be a valid email address'),
 });
 

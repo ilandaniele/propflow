@@ -6,3 +6,10 @@ node_modules
 *.md
 tests
 .github
+.env*
+!.env.example
+.claude
+coverage
+playwright-report
+test-results
+*.log

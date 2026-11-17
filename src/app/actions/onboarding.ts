@@ -72,7 +72,7 @@ export async function createOrg(_prev: AuthState, formData: FormData): Promise<A
   });
 
   if (!parsed.success) {
-    return { error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Validation failed' } };
+    return { error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Validation failed' } };
   }
 
   // 5. Provision org + profile (atomic with rollback — see src/lib/auth/provision.ts)

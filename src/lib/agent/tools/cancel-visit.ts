@@ -4,7 +4,7 @@ import { cancelVisit } from '../visits/service';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
-  visitId: z.string().uuid().describe('Id de la visita a cancelar, de las que devolvió get_my_visits'),
+  visitId: z.string().guid().describe('Id de la visita a cancelar, de las que devolvió get_my_visits'),
   reason: z.string().max(300).optional().describe('Motivo de la cancelación, si el usuario lo dio'),
 });
 

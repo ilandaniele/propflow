@@ -24,7 +24,7 @@ const MAX_RANGE_DAYS = 31;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const QuerySchema = z.union([
-  z.object({ id: z.string().uuid() }),
+  z.object({ id: z.string().guid() }),
   z.object({ from: z.string().regex(DATE_RE), to: z.string().regex(DATE_RE) }),
 ]);
 

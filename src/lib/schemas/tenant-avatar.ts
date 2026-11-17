@@ -13,7 +13,7 @@ export type TenantAvatarMimeType = (typeof TENANT_AVATAR_ALLOWED_MIME_TYPES)[num
 export const TENANT_AVATAR_MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export const AdminUploadTenantAvatarSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
 });
 
 export type AdminUploadTenantAvatarInput = z.infer<typeof AdminUploadTenantAvatarSchema>;

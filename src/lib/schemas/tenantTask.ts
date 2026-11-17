@@ -7,7 +7,7 @@ export const TASK_STATUSES = ['pending', 'in_progress', 'proof_pending_review', 
 export type TaskStatus = typeof TASK_STATUSES[number];
 
 export const CreateTenantTaskSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
   task_type: z.enum(TASK_TYPES),
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional().nullable(),
@@ -16,7 +16,7 @@ export const CreateTenantTaskSchema = z.object({
 export type CreateTenantTaskInput = z.infer<typeof CreateTenantTaskSchema>;
 
 export const UpdateTenantTaskSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   status: z.enum(TASK_STATUSES).optional(),
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional().nullable(),
@@ -25,5 +25,5 @@ export const UpdateTenantTaskSchema = z.object({
 export type UpdateTenantTaskInput = z.infer<typeof UpdateTenantTaskSchema>;
 
 export const CancelTenantTaskSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
 });

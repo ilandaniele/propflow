@@ -36,7 +36,7 @@ async function assertAdvisorProfile(orgId: string, profileId: string): Promise<b
 // ─── saveAdvisorSettings ────────────────────────────────────────────────────
 
 const SaveAdvisorSettingsSchema = z.object({
-  profileId: z.string().uuid(),
+  profileId: z.string().guid(),
   acceptsVisits: z.boolean(),
   visitMinutes: z.number().int().min(10).max(240),
   bufferMinutes: z.number().int().min(0).max(120),
@@ -104,7 +104,7 @@ const WeeklyWindowSchema = z.object({
 }).refine((w) => w.endMinute > w.startMinute, { message: 'endMinute must be after startMinute' });
 
 const ReplaceWeeklyWindowsSchema = z.object({
-  profileId: z.string().uuid(),
+  profileId: z.string().guid(),
   windows: z.array(WeeklyWindowSchema).max(100),
 });
 
@@ -175,7 +175,7 @@ export async function replaceWeeklyWindows(input: ReplaceWeeklyWindowsInput): Pr
 
 const AddAvailabilityExceptionSchema = z
   .object({
-    profileId: z.string().uuid(),
+    profileId: z.string().guid(),
     date: z.string().regex(DATE_RE),
     startMinute: z.number().int().min(0).max(1439),
     endMinute: z.number().int().min(1).max(1440),
@@ -231,7 +231,7 @@ export async function addAvailabilityException(input: AddAvailabilityExceptionIn
 
 // ─── deleteAvailabilityException ────────────────────────────────────────────
 
-const DeleteAvailabilityExceptionSchema = z.object({ id: z.string().uuid() });
+const DeleteAvailabilityExceptionSchema = z.object({ id: z.string().guid() });
 
 export type DeleteAvailabilityExceptionInput = z.infer<typeof DeleteAvailabilityExceptionSchema>;
 

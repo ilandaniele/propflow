@@ -175,7 +175,7 @@ export async function registerWithEmail(_prev: AuthState, formData: FormData): P
     orgName:  formData.get('orgName') || undefined,
   });
   if (!parsed.success) {
-    return { error: { code: 'VALIDATION_ERROR', message: parsed.error.errors[0]?.message ?? 'Datos inválidos' } };
+    return { error: { code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Datos inválidos' } };
   }
 
   const email = parsed.data.email.trim().toLowerCase();

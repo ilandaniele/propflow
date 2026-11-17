@@ -18,11 +18,11 @@ import { AGENT_WHATSAPP_TURN_JOB } from '@/lib/agent/whatsapp-dispatch';
 
 const WINDOW_CLOSED_MESSAGE = 'Fuera de la ventana de 24 h: solo plantillas aprobadas';
 
-const SessionIdSchema = z.object({ session_id: z.string().uuid() });
-const ReplySchema = z.object({ session_id: z.string().uuid(), body: z.string().min(1).max(4096) });
-const SuggestionIdSchema = z.object({ suggestion_id: z.string().uuid() });
+const SessionIdSchema = z.object({ session_id: z.string().guid() });
+const ReplySchema = z.object({ session_id: z.string().guid(), body: z.string().min(1).max(4096) });
+const SuggestionIdSchema = z.object({ suggestion_id: z.string().guid() });
 const ApproveSuggestionSchema = z.object({
-  suggestion_id: z.string().uuid(),
+  suggestion_id: z.string().guid(),
   body: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).max(4096).optional()),
 });
 const LiveSettingsSchema = z.object({

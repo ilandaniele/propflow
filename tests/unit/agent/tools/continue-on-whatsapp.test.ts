@@ -100,8 +100,16 @@ describe('continue_on_whatsapp tool', () => {
 
   it('rejects an invalid phone (too short) via the input schema', () => {
     const tool = makeContinueOnWhatsappTool(makeCtx());
-    const schema = (tool as unknown as { input_schema: { properties: { phone: { maxLength?: number; minLength?: number } } } }).input_schema;
-    expect(schema.properties.phone.minLength).toBe(6);
+    // zod 4 + SDK `reused: 'ref'` emits the phone string constraints under $defs, referenced by $ref.
+    const schema = (tool as unknown as {
+      input_schema: {
+        properties: { phone: { $ref: string } };
+        $defs: Record<string, { maxLength?: number; minLength?: number }>;
+      };
+    }).input_schema;
+    const phone = schema.$defs[schema.properties.phone.$ref.replace('#/$defs/', '')];
+    expect(phone.minLength).toBe(6);
+    expect(phone.maxLength).toBe(20);
   });
 
   it('never overwrites an existing lead phone — the DB update is guarded by isNull(phone)', async () => {

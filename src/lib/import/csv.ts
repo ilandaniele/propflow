@@ -16,12 +16,13 @@ import {
   MAX_CSV_BYTES,
   type ImportType,
   type ImportRowResult,
+  type AnyImportRow,
   MonthlyBilledRowSchema,
   MonthlyCollectedRowSchema,
   MonthlySummaryRowSchema,
   RoomPerformanceRowSchema,
 } from '@/lib/schemas/imports';
-import type { ZodSchema } from 'zod';
+import type { ZodType } from 'zod';
 
 // ---------------------------------------------------------------------------
 // Public error codes (kept as constants so callers can branch without magic strings)
@@ -36,7 +37,7 @@ export const CSV_ERROR_CODES = {
 // ---------------------------------------------------------------------------
 
 /** Return the correct Zod schema for the given import type */
-function getRowSchema(importType: ImportType): ZodSchema {
+function getRowSchema(importType: ImportType): ZodType<AnyImportRow> {
   switch (importType) {
     case 'monthly_billed':     return MonthlyBilledRowSchema;
     case 'monthly_collected':  return MonthlyCollectedRowSchema;

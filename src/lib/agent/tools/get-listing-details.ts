@@ -4,7 +4,7 @@ import { getListingDetails } from '../listings';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
-  listingId: z.string().uuid().describe('Id de la propiedad, devuelto por search_listings'),
+  listingId: z.string().guid().describe('Id de la propiedad, devuelto por search_listings'),
 });
 
 export function makeGetListingDetailsTool(ctx: AgentToolContext) {

@@ -70,7 +70,7 @@ export async function updateCalendarSettings(input: UpdateCalendarSettingsInput)
 // ─── resolveCalendarDrift ────────────────────────────────────────────────────
 
 const ResolveCalendarDriftSchema = z.object({
-  visitId: z.string().uuid(),
+  visitId: z.string().guid(),
   keep: z.enum(['propflow', 'google']),
 });
 
