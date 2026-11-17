@@ -17,7 +17,7 @@ export interface AirtableAttachment {
   size?: number;
 }
 
-/** recordId -> field name -> attachments (only the requested fields). */
+/** recordId -> field name -> attachments (the requested fields, or every field when none are requested). */
 export type AttachmentsByRecord = Map<string, Record<string, AirtableAttachment[]>>;
 
 export class AirtableFetchError extends Error {
@@ -64,11 +64,14 @@ export class AttachmentFetcher {
 
   constructor(private readonly credentials: AirtableCredentials) {}
 
-  /** Fresh attachment objects for `recordIds`, 10 records per request, throttled to ~4 req/s. */
+  /**
+   * Fresh attachment objects for `recordIds`, 10 records per request, throttled to ~4 req/s.
+   * Without `fieldNames` every field is returned, so a field renamed in Airtable cannot fail the request.
+   */
   async fetchAttachments(
     tableId: string,
     recordIds: readonly string[],
-    fieldNames: readonly string[],
+    fieldNames?: readonly string[],
   ): Promise<AttachmentsByRecord> {
     const result: AttachmentsByRecord = new Map();
     for (let i = 0; i < recordIds.length; i += IDS_PER_REQUEST) {
@@ -76,7 +79,7 @@ export class AttachmentFetcher {
       const records = await this.listChunk(tableId, chunk, fieldNames);
       for (const record of records) {
         const fields: Record<string, AirtableAttachment[]> = {};
-        for (const name of fieldNames) {
+        for (const name of fieldNames ?? Object.keys(record.fields ?? {})) {
           const value = record.fields?.[name];
           if (Array.isArray(value)) fields[name] = value.filter(isAttachment);
         }
@@ -89,7 +92,7 @@ export class AttachmentFetcher {
   private async listChunk(
     tableId: string,
     recordIds: readonly string[],
-    fieldNames: readonly string[],
+    fieldNames: readonly string[] = [],
   ): Promise<Array<{ id: string; fields?: Record<string, unknown> }>> {
     const params = new URLSearchParams();
     params.set('filterByFormula', `OR(${recordIds.map((id) => `RECORD_ID()='${id.replace(/'/g, '')}'`).join(',')})`);

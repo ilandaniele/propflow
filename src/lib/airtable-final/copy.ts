@@ -105,7 +105,7 @@ async function fetchFresh(
   ctx: RunContext,
   envKey: string,
   recordIds: string[],
-  fields: string[],
+  fields?: string[],
 ): Promise<AttachmentsByRecord> {
   const tableId = resolveTableId(envKey);
   if (!tableId) throw new CopyError('table_not_configured');
@@ -208,12 +208,7 @@ async function copySnapshotBatch(ctx: RunContext, batch: SnapshotItem[]): Promis
   for (const [table, items] of byTable) {
     let fresh: AttachmentsByRecord;
     try {
-      fresh = await fetchFresh(
-        ctx,
-        SNAPSHOT_TABLE_ENV[table],
-        [...new Set(items.map((i) => i.recordId))],
-        [...new Set(items.map((i) => i.field))],
-      );
+      fresh = await fetchFresh(ctx, SNAPSHOT_TABLE_ENV[table], [...new Set(items.map((i) => i.recordId))]);
     } catch (err) {
       for (const item of items) fail(ctx, snapshotRef(item), err);
       continue;
