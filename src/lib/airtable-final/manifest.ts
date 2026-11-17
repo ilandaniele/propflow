@@ -16,6 +16,8 @@ export interface Manifest {
   version: 1;
   updatedAt: string;
   items: Record<string, ManifestEntry>;
+  /** Manifest key -> reason, for attachments that can never be copied. Skipped by later batches. */
+  failed?: Record<string, string>;
 }
 
 const READ_TIMEOUT_MS = 30_000;
@@ -28,7 +30,12 @@ export async function readManifest(): Promise<Manifest> {
   if (res.status === 404) return emptyManifest();
   if (!res.ok) throw new Error(`manifest_read_http_${res.status}`);
   const parsed = (await res.json()) as Partial<Manifest>;
-  return { version: 1, updatedAt: parsed.updatedAt ?? new Date(0).toISOString(), items: parsed.items ?? {} };
+  return {
+    version: 1,
+    updatedAt: parsed.updatedAt ?? new Date(0).toISOString(),
+    items: parsed.items ?? {},
+    failed: parsed.failed ?? {},
+  };
 }
 
 export async function writeManifest(manifest: Manifest): Promise<void> {

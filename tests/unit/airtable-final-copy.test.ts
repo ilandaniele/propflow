@@ -332,6 +332,22 @@ describe('runCopyBatch: snapshots', () => {
     }));
   });
 
+  it('fetches every field so a field removed in Airtable fails only its own items, as permanent', async () => {
+    store.listSnapshotRows.mockResolvedValue([
+      snapshotRow('propiedades', 'recP1', { Planos: [att('attX', OLD_URL, 'plano.pdf', 'application/pdf')], Viejo: [att('attOld')] }),
+    ]);
+    const fetchMock = mockNetwork({ records: { recP1: { Planos: [att('attX', FRESH_URL, 'plano.pdf', 'application/pdf')] } }, files: { [FRESH_URL]: PDF } });
+
+    const summary = await runCopyBatch({ mode: 'apply', limit: 10 });
+
+    const airtableUrl = new URL(String(fetchMock.mock.calls.find(([input]) => String(input).startsWith('https://api.airtable.com/'))![0]));
+    expect(airtableUrl.searchParams.getAll('fields[]')).toEqual([]);
+    expect(summary).toMatchObject({ copied: 1, failed: 1, remaining: 0, permanentFailures: 1 });
+    expect(summary.errors).toEqual([{ ref: 'snapshot.propiedades.Viejo#recP1', reason: 'attachment_not_found' }]);
+    const written = manifestApi.writeManifest.mock.calls[0][0];
+    expect(written.failed).toEqual({ 'propiedades/recP1/Viejo/attOld': 'attachment_not_found' });
+  });
+
   it('dry-run over snapshots writes nothing', async () => {
     store.listSnapshotRows.mockResolvedValue([snapshotRow('portafolio', 'recU1', { Fotos: [att('attU')] })]);
     store.findUnitIds.mockResolvedValue(new Map([['recU1', 'unit-1']]));
@@ -343,5 +359,73 @@ describe('runCopyBatch: snapshots', () => {
     expect(uploadFile).not.toHaveBeenCalled();
     expect(store.insertUnitImage).not.toHaveBeenCalled();
     expect(manifestApi.writeManifest).not.toHaveBeenCalled();
+  });
+});
+
+describe('runCopyBatch: permanent failures', () => {
+  const snapshotRow = (table: string, recordId: string, fields: Record<string, unknown>) => ({
+    orgId: ORG, table, recordId, data: { id: recordId, fields },
+  });
+
+  it('records permanent column failures in the manifest so later batches skip them', async () => {
+    emptyColumnsExcept({ tenants: [{ id: 'row-1', orgId: ORG, recordId: 'recGone', value: OLD_URL }] });
+    mockNetwork({ records: {} });
+
+    const summary = await runCopyBatch({ mode: 'apply', limit: 10 });
+
+    expect(summary).toMatchObject({ failed: 1, permanentFailures: 1 });
+    const written = manifestApi.writeManifest.mock.calls[0][0];
+    expect(written.failed).toEqual({ 'column:tenants.photo_url#row-1': 'record_not_found' });
+    expect(store.countPendingColumnRows).toHaveBeenCalledWith(tenantCol, ['row-1']);
+  });
+
+  it('excludes known permanent failures from the pending rows and from remaining', async () => {
+    manifestApi.readManifest.mockResolvedValue({
+      version: 1, updatedAt: '', items: {},
+      failed: { 'column:tenants.photo_url#row-1': 'record_not_found', 'propiedades/recP1/Planos/attX': 'attachment_not_found' },
+    });
+    store.listSnapshotRows.mockResolvedValue([snapshotRow('propiedades', 'recP1', { Planos: [att('attX')] })]);
+    const fetchMock = mockNetwork({ records: {} });
+
+    const summary = await runCopyBatch({ mode: 'apply', limit: 10 });
+
+    expect(store.listPendingColumnRows).toHaveBeenCalledWith(tenantCol, 10, ['row-1']);
+    expect(summary).toMatchObject({ copied: 0, failed: 0, remaining: 0, permanentFailures: 2 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not record transient failures', async () => {
+    emptyColumnsExcept({ tenants: [{ id: 'row-1', orgId: ORG, recordId: 'recT1', value: OLD_URL }] });
+    mockNetwork({ records: { recT1: { 'Foto DNI': [att('attA')] } }, files: { [FRESH_URL]: 503 } });
+
+    const summary = await runCopyBatch({ mode: 'apply', limit: 10 });
+
+    expect(summary).toMatchObject({ failed: 1, permanentFailures: 0 });
+    expect(manifestApi.writeManifest).not.toHaveBeenCalled();
+  });
+
+  it('dry-run does not record permanent failures', async () => {
+    emptyColumnsExcept({ tenants: [{ id: 'row-1', orgId: ORG, recordId: 'recGone', value: OLD_URL }] });
+    mockNetwork({ records: {} });
+
+    const summary = await runCopyBatch({ mode: 'dry-run', limit: 10 });
+
+    expect(summary).toMatchObject({ failed: 1, permanentFailures: 0 });
+    expect(manifestApi.writeManifest).not.toHaveBeenCalled();
+  });
+
+  it('reports the Airtable error type of a rejected request, never its message', async () => {
+    store.listSnapshotRows.mockResolvedValue([snapshotRow('propiedades', 'recP1', { Planos: [att('attX')] })]);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify({ error: { type: 'UNKNOWN_FIELD_NAME', message: 'Unknown field name: "Planos"' } }),
+      { status: 422 },
+    )));
+
+    const summary = await runCopyBatch({ mode: 'apply', limit: 10 });
+
+    expect(summary.errors).toEqual([
+      { ref: 'snapshot.propiedades.Planos#recP1', reason: 'airtable_http_422_UNKNOWN_FIELD_NAME' },
+    ]);
+    expect(summary.permanentFailures).toBe(0);
   });
 });

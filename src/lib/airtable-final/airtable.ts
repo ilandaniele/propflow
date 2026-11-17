@@ -17,12 +17,12 @@ export interface AirtableAttachment {
   size?: number;
 }
 
-/** recordId -> field name -> attachments (only the requested fields). */
+/** recordId -> field name -> attachments (the requested fields, or every field when none are requested). */
 export type AttachmentsByRecord = Map<string, Record<string, AirtableAttachment[]>>;
 
 export class AirtableFetchError extends Error {
-  constructor(readonly status: number) {
-    super(`airtable_http_${status}`);
+  constructor(readonly status: number, errorType?: string) {
+    super(`airtable_http_${status}${errorType ? `_${errorType}` : ''}`);
     this.name = 'AirtableFetchError';
   }
 }
@@ -44,6 +44,13 @@ export function resolveTableId(envKey: string): string | null {
   return value && value.trim() !== '' ? value : null;
 }
 
+/** Airtable's error type (e.g. `UNKNOWN_FIELD_NAME`); never the message, which may echo input. */
+async function airtableErrorType(res: Response): Promise<string | undefined> {
+  const body = (await res.json().catch(() => null)) as { error?: string | { type?: unknown } } | null;
+  const type = typeof body?.error === 'string' ? body.error : body?.error?.type;
+  return typeof type === 'string' && /^[A-Z_]{1,50}$/.test(type) ? type : undefined;
+}
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function isAttachment(value: unknown): value is AirtableAttachment {
@@ -57,11 +64,14 @@ export class AttachmentFetcher {
 
   constructor(private readonly credentials: AirtableCredentials) {}
 
-  /** Fresh attachment objects for `recordIds`, 10 records per request, throttled to ~4 req/s. */
+  /**
+   * Fresh attachment objects for `recordIds`, 10 records per request, throttled to ~4 req/s.
+   * Without `fieldNames` every field is returned, so a field renamed in Airtable cannot fail the request.
+   */
   async fetchAttachments(
     tableId: string,
     recordIds: readonly string[],
-    fieldNames: readonly string[],
+    fieldNames?: readonly string[],
   ): Promise<AttachmentsByRecord> {
     const result: AttachmentsByRecord = new Map();
     for (let i = 0; i < recordIds.length; i += IDS_PER_REQUEST) {
@@ -69,7 +79,7 @@ export class AttachmentFetcher {
       const records = await this.listChunk(tableId, chunk, fieldNames);
       for (const record of records) {
         const fields: Record<string, AirtableAttachment[]> = {};
-        for (const name of fieldNames) {
+        for (const name of fieldNames ?? Object.keys(record.fields ?? {})) {
           const value = record.fields?.[name];
           if (Array.isArray(value)) fields[name] = value.filter(isAttachment);
         }
@@ -82,7 +92,7 @@ export class AttachmentFetcher {
   private async listChunk(
     tableId: string,
     recordIds: readonly string[],
-    fieldNames: readonly string[],
+    fieldNames: readonly string[] = [],
   ): Promise<Array<{ id: string; fields?: Record<string, unknown> }>> {
     const params = new URLSearchParams();
     params.set('filterByFormula', `OR(${recordIds.map((id) => `RECORD_ID()='${id.replace(/'/g, '')}'`).join(',')})`);
@@ -101,7 +111,7 @@ export class AttachmentFetcher {
         return body.records ?? [];
       }
       const retryable = res.status === 429 || res.status >= 500;
-      if (!retryable || attempt >= MAX_ATTEMPTS) throw new AirtableFetchError(res.status);
+      if (!retryable || attempt >= MAX_ATTEMPTS) throw new AirtableFetchError(res.status, await airtableErrorType(res));
       await sleep(1000 * 2 ** (attempt - 1));
     }
   }

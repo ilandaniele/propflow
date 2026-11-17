@@ -56,6 +56,8 @@ export interface CopySummary {
   skipped: number;
   failed: number;
   remaining: number;
+  /** Attachments that can never be copied (recorded in the manifest, excluded from `remaining`). */
+  permanentFailures: number;
   errors: Array<{ ref: string; reason: string }>;
 }
 
@@ -63,6 +65,7 @@ interface RunContext {
   apply: boolean;
   summary: CopySummary;
   manifest: Manifest;
+  failed: Record<string, string>;
   copiedAttachmentIds: Set<string>;
   fetcher: AttachmentFetcher;
   manifestDirty: boolean;
@@ -71,15 +74,25 @@ interface RunContext {
 type SnapshotItem = SnapshotAttachment & { orgId: string };
 
 const UNIT_IMAGE_MIMES: readonly CopyMime[] = ['image/jpeg', 'image/png', 'image/webp'];
+const PERMANENT_REASONS = new Set(['record_not_found', 'attachment_not_found', 'unsupported_type', 'too_large']);
 
 const columnRef = (col: AttachmentColumn, rowId: string) => `${col.dbTable}.${col.dbColumn}#${rowId}`;
 const snapshotRef = (item: SnapshotAttachment) => `snapshot.${item.table}.${item.field}#${item.recordId}`;
 const columnManifestKey = (col: AttachmentColumn, rowId: string) => `column:${columnRef(col, rowId)}`;
 
-function fail(ctx: RunContext, ref: string, err: unknown): void {
+function fail(ctx: RunContext, ref: string, err: unknown, key?: string): void {
   const reason = err instanceof CopyError ? err.reason : err instanceof Error ? err.message.slice(0, 60) : 'unknown';
   ctx.summary.failed++;
   ctx.summary.errors.push({ ref, reason });
+  if (ctx.apply && key && PERMANENT_REASONS.has(reason)) {
+    ctx.failed[key] = reason;
+    ctx.manifestDirty = true;
+  }
+}
+
+function failedColumnRowIds(ctx: RunContext, col: AttachmentColumn): string[] {
+  const prefix = columnManifestKey(col, '');
+  return Object.keys(ctx.failed).filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length));
 }
 
 function record(ctx: RunContext, key: string, entry: ManifestEntry): void {
@@ -92,7 +105,7 @@ async function fetchFresh(
   ctx: RunContext,
   envKey: string,
   recordIds: string[],
-  fields: string[],
+  fields?: string[],
 ): Promise<AttachmentsByRecord> {
   const tableId = resolveTableId(envKey);
   if (!tableId) throw new CopyError('table_not_configured');
@@ -121,7 +134,7 @@ async function store(bucket: string, path: string, file: DownloadedFile, upsert 
 // ---------------------------------------------------------------------------
 
 async function copyColumn(ctx: RunContext, col: AttachmentColumn, budget: number): Promise<number> {
-  const rows = await listPendingColumnRows(col, budget);
+  const rows = await listPendingColumnRows(col, budget, failedColumnRowIds(ctx, col));
   const candidates = rows.filter((row) => {
     if (isAirtableUrl(row.value)) return true;
     ctx.summary.skipped++;
@@ -161,14 +174,14 @@ async function copyColumn(ctx: RunContext, col: AttachmentColumn, budget: number
       }
       ctx.summary.copied++;
     } catch (err) {
-      fail(ctx, ref, err);
+      fail(ctx, ref, err, columnManifestKey(col, row.id));
     }
   }
   return rows.length;
 }
 
-async function countPendingColumns(): Promise<number> {
-  const counts = await Promise.all(ATTACHMENT_COLUMNS.map((col) => countPendingColumnRows(col)));
+async function countPendingColumns(ctx: RunContext): Promise<number> {
+  const counts = await Promise.all(ATTACHMENT_COLUMNS.map((col) => countPendingColumnRows(col, failedColumnRowIds(ctx, col))));
   return counts.reduce((sum, n) => sum + n, 0);
 }
 
@@ -183,8 +196,8 @@ async function loadSnapshotItems(): Promise<SnapshotItem[]> {
   );
 }
 
-const pendingSnapshotItems = (items: SnapshotItem[], manifest: Manifest) =>
-  items.filter((item) => !(manifestKey(item) in manifest.items));
+const pendingSnapshotItems = (items: SnapshotItem[], ctx: RunContext) =>
+  items.filter((item) => !(manifestKey(item) in ctx.manifest.items) && !(manifestKey(item) in ctx.failed));
 
 async function copySnapshotBatch(ctx: RunContext, batch: SnapshotItem[]): Promise<void> {
   const unitIdsByOrg = await loadUnitIds(batch);
@@ -195,12 +208,7 @@ async function copySnapshotBatch(ctx: RunContext, batch: SnapshotItem[]): Promis
   for (const [table, items] of byTable) {
     let fresh: AttachmentsByRecord;
     try {
-      fresh = await fetchFresh(
-        ctx,
-        SNAPSHOT_TABLE_ENV[table],
-        [...new Set(items.map((i) => i.recordId))],
-        [...new Set(items.map((i) => i.field))],
-      );
+      fresh = await fetchFresh(ctx, SNAPSHOT_TABLE_ENV[table], [...new Set(items.map((i) => i.recordId))]);
     } catch (err) {
       for (const item of items) fail(ctx, snapshotRef(item), err);
       continue;
@@ -262,7 +270,7 @@ async function copySnapshotItem(
     }
     ctx.summary.copied++;
   } catch (err) {
-    fail(ctx, snapshotRef(item), err);
+    fail(ctx, snapshotRef(item), err, key);
   }
 }
 
@@ -276,10 +284,12 @@ async function copySnapshotItem(
  * update, no manifest.
  */
 export async function runCopyBatch({ mode, limit }: { mode: CopyMode; limit: number }): Promise<CopySummary> {
+  const manifest = await readManifest();
   const ctx: RunContext = {
     apply: mode === 'apply',
-    summary: { copied: 0, skipped: 0, failed: 0, remaining: 0, errors: [] },
-    manifest: await readManifest(),
+    summary: { copied: 0, skipped: 0, failed: 0, remaining: 0, permanentFailures: 0, errors: [] },
+    manifest,
+    failed: (manifest.failed ??= {}),
     copiedAttachmentIds: new Set(),
     fetcher: new AttachmentFetcher(readAirtableCredentials()),
     manifestDirty: false,
@@ -298,19 +308,21 @@ export async function runCopyBatch({ mode, limit }: { mode: CopyMode; limit: num
     // Budget left over means every pending column row was attempted this batch,
     // so attachment ids already copied by a column are known to the dedupe set.
     if (budget > 0) {
-      await copySnapshotBatch(ctx, pendingSnapshotItems(snapshotItems, ctx.manifest).slice(0, budget));
+      await copySnapshotBatch(ctx, pendingSnapshotItems(snapshotItems, ctx).slice(0, budget));
     }
   } finally {
     if (ctx.apply && ctx.manifestDirty) await writeManifest(ctx.manifest);
   }
 
-  ctx.summary.remaining = (await countPendingColumns()) + pendingSnapshotItems(snapshotItems, ctx.manifest).length;
+  ctx.summary.remaining = (await countPendingColumns(ctx)) + pendingSnapshotItems(snapshotItems, ctx).length;
+  ctx.summary.permanentFailures = Object.keys(ctx.failed).length;
   log.info('[airtable-final-copy] batch done', {
     mode,
     copied: ctx.summary.copied,
     skipped: ctx.summary.skipped,
     failed: ctx.summary.failed,
     remaining: ctx.summary.remaining,
+    permanentFailures: ctx.summary.permanentFailures,
   });
   return ctx.summary;
 }

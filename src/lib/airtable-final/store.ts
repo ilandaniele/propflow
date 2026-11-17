@@ -37,23 +37,30 @@ function inList(values: readonly string[]): SQL {
   return sql.join(values.map((v) => sql`${v}`), sql`, `);
 }
 
-export async function listPendingColumnRows(col: AttachmentColumn, limit: number): Promise<ColumnRow[]> {
+const notIn = (excludeIds: readonly string[]): SQL =>
+  excludeIds.length > 0 ? sql` AND id::text NOT IN (${inList(excludeIds)})` : sql``;
+
+export async function listPendingColumnRows(
+  col: AttachmentColumn,
+  limit: number,
+  excludeIds: readonly string[] = [],
+): Promise<ColumnRow[]> {
   const { table, value, recordId } = columnRefs(col);
   const rows = await db.execute(sql`
     SELECT id, org_id AS "orgId", ${recordId} AS "recordId", ${value} AS value
     FROM ${table}
-    WHERE ${recordId} IS NOT NULL AND ${AIRTABLE_URL_FILTER(value)}
+    WHERE ${recordId} IS NOT NULL AND ${AIRTABLE_URL_FILTER(value)}${notIn(excludeIds)}
     ORDER BY id
     LIMIT ${limit}
   `);
   return rows as unknown as ColumnRow[];
 }
 
-export async function countPendingColumnRows(col: AttachmentColumn): Promise<number> {
+export async function countPendingColumnRows(col: AttachmentColumn, excludeIds: readonly string[] = []): Promise<number> {
   const { table, value, recordId } = columnRefs(col);
   const rows = await db.execute(sql`
     SELECT count(*)::int AS n FROM ${table}
-    WHERE ${recordId} IS NOT NULL AND ${AIRTABLE_URL_FILTER(value)}
+    WHERE ${recordId} IS NOT NULL AND ${AIRTABLE_URL_FILTER(value)}${notIn(excludeIds)}
   `);
   return Number((rows as unknown as Array<{ n: number }>)[0]?.n ?? 0);
 }
