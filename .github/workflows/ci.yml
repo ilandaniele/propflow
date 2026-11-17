@@ -115,7 +115,7 @@ jobs:
         run: pnpm dlx @cyclonedx/cyclonedx-npm@7.0.1 --output-file sbom.cdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: sbom
           path: sbom.cdx.json
@@ -173,7 +173,7 @@ jobs:
           output: sarif-results
 
       - name: Upload SARIF as build artifact
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: codeql-sarif-${{ matrix.language }}
           path: sarif-results/
@@ -290,7 +290,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: playwright-report
           path: playwright-report/
