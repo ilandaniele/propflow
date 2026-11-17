@@ -9,7 +9,6 @@
     "overrides": {
       "baseline-browser-mapping": ">=2.11.0",
       "browserslist": ">=4.28.7",
-      "fast-xml-parser": ">=5.12.0",
       "source-map-js": ">=1.2.2"
     },
     "onlyBuiltDependencies": [
