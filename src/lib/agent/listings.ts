@@ -6,8 +6,7 @@
  * rows, only ever touches `status` (availability) — never price, title,
  * description, bedrooms, or any other field a human may have edited. Price
  * always starts NULL ("a consultar") because units.monthlyRentDefault is a
- * default, not a committed asking price, and because the Airtable sync that
- * feeds units.status can lag up to 24h (see docs in the Phase 1 PR).
+ * default, not a committed asking price.
  */
 
 import { randomUUID } from 'node:crypto';

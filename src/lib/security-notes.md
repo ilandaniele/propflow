@@ -9,8 +9,6 @@
 - **CSP**: nonce-based strict CSP in `src/proxy.ts`. `connect-src` and `img-src` include Tigris
   endpoint (`process.env.TIGRIS_ENDPOINT ?? https://fly.storage.tigris.dev`). No `*.supabase.co`
   domains remain. No `unsafe-eval`. Script src uses `nonce-{nonce} strict-dynamic`.
-- **debug route**: `GET /api/debug/airtable-meta` requires admin session via `requireAdmin()` guard.
-  Returns 401 for unauthenticated/non-admin callers.
 - **/api/dev absent**: directory does not exist in this codebase.
 - **WhatsApp webhook rate limiting**: `webhookRateLimit` (60 req/min/IP) enforced in
   `src/app/api/whatsapp/webhook/route.ts` before any DB work.
@@ -18,7 +16,7 @@
   rate limit needed; they are only called by Fly scheduled machines.
 - **NEXT_PUBLIC_ exposure audit**: only `NEXT_PUBLIC_SITE_URL` (safe) and
   `NEXT_PUBLIC_META_APP_ID` (safe — Meta public app ID) are exposed to the browser. All Tigris,
-  Airtable, database, and auth secrets are server-only.
+  database, and auth secrets are server-only.
 
 ---
 
@@ -47,14 +45,6 @@
    (requireAdmin guard) which limits abuse to authenticated admins. If the org grows to multiple
    admin accounts, consider adding per-user token-budget enforcement or Upstash rate limits.
    Estimated effort: 2h.
-
-5. **Airtable PAT rotation**: `AIRTABLE_PAT` grants write access to the Airtable base. It is
-   never exposed to the browser, but if the Fly secrets are compromised, it could be used to
-   corrupt sync data. Rotate it periodically in Airtable account settings → developer tokens.
-
-6. **Delete `/api/debug/airtable-meta` after diagnosis is complete**: This endpoint is marked
-   "Temporary diagnostic endpoint" in its source. Once the Airtable sync is confirmed working,
-   delete `src/app/api/debug/airtable-meta/route.ts` entirely.
 
 ### Low priority / informational
 

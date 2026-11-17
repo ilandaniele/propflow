@@ -17,7 +17,6 @@ interface TenantRecord {
   id: string;
   email: string | null;
   portalAccess?: string;
-  airtableExternalId: string | null;
 }
 
 const state = {
@@ -31,13 +30,6 @@ vi.mock('@/lib/auth/guards', () => ({
   requireAdmin: vi.fn().mockImplementation(async () => {
     if (state.requireAdminError) throw new Error('UNAUTHORIZED');
     return { userId: USER_ID, orgId: ORG_ID, role: 'admin', profile: {} };
-  }),
-}));
-
-vi.mock('@/lib/airtable/write', () => ({
-  upsertAirtableResidente: vi.fn().mockResolvedValue({
-    airtableRecordId: 'recAIRTABLE001',
-    created: true,
   }),
 }));
 
@@ -68,7 +60,6 @@ vi.mock('@/lib/db', () => {
               return Object.values(state.tenants).map(t => ({
                 id: t.id,
                 email: t.email,
-                airtableExternalId: t.airtableExternalId,
                 externalTenantId: null,
               }));
             }
@@ -90,7 +81,6 @@ vi.mock('@/lib/db', () => {
                   id,
                   email: p.email ?? null,
                   portalAccess: p.portalAccess,
-                  airtableExternalId: null,
                 };
                 return [{ id }];
               }
@@ -181,7 +171,6 @@ describe('POST /api/admin/tenants/import', () => {
       id: 'tenant-existing-001',
       email: 'existing@test.com',
       portalAccess: 'not_invited',
-      airtableExternalId: null,
     };
 
     const file = buildCsvFile(HEADERS, [

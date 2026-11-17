@@ -8,7 +8,6 @@ import {
   payments as paymentsTable,
   incidents as incidentsTable,
   expenses as expensesTable,
-  airtableSnapshots,
   additionalCharges,
   accountStatements,
   tenantFeedback,
@@ -16,7 +15,7 @@ import {
   properties,
   contracts,
 } from '@/lib/db/schema';
-import { eq, and, gte, ne, desc, sql } from 'drizzle-orm';
+import { eq, and, gte, ne, sql } from 'drizzle-orm';
 import { Card } from '@/components/ui/Card';
 import {
   computeOccupancyRate,
@@ -25,7 +24,6 @@ import {
   computePastDueBalance,
   computeTrueNetProfit,
 } from '@/lib/finance/kpis';
-import { AirtableOccupancyDelta } from '@/components/portfolio/AirtableOccupancyDelta';
 import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
 import { entityLabel } from '@/lib/dashboard/health';
@@ -47,7 +45,6 @@ export default async function DashboardPage() {
     incidentRows,
     statementResult,
     expenseRows,
-    airtableRows,
     additionalChargeRows,
     accountStatementRows,
     feedbackRows,
@@ -67,11 +64,6 @@ export default async function DashboardPage() {
     db.execute(sql`SELECT is_overdue, total_charged, total_paid, balance FROM tenant_statement WHERE org_id = ${ctx.orgId}`),
     db.select({ amount: expensesTable.amount, incurredOn: expensesTable.incurredOn })
       .from(expensesTable).where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, startOfMonth))),
-    db.select({ data: airtableSnapshots.data, syncedAt: airtableSnapshots.syncedAt })
-      .from(airtableSnapshots)
-      .where(and(eq(airtableSnapshots.orgId, ctx.orgId), eq(airtableSnapshots.tableName, 'kpis')))
-      .orderBy(desc(airtableSnapshots.syncedAt))
-      .limit(1),
     db.select({ amount: additionalCharges.amount, anio: additionalCharges.anio })
       .from(additionalCharges).where(and(eq(additionalCharges.orgId, ctx.orgId), eq(additionalCharges.anio, now.getFullYear()))),
     db.select({ id: accountStatements.id, sendStatus: accountStatements.sendStatus })
@@ -134,18 +126,6 @@ export default async function DashboardPage() {
   const netProfitKpi = computeTrueNetProfit(mtdIncome, mtdExpenses);
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
 
-  // Airtable occupancy delta
-  const airtableRow = airtableRows[0] ?? null;
-  const airtableSnapshot = airtableRow?.data
-    ? {
-        occupancyRate: typeof (airtableRow.data as Record<string, unknown>).occupancy_rate === 'number'
-          ? ((airtableRow.data as Record<string, unknown>).occupancy_rate as number) : 0,
-        syncedAt: airtableRow.syncedAt ? String(airtableRow.syncedAt) : '',
-      }
-    : null;
-  const liveRate = totalUnits > 0 ? occupiedUnits / totalUnits : 0;
-
-  // New Airtable KPIs
   const totalAdditionalCharges = additionalChargeRows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
   const pendingStatements = accountStatementRows.filter((s) => s.sendStatus !== 'sent').length;
 
@@ -219,7 +199,6 @@ export default async function DashboardPage() {
               <FinKpiCard title={t('kpis.trueNetProfit')} value={netProfitKpi.formatted} rawValue={netProfitKpi.value} sub={t('kpis.trueNetProfitSub')} positiveIsGood />
               <FinKpiCard title={t('kpis.pastDueBalance')} value={pastDueKpi.formatted} rawValue={pastDueKpi.value} sub={t('kpis.pastDueBalanceSub')} positiveIsGood={false} />
               <FinKpiCard title={t('kpis.occupancyFinancial')} value={occupancyKpi.formatted} rawValue={occupancyKpi.value} sub={t('kpis.occupancyFinancialSub', { occupied: occupiedUnits, total: totalUnits })} positiveIsGood />
-              <AirtableOccupancyDelta liveRate={liveRate} snapshot={airtableSnapshot} />
             </div>
           </div>
 
@@ -279,7 +258,7 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* Row 3 — Airtable-sourced KPIs */}
+          {/* Row 3 — Billing KPIs */}
           <div>
             <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('kpis.additionalChargesTitle')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

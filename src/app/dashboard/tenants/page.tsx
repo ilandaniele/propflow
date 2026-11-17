@@ -138,7 +138,7 @@ export default async function TenantsPage() {
         </div>
       )}
 
-      {/* Airtable field coverage */}
+      {/* Data field coverage */}
       {list.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">{t('kpi.demographics')}</h2>

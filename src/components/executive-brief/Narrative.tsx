@@ -16,7 +16,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 
 // Stricter than the default schema: drop <img> (and any src/srcset) so LLM output
 // cannot embed a remote image beacon that exfiltrates data (e.g. the org id) via a
-// prompt-injection payload flowing in from tenant/Airtable content.
+// prompt-injection payload flowing in from tenant content.
 const NARRATIVE_SANITIZE_SCHEMA = {
   ...defaultSchema,
   tagNames: (defaultSchema.tagNames ?? []).filter((t) => t !== 'img'),

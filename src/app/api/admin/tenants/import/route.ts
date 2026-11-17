@@ -1,7 +1,6 @@
 /**
  * POST /api/admin/tenants/import
  * Upserts validated tenant rows. New tenants get portal_access='not_invited'.
- * Also attempts Airtable Residentes upsert for each row.
  */
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +11,6 @@ import { db } from '@/lib/db';
 import { importLogs, tenants } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { parseTenantsCsv } from '@/lib/csv/parseTenantsCsv';
-import { upsertAirtableResidente } from '@/lib/airtable/write';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
 
@@ -45,19 +43,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const [emailRows, extRows] = await Promise.all([
     emails.length > 0
-      ? db.select({ id: tenants.id, email: tenants.email, airtableExternalId: tenants.airtableExternalId })
+      ? db.select({ id: tenants.id, email: tenants.email })
           .from(tenants).where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.email!, emails)))
-      : Promise.resolve([] as { id: string; email: string | null; airtableExternalId: string | null }[]),
+      : Promise.resolve([] as { id: string; email: string | null }[]),
     externalIds.length > 0
-      ? db.select({ id: tenants.id, externalTenantId: tenants.externalTenantId, airtableExternalId: tenants.airtableExternalId })
+      ? db.select({ id: tenants.id, externalTenantId: tenants.externalTenantId })
           .from(tenants).where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.externalTenantId!, externalIds)))
-      : Promise.resolve([] as { id: string; externalTenantId: string | null; airtableExternalId: string | null }[]),
+      : Promise.resolve([] as { id: string; externalTenantId: string | null }[]),
   ]);
 
-  const emailMap: Record<string, { id: string; airtable_external_id: string | null }> = {};
-  emailRows.forEach(t => { if (t.email) emailMap[t.email] = { id: t.id, airtable_external_id: t.airtableExternalId }; });
-  const extIdMap: Record<string, { id: string; airtable_external_id: string | null }> = {};
-  extRows.forEach(t => { if (t.externalTenantId) extIdMap[t.externalTenantId] = { id: t.id, airtable_external_id: t.airtableExternalId }; });
+  const emailMap: Record<string, { id: string }> = {};
+  emailRows.forEach(t => { if (t.email) emailMap[t.email] = { id: t.id }; });
+  const extIdMap: Record<string, { id: string }> = {};
+  extRows.forEach(t => { if (t.externalTenantId) extIdMap[t.externalTenantId] = { id: t.id }; });
 
   // Import log — Drizzle (AC1)
   const logRows = await db
@@ -76,7 +74,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const import_id = logRows[0]?.id;
   let created = 0, updated = 0, skipped = 0, failed = 0;
-  const airtableResults: unknown[] = [];
 
   for (const row of validRows) {
     try {
@@ -112,27 +109,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (existing) {
         await db.update(tenants).set(tenantPayload).where(eq(tenants.id, existing.id));
         updated++;
-
-        // Airtable write-back (soft failure)
-        try {
-          const result = await upsertAirtableResidente({
-            first_name: row.first_name,
-            last_name:  row.last_name,
-            email:      row.email,
-            phone:      row.phone ?? '',
-            emergency_contact_name:  row.emergency_contact_name,
-            emergency_contact_phone: row.emergency_contact_phone,
-          }, existing.airtable_external_id);
-          await db.update(tenants).set({
-            airtableExternalId: result.airtableRecordId,
-            syncStatus:         'synced',
-            lastSyncedAt:       new Date(),
-          }).where(eq(tenants.id, existing.id));
-          airtableResults.push({ id: existing.id, status: 'ok' });
-        } catch (e) {
-          airtableResults.push({ id: existing.id, status: 'error', message: e instanceof Error ? e.message : String(e) });
-          await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, existing.id));
-        }
       } else {
         const newRows = await db
           .insert(tenants)
@@ -141,28 +117,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         if (newRows.length === 0) { failed++; continue; }
         created++;
-        const newTenantId = newRows[0].id;
-
-        // Airtable write-back (soft failure)
-        try {
-          const result = await upsertAirtableResidente({
-            first_name: row.first_name,
-            last_name:  row.last_name,
-            email:      row.email,
-            phone:      row.phone ?? '',
-            emergency_contact_name:  row.emergency_contact_name,
-            emergency_contact_phone: row.emergency_contact_phone,
-          });
-          await db.update(tenants).set({
-            airtableExternalId: result.airtableRecordId,
-            syncStatus:         'synced',
-            lastSyncedAt:       new Date(),
-          }).where(eq(tenants.id, newTenantId));
-          airtableResults.push({ id: newTenantId, status: 'ok' });
-        } catch (e) {
-          airtableResults.push({ id: newTenantId, status: 'error', message: e instanceof Error ? e.message : String(e) });
-          await db.update(tenants).set({ syncStatus: 'failed' }).where(eq(tenants.id, newTenantId));
-        }
       }
     } catch {
       failed++;
@@ -180,7 +134,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       rowsUpdated:        updated,
       rowsSkipped:        skipped,
       rowsFailed:         failed,
-      airtableSyncResult: airtableResults,
       completedAt:        new Date(),
     }).where(eq(importLogs.id, import_id));
   }
