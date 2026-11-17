@@ -18,6 +18,6 @@ export const PricingTableSchema = z.object({
 export type PricingTableInput = z.infer<typeof PricingTableSchema>;
 
 export const UpdatePricingTableSchema = PricingTableSchema.extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
 });
 export type UpdatePricingTableInput = z.infer<typeof UpdatePricingTableSchema>;

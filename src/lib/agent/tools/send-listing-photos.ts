@@ -12,7 +12,7 @@ import { recordAgentEvent } from '../events';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
-  listingId: z.string().uuid().describe('Id de la propiedad, devuelto por search_listings'),
+  listingId: z.string().guid().describe('Id de la propiedad, devuelto por search_listings'),
   max: z.number().int().min(1).max(10).optional().describe('Máximo de fotos a enviar, si el usuario pidió una cantidad puntual'),
 });
 

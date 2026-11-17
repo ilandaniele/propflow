@@ -28,9 +28,7 @@ export const MAX_IMAGES_PER_UNIT = 20;
 // ---------------------------------------------------------------------------
 
 export const MimeTypeSchema = z.enum(['image/jpeg', 'image/png', 'image/webp'], {
-  errorMap: () => ({
-    message: 'File type must be image/jpeg, image/png, or image/webp',
-  }),
+  error: 'File type must be image/jpeg, image/png, or image/webp',
 });
 
 // ---------------------------------------------------------------------------
@@ -58,7 +56,7 @@ export type ImageFileMeta = z.infer<typeof ImageFileSchema>;
 // ---------------------------------------------------------------------------
 
 export const UploadUnitImageSchema = z.object({
-  unit_id: z.string().uuid('unit_id must be a valid UUID'),
+  unit_id: z.string().guid('unit_id must be a valid UUID'),
   is_cover: z.preprocess(
     (v) => v === 'true' || v === true,
     z.boolean().default(false)
@@ -83,7 +81,7 @@ export type UploadUnitImageInput = z.infer<typeof UploadUnitImageSchema>;
 // ---------------------------------------------------------------------------
 
 export const UpdateCaptionSchema = z.object({
-  id: z.string().uuid('id must be a valid UUID'),
+  id: z.string().guid('id must be a valid UUID'),
   caption: z
     .string()
     .max(MAX_CAPTION_LENGTH, {
@@ -104,9 +102,9 @@ export type UpdateCaptionInput = z.infer<typeof UpdateCaptionSchema>;
 // ---------------------------------------------------------------------------
 
 export const ReorderUnitImagesSchema = z.object({
-  unit_id: z.string().uuid('unit_id must be a valid UUID'),
+  unit_id: z.string().guid('unit_id must be a valid UUID'),
   order: z
-    .array(z.string().uuid())
+    .array(z.string().guid())
     .min(1, 'order array must not be empty')
     .max(MAX_IMAGES_PER_UNIT, `order array cannot exceed ${MAX_IMAGES_PER_UNIT} items`),
 });
@@ -119,9 +117,9 @@ export type ReorderUnitImagesInput = z.infer<typeof ReorderUnitImagesSchema>;
 // ---------------------------------------------------------------------------
 
 export const UnitImageRowSchema = z.object({
-  id: z.string().uuid(),
-  org_id: z.string().uuid(),
-  unit_id: z.string().uuid(),
+  id: z.string().guid(),
+  org_id: z.string().guid(),
+  unit_id: z.string().guid(),
   storage_path: z.string().min(1),
   filename: z.string().min(1).max(255),
   mime_type: MimeTypeSchema,
@@ -131,7 +129,7 @@ export const UnitImageRowSchema = z.object({
   is_cover: z.boolean(),
   caption: z.string().max(MAX_CAPTION_LENGTH).nullable(),
   sort_order: z.number().int().min(0),
-  uploaded_by: z.string().uuid(),
+  uploaded_by: z.string().guid(),
   uploaded_at: z.string().datetime(),
 });
 
@@ -144,7 +142,7 @@ export type UnitImageRow = z.infer<typeof UnitImageRowSchema>;
 // ---------------------------------------------------------------------------
 
 export const NormalizedImageSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   url: z.string().url(),
   filename: z.string(),
   mimeType: MimeTypeSchema,

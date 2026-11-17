@@ -4,20 +4,20 @@ export const AnnouncementSchema = z.object({
   title: z.string().min(1).max(200),
   body: z.string().min(1).max(5000),
   audience: z.enum(['all', 'property', 'unit']).default('all'),
-  property_id: z.string().uuid().optional(),
-  unit_id: z.string().uuid().optional(),
+  property_id: z.string().guid().optional(),
+  unit_id: z.string().guid().optional(),
   expires_at: z.string().datetime().optional(),
 });
 export type AnnouncementInput = z.infer<typeof AnnouncementSchema>;
 
 export const PublishAnnouncementSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
 });
 export type PublishAnnouncementInput = z.infer<typeof PublishAnnouncementSchema>;
 
 export const CleaningTaskSchema = z.object({
-  unit_id: z.string().uuid().optional(),
-  assigned_to: z.string().uuid().optional(),
+  unit_id: z.string().guid().optional(),
+  assigned_to: z.string().guid().optional(),
   title: z.string().min(1).max(300),
   scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().max(1000).optional(),
@@ -25,9 +25,9 @@ export const CleaningTaskSchema = z.object({
 export type CleaningTaskInput = z.infer<typeof CleaningTaskSchema>;
 
 export const UpdateCleaningTaskSchema = z.object({
-  id: z.string().uuid(),
-  unit_id: z.string().uuid().optional(),
-  assigned_to: z.string().uuid().optional(),
+  id: z.string().guid(),
+  unit_id: z.string().guid().optional(),
+  assigned_to: z.string().guid().optional(),
   title: z.string().min(1).max(300).optional(),
   scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   status: z.enum(['pending', 'in_progress', 'done']).optional(),
@@ -46,7 +46,7 @@ export const LeadSchema = z.object({
 export type LeadInput = z.infer<typeof LeadSchema>;
 
 export const UpdateLeadSchema = LeadSchema.extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   status: z.enum(['new', 'contacted', 'qualified', 'lost']).optional(),
 });
 export type UpdateLeadInput = z.infer<typeof UpdateLeadSchema>;
@@ -54,7 +54,7 @@ export type UpdateLeadInput = z.infer<typeof UpdateLeadSchema>;
 export const ScheduleReminderSchema = z.object({
   type: z.literal('custom'),
   target_type: z.enum(['contract', 'charge', 'tenant']),
-  target_id: z.string().uuid(),
+  target_id: z.string().guid(),
   channel: z.enum(['email', 'in_app', 'both']).default('both'),
   scheduled_for: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   message_preview: z.string().max(500).optional(),
@@ -62,6 +62,6 @@ export const ScheduleReminderSchema = z.object({
 export type ScheduleReminderInput = z.infer<typeof ScheduleReminderSchema>;
 
 export const MarkNotificationReadSchema = z.object({
-  notification_id: z.string().uuid(),
+  notification_id: z.string().guid(),
 });
 export type MarkNotificationReadInput = z.infer<typeof MarkNotificationReadSchema>;

@@ -69,7 +69,7 @@ if (typeof setInterval !== 'undefined') {
 // ---------------------------------------------------------------------------
 
 const QuerySchema = z.object({
-  snapshot_id: z.string().uuid(),
+  snapshot_id: z.string().guid(),
   att_id: z.string().min(1).max(64),
 });
 

@@ -24,7 +24,7 @@ import type { ActionResult } from '@/lib/errors';
 
 const SavePhantomRoomMappingSchema = z.object({
   label:      z.string().min(1).max(500),
-  unitId:     z.string().uuid('unitId must be a valid UUID'),
+  unitId:     z.string().guid('unitId must be a valid UUID'),
   resolution: z.enum(['mapped', 'ignored']).default('mapped'),
 });
 
@@ -118,7 +118,7 @@ export async function listPhantomRooms(): Promise<ActionResult<PhantomRoomMappin
 
 const SavePropertyMappingSchema = z.object({
   externalName:       z.string().min(1).max(500),
-  internalPropertyId: z.string().uuid('internalPropertyId must be a valid UUID'),
+  internalPropertyId: z.string().guid('internalPropertyId must be a valid UUID'),
 });
 
 export interface PropertyMapping {

@@ -8,12 +8,12 @@ export const CreateTenantSchema = z.object({
 });
 
 export const UpdateTenantSchema = CreateTenantSchema.partial().extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
 });
 
 export const AssignTenantToUnitSchema = z.object({
-  tenant_id: z.string().uuid(),
-  unit_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
+  unit_id: z.string().guid(),
 });
 
 export type CreateTenantInput = z.infer<typeof CreateTenantSchema>;

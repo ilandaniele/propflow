@@ -4,7 +4,7 @@ export const SANCTION_KINDS = ['monetary', 'warning'] as const;
 export const SANCTION_STATUSES = ['proposed', 'approved', 'rejected', 'disputed', 'resolved'] as const;
 
 export const ProposeSanctionSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
   kind: z.enum(SANCTION_KINDS),
   title: z.string().min(1).max(200),
   reason: z.string().min(1).max(1000),
@@ -19,16 +19,16 @@ export const ProposeSanctionSchema = z.object({
 export type ProposeSanctionInput = z.infer<typeof ProposeSanctionSchema>;
 
 export const ApproveSanctionSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
 });
 
 export const RejectSanctionSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   reason: z.string().max(500).optional(),
 });
 
 export const DisputeSanctionSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   dispute_reason: z.string().min(1).max(1000),
 });
 export type DisputeSanctionInput = z.infer<typeof DisputeSanctionSchema>;

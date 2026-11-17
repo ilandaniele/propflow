@@ -41,7 +41,7 @@ async function loadOrgLead(orgId: string, leadId: string) {
 // ─── moveLeadStage ──────────────────────────────────────────────────────────
 
 const MoveLeadStageSchema = z.object({
-  leadId: z.string().uuid(),
+  leadId: z.string().guid(),
   stage: z.string().regex(STAGE_KEY_RE),
 });
 
@@ -80,8 +80,8 @@ export async function moveLeadStage(input: MoveLeadStageInput): Promise<ActionRe
 // ─── assignLead ─────────────────────────────────────────────────────────────
 
 const AssignLeadSchema = z.object({
-  leadId: z.string().uuid(),
-  profileId: z.string().uuid().nullable(),
+  leadId: z.string().guid(),
+  profileId: z.string().guid().nullable(),
 });
 
 export type AssignLeadInput = z.infer<typeof AssignLeadSchema>;
@@ -110,7 +110,7 @@ export async function assignLead(input: AssignLeadInput): Promise<ActionResult<n
 
 // ─── autoAssignLead ─────────────────────────────────────────────────────────
 
-const AutoAssignLeadSchema = z.object({ leadId: z.string().uuid() });
+const AutoAssignLeadSchema = z.object({ leadId: z.string().guid() });
 
 export type AutoAssignLeadInput = z.infer<typeof AutoAssignLeadSchema>;
 
@@ -137,7 +137,7 @@ export async function autoAssignLead(input: AutoAssignLeadInput): Promise<Action
 // ─── setDoNotContact ────────────────────────────────────────────────────────
 
 const SetDoNotContactSchema = z.object({
-  leadId: z.string().uuid(),
+  leadId: z.string().guid(),
   value: z.boolean(),
 });
 
@@ -215,7 +215,7 @@ export async function createStage(input: CreateStageInput): Promise<ActionResult
 // ─── updateStage ────────────────────────────────────────────────────────────
 
 const UpdateStageSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   label: z.string().min(1).max(60).optional(),
   color: z.string().regex(COLOR_RE).nullable().optional(),
   archived: z.boolean().optional(),
@@ -260,7 +260,7 @@ export async function updateStage(input: UpdateStageInput): Promise<ActionResult
 
 const ReorderStagesSchema = z.object({
   pipeline: z.enum(PIPELINES),
-  orderedIds: z.array(z.string().uuid()).min(1),
+  orderedIds: z.array(z.string().guid()).min(1),
 });
 
 export type ReorderStagesInput = z.infer<typeof ReorderStagesSchema>;
@@ -297,7 +297,7 @@ export async function reorderStages(input: ReorderStagesInput): Promise<ActionRe
 // ─── deleteStage ────────────────────────────────────────────────────────────
 
 const DeleteStageSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().guid(),
   moveLeadsTo: z.string().regex(STAGE_KEY_RE),
 });
 

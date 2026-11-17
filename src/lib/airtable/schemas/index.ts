@@ -48,7 +48,7 @@ export function extractFirstLinkedId(value: unknown): string | null {
 // ---------------------------------------------------------------------------
 
 export const NormalizedPropertySchema = z.object({
-  org_id:                z.string().uuid(),
+  org_id:                z.string().guid(),
   airtable_external_id:  z.string().min(1),
   airtable_synced_at:    z.string().datetime(),
   name:                  z.string().min(1),
@@ -81,7 +81,7 @@ export type NormalizedProperty = z.infer<typeof NormalizedPropertySchema>;
 // ---------------------------------------------------------------------------
 
 export const NormalizedTenantSchema = z.object({
-  org_id:                z.string().uuid(),
+  org_id:                z.string().guid(),
   airtable_external_id:  z.string().min(1),
   airtable_synced_at:    z.string().datetime(),
   full_name:             z.string().min(1),
@@ -106,8 +106,8 @@ export const NormalizedTenantSchema = z.object({
   contract_end:          z.string().nullable().optional(),
   duration_months:       z.number().int().nullable().optional(),
   // Resolved link fields — populated by link resolver after normalisation
-  property_id:           z.string().uuid().nullable().optional(),
-  unit_id:               z.string().uuid().nullable().optional(),
+  property_id:           z.string().guid().nullable().optional(),
+  unit_id:               z.string().guid().nullable().optional(),
   // Profile photo URL — mapped from Airtable "Foto de perfil" attachment field
   // Only present if the field exists in Airtable; never clobbers existing photo_url with null
   photo_url:             z.string().nullable().optional(),
@@ -128,7 +128,7 @@ export type NormalizedTenant = z.infer<typeof NormalizedTenantSchema>;
 // ---------------------------------------------------------------------------
 
 export const NormalizedContractSchema = z.object({
-  org_id:                z.string().uuid(),
+  org_id:                z.string().guid(),
   airtable_external_id:  z.string().min(1),
   airtable_synced_at:    z.string().datetime(),
   start_date:            z.string().nullable().optional(),  // DATE string
@@ -153,8 +153,8 @@ export const NormalizedContractSchema = z.object({
   actual_close_date:     z.string().nullable().optional(),
   keynua_contract_id:    z.string().nullable().optional(),
   // Resolved link fields
-  tenant_id:             z.string().uuid().nullable().optional(),
-  unit_id:               z.string().uuid().nullable().optional(),
+  tenant_id:             z.string().guid().nullable().optional(),
+  unit_id:               z.string().guid().nullable().optional(),
   // Raw linked ids for resolver
   _airtable_tenant_ext_id: z.string().nullable().optional(),
   _airtable_unit_ext_id:   z.string().nullable().optional(),
@@ -167,7 +167,7 @@ export type NormalizedContract = z.infer<typeof NormalizedContractSchema>;
 // ---------------------------------------------------------------------------
 
 export const NormalizedPaymentSchema = z.object({
-  org_id:                z.string().uuid(),
+  org_id:                z.string().guid(),
   airtable_external_id:  z.string().min(1),
   airtable_synced_at:    z.string().datetime(),
   amount:                NullableNumeric,
@@ -185,8 +185,8 @@ export const NormalizedPaymentSchema = z.object({
   days_overdue:                  z.number().int().nullable().optional(),
   concept:                       z.string().nullable().optional(),
   // Resolved link fields
-  contract_id:           z.string().uuid().nullable().optional(),
-  tenant_id:             z.string().uuid().nullable().optional(),
+  contract_id:           z.string().guid().nullable().optional(),
+  tenant_id:             z.string().guid().nullable().optional(),
   // Raw linked ids for resolver
   _airtable_contract_ext_id: z.string().nullable().optional(),
   _airtable_tenant_ext_id:   z.string().nullable().optional(),
@@ -244,7 +244,7 @@ export const NormalizedServicePaymentSchema = z.object({
   service_type:         z.enum(['agua', 'internet', 'gas', 'luz', 'otro']),
   supply_number:        z.string().nullable(),
   tope:                 z.number().nullable().optional(),
-  monthly_data:         z.record(z.object({
+  monthly_data:         z.record(z.string(), z.object({
     amount:      z.number().nullable(),
     eecc:        z.string().nullable(),
     receipt_url: z.string().nullable(),

@@ -7,9 +7,9 @@ export const CreateExpenseCategorySchema = z.object({
 export type CreateExpenseCategoryInput = z.infer<typeof CreateExpenseCategorySchema>;
 
 export const CreateExpenseSchema = z.object({
-  property_id: z.string().uuid().optional(),
-  unit_id: z.string().uuid().optional(),
-  category_id: z.string().uuid().optional(),
+  property_id: z.string().guid().optional(),
+  unit_id: z.string().guid().optional(),
+  category_id: z.string().guid().optional(),
   amount: z.coerce.number().positive().max(999_999_99),
   description: z.string().min(1).max(500),
   incurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -17,10 +17,10 @@ export const CreateExpenseSchema = z.object({
 export type CreateExpenseInput = z.infer<typeof CreateExpenseSchema>;
 
 export const UpdateExpenseSchema = z.object({
-  id: z.string().uuid(),
-  property_id: z.string().uuid().optional(),
-  unit_id: z.string().uuid().optional(),
-  category_id: z.string().uuid().optional(),
+  id: z.string().guid(),
+  property_id: z.string().guid().optional(),
+  unit_id: z.string().guid().optional(),
+  category_id: z.string().guid().optional(),
   amount: z.coerce.number().positive().max(999_999_99).optional(),
   description: z.string().min(1).max(500).optional(),
   incurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -39,13 +39,13 @@ export const UploadReceiptSchema = z.object({
 export type UploadReceiptInput = z.infer<typeof UploadReceiptSchema>;
 
 export const MatchReceiptSchema = z.object({
-  receipt_id: z.string().uuid(),
-  payment_id: z.string().uuid(),
+  receipt_id: z.string().guid(),
+  payment_id: z.string().guid(),
 });
 export type MatchReceiptInput = z.infer<typeof MatchReceiptSchema>;
 
 export const OcrRequestSchema = z.object({
-  receipt_id: z.string().uuid(),
+  receipt_id: z.string().guid(),
 });
 export type OcrRequestInput = z.infer<typeof OcrRequestSchema>;
 

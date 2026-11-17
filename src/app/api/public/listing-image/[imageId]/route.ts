@@ -27,7 +27,7 @@ export async function GET(
   if (!rl.success) return notFound(429);
 
   const { imageId } = await params;
-  if (!z.string().uuid().safeParse(imageId).success) return notFound(404);
+  if (!z.string().guid().safeParse(imageId).success) return notFound(404);
 
   const parsedQuery = QuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsedQuery.success) return notFound(404);
