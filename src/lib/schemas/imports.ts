@@ -39,7 +39,7 @@ export const MonthlyBilledRowSchema = z.object({
   period:        z.string().regex(/^\d{4}-\d{2}$/, 'period must be YYYY-MM'),
   billed_amount: z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'billed_amount must be numeric' }).min(0)
+    z.number({ error: 'billed_amount must be numeric' }).min(0)
   ),
 });
 export type MonthlyBilledRow = z.infer<typeof MonthlyBilledRowSchema>;
@@ -54,7 +54,7 @@ export const MonthlyCollectedRowSchema = z.object({
   period:           z.string().regex(/^\d{4}-\d{2}$/, 'period must be YYYY-MM'),
   collected_amount: z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'collected_amount must be numeric' }).min(0)
+    z.number({ error: 'collected_amount must be numeric' }).min(0)
   ),
 });
 export type MonthlyCollectedRow = z.infer<typeof MonthlyCollectedRowSchema>;
@@ -68,19 +68,19 @@ export const MonthlySummaryRowSchema = z.object({
   period:           z.string().regex(/^\d{4}-\d{2}$/, 'period must be YYYY-MM'),
   total_billed:     z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'total_billed must be numeric' }).min(0)
+    z.number({ error: 'total_billed must be numeric' }).min(0)
   ),
   total_collected:  z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'total_collected must be numeric' }).min(0)
+    z.number({ error: 'total_collected must be numeric' }).min(0)
   ),
   total_expenses:   z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'total_expenses must be numeric' }).min(0)
+    z.number({ error: 'total_expenses must be numeric' }).min(0)
   ),
   net_profit:       z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'net_profit must be numeric' })
+    z.number({ error: 'net_profit must be numeric' })
   ),
 });
 export type MonthlySummaryRow = z.infer<typeof MonthlySummaryRowSchema>;
@@ -95,19 +95,19 @@ export const RoomPerformanceRowSchema = z.object({
   period:         z.string().regex(/^\d{4}-\d{2}$/, 'period must be YYYY-MM'),
   occupancy_days: z.preprocess(
     (val) => (typeof val === 'string' ? parseInt(val, 10) : val),
-    z.number({ invalid_type_error: 'occupancy_days must be numeric' }).int().min(0)
+    z.number({ error: 'occupancy_days must be numeric' }).int().min(0)
   ),
   total_days:     z.preprocess(
     (val) => (typeof val === 'string' ? parseInt(val, 10) : val),
-    z.number({ invalid_type_error: 'total_days must be numeric' }).int().min(1)
+    z.number({ error: 'total_days must be numeric' }).int().min(1)
   ),
   revenue:        z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'revenue must be numeric' }).min(0)
+    z.number({ error: 'revenue must be numeric' }).min(0)
   ),
   expenses:       z.preprocess(
     (val) => (typeof val === 'string' ? parseFloat(val.replace(/,/g, '')) : val),
-    z.number({ invalid_type_error: 'expenses must be numeric' }).min(0)
+    z.number({ error: 'expenses must be numeric' }).min(0)
   ),
 });
 export type RoomPerformanceRow = z.infer<typeof RoomPerformanceRowSchema>;
@@ -198,7 +198,7 @@ export const ImportTypeSchema = z.enum(IMPORT_TYPES);
 
 /** Schema for commitCsvImport */
 export const CommitImportSchema = z.object({
-  importId: z.string().uuid('importId must be a valid UUID'),
+  importId: z.string().guid('importId must be a valid UUID'),
 });
 
 /** Schema for getImportLogs pagination */

@@ -8,18 +8,18 @@ export const ContractTemplateSchema = z.object({
 export type ContractTemplateInput = z.infer<typeof ContractTemplateSchema>;
 
 export const UpdateContractTemplateSchema = ContractTemplateSchema.extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
 });
 export type UpdateContractTemplateInput = z.infer<typeof UpdateContractTemplateSchema>;
 
 export const GeneratePdfSchema = z.object({
-  contract_id: z.string().uuid(),
-  template_id: z.string().uuid(),
+  contract_id: z.string().guid(),
+  template_id: z.string().guid(),
 });
 export type GeneratePdfInput = z.infer<typeof GeneratePdfSchema>;
 
 export const SendSignatureSchema = z.object({
-  contract_id: z.string().uuid(),
+  contract_id: z.string().guid(),
 });
 export type SendSignatureInput = z.infer<typeof SendSignatureSchema>;
 

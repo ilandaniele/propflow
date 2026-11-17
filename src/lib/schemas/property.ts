@@ -8,21 +8,25 @@ export const CreatePropertySchema = z.object({
 });
 
 export const UpdatePropertySchema = CreatePropertySchema.partial().extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
 });
 
+const ToiletTypeSchema = z.enum(['shared', 'private', 'none']);
+
 export const CreateUnitSchema = z.object({
-  property_id: z.string().uuid(),
+  property_id: z.string().guid(),
   label: z.string().min(1, 'Unit label is required').max(100),
   floor: z.string().max(50).optional().or(z.literal('')),
   bedrooms: z.coerce.number().int().min(0).max(20).optional(),
   // toilet_type: must match DB CHECK constraint IN ('shared', 'private', 'none')
-  toilet_type: z.enum(['shared', 'private', 'none']).default('private'),
+  toilet_type: ToiletTypeSchema.default('private'),
   monthly_rent_default: z.coerce.number().min(0).max(9_999_999).optional(),
 });
 
 export const UpdateUnitSchema = CreateUnitSchema.omit({ property_id: true }).partial().extend({
-  id: z.string().uuid(),
+  id: z.string().guid(),
+  // zod 4 applies .default() inside .partial(); a partial update must leave an omitted toilet_type undefined.
+  toilet_type: ToiletTypeSchema.optional(),
 });
 
 export type CreatePropertyInput = z.infer<typeof CreatePropertySchema>;

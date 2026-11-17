@@ -25,7 +25,7 @@ export const VapiCallSchema = z
     id: z.string(),
     phoneNumberId: z.string().nullable().optional(),
     customer: z.object({ number: z.string().nullable().optional() }).passthrough().nullable().optional(),
-    metadata: z.record(z.string()).nullable().optional(),
+    metadata: z.record(z.string(), z.string()).nullable().optional(),
   })
   .passthrough();
 

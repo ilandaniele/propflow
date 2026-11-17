@@ -72,10 +72,10 @@ const NewLeadSchema = z.object({
 
 const CreateVisitManualSchema = z
   .object({
-    leadId: z.string().uuid().optional(),
+    leadId: z.string().guid().optional(),
     newLead: NewLeadSchema.optional(),
-    listingId: z.string().uuid().nullable().optional(),
-    profileId: z.string().uuid(),
+    listingId: z.string().guid().nullable().optional(),
+    profileId: z.string().guid(),
     date: z.string().regex(DATE_RE),
     startMinute: z.number().int().min(0).max(1439),
     visitMinutes: z.number().int().min(10).max(240).optional(),
@@ -156,10 +156,10 @@ export async function createVisitManual(input: CreateVisitManualInput): Promise<
 // ─── rescheduleVisitStaff ───────────────────────────────────────────────────
 
 const RescheduleVisitStaffSchema = z.object({
-  visitId: z.string().uuid(),
+  visitId: z.string().guid(),
   date: z.string().regex(DATE_RE),
   startMinute: z.number().int().min(0).max(1439),
-  profileId: z.string().uuid().optional(),
+  profileId: z.string().guid().optional(),
 });
 
 export type RescheduleVisitStaffInput = z.infer<typeof RescheduleVisitStaffSchema>;
@@ -201,7 +201,7 @@ export async function rescheduleVisitStaff(input: RescheduleVisitStaffInput): Pr
 // ─── cancelVisitStaff ───────────────────────────────────────────────────────
 
 const CancelVisitStaffSchema = z.object({
-  visitId: z.string().uuid(),
+  visitId: z.string().guid(),
   reason: z.string().max(500).optional(),
 });
 
@@ -236,7 +236,7 @@ export async function cancelVisitStaff(input: CancelVisitStaffInput): Promise<Ac
 // ─── markVisitOutcomeAction ─────────────────────────────────────────────────
 
 const MarkVisitOutcomeSchema = z.object({
-  visitId: z.string().uuid(),
+  visitId: z.string().guid(),
   outcome: z.enum(['completed', 'no_show']),
 });
 
@@ -270,7 +270,7 @@ export async function markVisitOutcomeAction(input: MarkVisitOutcomeInput): Prom
 
 // ─── confirmVisitStaff ──────────────────────────────────────────────────────
 
-const ConfirmVisitStaffSchema = z.object({ visitId: z.string().uuid() });
+const ConfirmVisitStaffSchema = z.object({ visitId: z.string().guid() });
 
 export type ConfirmVisitStaffInput = z.infer<typeof ConfirmVisitStaffSchema>;
 

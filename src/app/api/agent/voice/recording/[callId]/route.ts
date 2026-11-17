@@ -55,7 +55,7 @@ export async function GET(
   }
 
   const { callId } = await params;
-  if (!z.string().uuid().safeParse(callId).success) return notFound();
+  if (!z.string().guid().safeParse(callId).success) return notFound();
 
   const rows = await db
     .select({ recordingUrl: agentCalls.recordingUrl })

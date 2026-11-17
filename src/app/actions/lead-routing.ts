@@ -51,7 +51,7 @@ export async function saveRoutingMode(input: SaveRoutingModeInput): Promise<Acti
 // ─── upsertRoutingMemberAction ──────────────────────────────────────────────
 
 const UpsertRoutingMemberSchema = z.object({
-  profileId: z.string().uuid(),
+  profileId: z.string().guid(),
   pipeline: z.enum(['demand', 'supply', 'both']),
   weight: z.number().int().min(1).max(100),
   active: z.boolean(),
@@ -85,7 +85,7 @@ export async function upsertRoutingMemberAction(input: UpsertRoutingMemberInput)
 
 // ─── removeRoutingMemberAction ──────────────────────────────────────────────
 
-const RemoveRoutingMemberSchema = z.object({ profileId: z.string().uuid() });
+const RemoveRoutingMemberSchema = z.object({ profileId: z.string().guid() });
 
 export type RemoveRoutingMemberInput = z.infer<typeof RemoveRoutingMemberSchema>;
 

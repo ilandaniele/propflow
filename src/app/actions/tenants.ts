@@ -21,23 +21,23 @@ import {
 
 // Phase 4 schemas for tenant profile additions
 const UpdateTenantAvatarSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
   photo_url: z.string().min(1).max(500),
 });
 
 const UpdateTenantPreferredLanguageSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
   preferred_language: z.enum(['es', 'en', 'pt']),
 });
 
 const UpdateTenantWhatsappPhoneSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
   whatsapp_phone: z.string().regex(/^\+\d{7,15}$/, 'E.164 format required').or(z.literal('')),
   whatsapp_opt_in: z.enum(['true', 'false']).optional(),
 });
 
 const AddInternalNoteSchema = z.object({
-  tenant_id: z.string().uuid(),
+  tenant_id: z.string().guid(),
   content: z.string().min(1).max(2000),
 });
 

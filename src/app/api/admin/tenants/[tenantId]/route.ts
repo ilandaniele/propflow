@@ -53,7 +53,7 @@ const PatchTenantSchema = z.object({
   emergency_contact_name:   z.string().max(100).nullable().optional(),
   emergency_contact_phone:  z.string().max(20).nullable().optional(),
   notes:                    z.string().max(5000).nullable().optional(),
-  responsable_id:           z.string().uuid().nullable().optional(),
+  responsable_id:           z.string().guid().nullable().optional(),
   preferred_language:       z.enum(['es', 'en']).optional(),
 });
 

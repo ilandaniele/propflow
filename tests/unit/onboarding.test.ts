@@ -31,7 +31,7 @@ describe('CreateOrgSchema (onboarding Zod)', () => {
     const result = CreateOrgSchema.safeParse({ orgName: 'A' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0].message).toMatch(/at least 2/);
+      expect(result.error.issues[0].message).toMatch(/at least 2/);
     }
   });
 
@@ -49,7 +49,7 @@ describe('CreateOrgSchema (onboarding Zod)', () => {
     const result = CreateOrgSchema.safeParse({ orgName: 'A'.repeat(121) });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0].message).toMatch(/at most 120/);
+      expect(result.error.issues[0].message).toMatch(/at most 120/);
     }
   });
 
