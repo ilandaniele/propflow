@@ -21,8 +21,8 @@ export interface AirtableAttachment {
 export type AttachmentsByRecord = Map<string, Record<string, AirtableAttachment[]>>;
 
 export class AirtableFetchError extends Error {
-  constructor(readonly status: number) {
-    super(`airtable_http_${status}`);
+  constructor(readonly status: number, errorType?: string) {
+    super(`airtable_http_${status}${errorType ? `_${errorType}` : ''}`);
     this.name = 'AirtableFetchError';
   }
 }
@@ -42,6 +42,13 @@ export function readAirtableCredentials(): AirtableCredentials {
 export function resolveTableId(envKey: string): string | null {
   const value = process.env[envKey];
   return value && value.trim() !== '' ? value : null;
+}
+
+/** Airtable's error type (e.g. `UNKNOWN_FIELD_NAME`); never the message, which may echo input. */
+async function airtableErrorType(res: Response): Promise<string | undefined> {
+  const body = (await res.json().catch(() => null)) as { error?: string | { type?: unknown } } | null;
+  const type = typeof body?.error === 'string' ? body.error : body?.error?.type;
+  return typeof type === 'string' && /^[A-Z_]{1,50}$/.test(type) ? type : undefined;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -101,7 +108,7 @@ export class AttachmentFetcher {
         return body.records ?? [];
       }
       const retryable = res.status === 429 || res.status >= 500;
-      if (!retryable || attempt >= MAX_ATTEMPTS) throw new AirtableFetchError(res.status);
+      if (!retryable || attempt >= MAX_ATTEMPTS) throw new AirtableFetchError(res.status, await airtableErrorType(res));
       await sleep(1000 * 2 ** (attempt - 1));
     }
   }

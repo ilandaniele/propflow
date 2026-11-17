@@ -63,7 +63,8 @@ jobs:
             SKIPPED=$(jq -r '.skipped' "$BODY")
             FAILED=$(jq -r '.failed' "$BODY")
             REMAINING=$(jq -r '.remaining' "$BODY")
-            echo "mode=$1 copied=$COPIED skipped=$SKIPPED failed=$FAILED remaining=$REMAINING"
+            PERMANENT=$(jq -r '.permanentFailures // 0' "$BODY")
+            echo "mode=$1 copied=$COPIED skipped=$SKIPPED failed=$FAILED remaining=$REMAINING permanent_failures=$PERMANENT"
             if [ "$FAILED" -gt 0 ]; then
               jq -r '.errors | group_by(.reason)[] | "  failed reason=\(.[0].reason) count=\(length)"' "$BODY"
             fi
@@ -76,12 +77,14 @@ jobs:
           fi
 
           BATCH=0
+          PERMANENT=0
           while :; do
             BATCH=$((BATCH + 1))
             echo "batch $BATCH"
+            PREV_PERMANENT=$PERMANENT
             post_batch apply 100
             [ "$REMAINING" -eq 0 ] && break
-            if [ $((COPIED + SKIPPED)) -eq 0 ]; then
+            if [ $((COPIED + SKIPPED)) -eq 0 ] && [ "$PERMANENT" -eq "$PREV_PERMANENT" ]; then
               echo "No progress in this batch, stopping"
               break
             fi
