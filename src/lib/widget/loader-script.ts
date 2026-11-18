@@ -7,7 +7,7 @@
 
 const PUBLIC_KEY_PATTERN = '^pk_[A-Za-z0-9]{24}$';
 
-/** `appOrigin` comes from the server's own config (NEXT_PUBLIC_SITE_URL/NEXTAUTH_URL) — never user input. */
+/** `appOrigin` comes from the server's own config (NEXT_PUBLIC_SITE_URL/AUTH_URL) — never user input. */
 export function buildLoaderScript(appOrigin: string): string {
   return `(function () {
   "use strict";

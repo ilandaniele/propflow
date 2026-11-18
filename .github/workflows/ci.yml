@@ -25,7 +25,7 @@ jobs:
       AUTH_SECRET: placeholder_auth_secret_32chars_minimum_length
       AUTH_GOOGLE_ID: placeholder_google_id
       AUTH_GOOGLE_SECRET: placeholder_google_secret
-      NEXTAUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3000
       # Other service stubs
       ANTHROPIC_API_KEY: placeholder_anthropic_key
       RESEND_API_KEY: placeholder_resend_key
@@ -55,6 +55,12 @@ jobs:
 
       - name: Unit tests (Vitest)
         run: pnpm run test:unit -- --reporter=verbose
+
+      - name: SQL smoke tests (local D1 via Miniflare)
+        run: pnpm run test:sql
+
+      - name: Migration script tests (D1 + R2)
+        run: node --test scripts/migrate-to-d1/*.test.mjs scripts/migrate-to-r2/*.test.mjs
 
       - name: i18n missing-key test
         run: pnpm run test:i18n -- --reporter=verbose
@@ -199,7 +205,7 @@ jobs:
       AUTH_SECRET: placeholder_auth_secret_32chars_minimum_length
       AUTH_GOOGLE_ID: placeholder_google_id
       AUTH_GOOGLE_SECRET: placeholder_google_secret
-      NEXTAUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3000
       ANTHROPIC_API_KEY: placeholder_anthropic_key
       RESEND_API_KEY: placeholder_resend_key
       CRON_SECRET: placeholder_cron_secret
