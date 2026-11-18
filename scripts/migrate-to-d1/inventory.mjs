@@ -12,7 +12,7 @@
 // Every query runs inside one READ ONLY transaction.
 
 import { pathToFileURL } from 'node:url';
-import { rowFilter } from './export.mjs';
+import { filterParams, rowFilter } from './export.mjs';
 import { loadTables, PROVENANCE_COLUMNS } from './tables.mjs';
 import { filterChildren } from './transform.mjs';
 
@@ -35,7 +35,6 @@ async function main() {
           (SELECT count(*)::int FROM profiles p WHERE p.org_id = o.id AND p.user_id IS NOT NULL) AS users
         FROM organizations o ORDER BY o.created_at`;
       const legitimate = requestedOrgs ?? orgs.filter((o) => o.id === owner.org_id || o.users > 0).map((o) => o.id);
-      const params = [legitimate, owner.org_id];
 
       const tables = [];
       const keptIds = new Map();
@@ -47,7 +46,8 @@ async function main() {
         const columns = new Set(table.columns.map((c) => c.name));
         const [{ total }] = await tx.unsafe(`SELECT count(*)::int AS total FROM "${table.name}"`);
         const keep = [...new Set([...table.primaryKey, ...table.foreignKeys.map((fk) => fk.column)])].map((c) => `"${c}"`).join(', ');
-        const rows = await tx.unsafe(`SELECT ${keep} FROM "${table.name}" WHERE ${rowFilter(table)}`, params);
+        const filter = rowFilter(table);
+        const rows = await tx.unsafe(`SELECT ${keep} FROM "${table.name}" WHERE ${filter}`, filterParams(filter, legitimate, owner.org_id));
         const { rows: kept, excluded } = filterChildren(table, rows, keptIds);
         const provenance = PROVENANCE_COLUMNS.filter((c) => columns.has(c));
         const [{ crossOrg }] = provenance.length

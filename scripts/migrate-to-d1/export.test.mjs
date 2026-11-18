@@ -1,7 +1,7 @@
 // node --test scripts/migrate-to-d1/export.test.mjs
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { parseArgs, rowFilter } from './export.mjs';
+import { filterParams, parseArgs, rowFilter } from './export.mjs';
 import { loadTables } from './tables.mjs';
 
 const table = (name) => loadTables().find((t) => t.name === name);
@@ -23,6 +23,15 @@ describe('rowFilter', () => {
   it('filters by org alone without provenance columns, and keeps tables without org', () => {
     assert.equal(rowFilter(table('agent_events')), 'org_id = ANY($1::uuid[])');
     assert.equal(rowFilter(table('accounts')), 'TRUE');
+  });
+});
+
+describe('filterParams', () => {
+  it('passes only the parameters the filter references', () => {
+    const orgs = [ORG];
+    assert.deepEqual(filterParams(rowFilter(table('tenants')), orgs, ORG), [orgs, ORG]);
+    assert.deepEqual(filterParams(rowFilter(table('organizations')), orgs, ORG), [orgs]);
+    assert.deepEqual(filterParams(rowFilter(table('accounts')), orgs, ORG), []);
   });
 });
 

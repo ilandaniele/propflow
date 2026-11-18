@@ -31,6 +31,11 @@ export function rowFilter(table) {
   return `${legitimate} AND NOT ((${copied}) AND org_id <> $2::uuid)`;
 }
 
+export function filterParams(filter, orgs, ownerOrgId) {
+  if (filter.includes('$2')) return [orgs, ownerOrgId];
+  return filter.includes('$1') ? [orgs] : [];
+}
+
 export function parseArgs(argv) {
   const args = { out: '.migration/export', orgs: [] };
   for (let i = 0; i < argv.length; i++) {
@@ -64,7 +69,8 @@ async function main() {
           continue;
         }
         const orderBy = table.primaryKey.map((c) => `"${c}"`).join(', ');
-        const rows = await tx.unsafe(`SELECT * FROM "${table.name}" WHERE ${rowFilter(table)} ORDER BY ${orderBy}`, [orgs, owner.org_id]);
+        const filter = rowFilter(table);
+        const rows = await tx.unsafe(`SELECT * FROM "${table.name}" WHERE ${filter} ORDER BY ${orderBy}`, filterParams(filter, orgs, owner.org_id));
         await writeFile(join(out, `${table.name}.jsonl`), rows.map((r) => `${JSON.stringify(r)}\n`).join(''));
         await writeFile(join(out, `${table.name}.columns.json`), JSON.stringify(Object.fromEntries(types.map((t) => [t.column_name, t.data_type]))));
         console.error(`${table.name}: ${rows.length}`);
