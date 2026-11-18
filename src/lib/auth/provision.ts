@@ -8,6 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { and, asc, eq, ilike, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { organizations, profiles, tenants } from '@/lib/db/schema';
+import { isUniqueViolation } from '@/lib/db/errors';
 import { log } from '@/lib/log';
 import { isAllowlistedAdmin, getPrimaryOwnerEmail } from './admin-allowlist';
 
@@ -35,7 +36,7 @@ export function generateUniqueSlug(orgName: string, existingSlugs: Set<string> =
 
 /**
  * Provision a new org + admin profile for a freshly-authenticated Google user.
- * Rolls back the org if profile insert fails.
+ * Both rows go in one D1 batch, so a failed profile insert leaves no org behind.
  */
 export async function provisionOrgAndProfile(
   userId: string,
@@ -44,35 +45,40 @@ export async function provisionOrgAndProfile(
   fullName?: string,
 ): Promise<ProvisionResult> {
   const slug = generateSlug(orgName);
+  const orgId = crypto.randomUUID();
 
-  const [org] = await db
-    .insert(organizations)
-    .values({ name: orgName, slug })
-    .returning({ id: organizations.id, slug: organizations.slug });
+  let orgRows: Array<{ id: string; slug: string | null }>;
+  let profileRows: Array<{ id: string }>;
+  try {
+    [orgRows, profileRows] = await db.batch([
+      db.insert(organizations)
+        .values({ id: orgId, name: orgName, slug })
+        .returning({ id: organizations.id, slug: organizations.slug }),
+      db.insert(profiles)
+        .values({ userId, orgId, role: 'admin', email, fullName: fullName ?? null })
+        .returning({ id: profiles.id }),
+    ]);
+  } catch (err) {
+    // The batch is atomic: whichever insert failed, no org row is left behind.
+    if (isUniqueViolation(err, 'organizations.')) throw err;
+    const code = err instanceof Error ? err.message : 'unknown';
+    log.error('[provision] profile insert failed — org rolled back', { code, orgId, userId });
+    throw new Error(`PROVISION_FAILED:profile:${code}`);
+  }
 
+  const [org] = orgRows;
   if (!org) {
     log.error('[provision] org insert returned no rows', { userId });
     throw new Error('PROVISION_FAILED:org:no_rows');
   }
-
-  try {
-    const [profile] = await db
-      .insert(profiles)
-      .values({ userId, orgId: org.id, role: 'admin', email, fullName: fullName ?? null })
-      .returning({ id: profiles.id });
-
-    if (!profile) throw new Error('no_rows');
-
-    log.info('[provision] org+profile created', { event: 'provision_success', userId, orgId: org.id });
-    return { orgId: org.id, profileId: profile.id, role: 'admin' };
-  } catch (err) {
-    const code = err instanceof Error ? err.message : 'unknown';
-    log.error('[provision] profile insert failed — rolling back org', { code, orgId: org.id, userId });
-    await db.delete(organizations).where(eq(organizations.id, org.id)).catch((e) => {
-      log.error('[provision] rollback failed', { code: e instanceof Error ? e.message : 'unknown', orgId: org.id });
-    });
-    throw new Error(`PROVISION_FAILED:profile:${code}`);
+  const [profile] = profileRows;
+  if (!profile) {
+    log.error('[provision] profile insert returned no rows', { orgId: org.id, userId });
+    throw new Error('PROVISION_FAILED:profile:no_rows');
   }
+
+  log.info('[provision] org+profile created', { event: 'provision_success', userId, orgId: org.id });
+  return { orgId: org.id, profileId: profile.id, role: 'admin' };
 }
 
 /**

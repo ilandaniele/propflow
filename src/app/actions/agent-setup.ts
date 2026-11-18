@@ -138,46 +138,44 @@ export async function saveWhatsAppChannel(input: SaveWhatsAppChannelInput): Prom
   }
 
   try {
-    await db.transaction(async (tx) => {
-      const conflictRows = await tx
-        .select({ orgId: orgChannels.orgId })
-        .from(orgChannels)
-        .where(and(
-          eq(orgChannels.channel, 'whatsapp'),
-          eq(orgChannels.externalId, phoneNumberId),
-          ne(orgChannels.orgId, ctx.orgId),
-        ))
-        .limit(1);
-      if (conflictRows.length > 0) {
-        throw Errors.CONFLICT('Este phone number ID ya está vinculado a otra organización.');
-      }
+    const conflictRows = await db
+      .select({ orgId: orgChannels.orgId })
+      .from(orgChannels)
+      .where(and(
+        eq(orgChannels.channel, 'whatsapp'),
+        eq(orgChannels.externalId, phoneNumberId),
+        ne(orgChannels.orgId, ctx.orgId),
+      ))
+      .limit(1);
+    if (conflictRows.length > 0) {
+      throw Errors.CONFLICT('Este phone number ID ya está vinculado a otra organización.');
+    }
 
-      const existingRows = await tx
-        .select({ id: orgChannels.id, config: orgChannels.config })
-        .from(orgChannels)
-        .where(and(eq(orgChannels.orgId, ctx.orgId), eq(orgChannels.channel, 'whatsapp')))
-        .limit(1);
-      const existing = existingRows[0];
+    const existingRows = await db
+      .select({ id: orgChannels.id, config: orgChannels.config })
+      .from(orgChannels)
+      .where(and(eq(orgChannels.orgId, ctx.orgId), eq(orgChannels.channel, 'whatsapp')))
+      .limit(1);
+    const existing = existingRows[0];
 
-      const nextConfig: WhatsAppChannelConfig = {
-        ...((existing?.config as WhatsAppChannelConfig) ?? {}),
-        displayPhoneE164,
-      };
+    const nextConfig: WhatsAppChannelConfig = {
+      ...((existing?.config as WhatsAppChannelConfig) ?? {}),
+      displayPhoneE164,
+    };
 
-      if (existing) {
-        await tx
-          .update(orgChannels)
-          .set({ externalId: phoneNumberId, config: nextConfig, updatedAt: new Date() })
-          .where(eq(orgChannels.id, existing.id));
-      } else {
-        await tx.insert(orgChannels).values({
-          orgId: ctx.orgId,
-          channel: 'whatsapp',
-          externalId: phoneNumberId,
-          config: nextConfig,
-        });
-      }
-    });
+    if (existing) {
+      await db
+        .update(orgChannels)
+        .set({ externalId: phoneNumberId, config: nextConfig, updatedAt: new Date() })
+        .where(eq(orgChannels.id, existing.id));
+    } else {
+      await db.insert(orgChannels).values({
+        orgId: ctx.orgId,
+        channel: 'whatsapp',
+        externalId: phoneNumberId,
+        config: nextConfig,
+      });
+    }
   } catch (e) {
     // A pre-thrown ActionResult (the cross-org conflict check above) — surface as-is.
     if (e && typeof e === 'object' && 'error' in e) return e as ActionResult<never>;

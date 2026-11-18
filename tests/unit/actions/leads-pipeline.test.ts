@@ -118,7 +118,7 @@ vi.mock('@/lib/db', async () => {
       where: vi.fn(async () => { deletedCalls.push({ table }); return undefined; }),
     })),
   };
-  dbLike.transaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn(dbLike));
+  dbLike.batch = vi.fn(async (queries: unknown[]) => Promise.all(queries));
 
   return { db: dbLike };
 });

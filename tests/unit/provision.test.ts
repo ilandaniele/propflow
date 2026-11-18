@@ -24,6 +24,8 @@ const mockState = {
 vi.mock('@/lib/db', () => {
   return {
     db: {
+      batch: vi.fn(async (queries: unknown[]) => Promise.all(queries)),
+
       insert: vi.fn((tableRef: unknown) => {
         // Determine table by Drizzle symbol
         let table = '';
