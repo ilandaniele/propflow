@@ -282,12 +282,10 @@ export async function reorderStages(input: ReorderStagesInput): Promise<ActionRe
   const sameSet = existingIds.size === orderedSet.size && [...existingIds].every((id) => orderedSet.has(id));
   if (!sameSet) return Errors.VALIDATION_ERROR({ formErrors: ['El orden no coincide con las etapas actuales'], fieldErrors: {} });
 
-  await db.transaction(async (tx) => {
-    for (let i = 0; i < data.orderedIds.length; i++) {
-      await tx.update(leadPipelineStages).set({ position: i, updatedAt: new Date() })
-        .where(and(eq(leadPipelineStages.id, data.orderedIds[i]), eq(leadPipelineStages.orgId, ctx.orgId)));
-    }
-  });
+  const [first, ...rest] = data.orderedIds.map((id, i) =>
+    db.update(leadPipelineStages).set({ position: i, updatedAt: new Date() })
+      .where(and(eq(leadPipelineStages.id, id), eq(leadPipelineStages.orgId, ctx.orgId))));
+  await db.batch([first, ...rest]);
 
   log.adminAction(ctx.userId, 'leads_reorder_stages', 'lead_pipeline_stage', data.pipeline);
   revalidatePath(LEADS_PATH);
@@ -325,11 +323,11 @@ export async function deleteStage(input: DeleteStageInput): Promise<ActionResult
     return Errors.VALIDATION_ERROR({ formErrors: ['La etapa destino no es válida'], fieldErrors: {} });
   }
 
-  await db.transaction(async (tx) => {
-    await tx.update(crmLeads).set({ stage: data.moveLeadsTo, stageChangedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(crmLeads.orgId, ctx.orgId), eq(crmLeads.pipeline, stage.pipeline), eq(crmLeads.stage, stage.key)));
-    await tx.delete(leadPipelineStages).where(and(eq(leadPipelineStages.id, data.id), eq(leadPipelineStages.orgId, ctx.orgId)));
-  });
+  await db.batch([
+    db.update(crmLeads).set({ stage: data.moveLeadsTo, stageChangedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(crmLeads.orgId, ctx.orgId), eq(crmLeads.pipeline, stage.pipeline), eq(crmLeads.stage, stage.key))),
+    db.delete(leadPipelineStages).where(and(eq(leadPipelineStages.id, data.id), eq(leadPipelineStages.orgId, ctx.orgId))),
+  ]);
 
   log.adminAction(ctx.userId, 'leads_delete_stage', 'lead_pipeline_stage', data.id);
   revalidatePath(LEADS_PATH);

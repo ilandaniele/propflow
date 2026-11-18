@@ -64,7 +64,7 @@ const {
     update: () => updateChain(),
     insert: () => insertChain(),
   };
-  db.transaction = async (cb: (tx: typeof db) => unknown) => cb(db);
+  db.batch = async (queries: unknown[]) => Promise.all(queries);
 
   return {
     getOrCreateAgentConfig: vi.fn(),
@@ -126,7 +126,6 @@ beforeEach(() => {
 
 describe('leads/followups — scheduleFollowupSequence', () => {
   it('cancels any still-scheduled rows before inserting the fresh sequence (supersede)', async () => {
-    queues.insertReturnQueue.push([{ id: 'fu-1', scheduledFor: new Date('2026-03-10T14:00:00Z') }, { id: 'fu-2', scheduledFor: new Date('2026-03-11T14:00:00Z') }]);
     const count = await scheduleFollowupSequence({ orgId: 'org-1', leadId: 'lead-1', sessionId: 'session-1', anchorAt: new Date('2026-03-10T12:00:00Z') });
     expect(count).toBe(2);
     expect(queues.updateCalls[0].values).toMatchObject({ status: 'cancelled', stopReason: 'superseded' });

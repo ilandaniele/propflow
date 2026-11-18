@@ -28,13 +28,12 @@ export interface CreateSuggestionArgs {
 
 /** Supersedes any existing pending suggestion for the session, then inserts the new one. Returns its id. */
 export async function createSuggestion(args: CreateSuggestionArgs): Promise<string> {
-  return db.transaction(async (tx) => {
-    await tx
+  const [, rows] = await db.batch([
+    db
       .update(agentSuggestions)
       .set({ status: 'superseded', decidedAt: new Date() })
-      .where(and(eq(agentSuggestions.sessionId, args.sessionId), eq(agentSuggestions.status, 'pending')));
-
-    const rows = await tx
+      .where(and(eq(agentSuggestions.sessionId, args.sessionId), eq(agentSuggestions.status, 'pending'))),
+    db
       .insert(agentSuggestions)
       .values({
         orgId: args.orgId,
@@ -43,11 +42,11 @@ export async function createSuggestion(args: CreateSuggestionArgs): Promise<stri
         agentMessageId: args.agentMessageId ?? null,
         body: args.body,
       })
-      .returning({ id: agentSuggestions.id });
+      .returning({ id: agentSuggestions.id }),
+  ]);
 
-    if (!rows[0]) throw new Error('[agent/suggestions] createSuggestion: insert returned no id');
-    return rows[0].id;
-  });
+  if (!rows[0]) throw new Error('[agent/suggestions] createSuggestion: insert returned no id');
+  return rows[0].id;
 }
 
 export interface PendingSuggestion {

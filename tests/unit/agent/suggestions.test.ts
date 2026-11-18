@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
-  txUpdateSets, txInsertedValues, updateCalls, updateQueue,
+  txInsertedValues, updateCalls, updateQueue,
   recordAgentEventMock, setAssistantMessageSendStatusMock, sendWhatsAppTextMock,
 } = vi.hoisted(() => ({
-  txUpdateSets: [] as Record<string, unknown>[],
   txInsertedValues: [] as Record<string, unknown>[],
   updateCalls: [] as Record<string, unknown>[],
   updateQueue: [] as unknown[][], // one array of returned rows per db.update(...).returning() call, consumed in order
@@ -15,23 +14,13 @@ const {
 
 vi.mock('@/lib/db', () => ({
   db: {
-    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        update: vi.fn(() => ({
-          set: vi.fn((s: Record<string, unknown>) => {
-            txUpdateSets.push(s);
-            return { where: vi.fn(async () => undefined) };
-          }),
-        })),
-        insert: vi.fn(() => ({
-          values: vi.fn((v: Record<string, unknown>) => {
-            txInsertedValues.push(v);
-            return { returning: vi.fn(async () => [{ id: 'suggestion-new' }]) };
-          }),
-        })),
-      };
-      return fn(tx);
-    }),
+    batch: vi.fn(async (queries: unknown[]) => Promise.all(queries)),
+    insert: vi.fn(() => ({
+      values: vi.fn((v: Record<string, unknown>) => {
+        txInsertedValues.push(v);
+        return { returning: vi.fn(async () => [{ id: 'suggestion-new' }]) };
+      }),
+    })),
     update: vi.fn(() => ({
       set: vi.fn((s: Record<string, unknown>) => {
         updateCalls.push(s);
@@ -63,7 +52,6 @@ function pendingSuggestionRow(overrides: Record<string, unknown> = {}) {
 describe('agent/suggestions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    txUpdateSets.length = 0;
     txInsertedValues.length = 0;
     updateCalls.length = 0;
     updateQueue.length = 0;
@@ -74,7 +62,7 @@ describe('agent/suggestions', () => {
       const id = await createSuggestion({ orgId: 'org-1', sessionId: 'session-1', conversationId: 'conv-1', body: 'hola' });
 
       expect(id).toBe('suggestion-new');
-      expect(txUpdateSets[0]).toMatchObject({ status: 'superseded' });
+      expect(updateCalls[0]).toMatchObject({ status: 'superseded' });
       expect(txInsertedValues[0]).toMatchObject({ body: 'hola', orgId: 'org-1', sessionId: 'session-1' });
     });
 

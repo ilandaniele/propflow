@@ -6,11 +6,11 @@
  * 2. Validation: bad phoneNumberId / bad E.164 display phone -> VALIDATION_ERROR.
  * 3. Cross-org: a phoneNumberId already bound to ANOTHER org -> CONFLICT, no write.
  * 4. orgId is taken from the session only (IDOR) — never trusts caller input.
- * 5. Upsert: inserts when no row exists, updates when one does (inside a transaction).
+ * 5. Upsert: inserts when no row exists, updates when one does.
  * 6. WHATSAPP_PHONE_NUMBER_ID env: mismatch -> VALIDATION_ERROR; unset -> allowed + warning.
  * 7. WHATSAPP_ACCESS_TOKEN env: Graph ownership check — mismatch/failure -> VALIDATION_ERROR,
  *    never leaks the token; unset -> check skipped.
- * 8. A 23505 raised inside the transaction (race with another request) -> CONFLICT.
+ * 8. A unique violation raised by the write (race with another request) -> CONFLICT.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -44,17 +44,19 @@ vi.mock('@/lib/widget/channel', () => ({
   E164_RE: /^\+[1-9]\d{6,14}$/,
 }));
 
-const insertValues = vi.fn(async () => undefined);
+let writeError: unknown = null;
+const insertValues = vi.fn(async () => {
+  if (writeError) throw writeError;
+  return undefined;
+});
 const updateSet = vi.fn(() => ({ where: vi.fn(async () => undefined) }));
 
-// select() is called twice per transaction, strictly in sequence: (1) the
+// select() is called twice per save, strictly in sequence: (1) the
 // cross-org conflict check, (2) the existing-row lookup for this org — a
 // plain queue keyed on call order is enough (no concurrency here).
 const selectQueue: Array<unknown[]> = [];
-let transactionError: unknown = null;
-
-function makeTxHandle() {
-  return {
+vi.mock('@/lib/db', () => ({
+  db: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
@@ -64,19 +66,6 @@ function makeTxHandle() {
     })),
     insert: vi.fn(() => ({ values: insertValues })),
     update: vi.fn(() => ({ set: updateSet })),
-  };
-}
-
-vi.mock('@/lib/db', () => ({
-  db: {
-    transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
-      if (transactionError) {
-        const err = transactionError;
-        transactionError = null;
-        throw err;
-      }
-      return fn(makeTxHandle());
-    }),
   },
 }));
 
@@ -90,7 +79,7 @@ beforeEach(() => {
   mockState.adminRole = 'admin';
   mockState.rateLimitSuccess = true;
   selectQueue.length = 0;
-  transactionError = null;
+  writeError = null;
   for (const key of ENV_KEYS) {
     originalEnv[key] = process.env[key];
     delete process.env[key];
@@ -171,8 +160,9 @@ describe('saveWhatsAppChannel — upsert', () => {
     }));
   });
 
-  it('maps a 23505 raised inside the transaction (race) to CONFLICT', async () => {
-    transactionError = Object.assign(new Error('duplicate key'), { code: '23505' });
+  it('maps a unique violation raised by the write (race) to CONFLICT', async () => {
+    queueSelects([], []);
+    writeError = new Error('D1_ERROR: UNIQUE constraint failed: org_channels.channel, org_channels.external_id: SQLITE_CONSTRAINT');
     const result = await saveWhatsAppChannel(VALID_INPUT);
     expect(result.error?.code).toBe('CONFLICT');
   });
