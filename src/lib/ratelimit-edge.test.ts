@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { D1Database, RateLimit } from '@cloudflare/workers-types';
 
 const getCloudflareContext = vi.fn();
 vi.mock('@opennextjs/cloudflare', () => ({ getCloudflareContext: () => getCloudflareContext() }));

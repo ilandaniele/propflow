@@ -1,40 +1,39 @@
 /**
- * Unit tests for src/lib/db/retry.ts — withDbRetry (Fly resume / stale-connection retry).
+ * Unit tests for src/lib/db/retry.ts — single retry on transient D1 errors only.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { withDbRetry } from '@/lib/db/retry';
+import { describe, it, expect, vi } from 'vitest';
+import { withDbRetry, withFastDbRetry } from '@/lib/db/retry';
 
 vi.mock('@/lib/log', () => ({ log: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
-describe('withDbRetry', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  it('returns immediately on first success (no retry)', async () => {
+describe.each([
+  ['withDbRetry', withDbRetry],
+  ['withFastDbRetry', withFastDbRetry],
+])('%s', (_name, retry) => {
+  it('returns on first success without retrying', async () => {
     const fn = vi.fn().mockResolvedValue('ok');
-    const p = withDbRetry(fn, 'test');
-    await vi.runAllTimersAsync();
-    expect(await p).toBe('ok');
+    expect(await retry(fn, 'test')).toBe('ok');
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it('retries after a transient failure and then succeeds', async () => {
+  it('retries once after a transient D1 error', async () => {
     const fn = vi
       .fn()
-      .mockRejectedValueOnce(new Error('Failed query: stale connection'))
+      .mockRejectedValueOnce(new Error('D1_ERROR: Network connection lost.'))
       .mockResolvedValueOnce('recovered');
-    const p = withDbRetry(fn, 'test');
-    await vi.runAllTimersAsync();
-    expect(await p).toBe('recovered');
+    expect(await retry(fn, 'test')).toBe('recovered');
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  it('throws the last error after 3 failed attempts', async () => {
-    const fn = vi.fn().mockRejectedValue(new Error('no active leader found'));
-    const p = withDbRetry(fn, 'test');
-    const assertion = expect(p).rejects.toThrow('no active leader found');
-    await vi.runAllTimersAsync();
-    await assertion;
-    expect(fn).toHaveBeenCalledTimes(3);
+  it('throws after the single retry also fails', async () => {
+    const fn = vi.fn().mockRejectedValue(new Error('D1_ERROR: Network connection lost.'));
+    await expect(retry(fn, 'test')).rejects.toThrow('Network connection lost');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry non-transient errors', async () => {
+    const fn = vi.fn().mockRejectedValue(new Error('D1_ERROR: UNIQUE constraint failed: users.email'));
+    await expect(retry(fn, 'test')).rejects.toThrow('UNIQUE constraint failed');
+    expect(fn).toHaveBeenCalledTimes(1);
   });
 });
