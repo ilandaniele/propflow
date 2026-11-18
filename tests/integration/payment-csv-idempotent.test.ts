@@ -22,56 +22,38 @@ vi.mock('@/lib/auth/guards', () => ({
 // Mock @/lib/db — Drizzle
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/db', () => {
-  function extractFromSqlChunks(chunks: unknown[]): { text: string } {
-    let text = '';
-    for (const chunk of chunks) {
-      if (chunk && typeof chunk === 'object' && !Array.isArray(chunk) && 'queryChunks' in (chunk as object)) {
-        const nested = extractFromSqlChunks((chunk as { queryChunks: unknown[] }).queryChunks);
-        text += nested.text;
-      } else if (chunk && typeof chunk === 'object' && !Array.isArray(chunk) && 'value' in (chunk as object)) {
-        const val = (chunk as { value: unknown[] }).value;
-        if (Array.isArray(val)) text += val.join('');
-      } else {
-        text += '?';
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(() => ({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn(async () => [
+        { id: 'tenant-001', email: 'tenant@test.com', tenantId: 'tenant-001', createdAt: new Date() },
+      ]),
+    })),
+
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        kind: 'insert',
+        returning: vi.fn(async () => [{ id: 'log-test-uuid-001' }]),
+        onConflictDoUpdate: vi.fn(() => ({ kind: 'upsert' })),
+      })),
+    })),
+
+    batch: vi.fn(async (statements: Array<{ kind: string }>) => {
+      for (const statement of statements) {
+        if (statement.kind === 'upsert') executeWithExtIdCallCount++;
+        else executeWithoutExtIdCallCount++;
       }
-    }
-    return { text };
-  }
+      return [];
+    }),
 
-  return {
-    db: {
-      select: vi.fn(() => ({
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn(async () => [{ id: 'tenant-001', email: 'tenant@test.com' }]),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(async () => []),
       })),
-
-      insert: vi.fn(() => ({
-        values: vi.fn(() => ({
-          returning: vi.fn(async () => [{ id: 'log-test-uuid-001' }]),
-          onConflictDoNothing: vi.fn(async () => []),
-        })),
-      })),
-
-      execute: vi.fn(async (sqlObj: unknown) => {
-        if (!sqlObj || typeof sqlObj !== 'object' || !('queryChunks' in (sqlObj as object))) return [];
-        const { text } = extractFromSqlChunks((sqlObj as { queryChunks: unknown[] }).queryChunks);
-        if (text.includes('ON CONFLICT')) {
-          executeWithExtIdCallCount++;
-        } else {
-          executeWithoutExtIdCallCount++;
-        }
-        return [];
-      }),
-
-      update: vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn(async () => []),
-        })),
-      })),
-    },
-  };
-});
+    })),
+  },
+}));
 
 vi.mock('@/lib/log', () => ({
   log: {

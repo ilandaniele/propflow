@@ -2,11 +2,9 @@
  * POST /api/admin/payments/import
  * Upserts validated payment rows (admin — can set any tenant/status).
  *
- * NOTE: The payments.contractId is required in the Drizzle schema but CSV imports
- * historically do not supply a contract_id. This route uses raw sql for the upsert
- * to remain compatible with the existing DB constraint behaviour (which may be nullable
- * in the actual Postgres schema even if the Drizzle type says notNull).
- * TODO(W1/schema): reconcile payments.contractId nullability with CSV import flow.
+ * payments.contract_id is NOT NULL but CSV imports do not supply it: each row is
+ * attached to its tenant's latest active contract in this org, and rows whose
+ * tenant has none are skipped.
  */
 
 export const dynamic = 'force-dynamic';
@@ -15,11 +13,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { importLogs, tenants } from '@/lib/db/schema';
+import { importLogs, tenants, contracts, payments } from '@/lib/db/schema';
 import { eq, and, inArray } from 'drizzle-orm';
+import { asBatch, chunk, rowsPerInsert } from '@/lib/db/batch';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
+const PAYMENT_ROWS_PER_INSERT = rowsPerInsert(payments);
+const LOOKUP_IDS_PER_QUERY = 90;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let ctx;
@@ -46,13 +47,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Build tenant email → id map for this org — Drizzle (AC1, AC8)
   const tenantEmails = [...new Set(rows.map(r => r.tenant_email).filter(Boolean))] as string[];
   const tenantEmailMap: Record<string, string> = {};
-  if (tenantEmails.length > 0) {
-    const tenantRows = await db
+  const tenantRows = (await Promise.all(
+    chunk(tenantEmails, LOOKUP_IDS_PER_QUERY).map((part) => db
       .select({ id: tenants.id, email: tenants.email })
       .from(tenants)
-      .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.email!, tenantEmails)));
-    tenantRows.forEach(t => { if (t.email) tenantEmailMap[t.email] = t.id; });
-  }
+      .where(and(eq(tenants.orgId, ctx.orgId), inArray(tenants.email!, part)))),
+  )).flat();
+  tenantRows.forEach(t => { if (t.email) tenantEmailMap[t.email] = t.id; });
+
+  const tenantIdOf = (row: (typeof rows)[number]) =>
+    row.tenant_id ?? (row.tenant_email ? tenantEmailMap[row.tenant_email] : undefined);
+
+  // Latest active contract per tenant, org scoped (AC8)
+  const tenantIds = [...new Set(rows.map(tenantIdOf).filter(Boolean))] as string[];
+  const contractRows = (await Promise.all(
+    chunk(tenantIds, LOOKUP_IDS_PER_QUERY).map((part) => db
+      .select({ id: contracts.id, tenantId: contracts.tenantId, createdAt: contracts.createdAt })
+      .from(contracts)
+      .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'), inArray(contracts.tenantId, part)))),
+  )).flat();
+  const contractByTenant = new Map<string, string>();
+  contractRows
+    .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+    .forEach(c => { if (!contractByTenant.has(c.tenantId)) contractByTenant.set(c.tenantId, c.id); });
 
   // Create import log — Drizzle (AC1)
   const logRows = await db
@@ -77,49 +94,58 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const import_id = logRows[0].id;
   let created = 0, updated = 0, skipped = 0, failed = 0;
 
-  for (const row of rows) {
-    const tenant_id = row.tenant_id ?? (row.tenant_email ? tenantEmailMap[row.tenant_email] : undefined);
-    if (!tenant_id) { skipped++; continue; }
+  const now = new Date();
+  const upserts: (typeof payments.$inferInsert)[] = [];
+  const inserts: (typeof payments.$inferInsert)[] = [];
 
+  for (const row of rows) {
+    const tenant_id = tenantIdOf(row);
+    const contract_id = tenant_id ? contractByTenant.get(tenant_id) : undefined;
+    if (!tenant_id || !contract_id) { skipped++; continue; }
+
+    (row.external_payment_id ? upserts : inserts).push({
+      id:                crypto.randomUUID(),
+      orgId:             ctx.orgId,
+      contractId:        contract_id,
+      tenantId:          tenant_id,
+      amount:            String(row.amount),
+      currency:          row.currency ?? 'PEN',
+      paidAt:            row.payment_date,
+      status:            row.status,
+      method:            row.payment_method ?? 'transfer',
+      reference:         row.reference ?? null,
+      movementType:      'payment',
+      externalPaymentId: row.external_payment_id ?? null,
+      importSource:      'csv_import',
+      importId:          import_id,
+      createdAt:         now,
+      updatedAt:         now,
+    });
+  }
+
+  // One D1 batch is atomic: every chunk lands or none does.
+  const batch = asBatch([
+    ...chunk(upserts, PAYMENT_ROWS_PER_INSERT).map((part) =>
+      db.insert(payments).values(part).onConflictDoUpdate({
+        target: [payments.orgId, payments.externalPaymentId],
+        set: {
+          amount:    sql`excluded.amount`,
+          status:    sql`excluded.status`,
+          paidAt:    sql`excluded.paid_at`,
+          importId:  sql`excluded.import_id`,
+          updatedAt: now,
+        },
+      })),
+    ...chunk(inserts, PAYMENT_ROWS_PER_INSERT).map((part) => db.insert(payments).values(part)),
+  ]);
+
+  if (batch) {
     try {
-      if (row.external_payment_id) {
-        // Upsert by org_id + external_payment_id using raw SQL (avoids contract_id notNull type issue)
-        await db.execute(sql`
-          INSERT INTO payments (org_id, tenant_id, amount, currency, paid_at, due_date, status,
-            method, reference, period_month, movement_type, notes, external_payment_id,
-            import_source, import_id, updated_at)
-          VALUES (
-            ${ctx.orgId}::uuid, ${tenant_id}::uuid, ${row.amount}, ${row.currency ?? 'PEN'},
-            ${row.payment_date}, ${row.due_date ?? null}, ${row.status},
-            ${row.payment_method ?? 'transfer'}, ${row.reference ?? null},
-            ${row.billing_period ?? null}, 'payment', ${row.description ?? null},
-            ${row.external_payment_id}, 'csv_import', ${import_id}::uuid, NOW()
-          )
-          ON CONFLICT (org_id, external_payment_id) DO UPDATE SET
-            amount        = EXCLUDED.amount,
-            status        = EXCLUDED.status,
-            paid_at       = EXCLUDED.paid_at,
-            import_id     = EXCLUDED.import_id,
-            updated_at    = NOW()
-        `);
-        updated++;
-      } else {
-        await db.execute(sql`
-          INSERT INTO payments (org_id, tenant_id, amount, currency, paid_at, due_date, status,
-            method, reference, period_month, movement_type, notes,
-            import_source, import_id, updated_at)
-          VALUES (
-            ${ctx.orgId}::uuid, ${tenant_id}::uuid, ${row.amount}, ${row.currency ?? 'PEN'},
-            ${row.payment_date}, ${row.due_date ?? null}, ${row.status},
-            ${row.payment_method ?? 'transfer'}, ${row.reference ?? null},
-            ${row.billing_period ?? null}, 'payment', ${row.description ?? null},
-            'csv_import', ${import_id}::uuid, NOW()
-          )
-        `);
-        created++;
-      }
+      await db.batch(batch);
+      updated = upserts.length;
+      created = inserts.length;
     } catch {
-      failed++;
+      failed = upserts.length + inserts.length;
     }
   }
 
