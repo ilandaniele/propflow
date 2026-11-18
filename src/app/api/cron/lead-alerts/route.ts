@@ -15,7 +15,6 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { runListingAlertScan } from '@/lib/leads/listing-alerts';
 import { sweepStaleFollowups } from '@/lib/leads/followups';
-import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -42,8 +41,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const result = await withDbRetry(() => runListingAlertScan(), 'cron/lead-alerts');
-    const staleFollowups = await withDbRetry(() => sweepStaleFollowups(), 'cron/lead-alerts:sweep');
+    const result = await runListingAlertScan();
+    const staleFollowups = await sweepStaleFollowups();
     log.info('[cron/lead-alerts] run complete', { ...result, staleFollowups });
     return NextResponse.json({ status: 'ok', ...result, staleFollowups });
   } catch (e) {
