@@ -524,6 +524,7 @@ export const trashCompliance = sqliteTable('trash_compliance', {
   updatedAt:          ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_trash_compliance_org').on(t.orgId),
+  index('idx_trash_compliance_org_fecha').on(t.orgId, t.fecha),
   uniqueIndex('trash_compliance_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
 ]);
 

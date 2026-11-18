@@ -2,7 +2,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { payments, charges, paymentReceipts } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { getTenantStatement } from '@/lib/dashboard/queries';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -22,7 +22,7 @@ export async function PaymentsTab({ tenantId }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [paymentsRows, chargesRows, statementResult, receiptsRows, t] = await Promise.all([
+  const [paymentsRows, chargesRows, statement, receiptsRows, t] = await Promise.all([
     db
       .select({
         id:        payments.id,
@@ -48,8 +48,7 @@ export async function PaymentsTab({ tenantId }: Props) {
       .where(and(eq(charges.tenantId, tenantId), eq(charges.orgId, ctx.orgId)))
       .orderBy(desc(charges.dueDate))
       .limit(50),
-    // tenant_statement is a PG VIEW — must use raw SQL
-    db.execute(sql`SELECT total_charges, total_approved_payments, balance, is_overdue FROM tenant_statement WHERE tenant_id = ${tenantId} LIMIT 1`),
+    getTenantStatement(ctx.orgId, tenantId),
     db
       .select({
         id:               paymentReceipts.id,
@@ -68,13 +67,6 @@ export async function PaymentsTab({ tenantId }: Props) {
       .limit(20),
     getTranslations('payments'),
   ]);
-
-  const statement = ((statementResult as unknown as Array<{
-    total_charges: string;
-    total_approved_payments: string;
-    balance: string;
-    is_overdue: boolean;
-  }>)?.[0] ?? null);
 
   return (
     <div className="p-4 space-y-6">
