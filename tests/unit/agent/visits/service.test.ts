@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { db: dbMock, pushSelect, pushUpdateReturn, getInserted, getUpdated, resetMock, setVisitInsertError } = vi.hoisted(() => {
+const { db: dbMock, DEFAULT_VISIT_ROW, pushSelect, pushUpdateReturn, getInserted, getUpdated, getDeleteCount, resetMock, setVisitInsertError } = vi.hoisted(() => {
   let selectQueue: unknown[][] = [];
   // When empty, updateChain()'s default behavior (DEFAULT_VISIT_ROW merged
   // with the patch) applies — push an override (e.g. []) to simulate a
@@ -8,6 +8,7 @@ const { db: dbMock, pushSelect, pushUpdateReturn, getInserted, getUpdated, reset
   let updateReturnQueue: (unknown[] | undefined)[] = [];
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
+  let deleteCount = 0;
   let visitInsertError: unknown = null;
 
   const DEFAULT_VISIT_ROW = {
@@ -66,6 +67,7 @@ const { db: dbMock, pushSelect, pushUpdateReturn, getInserted, getUpdated, reset
       values: (v: unknown) => {
         inserted.push(v);
         return {
+          then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve),
           returning: async () => {
             if (isVisitInsertValues(v)) {
               if (visitInsertError) throw visitInsertError;
@@ -102,17 +104,25 @@ const { db: dbMock, pushSelect, pushUpdateReturn, getInserted, getUpdated, reset
     select: () => selectChain(),
     insert: () => insertChain(),
     update: () => updateChain(),
-    execute: async () => undefined,
-    transaction: async (cb: (tx: unknown) => unknown) => cb(db),
+    delete: () => ({
+      where: () => {
+        deleteCount++;
+        return Promise.resolve(undefined);
+      },
+    }),
+    batch: async (items: unknown[]) => Promise.all(items),
   };
 
   return {
     db,
+    DEFAULT_VISIT_ROW,
     pushSelect: (rows: unknown[]) => selectQueue.push(rows),
     pushUpdateReturn: (rows: unknown[]) => updateReturnQueue.push(rows),
     getInserted: () => inserted,
     getUpdated: () => updated,
+    getDeleteCount: () => deleteCount,
     resetMock: () => {
+      deleteCount = 0;
       selectQueue = [];
       updateReturnQueue = [];
       inserted.length = 0;
@@ -158,26 +168,41 @@ function bookArgs(overrides: Partial<Parameters<typeof bookVisit>[0]> = {}): Par
 describe('agent/visits/service — bookVisit', () => {
   beforeEach(() => resetMock());
 
-  it('maps a 23P01 exclusion violation (on e.cause) to slot_taken', async () => {
+  it('maps the D1 visit_overlap trigger abort (on e.cause) to slot_taken', async () => {
     pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]); // lead
     pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]); // advisor
-    setVisitInsertError(new Error('duplicate key', { cause: { code: '23P01' } }));
+    setVisitInsertError(new Error('Failed query', {
+      cause: new Error('D1_ERROR: visit_overlap: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_TRIGGER)'),
+    }));
 
     const result = await bookVisit(bookArgs({ enforcePhoneCap: false }));
     expect(result).toEqual({ ok: false, reason: 'slot_taken' });
   });
 
-  it('enforces the per-phone cap', async () => {
-    // Phase 9: bookVisit now loads agent_configs.max_active_visits_per_phone
-    // before the transaction when enforcePhoneCap is true.
+  it('enforces the per-phone cap, deleting the just-inserted visit', async () => {
+    // Phase 9: bookVisit loads agent_configs.max_active_visits_per_phone
+    // first when enforcePhoneCap is true.
     pushSelect([{ orgId: 'org-1', maxActiveVisitsPerPhone: MAX_ACTIVE_VISITS_PER_PHONE }]); // getOrCreateAgentConfig
     pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]); // lead
     pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]); // advisor
-    const activeVisits = Array.from({ length: MAX_ACTIVE_VISITS_PER_PHONE }, (_, i) => ({ id: `v-${i}` }));
+    // The cap check runs after the insert, so it also counts the new visit.
+    const activeVisits = Array.from({ length: MAX_ACTIVE_VISITS_PER_PHONE + 1 }, (_, i) => ({ id: `v-${i}` }));
     pushSelect(activeVisits); // cap check
 
     const result = await bookVisit(bookArgs({ enforcePhoneCap: true }));
     expect(result).toEqual({ ok: false, reason: 'cap_reached' });
+    expect(getDeleteCount()).toBe(1);
+  });
+
+  it('allows the booking that brings the phone exactly to the cap', async () => {
+    pushSelect([{ orgId: 'org-1', maxActiveVisitsPerPhone: MAX_ACTIVE_VISITS_PER_PHONE }]);
+    pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]);
+    pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]);
+    pushSelect(Array.from({ length: MAX_ACTIVE_VISITS_PER_PHONE }, (_, i) => ({ id: `v-${i}` })));
+
+    const result = await bookVisit(bookArgs({ enforcePhoneCap: true }));
+    expect(result.ok).toBe(true);
+    expect(getDeleteCount()).toBe(0);
   });
 
   it('skips the cap when enforcePhoneCap is false', async () => {
@@ -197,7 +222,7 @@ describe('agent/visits/service — bookVisit', () => {
     expect(getUpdated().some((s) => (s as Record<string, unknown>).stage === 'visit_scheduled')).toBe(true);
   });
 
-  it('inserts the planned agent_jobs rows in the same transaction as the visit', async () => {
+  it('inserts the planned agent_jobs rows in the side-effect batch', async () => {
     pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]);
     pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]);
 
@@ -221,7 +246,7 @@ describe('agent/visits/service — cancelVisit', () => {
   });
 });
 
-describe('agent/visits/service — bookVisit in_past guard (moved into bookVisitInTx)', () => {
+describe('agent/visits/service — bookVisit in_past guard', () => {
   beforeEach(() => resetMock());
 
   it('rejects a start time in the past before touching the DB', async () => {
@@ -250,38 +275,61 @@ describe('agent/visits/service — bookVisit contactPhone normalization', () => 
 describe('agent/visits/service — rescheduleVisit', () => {
   beforeEach(() => resetMock());
 
-  it('returns not_active when the atomic lock UPDATE matches zero rows (already cancelled/rescheduled/completed)', async () => {
-    pushUpdateReturn([]); // UPDATE ... WHERE status IN (active) RETURNING matches nothing
-    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: FUTURE, actor: 'human' });
-    expect(result).toEqual({ ok: false, reason: 'not_active' });
+  const OLD_VISIT = { ...DEFAULT_VISIT_ROW, id: 'visit-1' };
+  const reschedule = (newStartsAt: Date) =>
+    rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt, actor: 'human' });
+
+  it('returns not_active when no active visit matches', async () => {
+    pushSelect([]); // old-visit select
+    expect(await reschedule(FUTURE)).toEqual({ ok: false, reason: 'not_active' });
   });
 
-  it('rejects a reschedule to a start time in the past', async () => {
-    const PAST = new Date(Date.now() - 60_000);
-    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: PAST, actor: 'human' });
+  it('returns not_active when the compare-and-set claim matches zero rows (concurrent cancel/reschedule)', async () => {
+    pushSelect([OLD_VISIT]);
+    pushUpdateReturn([]); // UPDATE ... WHERE status = <read status> RETURNING matches nothing
+    expect(await reschedule(FUTURE)).toEqual({ ok: false, reason: 'not_active' });
+  });
+
+  it('rejects a reschedule to a start time in the past and restores the old visit', async () => {
+    pushSelect([OLD_VISIT]);
+    const result = await reschedule(new Date(Date.now() - 60_000));
     expect(result).toEqual({ ok: false, reason: 'in_past' });
+    expect(getUpdated().at(-1)).toMatchObject({ status: 'scheduled' });
   });
 
-  it('unwraps a soft bookVisitInTx failure (RescheduleFailed) into the same ok:false shape, without leaving the reschedule half-applied', async () => {
-    pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]); // lead lookup inside bookVisitInTx
+  it('restores the old visit on a soft booking failure, returning the same ok:false shape', async () => {
+    pushSelect([OLD_VISIT]);
+    pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]); // lead
     pushSelect([]); // advisor lookup finds nothing -> advisor_invalid
 
-    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: FUTURE, actor: 'human' });
+    const result = await reschedule(FUTURE);
 
     expect(result).toEqual({ ok: false, reason: 'advisor_invalid' });
-    // The final rescheduledFromId-linking update only runs after a successful
-    // bookVisitInTx — it must never run on this path.
-    expect(getUpdated().some((s) => (s as Record<string, unknown>).rescheduledFromId)).toBe(false);
+    expect(getUpdated().at(-1)).toMatchObject({ status: 'scheduled' });
+    expect(getInserted()).toHaveLength(0);
+  });
+
+  it('maps a visit_overlap abort to slot_taken and restores the old visit', async () => {
+    pushSelect([OLD_VISIT]);
+    pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]);
+    pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]);
+    setVisitInsertError(new Error('D1_ERROR: visit_overlap: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_TRIGGER)'));
+
+    expect(await reschedule(FUTURE)).toEqual({ ok: false, reason: 'slot_taken' });
+    expect(getUpdated().at(-1)).toMatchObject({ status: 'scheduled' });
   });
 
   it('reschedules successfully and links rescheduledFromId back to the old visit', async () => {
+    pushSelect([OLD_VISIT]);
     pushSelect([{ id: 'lead-1', stage: 'new', assignedProfileId: null }]);
     pushSelect([{ role: 'admin', acceptsVisits: true, bufferMinutes: 15 }]);
 
-    const result = await rescheduleVisit({ orgId: 'org-1', visitId: 'visit-1', leadId: null, newStartsAt: FUTURE, actor: 'human' });
+    const result = await reschedule(FUTURE);
 
     expect(result.ok).toBe(true);
-    expect(getUpdated().some((s) => (s as Record<string, unknown>).rescheduledFromId === 'visit-new')).toBe(true);
+    const visitInsert = getInserted().find((v) => v && typeof v === 'object' && 'blockedUntil' in (v as object)) as Record<string, unknown>;
+    expect(visitInsert.rescheduledFromId).toBe('visit-1');
+    expect(getUpdated()[0]).toMatchObject({ status: 'rescheduled' });
   });
 });
 
@@ -295,7 +343,6 @@ describe('agent/visits/service — markVisitOutcome', () => {
   });
 
   it('records the outcome and schedules a post_check job when the guard matches', async () => {
-    pushSelect([{ stage: 'visit_scheduled' }]); // crmLeads lookup (only reached for outcome:'completed')
     const result = await markVisitOutcome({ orgId: 'org-1', visitId: 'visit-1', outcome: 'completed', source: 'staff' });
     expect(result?.status).toBe('completed');
     expect(getInserted().some((v) => v && typeof v === 'object' && (v as Record<string, unknown>).kind === VISIT_JOB_KINDS.postCheck)).toBe(true);

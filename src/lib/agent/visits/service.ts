@@ -15,17 +15,15 @@ import {
   profiles,
   propertyVisits,
 } from '@/lib/db/schema';
-import { and, asc, eq, gte, inArray, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
+import { isConstraintError } from '@/lib/db/errors';
+import { and, asc, eq, gte, inArray, isNull, lt, lte, type SQL } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { planVisitJobs, VISIT_JOB_KINDS, type VisitJobPayload } from './job-plan';
 import { notifyVisitChanged } from './hooks';
 import { ACTIVE_VISIT_STATUSES, MAX_ACTIVE_VISITS_PER_PHONE, type VisitFeedback, type VisitRecord, type VisitStatus } from './types';
 import { getOrCreateAgentConfig } from '../config';
 
 const ACTIVE_STATUSES: string[] = [...ACTIVE_VISIT_STATUSES];
-
-// The transaction handle db.transaction() passes to its callback — same
-// query builder surface as `db` itself (select/insert/update/execute).
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export type BookFailure = 'slot_taken' | 'cap_reached' | 'listing_unavailable' | 'advisor_invalid' | 'in_past' | 'lead_not_found';
 export type BookVisitResult = { ok: true; visit: VisitRecord } | { ok: false; reason: BookFailure };
@@ -75,41 +73,36 @@ function toVisitRecord(
   };
 }
 
+/** D1 has no interactive transactions: db.batch() is the atomic unit. No-op for an empty list. */
+async function runBatch(items: BatchItem<'sqlite'>[]): Promise<void> {
+  const [first, ...rest] = items;
+  if (first) await db.batch([first, ...rest]);
+}
+
+/** True if err (or any cause) is the D1 `visit_overlap` trigger abort (migrations-d1/0001_triggers.sql). */
+function isVisitOverlap(e: unknown): boolean {
+  return isConstraintError(e, 'visit_overlap');
+}
+
 /**
- * Thrown inside rescheduleVisit's transaction when bookVisitInTx returns a
- * soft failure (e.g. cap_reached) after the old visit was already marked
- * 'rescheduled' — rolls the whole transaction back so the old visit stays
- * active instead of committing an orphaned reschedule. Unwrapped in the
- * catch next to isExclusionViolation.
+ * Steps 2-9 of bookVisit (blueprint §2.8) — shared with rescheduleVisit.
+ * Never catches visit_overlap: the caller maps it to slot_taken. Once the
+ * visit row is in, any later failure (cap re-check, side-effect batch)
+ * deletes it again so no half-booked visit is left behind.
  */
-class RescheduleFailed extends Error {
-  constructor(public readonly reason: BookFailure) {
-    super(`[agent/visits/service] reschedule failed: ${reason}`);
-  }
-}
-
-/** code === '23P01' on the error itself or on e.cause (DrizzleQueryError wraps the driver error). */
-export function isExclusionViolation(e: unknown): boolean {
-  if (!e || typeof e !== 'object') return false;
-  if ((e as { code?: unknown }).code === '23P01') return true;
-  const cause = (e as { cause?: unknown }).cause;
-  return !!cause && typeof cause === 'object' && (cause as { code?: unknown }).code === '23P01';
-}
-
-/** Steps 2-9 of bookVisit (blueprint §2.8) — shared with rescheduleVisit, which runs them in its own transaction. Never catches 23P01: the caller's transaction must roll back. */
-async function bookVisitInTx(
-  tx: Tx,
+async function insertVisit(
   a: BookVisitArgs,
   now: Date,
-  // Phase 9: config-driven cap (loaded by the caller before the tx) — falls
-  // back to MAX_ACTIVE_VISITS_PER_PHONE for callers that don't pass it (reschedule's enforcePhoneCap is always false, so this never matters there).
+  // Phase 9: config-driven cap (loaded by the caller) — falls back to
+  // MAX_ACTIVE_VISITS_PER_PHONE for callers that don't pass it (reschedule's enforcePhoneCap is always false, so this never matters there).
   maxActiveVisitsPerPhone: number = MAX_ACTIVE_VISITS_PER_PHONE,
+  rescheduledFromId: string | null = null,
 ): Promise<BookVisitResult> {
   if (a.startsAt < now) return { ok: false, reason: 'in_past' };
 
   const contactPhone = a.contactPhone ? toE164(a.contactPhone) : null;
 
-  const leadRows = await tx
+  const leadRows = await db
     .select({ id: crmLeads.id, stage: crmLeads.stage, assignedProfileId: crmLeads.assignedProfileId })
     .from(crmLeads)
     .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId)))
@@ -117,7 +110,7 @@ async function bookVisitInTx(
   const lead = leadRows[0];
   if (!lead) return { ok: false, reason: 'lead_not_found' };
 
-  const advisorRows = await tx
+  const advisorRows = await db
     .select({
       role: profiles.role,
       acceptsVisits: agentAdvisorSettings.acceptsVisits,
@@ -136,29 +129,16 @@ async function bookVisitInTx(
       listingConditions.push(eq(listings.published, true));
       listingConditions.push(eq(listings.status, 'available'));
     }
-    const listingRows = await tx.select({ id: listings.id }).from(listings).where(and(...listingConditions)).limit(1);
+    const listingRows = await db.select({ id: listings.id }).from(listings).where(and(...listingConditions)).limit(1);
     if (!listingRows[0]) return { ok: false, reason: 'listing_unavailable' };
-  }
-
-  if (a.enforcePhoneCap && contactPhone) {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${a.orgId + ':' + contactPhone}))`);
-    const activeRows = await tx
-      .select({ id: propertyVisits.id })
-      .from(propertyVisits)
-      .where(and(
-        eq(propertyVisits.orgId, a.orgId),
-        eq(propertyVisits.contactPhone, contactPhone),
-        inArray(propertyVisits.status, ACTIVE_STATUSES),
-        gte(propertyVisits.startsAt, now),
-      ));
-    if (activeRows.length >= maxActiveVisitsPerPhone) return { ok: false, reason: 'cap_reached' };
   }
 
   const bufferMinutes = a.bufferMinutes ?? advisor.bufferMinutes ?? 15;
   const endsAt = new Date(a.startsAt.getTime() + a.visitMinutes * 60_000);
   const blockedUntil = new Date(endsAt.getTime() + bufferMinutes * 60_000);
 
-  const inserted = await tx
+  // The visit_overlap trigger aborts this INSERT if the advisor's slot is taken.
+  const inserted = await db
     .insert(propertyVisits)
     .values({
       orgId: a.orgId,
@@ -173,31 +153,53 @@ async function bookVisitInTx(
       createdBy: a.createdBy,
       createdByProfileId: a.createdByProfileId ?? null,
       sourceChannel: a.sourceChannel,
+      rescheduledFromId,
       notes: a.notes ?? null,
     })
     .returning();
   const row = inserted[0];
+  const undoInsert = () => db.delete(propertyVisits).where(eq(propertyVisits.id, row.id));
+
+  // Cap is checked after the insert: two concurrent bookings both see each
+  // other's row, so the phone can never end up over the cap.
+  if (a.enforcePhoneCap && contactPhone) {
+    const activeRows = await db
+      .select({ id: propertyVisits.id })
+      .from(propertyVisits)
+      .where(and(
+        eq(propertyVisits.orgId, a.orgId),
+        eq(propertyVisits.contactPhone, contactPhone),
+        inArray(propertyVisits.status, ACTIVE_STATUSES),
+        gte(propertyVisits.startsAt, now),
+      ));
+    if (activeRows.length > maxActiveVisitsPerPhone) {
+      await undoInsert();
+      return { ok: false, reason: 'cap_reached' };
+    }
+  }
+
+  const sideEffects: BatchItem<'sqlite'>[] = [];
 
   const jobs = planVisitJobs({ startsAt: a.startsAt, endsAt }, now);
   if (jobs.length > 0) {
-    await tx.insert(agentJobs).values(
+    sideEffects.push(db.insert(agentJobs).values(
       jobs.map((j) => ({
         orgId: a.orgId,
         kind: j.kind,
         runAt: j.runAt,
         payload: { visitId: row.id, startsAt: a.startsAt.toISOString() } satisfies VisitJobPayload,
       })),
-    );
+    ));
   }
 
   const leadPatch: Record<string, unknown> = {};
   if (['new', 'contacted', 'qualified'].includes(lead.stage)) leadPatch.stage = 'visit_scheduled';
   if (!lead.assignedProfileId) leadPatch.assignedProfileId = a.profileId;
   if (Object.keys(leadPatch).length > 0) {
-    await tx.update(crmLeads).set({ ...leadPatch, updatedAt: now }).where(eq(crmLeads.id, a.leadId));
+    sideEffects.push(db.update(crmLeads).set({ ...leadPatch, updatedAt: now }).where(eq(crmLeads.id, a.leadId)));
   }
 
-  await tx.insert(notificationInbox).values({
+  sideEffects.push(db.insert(notificationInbox).values({
     orgId: a.orgId,
     profileId: a.profileId,
     type: 'visit_booked',
@@ -205,7 +207,14 @@ async function bookVisitInTx(
     body: `Se agendó una visita para el ${a.startsAt.toISOString()}.`,
     relatedType: 'property_visit',
     relatedId: row.id,
-  });
+  }));
+
+  try {
+    await runBatch(sideEffects);
+  } catch (e) {
+    await undoInsert();
+    throw e;
+  }
 
   return { ok: true, visit: toVisitRecord(row) };
 }
@@ -217,11 +226,11 @@ export async function bookVisit(a: BookVisitArgs): Promise<BookVisitResult> {
     : MAX_ACTIVE_VISITS_PER_PHONE;
 
   try {
-    const result = await db.transaction((tx) => bookVisitInTx(tx, a, now, maxActiveVisitsPerPhone));
+    const result = await insertVisit(a, now, maxActiveVisitsPerPhone);
     if (result.ok) notifyVisitChanged({ orgId: a.orgId, visitId: result.visit.id, profileId: result.visit.profileId, kind: 'created' });
     return result;
   } catch (e) {
-    if (isExclusionViolation(e)) return { ok: false, reason: 'slot_taken' };
+    if (isVisitOverlap(e)) return { ok: false, reason: 'slot_taken' };
     throw e;
   }
 }
@@ -241,66 +250,67 @@ export interface RescheduleVisitArgs {
 export async function rescheduleVisit(
   a: RescheduleVisitArgs,
 ): Promise<BookVisitResult | { ok: false; reason: 'not_found' | 'not_active' }> {
+  const now = new Date();
+  const conditions = [
+    eq(propertyVisits.id, a.visitId),
+    eq(propertyVisits.orgId, a.orgId),
+    inArray(propertyVisits.status, ACTIVE_STATUSES),
+  ];
+  if (a.leadId) conditions.push(eq(propertyVisits.leadId, a.leadId));
+
+  const oldRows = await db.select().from(propertyVisits).where(and(...conditions)).limit(1);
+  const old = oldRows[0];
+  if (!old) return { ok: false, reason: 'not_active' };
+
+  // Atomic claim: compare-and-set on the status just read, so a concurrent
+  // cancel/reschedule of the same visit makes this UPDATE match zero rows.
+  // It also frees the old slot, so the new visit may overlap it.
+  const claimed = await db
+    .update(propertyVisits)
+    .set({ status: 'rescheduled', updatedAt: now })
+    .where(and(eq(propertyVisits.id, old.id), eq(propertyVisits.status, old.status)))
+    .returning({ id: propertyVisits.id });
+  if (claimed.length === 0) return { ok: false, reason: 'not_active' };
+
+  // A failed booking must not leave the old visit rescheduled with no replacement.
+  const restoreOld = () => db
+    .update(propertyVisits)
+    .set({ status: old.status, updatedAt: new Date() })
+    .where(and(eq(propertyVisits.id, old.id), eq(propertyVisits.status, 'rescheduled')));
+
+  const bookArgs: BookVisitArgs = {
+    orgId: a.orgId,
+    leadId: old.leadId,
+    listingId: old.listingId,
+    profileId: a.profileId ?? old.profileId,
+    startsAt: a.newStartsAt,
+    visitMinutes: a.visitMinutes ?? Math.round((old.endsAt.getTime() - old.startsAt.getTime()) / 60_000),
+    contactPhone: old.contactPhone,
+    createdBy: a.actor === 'human' ? 'human' : 'agent',
+    createdByProfileId: a.actorProfileId ?? null,
+    sourceChannel: old.sourceChannel as BookVisitArgs['sourceChannel'],
+    sessionId: a.sessionId ?? old.sessionId,
+    notes: old.notes,
+    requirePublishedListing: false,
+    enforcePhoneCap: false,
+  };
+
+  let result: BookVisitResult;
   try {
-    const result = await db.transaction(async (tx) => {
-      const now = new Date();
-      // Atomic claim: UPDATE ... WHERE status IN (active) RETURNING * doubles
-      // as the row lock and the active-status check — no separate SELECT that
-      // could race with a concurrent cancel/reschedule of the same visit.
-      const lockConditions = [
-        eq(propertyVisits.id, a.visitId),
-        eq(propertyVisits.orgId, a.orgId),
-        inArray(propertyVisits.status, ACTIVE_STATUSES),
-      ];
-      if (a.leadId) lockConditions.push(eq(propertyVisits.leadId, a.leadId));
-
-      const lockedRows = await tx
-        .update(propertyVisits)
-        .set({ status: 'rescheduled', updatedAt: now })
-        .where(and(...lockConditions))
-        .returning();
-      const old = lockedRows[0];
-      if (!old) return { ok: false as const, reason: 'not_active' as const };
-
-      const bookArgs: BookVisitArgs = {
-        orgId: a.orgId,
-        leadId: old.leadId,
-        listingId: old.listingId,
-        profileId: a.profileId ?? old.profileId,
-        startsAt: a.newStartsAt,
-        visitMinutes: a.visitMinutes ?? Math.round((old.endsAt.getTime() - old.startsAt.getTime()) / 60_000),
-        contactPhone: old.contactPhone,
-        createdBy: a.actor === 'human' ? 'human' : 'agent',
-        createdByProfileId: a.actorProfileId ?? null,
-        sourceChannel: old.sourceChannel as BookVisitArgs['sourceChannel'],
-        sessionId: a.sessionId ?? old.sessionId,
-        notes: old.notes,
-        requirePublishedListing: false,
-        enforcePhoneCap: false,
-      };
-
-      const result = await bookVisitInTx(tx, bookArgs, now);
-      // A soft failure here must not commit — the old visit was already set
-      // to 'rescheduled' above, so returning `result` as-is would leave it
-      // rescheduled with no replacement booked. Throw so the transaction
-      // rolls the old visit back to its original status.
-      if (!result.ok) throw new RescheduleFailed(result.reason);
-
-      await tx.update(propertyVisits).set({ rescheduledFromId: old.id, updatedAt: now }).where(eq(propertyVisits.id, result.visit.id));
-
-      return { ok: true as const, visit: { ...result.visit, rescheduledFromId: old.id }, oldProfileId: old.profileId };
-    });
-    if (result.ok) {
-      notifyVisitChanged({ orgId: a.orgId, visitId: a.visitId, profileId: result.oldProfileId, kind: 'rescheduled_from' });
-      notifyVisitChanged({ orgId: a.orgId, visitId: result.visit.id, profileId: result.visit.profileId, kind: 'rescheduled_to' });
-      return { ok: true, visit: result.visit };
-    }
-    return result;
+    result = await insertVisit(bookArgs, now, MAX_ACTIVE_VISITS_PER_PHONE, old.id);
   } catch (e) {
-    if (e instanceof RescheduleFailed) return { ok: false, reason: e.reason };
-    if (isExclusionViolation(e)) return { ok: false, reason: 'slot_taken' };
+    await restoreOld();
+    if (isVisitOverlap(e)) return { ok: false, reason: 'slot_taken' };
     throw e;
   }
+  if (!result.ok) {
+    await restoreOld();
+    return result;
+  }
+
+  notifyVisitChanged({ orgId: a.orgId, visitId: a.visitId, profileId: old.profileId, kind: 'rescheduled_from' });
+  notifyVisitChanged({ orgId: a.orgId, visitId: result.visit.id, profileId: result.visit.profileId, kind: 'rescheduled_to' });
+  return result;
 }
 
 export interface CancelVisitArgs {
@@ -358,40 +368,36 @@ const OUTCOME_ELIGIBLE_STATUSES: string[] = ['scheduled', 'confirmed'];
 
 /** Atomic claim + guard: only a scheduled/confirmed visit whose time has already passed can have its outcome recorded. Anything else (already marked, cancelled, rescheduled, or still in the future) returns null — the caller surfaces this as an error rather than silently overwriting an outcome. */
 export async function markVisitOutcome(a: MarkVisitOutcomeArgs): Promise<VisitRecord | null> {
-  const visit = await db.transaction(async (tx) => {
-    const now = new Date();
-    const updated = await tx
-      .update(propertyVisits)
-      .set({ status: a.outcome, completedAt: now, outcomeSource: a.source, updatedAt: now })
-      .where(and(
-        eq(propertyVisits.id, a.visitId),
-        eq(propertyVisits.orgId, a.orgId),
-        inArray(propertyVisits.status, OUTCOME_ELIGIBLE_STATUSES),
-        lte(propertyVisits.startsAt, now),
-      ))
-      .returning();
-    const visit = updated[0];
-    if (!visit) return null;
-
-    if (a.outcome === 'completed') {
-      const leadRows = await tx.select({ stage: crmLeads.stage }).from(crmLeads).where(eq(crmLeads.id, visit.leadId)).limit(1);
-      if (leadRows[0]?.stage === 'visit_scheduled') {
-        await tx.update(crmLeads).set({ stage: 'visited', updatedAt: now }).where(eq(crmLeads.id, visit.leadId));
-      }
-    }
-
-    if (!visit.postCheckSentAt) {
-      await tx.insert(agentJobs).values({
-        orgId: a.orgId,
-        kind: VISIT_JOB_KINDS.postCheck,
-        runAt: now,
-        payload: { visitId: visit.id, startsAt: visit.startsAt.toISOString() } satisfies VisitJobPayload,
-      });
-    }
-
-    return visit;
-  });
+  const now = new Date();
+  const updated = await db
+    .update(propertyVisits)
+    .set({ status: a.outcome, completedAt: now, outcomeSource: a.source, updatedAt: now })
+    .where(and(
+      eq(propertyVisits.id, a.visitId),
+      eq(propertyVisits.orgId, a.orgId),
+      inArray(propertyVisits.status, OUTCOME_ELIGIBLE_STATUSES),
+      lte(propertyVisits.startsAt, now),
+    ))
+    .returning();
+  const visit = updated[0];
   if (!visit) return null;
+
+  const followUps: BatchItem<'sqlite'>[] = [];
+  if (a.outcome === 'completed') {
+    followUps.push(db
+      .update(crmLeads)
+      .set({ stage: 'visited', updatedAt: now })
+      .where(and(eq(crmLeads.id, visit.leadId), eq(crmLeads.stage, 'visit_scheduled'))));
+  }
+  if (!visit.postCheckSentAt) {
+    followUps.push(db.insert(agentJobs).values({
+      orgId: a.orgId,
+      kind: VISIT_JOB_KINDS.postCheck,
+      runAt: now,
+      payload: { visitId: visit.id, startsAt: visit.startsAt.toISOString() } satisfies VisitJobPayload,
+    }));
+  }
+  await runBatch(followUps);
 
   notifyVisitChanged({ orgId: a.orgId, visitId: visit.id, profileId: visit.profileId, kind: 'status' });
   return toVisitRecord(visit);

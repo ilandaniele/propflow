@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { db } from '@/lib/db';
 import { listings, unitImages, listingImages, whatsappMessages } from '@/lib/db/schema';
-import { and, asc, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { getSignedUrl } from '@/lib/storage';
 import { getOrCreateAgentConfig } from '../config';
 import { isListingKnownToSession } from '../session-listings';
@@ -19,10 +19,25 @@ const InputSchema = z.object({
 /** 3 send_listing_photos calls per WhatsApp session per day — a coarse abuse guard, not a hard product limit. */
 const MAX_CALLS_PER_SESSION_PER_DAY = 3;
 
-function utcDayStart(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+async function reservePhotoSlot(orgId: string, conversationId: string, batch: string, listingId: string): Promise<boolean> {
+  const day = new Date().toISOString().slice(0, 10);
+  for (let slot = 1; slot <= MAX_CALLS_PER_SESSION_PER_DAY; slot++) {
+    const claimed = await db
+      .insert(whatsappMessages)
+      .values({
+        orgId,
+        conversationId,
+        direction: 'outbound',
+        status: 'queued',
+        senderKind: 'agent',
+        providerMessageId: `listing_photos:${conversationId}:${day}:${slot}`,
+        meta: { kind: 'listing_photos', batch, listingId, reserved: true },
+      })
+      .onConflictDoNothing()
+      .returning({ id: whatsappMessages.id });
+    if (claimed.length > 0) return true;
+  }
+  return false;
 }
 
 function priceText(price: string | null, currency: string): string {
@@ -60,38 +75,11 @@ export function makeSendListingPhotosTool(ctx: AgentToolContext) {
       if (!ctx.whatsappConversationId) return 'Las fotos solo se pueden enviar por WhatsApp.';
       const conversationId = ctx.whatsappConversationId;
 
-      // Race-safe daily cap: two concurrent tool calls for the same
-      // conversation could otherwise both read `callsToday < MAX` before
-      // either one recorded its batch. Serialize the count-then-reserve step
-      // behind a per-conversation advisory lock and reserve this call's batch
-      // slot (insert the marker row) before releasing the lock/sending
-      // anything, so a concurrent call always sees it.
+      // Race-safe daily cap: each call claims one of the day's numbered slots
+      // through the (org_id, provider_message_id) unique index. Concurrent
+      // calls can never claim the same slot, and nothing is sent without one.
       const batch = randomUUID();
-      const capped = await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'photos:' + conversationId}))`);
-        const sentToday = await tx
-          .select({ batch: sql<string>`${whatsappMessages.meta}->>'batch'` })
-          .from(whatsappMessages)
-          .where(and(
-            eq(whatsappMessages.conversationId, conversationId),
-            eq(whatsappMessages.direction, 'outbound'),
-            sql`${whatsappMessages.meta}->>'kind' = 'listing_photos'`,
-            gte(whatsappMessages.createdAt, utcDayStart()),
-          ));
-        const callsToday = new Set(sentToday.map((r) => r.batch)).size;
-        if (callsToday >= MAX_CALLS_PER_SESSION_PER_DAY) return true;
-
-        await tx.insert(whatsappMessages).values({
-          orgId: ctx.orgId,
-          conversationId,
-          direction: 'outbound',
-          status: 'queued',
-          senderKind: 'agent',
-          meta: { kind: 'listing_photos', batch, listingId: args.listingId, reserved: true },
-        });
-        return false;
-      });
-      if (capped) {
+      if (!(await reservePhotoSlot(ctx.orgId, conversationId, batch, args.listingId))) {
         return 'Ya enviamos fotos varias veces hoy en esta conversación; seguimos por texto.';
       }
 

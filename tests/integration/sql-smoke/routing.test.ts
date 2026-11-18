@@ -1,6 +1,6 @@
 /**
  * Real-SQL smoke test for src/lib/leads/routing.ts's routeLead — the
- * `pg_advisory_xact_lock(hashtext(...))` call plus the round-robin/weighted
+ * assigned_count compare-and-set cursor plus the round-robin/weighted
  * assignment queries. notifyAdvisorLeadAssigned is mocked (notifications are
  * out of scope for a SQL smoke test).
  */
@@ -31,7 +31,7 @@ afterAll(async () => {
 });
 
 describe('routeLead (real SQL)', () => {
-  it('round_robin assigns to the advisor with the fewest recent assignments, guarded by pg_advisory_xact_lock(hashtext(...))', async () => {
+  it('round_robin assigns to the advisor with the fewest recent assignments', async () => {
     const { db } = await import('@/lib/db');
     const { routeLead } = await import('@/lib/leads/routing');
     const typedDb = db as unknown as SmokeDb;
@@ -71,5 +71,36 @@ describe('routeLead (real SQL)', () => {
     // A second call is a no-op — the lead is already assigned.
     const second = await routeLead({ orgId: org.id, leadId: lead.id });
     expect(second).toEqual({ profileId: null, method: null });
+  });
+
+  it('two concurrent round_robin calls land on different advisors', async () => {
+    const { db } = await import('@/lib/db');
+    const { routeLead } = await import('@/lib/leads/routing');
+    const typedDb = db as unknown as SmokeDb;
+
+    const org = await seedOrg(typedDb);
+    await seedAgentConfig(typedDb, org.id, { routingMode: 'round_robin' });
+    const advisorA = await seedProfile(typedDb, org.id, { role: 'admin', fullName: 'Advisor A' });
+    const advisorB = await seedProfile(typedDb, org.id, { role: 'admin', fullName: 'Advisor B' });
+    for (const advisor of [advisorA, advisorB]) {
+      await typedDb.insert(schema.leadRoutingMembers).values({
+        orgId: org.id,
+        profileId: advisor.id,
+        pipeline: 'both',
+        active: true,
+        lastAssignedAt: null,
+      });
+    }
+    const lead1 = await seedLead(typedDb, org.id, { pipeline: 'demand' });
+    const lead2 = await seedLead(typedDb, org.id, { pipeline: 'demand' });
+
+    const [r1, r2] = await Promise.all([
+      routeLead({ orgId: org.id, leadId: lead1.id }),
+      routeLead({ orgId: org.id, leadId: lead2.id }),
+    ]);
+
+    expect(r1.profileId).not.toBeNull();
+    expect(r2.profileId).not.toBeNull();
+    expect(new Set([r1.profileId, r2.profileId])).toEqual(new Set([advisorA.id, advisorB.id]));
   });
 });

@@ -144,13 +144,14 @@ export async function replaceWeeklyWindows(input: ReplaceWeeklyWindowsInput): Pr
   }
 
   try {
-    await db.transaction(async (tx) => {
-      await tx
-        .delete(agentAvailability)
-        .where(and(eq(agentAvailability.orgId, ctx.orgId), eq(agentAvailability.profileId, data.profileId)));
+    const clear = db
+      .delete(agentAvailability)
+      .where(and(eq(agentAvailability.orgId, ctx.orgId), eq(agentAvailability.profileId, data.profileId)));
 
-      if (data.windows.length > 0) {
-        await tx.insert(agentAvailability).values(
+    if (data.windows.length > 0) {
+      await db.batch([
+        clear,
+        db.insert(agentAvailability).values(
           data.windows.map((w) => ({
             orgId: ctx.orgId,
             profileId: data.profileId,
@@ -158,9 +159,11 @@ export async function replaceWeeklyWindows(input: ReplaceWeeklyWindowsInput): Pr
             startMinute: w.startMinute,
             endMinute: w.endMinute,
           })),
-        );
-      }
-    });
+        ),
+      ]);
+    } else {
+      await clear;
+    }
   } catch (e) {
     log.error('[visit-availability] replaceWeeklyWindows db error', { orgId: ctx.orgId, error: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();

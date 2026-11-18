@@ -1,9 +1,8 @@
 /**
  * Real-SQL smoke test for src/lib/agent/visits/service.ts's bookVisit —
- * specifically the `property_visits_no_overlap` EXCLUDE USING gist
- * constraint (0006_agent_visits.sql), which unit tests mocking `@/lib/db`
- * can never actually trigger since there's no real Postgres underneath to
- * raise 23P01.
+ * specifically the D1 `visit_overlap` trigger (migrations-d1/0001_triggers.sql),
+ * which unit tests mocking `@/lib/db` can never actually fire since there's
+ * no real SQLite underneath to abort the INSERT.
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -30,7 +29,7 @@ afterAll(async () => {
 });
 
 describe('bookVisit (real SQL)', () => {
-  it('a second booking for the same advisor at an overlapping time is rejected with slot_taken via the EXCLUDE constraint', async () => {
+  it('a second booking for the same advisor at an overlapping time is rejected with slot_taken via the visit_overlap trigger', async () => {
     const { db } = await import('@/lib/db');
     const { bookVisit } = await import('@/lib/agent/visits/service');
     const typedDb = db as unknown as SmokeDb;
@@ -84,5 +83,35 @@ describe('bookVisit (real SQL)', () => {
       sourceChannel: 'whatsapp',
     });
     expect(later.ok).toBe(true);
+  });
+
+  it('two concurrent overlapping bookings: exactly one wins, the other gets slot_taken', async () => {
+    const { db } = await import('@/lib/db');
+    const { bookVisit } = await import('@/lib/agent/visits/service');
+    const typedDb = db as unknown as SmokeDb;
+
+    const org = await seedOrg(typedDb);
+    const advisor = await seedProfile(typedDb, org.id, { role: 'admin' });
+    await seedAdvisorSettings(typedDb, org.id, advisor.id, { acceptsVisits: true, bufferMinutes: 15 });
+    const leadA = await seedLead(typedDb, org.id, { fullName: 'Lead A' });
+    const leadB = await seedLead(typedDb, org.id, { fullName: 'Lead B' });
+
+    const startsAt = new Date(Date.now() + 4 * 24 * 60 * 60 * 1000);
+    const book = (leadId: string, phone: string) => bookVisit({
+      orgId: org.id,
+      leadId,
+      listingId: null,
+      profileId: advisor.id,
+      startsAt,
+      visitMinutes: 45,
+      contactPhone: phone,
+      createdBy: 'agent',
+      sourceChannel: 'whatsapp',
+    });
+
+    const results = await Promise.all([book(leadA.id, '+51987654331'), book(leadB.id, '+51987654332')]);
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok)).toEqual([{ ok: false, reason: 'slot_taken' }]);
   });
 });

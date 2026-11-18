@@ -95,6 +95,7 @@ vi.mock('@/lib/db', async () => {
     })),
   };
   dbLike.transaction = vi.fn(async (fn: (tx: unknown) => unknown) => fn(dbLike));
+  dbLike.batch = vi.fn(async (items: unknown[]) => Promise.all(items));
 
   return { db: dbLike };
 });
