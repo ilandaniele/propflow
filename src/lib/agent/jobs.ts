@@ -1,8 +1,7 @@
 /**
  * Durable job queue for the real-estate agent (reminders, follow-ups,
- * calendar sync, outbound calls). Claimed with FOR UPDATE SKIP LOCKED so
- * multiple drainers (instrumentation interval + cron backstop) never
- * double-process the same job.
+ * calendar sync, outbound calls). Claimed with one atomic UPDATE ... RETURNING
+ * so multiple drainers (cron + webhook) never double-process the same job.
  *
  * Job kinds are registered by later phases via registerAgentJobHandler();
  * Phase 0 ships the queue plumbing only — no job kinds exist yet.
@@ -62,47 +61,43 @@ interface ClaimedJob {
 
 /**
  * Claim up to `limit` due jobs, marking them 'processing' with a lock, in one
- * transaction. Only claims kinds that have a registered handler — the
- * instrumentation/cron/webhook bundles don't share HANDLERS as a module-level
- * Map, so an unregistered kind would otherwise get claimed and immediately
- * burn a retry attempt for "no handler registered" instead of just waiting
- * for a drainer that does have one.
+ * single UPDATE ... WHERE id IN (SELECT ... LIMIT ?) RETURNING statement, so
+ * concurrent drainers never claim the same job. Only claims kinds that have a
+ * registered handler — the cron/webhook bundles don't share HANDLERS as a
+ * module-level Map, so an unregistered kind would otherwise get claimed and
+ * immediately burn a retry attempt for "no handler registered" instead of
+ * just waiting for a drainer that does have one.
  */
 async function claimDueJobs(limit: number): Promise<ClaimedJob[]> {
   const kinds = registeredJobKinds();
   if (kinds.length === 0) return [];
 
-  return db.transaction(async (tx) => {
-    const now = new Date();
+  const now = new Date();
+  const due = db
+    .select({ id: agentJobs.id })
+    .from(agentJobs)
+    .where(and(
+      eq(agentJobs.status, 'pending'),
+      lte(agentJobs.runAt, now),
+      or(isNull(agentJobs.lockedUntil), lte(agentJobs.lockedUntil, now)),
+      inArray(agentJobs.kind, kinds),
+    ))
+    .orderBy(agentJobs.runAt)
+    .limit(limit);
 
-    const due = await tx
-      .select({
-        id: agentJobs.id,
-        orgId: agentJobs.orgId,
-        kind: agentJobs.kind,
-        payload: agentJobs.payload,
-        attempts: agentJobs.attempts,
-      })
-      .from(agentJobs)
-      .where(and(
-        eq(agentJobs.status, 'pending'),
-        lte(agentJobs.runAt, now),
-        or(isNull(agentJobs.lockedUntil), lte(agentJobs.lockedUntil, now)),
-        inArray(agentJobs.kind, kinds),
-      ))
-      .orderBy(agentJobs.runAt)
-      .limit(limit)
-      .for('update', { skipLocked: true });
+  const claimed = await db
+    .update(agentJobs)
+    .set({ status: 'processing', lockedUntil: new Date(now.getTime() + CLAIM_LOCK_MS), updatedAt: now })
+    .where(inArray(agentJobs.id, due))
+    .returning({
+      id: agentJobs.id,
+      orgId: agentJobs.orgId,
+      kind: agentJobs.kind,
+      payload: agentJobs.payload,
+      attempts: agentJobs.attempts,
+    });
 
-    if (due.length === 0) return [];
-
-    await tx
-      .update(agentJobs)
-      .set({ status: 'processing', lockedUntil: new Date(now.getTime() + CLAIM_LOCK_MS), updatedAt: now })
-      .where(inArray(agentJobs.id, due.map((j) => j.id)));
-
-    return due as ClaimedJob[];
-  });
+  return claimed as ClaimedJob[];
 }
 
 async function completeJob(id: string): Promise<void> {
