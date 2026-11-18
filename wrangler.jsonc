@@ -1,12 +1,32 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "propflow",
-  "main": ".open-next/worker.js",
+  "name": "propflow-app",
+  "main": "worker.ts",
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "run_worker_first": false
   },
-  "observability": { "enabled": true }
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "propflow-db",
+      // Placeholder until the owner creates the D1 database (docs/07 §13 step 8).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "src/lib/db/migrations-d1"
+    }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "propflow-files" }],
+  "ratelimits": [
+    { "name": "RL_IP_API", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RL_IP_AUTH", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "triggers": { "crons": ["* * * * *", "0 * * * *"] },
+  "observability": { "enabled": true },
+  "vars": {
+    "WHATSAPP_PROVIDER": "meta",
+    "R2_BUCKET": "propflow-files"
+  }
 }
