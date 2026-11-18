@@ -9,12 +9,14 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { profiles, tenants, importLogs } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { profiles, tenants, importLogs, contracts, payments } from '@/lib/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
+import { asBatch, chunk, rowsPerInsert } from '@/lib/db/batch';
 import { parsePaymentsCsv } from '@/lib/csv/parsePaymentsCsv';
 
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
+const PAYMENT_ROWS_PER_INSERT = rowsPerInsert(payments);
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let ctx;
@@ -82,97 +84,75 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const import_id = importLog.id;
   let created = 0, updated = 0, skipped = 0, failed = 0;
 
+  // Every payment needs a contract: the tenant's latest active one (AC8: org scoped).
+  const contractRows = await db
+    .select({ id: contracts.id })
+    .from(contracts)
+    .where(and(eq(contracts.tenantId, tenantRecord.id), eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active')))
+    .orderBy(desc(contracts.createdAt))
+    .limit(1);
+  const contractId = contractRows[0]?.id;
+
+  const now = new Date();
+  const upserts: (typeof payments.$inferInsert)[] = [];
+  const inserts: (typeof payments.$inferInsert)[] = [];
+
   for (const row of rows) {
     // Security: only allow own email
     if (row.tenant_email && row.tenant_email !== tenantEmail) {
       skipped++;
       continue;
     }
+    if (!contractId) {
+      skipped++;
+      continue;
+    }
 
+    (row.external_payment_id ? upserts : inserts).push({
+      id:                crypto.randomUUID(),
+      orgId:             ctx.orgId,
+      contractId,
+      tenantId:          tenantRecord.id,
+      amount:            String(row.amount),
+      currency:          row.currency ?? 'PEN',
+      paidAt:            row.payment_date,
+      status:            'under_review',
+      method:            row.payment_method ?? 'transfer',
+      reference:         row.reference ?? null,
+      movementType:      'payment',
+      externalPaymentId: row.external_payment_id ?? null,
+      importSource:      'csv_import',
+      importId:          import_id,
+      createdAt:         now,
+      updatedAt:         now,
+    });
+  }
+
+  // One D1 batch is atomic: every chunk lands or none does.
+  const batch = asBatch([
+    ...chunk(upserts, PAYMENT_ROWS_PER_INSERT).map((part) =>
+      db.insert(payments).values(part).onConflictDoUpdate({
+        target: [payments.orgId, payments.externalPaymentId],
+        set: {
+          amount:    sql`excluded.amount`,
+          currency:  sql`excluded.currency`,
+          paidAt:    sql`excluded.paid_at`,
+          method:    sql`excluded.method`,
+          reference: sql`excluded.reference`,
+          importId:  sql`excluded.import_id`,
+          updatedAt: now,
+        },
+      })),
+    ...chunk(inserts, PAYMENT_ROWS_PER_INSERT).map((part) => db.insert(payments).values(part)),
+  ]);
+
+  if (batch) {
     try {
-      if (row.external_payment_id) {
-        // Upsert by org_id + external_payment_id
-        // NOTE: payments.contract_id is notNull() in schema but CSV imports do not supply it.
-        // TODO(W1/schema): relax contract_id to nullable for import rows, then switch to Drizzle .insert()/.onConflictDoUpdate().
-        await db.execute(sql`
-          INSERT INTO payments (
-            org_id, tenant_id, amount, currency,
-            paid_at, due_date, status, method, reference,
-            period_month, movement_type, notes,
-            external_payment_id, import_source, import_id,
-            contract_id
-          )
-          SELECT
-            ${ctx.orgId}::uuid,
-            ${tenantRecord.id}::uuid,
-            ${row.amount},
-            ${row.currency ?? 'PEN'},
-            ${row.payment_date},
-            ${row.due_date ?? null},
-            ${'under_review'},
-            ${row.payment_method ?? 'transfer'},
-            ${row.reference ?? null},
-            ${row.billing_period ?? null},
-            ${'payment'},
-            ${row.description ?? null},
-            ${row.external_payment_id},
-            ${'csv_import'},
-            ${import_id}::uuid,
-            c.id
-          FROM contracts c
-          WHERE c.tenant_id = ${tenantRecord.id}::uuid
-            AND c.org_id = ${ctx.orgId}::uuid
-            AND c.status = 'active'
-          ORDER BY c.created_at DESC
-          LIMIT 1
-          ON CONFLICT (org_id, external_payment_id) DO UPDATE SET
-            amount = EXCLUDED.amount,
-            currency = EXCLUDED.currency,
-            paid_at = EXCLUDED.paid_at,
-            method = EXCLUDED.method,
-            reference = EXCLUDED.reference,
-            period_month = EXCLUDED.period_month,
-            notes = EXCLUDED.notes,
-            import_id = EXCLUDED.import_id,
-            updated_at = NOW()
-        `);
-        updated++;
-      } else {
-        await db.execute(sql`
-          INSERT INTO payments (
-            org_id, tenant_id, amount, currency,
-            paid_at, due_date, status, method, reference,
-            period_month, movement_type, notes,
-            import_source, import_id,
-            contract_id
-          )
-          SELECT
-            ${ctx.orgId}::uuid,
-            ${tenantRecord.id}::uuid,
-            ${row.amount},
-            ${row.currency ?? 'PEN'},
-            ${row.payment_date},
-            ${row.due_date ?? null},
-            ${'under_review'},
-            ${row.payment_method ?? 'transfer'},
-            ${row.reference ?? null},
-            ${row.billing_period ?? null},
-            ${'payment'},
-            ${row.description ?? null},
-            ${'csv_import'},
-            ${import_id}::uuid,
-            c.id
-          FROM contracts c
-          WHERE c.tenant_id = ${tenantRecord.id}::uuid
-            AND c.org_id = ${ctx.orgId}::uuid
-            AND c.status = 'active'
-          ORDER BY c.created_at DESC
-          LIMIT 1
-        `);
-        created++;
-      }
+      await db.batch(batch);
+      updated = upserts.length;
+      created = inserts.length;
     } catch {
-      failed++;
+      failed = upserts.length + inserts.length;
     }
   }
 
