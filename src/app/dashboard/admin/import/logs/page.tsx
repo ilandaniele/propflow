@@ -1,10 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
-import { db } from '@/lib/db';
-import { csvImports } from '@/lib/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { listCsvImports } from '@/lib/dashboard/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,39 +50,7 @@ export default async function ImportLogsPage({
   const limit       = 20;
   const statusFilter = params.status ?? '';
 
-  // Count query
-  const countResult = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(csvImports)
-    .where(
-      statusFilter
-        ? and(eq(csvImports.orgId, ctx.orgId), eq(csvImports.status, statusFilter))
-        : eq(csvImports.orgId, ctx.orgId)
-    );
-  const total = countResult[0]?.count ?? 0;
-
-  // Data query with pagination
-  const rows = await db
-    .select({
-      id:               csvImports.id,
-      importType:       csvImports.importType,
-      originalFilename: csvImports.originalFilename,
-      period:           csvImports.period,
-      status:           csvImports.status,
-      rowCount:         csvImports.rowCount,
-      failedCount:      csvImports.failedCount,
-      committedAt:      csvImports.committedAt,
-      createdAt:        csvImports.createdAt,
-    })
-    .from(csvImports)
-    .where(
-      statusFilter
-        ? and(eq(csvImports.orgId, ctx.orgId), eq(csvImports.status, statusFilter))
-        : eq(csvImports.orgId, ctx.orgId)
-    )
-    .orderBy(desc(csvImports.createdAt))
-    .limit(limit)
-    .offset(page * limit);
+  const { total, rows } = await listCsvImports(ctx.orgId, statusFilter, page, limit);
 
   const hasPrev = page > 0;
   const hasNext = page * limit + limit < total;

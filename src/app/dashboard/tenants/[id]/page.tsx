@@ -15,7 +15,7 @@ import {
   whatsappMessages,
 } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { getTenantStatement } from '@/lib/dashboard/queries';
 import { getSignedUrl } from '@/lib/storage';
 import { getTranslations } from 'next-intl/server';
 import { Tabs } from '@/components/ui/Tabs';
@@ -77,14 +77,14 @@ export default async function TenantDetailPage({ params }: Props) {
 
   // Eager fetches for Overview tab + activity feed
   const [
-    statementResult,
+    statement,
     incidentRows,
     taskRows,
     sanctionRows,
     paymentRows,
     convRows,
   ] = await Promise.all([
-    db.execute(sql`SELECT * FROM tenant_statement WHERE tenant_id = ${id}`),
+    getTenantStatement(ctx.orgId, id),
     db
       .select({ id: incidents.id, title: incidents.title, status: incidents.status, createdAt: incidents.createdAt })
       .from(incidents)
@@ -116,13 +116,6 @@ export default async function TenantDetailPage({ params }: Props) {
       .limit(1),
   ]);
 
-  const _stmtRaw     = ((statementResult as unknown as Array<{ balance: string; is_overdue: boolean; total_charges: string; total_approved_payments: string }>)?.[0] ?? null);
-  const statement    = _stmtRaw ? {
-    balance:                 Number(_stmtRaw.balance),
-    is_overdue:              Boolean(_stmtRaw.is_overdue),
-    total_charges:           Number(_stmtRaw.total_charges),
-    total_approved_payments: Number(_stmtRaw.total_approved_payments),
-  } : null;
   const incidentsArr = incidentRows;
   const tasksArr     = taskRows;
   const sanctionsArr = sanctionRows;

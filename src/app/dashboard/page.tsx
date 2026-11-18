@@ -2,24 +2,9 @@ import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/auth/guards';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
-import { db } from '@/lib/db';
-import {
-  units as unitsTable,
-  payments as paymentsTable,
-  incidents as incidentsTable,
-  expenses as expensesTable,
-  additionalCharges,
-  accountStatements,
-  tenantFeedback,
-  tenants,
-  properties,
-  contracts,
-} from '@/lib/db/schema';
-import { eq, and, gte, ne, sql } from 'drizzle-orm';
 import { Card } from '@/components/ui/Card';
 import {
   computeOccupancyRate,
-  computeRentCollectedThisMonth,
   computeOccupancy,
   computePastDueBalance,
   computeTrueNetProfit,
@@ -27,6 +12,7 @@ import {
 import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
 import { entityLabel } from '@/lib/dashboard/health';
+import { getDashboardKpis } from '@/lib/dashboard/queries';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -36,61 +22,11 @@ export default async function DashboardPage() {
 
   const t = await getTranslations('adminDashboard');
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-
-  const [
-    unitRows,
-    paymentRows,
-    incidentRows,
-    statementResult,
-    expenseRows,
-    additionalChargeRows,
-    accountStatementRows,
-    feedbackRows,
-    // Entity health checks — inlined (faster than calling checkEntityHealth per entity)
-    tenantCount,
-    propertyCount,
-    paymentCount,
-    contractCount,
-    contractTypeData,
-    trashComplianceResult,
-  ] = await Promise.all([
-    db.select({ id: unitsTable.id, status: unitsTable.status }).from(unitsTable).where(eq(unitsTable.orgId, ctx.orgId)),
-    db.select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, status: paymentsTable.status })
-      .from(paymentsTable).where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'))),
-    db.select({ id: incidentsTable.id, status: incidentsTable.status })
-      .from(incidentsTable).where(and(eq(incidentsTable.orgId, ctx.orgId), ne(incidentsTable.status, 'solved'))),
-    db.execute(sql`SELECT is_overdue, total_charged, total_paid, balance FROM tenant_statement WHERE org_id = ${ctx.orgId}`),
-    db.select({ amount: expensesTable.amount, incurredOn: expensesTable.incurredOn })
-      .from(expensesTable).where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, startOfMonth))),
-    db.select({ amount: additionalCharges.amount, anio: additionalCharges.anio })
-      .from(additionalCharges).where(and(eq(additionalCharges.orgId, ctx.orgId), eq(additionalCharges.anio, now.getFullYear()))),
-    db.select({ id: accountStatements.id, sendStatus: accountStatements.sendStatus })
-      .from(accountStatements).where(eq(accountStatements.orgId, ctx.orgId)),
-    db.select({ cleaningScore: tenantFeedback.cleaningScore, coexistenceScore: tenantFeedback.coexistenceScore, attentionScore: tenantFeedback.attentionScore, securityScore: tenantFeedback.securityScore, valueScore: tenantFeedback.valueScore })
-      .from(tenantFeedback).where(eq(tenantFeedback.orgId, ctx.orgId)),
-    db.select({ count: sql<number>`count(*)::int` }).from(tenants).where(eq(tenants.orgId, ctx.orgId)),
-    db.select({ count: sql<number>`count(*)::int` }).from(properties).where(eq(properties.orgId, ctx.orgId)),
-    db.select({ count: sql<number>`count(*)::int` }).from(paymentsTable).where(eq(paymentsTable.orgId, ctx.orgId)),
-    db.select({ count: sql<number>`count(*)::int` }).from(contracts).where(eq(contracts.orgId, ctx.orgId)),
-    // Contract type breakdown
-    db.select({ contractType: sql<string>`COALESCE(contract_type, 'unknown')`, count: sql<number>`count(*)::int` })
-      .from(contracts)
-      .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active')))
-      .groupBy(sql`contract_type`),
-    // Trash compliance this month
-    db.execute(sql`SELECT estado, COUNT(*)::int as count FROM trash_compliance WHERE org_id = ${ctx.orgId} AND fecha >= ${startOfMonth} GROUP BY estado`),
-  ]);
+  const kpis = await getDashboardKpis(ctx.orgId);
 
   // Entity health — derived from counts
   type EntityName = 'tenants' | 'properties' | 'payments' | 'contracts';
-  const entityHealthMap: Record<EntityName, number> = {
-    tenants:    tenantCount[0]?.count ?? 0,
-    properties: propertyCount[0]?.count ?? 0,
-    payments:   paymentCount[0]?.count ?? 0,
-    contracts:  contractCount[0]?.count ?? 0,
-  };
+  const entityHealthMap: Record<EntityName, number> = kpis.entityCounts;
   // Only flag a "data not loading" anomaly when SOME entities have data but others
   // are empty — a partial/failed load. A brand-new org where everything is 0 is
   // simply empty (handled by the friendly empty state below), not an error, so we
@@ -102,43 +38,19 @@ export default async function DashboardPage() {
         .map(([entity]) => ({ entity, count: 0, error: null }))
     : [];
 
-  const statements = (statementResult as unknown as Array<{ is_overdue: boolean; total_charged: string; total_paid: string; balance: string }>);
-
   // Operational KPIs
-  const totalUnits = unitRows.length;
-  const occupiedUnits = unitRows.filter((u) => u.status === 'occupied').length;
+  const { totalUnits, occupiedUnits, rentCollected, overdueCount, avgFeedback, pendingStatements } = kpis;
   const occupancyRate = computeOccupancyRate(occupiedUnits, totalUnits);
 
-  // computeRentCollectedThisMonth expects { amount: number; paid_at: string }[]
-  const paymentsForKpi = paymentRows.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt ? String(p.paidAt) : '' }));
-  const rentCollected = computeRentCollectedThisMonth(paymentsForKpi);
-
-  const overdueCount = statements.filter((s) => s.is_overdue).length;
-
   // Financial KPIs
-  const overdueAmounts = statements
-    .filter((s) => s.is_overdue)
-    .map((s) => Math.max(0, Number(s.total_charged ?? 0) - Number(s.total_paid ?? 0)));
-  const pastDueKpi = computePastDueBalance(overdueAmounts);
-
-  const mtdIncome = paymentRows.filter((p) => p.paidAt && String(p.paidAt) >= startOfMonth).reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-  const mtdExpenses = expenseRows.reduce((sum, e) => sum + Number(e.amount ?? 0), 0);
-  const netProfitKpi = computeTrueNetProfit(mtdIncome, mtdExpenses);
+  const pastDueKpi = computePastDueBalance([kpis.pastDue]);
+  const netProfitKpi = computeTrueNetProfit(kpis.mtdIncome, kpis.mtdExpenses);
   const occupancyKpi = computeOccupancy(occupiedUnits, totalUnits);
 
-  const totalAdditionalCharges = additionalChargeRows.reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
-  const pendingStatements = accountStatementRows.filter((s) => s.sendStatus !== 'sent').length;
-
-  let avgFeedback: number | null = null;
-  if (feedbackRows.length > 0) {
-    const allScores = feedbackRows.flatMap((r) =>
-      [r.cleaningScore, r.coexistenceScore, r.attentionScore, r.securityScore, r.valueScore].filter((v): v is number => v !== null)
-    );
-    avgFeedback = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : null;
-  }
-
+  const totalAdditionalCharges = kpis.additionalChargesTotal;
+  const contractTypeData = kpis.contractTypes;
   const contractTypeTotal = contractTypeData.reduce((s, r) => s + r.count, 0);
-  const trashComplianceStats = (trashComplianceResult as unknown as Array<{ estado: string; count: number }>);
+  const trashComplianceStats = kpis.trashCompliance;
 
   const hasData = totalUnits > 0;
 
@@ -184,7 +96,7 @@ export default async function DashboardPage() {
             <KpiCard title={t('kpis.rentCollected')} value={`S/ ${rentCollected.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`} sub={t('kpis.rentCollectedSub')} color="text-brand-600"
               icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>}
             />
-            <KpiCard title={t('kpis.openIncidents')} value={String(incidentRows.length)} sub={t('kpis.openIncidentsSub')} color={incidentRows.length > 0 ? 'text-amber-600' : 'text-slate-600'}
+            <KpiCard title={t('kpis.openIncidents')} value={String(kpis.openIncidents)} sub={t('kpis.openIncidentsSub')} color={kpis.openIncidents > 0 ? 'text-amber-600' : 'text-slate-600'}
               icon={<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>}
             />
             <KpiCard title={t('kpis.overdueTenants')} value={String(overdueCount)} sub={t('kpis.overdueTenantsSubSingle')} color={overdueCount > 0 ? 'text-red-600' : 'text-slate-600'}

@@ -116,6 +116,7 @@ export const units = sqliteTable('units', {
   updatedAt:           ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_units_org_id').on(t.orgId),
+  index('idx_units_org_status').on(t.orgId, t.status),
   index('idx_units_property_id').on(t.propertyId),
   uniqueIndex('units_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
   check('units_bedrooms_check', sql`bedrooms >= 0`),

@@ -71,6 +71,7 @@ export const payments = sqliteTable('payments', {
   index('idx_payments_contract_id').on(t.contractId),
   index('idx_payments_tenant_id').on(t.tenantId),
   index('idx_payments_org_status').on(t.orgId, t.status),
+  index('idx_payments_org_status_paid').on(t.orgId, t.status, t.paidAt),
   uniqueIndex('payments_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
   uniqueIndex('payments_org_external_id_uidx').on(t.orgId, t.externalPaymentId),
   check('payments_amount_check', sql`CAST(amount AS REAL) > 0`),
@@ -208,6 +209,7 @@ export const additionalCharges = sqliteTable('additional_charges', {
   updatedAt:        ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_additional_charges_org').on(t.orgId),
+  index('idx_additional_charges_org_anio').on(t.orgId, t.anio),
   index('idx_additional_charges_contract').on(t.contractId),
   uniqueIndex('uq_additional_charges_airtable').on(t.orgId, t.airtableId),
 ]);
@@ -237,6 +239,7 @@ export const accountStatements = sqliteTable('account_statements', {
   updatedAt:             ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_account_statements_org').on(t.orgId),
+  index('idx_account_statements_org_send_status').on(t.orgId, t.sendStatus),
   index('idx_account_statements_contract').on(t.contractId),
   index('idx_account_statements_date').on(t.orgId, t.anio, t.mes),
   uniqueIndex('uq_account_statements_airtable').on(t.orgId, t.airtableId),
