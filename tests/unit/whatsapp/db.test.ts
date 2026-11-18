@@ -11,14 +11,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
 const mockSelect = vi.fn();
-const mockSelectDistinctOn = vi.fn();
+const mockSelectDistinct = vi.fn();
 
 vi.mock('@/lib/db', () => ({
   db: {
     insert: (...args: unknown[]) => mockInsert(...args),
     update: (...args: unknown[]) => mockUpdate(...args),
     select: (...args: unknown[]) => mockSelect(...args),
-    selectDistinctOn: (...args: unknown[]) => mockSelectDistinctOn(...args),
+    selectDistinct: (...args: unknown[]) => mockSelectDistinct(...args),
   },
 }));
 
@@ -295,7 +295,7 @@ describe('incrementUnread', () => {
 describe('listStalePendingConversations', () => {
   it('resurrects stale "processing" rows back to "pending" before selecting (item 4)', async () => {
     const resurrectChain = setupUpdateChain();
-    mockSelectDistinctOn.mockReturnValue({
+    mockSelectDistinct.mockReturnValue({
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue([]),
@@ -312,7 +312,7 @@ describe('listStalePendingConversations', () => {
   it('returns the distinct stale conversations after resurrecting', async () => {
     setupUpdateChain();
     const rows = [{ orgId: 'org-1', conversationId: 'conv-1' }];
-    mockSelectDistinctOn.mockReturnValue({
+    mockSelectDistinct.mockReturnValue({
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue(rows),

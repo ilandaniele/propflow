@@ -14,7 +14,8 @@
  */
 
 import { db } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
+import { crmLeads } from '@/lib/db/schema';
 import { parseVoiceConfig, type VoiceConfig } from '../config-schema';
 import { SYSTEM_STAGES } from '@/lib/leads/types';
 import { queueOutboundCall } from './outbound';
@@ -30,17 +31,18 @@ interface EligibleConfig {
   voice: VoiceConfig;
 }
 
-/** Orgs with voice enabled and the given policy on — one query, filtered in JS since channels_enabled/voice_config are JSONB. */
+/** Orgs with voice enabled and the given policy on — one query, filtered in JS since channels_enabled/voice_config are JSON text. */
 async function eligibleVoiceConfigs(policy: (v: VoiceConfig) => boolean): Promise<EligibleConfig[]> {
   const rows = (await db.execute(sql`
     SELECT org_id, voice_config
     FROM agent_configs
-    WHERE (channels_enabled ->> 'voice')::boolean IS TRUE
+    WHERE json_extract(channels_enabled, '$.voice') IS TRUE
   `)) as unknown as Array<{ org_id: string; voice_config: unknown }>;
 
   const out: EligibleConfig[] = [];
   for (const row of rows) {
-    const voice = parseVoiceConfig(row.voice_config);
+    const raw = typeof row.voice_config === 'string' ? JSON.parse(row.voice_config) : row.voice_config;
+    const voice = parseVoiceConfig(raw);
     if (policy(voice)) out.push({ orgId: row.org_id, voice });
   }
   return out;
@@ -72,14 +74,15 @@ export async function scanSpeedToLead(now: Date = new Date()): Promise<number> {
       SELECT id
       FROM crm_leads
       WHERE org_id = ${orgId}
-        AND created_at >= ${effectiveStart} AND created_at <= ${windowEnd}
-        AND source_channel = ANY(${sql.raw(`ARRAY[${voice.speedToLead.sources.map((s) => `'${s}'`).join(',')}]`)})
+        AND created_at >= ${effectiveStart.getTime()} AND created_at <= ${windowEnd.getTime()}
+        AND ${inArray(crmLeads.sourceChannel, voice.speedToLead.sources)}
         AND pipeline = 'demand'
         AND phone IS NOT NULL
         AND do_not_contact IS FALSE
-        AND (source_meta ->> 'phoneVerified') IS DISTINCT FROM 'false'
+        AND json_type(source_meta, '$.phoneVerified') IS NOT 'false'
+        AND json_extract(source_meta, '$.phoneVerified') IS NOT 'false'
         AND NOT EXISTS (SELECT 1 FROM agent_sessions s WHERE s.lead_id = crm_leads.id AND s.last_inbound_at > crm_leads.created_at)
-        AND NOT EXISTS (SELECT 1 FROM agent_calls c WHERE c.org_id = crm_leads.org_id AND c.dedupe_key = 'stl:' || crm_leads.id::text)
+        AND NOT EXISTS (SELECT 1 FROM agent_calls c WHERE c.org_id = crm_leads.org_id AND c.dedupe_key = 'stl:' || crm_leads.id)
     `)) as unknown as Array<{ id: string }>;
 
     for (const row of rows) {
@@ -112,11 +115,11 @@ export async function scanVisitConfirmationCalls(now: Date = new Date()): Promis
       FROM property_visits
       WHERE org_id = ${orgId}
         AND status = 'scheduled'
-        AND starts_at >= ${from} AND starts_at <= ${to}
-        AND created_at < ${createdBefore}
+        AND starts_at >= ${from.getTime()} AND starts_at <= ${to.getTime()}
+        AND created_at < ${createdBefore.getTime()}
         AND contact_phone IS NOT NULL
-        AND (reminder_24h_sent_at IS NULL OR reminder_24h_sent_at < ${reminderCutoff})
-        AND NOT EXISTS (SELECT 1 FROM agent_calls c WHERE c.org_id = property_visits.org_id AND c.dedupe_key = 'vc:' || property_visits.id::text)
+        AND (reminder_24h_sent_at IS NULL OR reminder_24h_sent_at < ${reminderCutoff.getTime()})
+        AND NOT EXISTS (SELECT 1 FROM agent_calls c WHERE c.org_id = property_visits.org_id AND c.dedupe_key = 'vc:' || property_visits.id)
     `)) as unknown as Array<{ id: string; lead_id: string }>;
 
     for (const row of rows) {
@@ -149,23 +152,23 @@ export async function scanReactivationCalls(now: Date = new Date()): Promise<num
   for (const { orgId, voice } of configs) {
     const coldCutoff = new Date(now.getTime() - voice.reactivation.coldAfterDays * 86_400_000);
     const recentCallCutoff = new Date(now.getTime() - voice.reactivation.minDaysBetween * 86_400_000);
-    const openStages = sql.raw(`ARRAY[${OPEN_STAGE_KEYS.map((k) => `'${k}'`).join(',')}]`);
 
     const rows = (await db.execute(sql`
       SELECT id
       FROM crm_leads
       WHERE org_id = ${orgId}
         AND pipeline = 'demand'
-        AND stage = ANY(${openStages})
+        AND ${inArray(crmLeads.stage, OPEN_STAGE_KEYS)}
         AND do_not_contact IS FALSE
         AND phone IS NOT NULL
-        AND (source_meta ->> 'phoneVerified') IS DISTINCT FROM 'false'
+        AND json_type(source_meta, '$.phoneVerified') IS NOT 'false'
+        AND json_extract(source_meta, '$.phoneVerified') IS NOT 'false'
         AND followup_state <> 'active'
         AND (
           intent_tag = 'cold'
-          OR NOT EXISTS (SELECT 1 FROM agent_sessions s WHERE s.lead_id = crm_leads.id AND s.last_inbound_at >= ${coldCutoff})
+          OR NOT EXISTS (SELECT 1 FROM agent_sessions s WHERE s.lead_id = crm_leads.id AND s.last_inbound_at >= ${coldCutoff.getTime()})
         )
-        AND NOT EXISTS (SELECT 1 FROM agent_calls c WHERE c.lead_id = crm_leads.id AND c.created_at >= ${recentCallCutoff})
+        AND NOT EXISTS (SELECT 1 FROM agent_calls c WHERE c.lead_id = crm_leads.id AND c.created_at >= ${recentCallCutoff.getTime()})
     `)) as unknown as Array<{ id: string }>;
 
     for (const row of rows.slice(0, voice.reactivation.maxPerRun)) {

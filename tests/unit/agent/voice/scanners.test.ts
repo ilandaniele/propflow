@@ -87,7 +87,7 @@ describe('agent/voice/scanners — scanSpeedToLead', () => {
     const leadsQuery = executedQueries.find((q) => sqlText(q).includes('FROM crm_leads'));
     expect(leadsQuery).toBeDefined();
     const text = sqlText(leadsQuery!);
-    expect(text).toContain("phoneVerified') IS DISTINCT FROM 'false'");
+    expect(text).toContain("json_type(source_meta, '$.phoneVerified') IS NOT 'false'");
     expect(text.toLowerCase()).not.toMatch(/\blimit\b/);
   });
 

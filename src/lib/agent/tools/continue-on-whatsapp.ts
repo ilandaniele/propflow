@@ -54,7 +54,7 @@ export function makeContinueOnWhatsappTool(ctx: AgentToolContext) {
           .update(crmLeads)
           .set({
             phone: phoneE164,
-            sourceMeta: sql`jsonb_set(coalesce(${crmLeads.sourceMeta}, '{}'::jsonb), '{phoneVerified}', 'false'::jsonb, true)`,
+            sourceMeta: sql`json_set(coalesce(${crmLeads.sourceMeta}, '{}'), '$.phoneVerified', json('false'))`,
           })
           .where(and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId), isNull(crmLeads.phone)));
       }

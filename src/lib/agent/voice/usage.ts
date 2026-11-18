@@ -109,7 +109,7 @@ export async function failStaleCalls(now: Date = new Date()): Promise<number> {
 
     const rows = await db
       .update(agentCalls)
-      .set({ status: 'failed', blockReason: 'stale', updatedAt: sql`now()` })
+      .set({ status: 'failed', blockReason: 'stale', updatedAt: new Date() })
       .where(and(
         eq(agentCalls.orgId, orgId),
         inArray(agentCalls.status, ['dialing', 'in_progress']),
