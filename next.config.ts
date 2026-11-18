@@ -58,12 +58,14 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    // Images are served straight from R2 presigned URLs; no Next image optimizer on Workers.
+    unoptimized: true,
     // dangerouslyAllowSVG is intentionally NOT set (ASVS V13.1.5 — SVG can carry XSS)
     remotePatterns: [
-      // Tigris S3 — signed URLs for unit-images, tenant-avatars, incident-photos, etc.
+      // Cloudflare R2 (S3 API) — presigned URLs for unit-images, tenant-avatars, incident-photos, etc.
       {
         protocol: 'https',
-        hostname: '*.fly.storage.tigris.dev',
+        hostname: '*.r2.cloudflarestorage.com',
       },
     ],
   },

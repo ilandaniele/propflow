@@ -1,5 +1,5 @@
 /**
- * Storage abstraction layer — Tigris S3-compatible backend.
+ * Storage abstraction layer — Cloudflare R2 via its S3-compatible API.
  *
  * Thin TypeScript module exposing:
  *   uploadImage()       — upload a buffer to a private bucket
@@ -17,15 +17,14 @@
  *   - ASVS V12.6.1  SVG rejected (not in ALLOWED_MIME_TYPES)
  *
  * Credential security:
- *   - TIGRIS_ACCESS_KEY_ID, TIGRIS_SECRET_ACCESS_KEY are SERVER-ONLY.
- *   - NEVER use NEXT_PUBLIC_ for any Tigris credential.
+ *   - R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY are SERVER-ONLY.
+ *   - NEVER use NEXT_PUBLIC_ for any R2 credential.
  *   - Presigned URL TTL is capped at DEFAULT_SIGNED_URL_TTL_S (3600s).
  *
- * Bucket mapping:
- *   Old Supabase bucket names are mapped to Tigris bucket names via
- *   environment variables (TIGRIS_BUCKET_*). The public API is unchanged;
- *   callers pass the logical bucket name (e.g. 'receipts') and this module
- *   resolves the physical Tigris bucket.
+ * Bucket layout:
+ *   One physical R2 bucket (R2_BUCKET, default 'propflow-files'). Callers keep
+ *   passing the logical bucket name (e.g. 'receipts') and the DB-stored path;
+ *   this module builds the object key as `${logicalBucket}/${path}`.
  */
 
 import { AwsClient } from 'aws4fetch';
@@ -50,45 +49,15 @@ export const MAX_IMAGE_SIZE_BYTES = 5_242_880;
 export const MAX_IMAGES_PER_UNIT = 20;
 
 // ---------------------------------------------------------------------------
-// Bucket name resolution
+// Object key layout
 // ---------------------------------------------------------------------------
 
-/**
- * Maps logical (Supabase-era) bucket names to Tigris bucket names via env vars.
- *
- * Callers pass the logical name — this function resolves the physical bucket.
- * Each logical bucket has a dedicated env var; if not set we fall back to the
- * logical name so that local dev with a single catch-all bucket still works.
- *
- * Logical → env var mapping:
- *   unit-images       → TIGRIS_BUCKET_UNIT_IMAGES
- *   tenant-avatars    → TIGRIS_BUCKET_TENANT_AVATARS
- *   receipts          → TIGRIS_BUCKET_RECEIPTS
- *   incident-photos   → TIGRIS_BUCKET_INCIDENT_PHOTOS
- *   task-proofs       → TIGRIS_BUCKET_TASK_PROOFS
- *   contracts         → TIGRIS_BUCKET_CONTRACTS
- */
-const BUCKET_ENV_MAP: Record<string, string> = {
-  'unit-images':     'TIGRIS_BUCKET_UNIT_IMAGES',
-  'tenant-avatars':  'TIGRIS_BUCKET_TENANT_AVATARS',
-  'receipts':        'TIGRIS_BUCKET_RECEIPTS',
-  'incident-photos': 'TIGRIS_BUCKET_INCIDENT_PHOTOS',
-  'task-proofs':     'TIGRIS_BUCKET_TASK_PROOFS',
-  'contracts':       'TIGRIS_BUCKET_CONTRACTS',
-};
+/** Physical R2 bucket used when R2_BUCKET is not set */
+const DEFAULT_R2_BUCKET = 'propflow-files';
 
-function resolveBucket(logicalName: string): string {
-  // 1. Per-bucket TIGRIS_BUCKET_* env var (highest priority)
-  const envKey = BUCKET_ENV_MAP[logicalName];
-  if (envKey) {
-    const envVal = process.env[envKey];
-    if (envVal) return envVal;
-  }
-  // 2. Single STORAGE_BUCKET env var (Fly.io existing deployment uses one bucket for all objects)
-  const storageBucket = process.env.STORAGE_BUCKET;
-  if (storageBucket) return storageBucket;
-  // 3. Fall back to logical name (local dev with a single catch-all bucket)
-  return logicalName;
+/** Object key inside the single physical bucket: `${logicalBucket}/${path}` */
+export function objectKey(bucket: string, path: string): string {
+  return `${bucket}/${path}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,24 +73,24 @@ const S3_REQUEST_TIMEOUT_MS = 30_000;
 interface S3Backend {
   client: AwsClient;
   endpoint: URL;
+  bucket: string;
 }
 
 function buildS3Backend(): S3Backend {
-  // Accept both TIGRIS_* (new) and STORAGE_* (existing Fly deployment) env var names
-  const endpoint      = process.env.TIGRIS_ENDPOINT      ?? process.env.STORAGE_ENDPOINT;
-  const region        = process.env.AWS_REGION            ?? process.env.STORAGE_REGION ?? 'auto';
-  const accessKeyId   = process.env.TIGRIS_ACCESS_KEY_ID  ?? process.env.STORAGE_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.TIGRIS_SECRET_ACCESS_KEY ?? process.env.STORAGE_SECRET_ACCESS_KEY;
+  const endpoint        = process.env.R2_S3_ENDPOINT;
+  const accessKeyId     = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
 
   if (!endpoint || !accessKeyId || !secretAccessKey) {
     throw new Error(
-      '[storage] Missing storage credentials. Set STORAGE_ENDPOINT + STORAGE_ACCESS_KEY_ID + STORAGE_SECRET_ACCESS_KEY (or TIGRIS_* equivalents).'
+      '[storage] Missing storage credentials. Set R2_S3_ENDPOINT + R2_ACCESS_KEY_ID + R2_SECRET_ACCESS_KEY.'
     );
   }
 
   return {
-    client: new AwsClient({ accessKeyId, secretAccessKey, region, service: 's3', retries: S3_RETRIES }),
+    client: new AwsClient({ accessKeyId, secretAccessKey, region: 'auto', service: 's3', retries: S3_RETRIES }),
     endpoint: new URL(endpoint),
+    bucket: process.env.R2_BUCKET || DEFAULT_R2_BUCKET,
   };
 }
 
@@ -132,11 +101,11 @@ function s3(): S3Backend {
   return _s3;
 }
 
-/** Virtual-hosted-style object URL: https://{bucket}.{endpoint-host}/{key} */
-function objectUrl(bucket: string, key: string): URL {
-  const { endpoint } = s3();
-  const encodedKey = key.split('/').map(encodeURIComponent).join('/');
-  return new URL(`${endpoint.protocol}//${bucket}.${endpoint.host}/${encodedKey}`);
+/** Path-style object URL: https://{account}.r2.cloudflarestorage.com/{bucket}/{logicalBucket}/{path} */
+function objectUrl(logicalBucket: string, path: string): URL {
+  const { endpoint, bucket } = s3();
+  const encodedKey = objectKey(logicalBucket, path).split('/').map(encodeURIComponent).join('/');
+  return new URL(`${endpoint.origin}/${encodeURIComponent(bucket)}/${encodedKey}`);
 }
 
 async function s3Error(operation: string, res: Response): Promise<Error> {
@@ -146,14 +115,14 @@ async function s3Error(operation: string, res: Response): Promise<Error> {
 }
 
 async function s3PutObject(
-  bucket: string,
-  key: string,
+  logicalBucket: string,
+  path: string,
   body: Buffer,
   contentType: string
 ): Promise<void> {
   const { client } = s3();
   const bytes = new Uint8Array(body);
-  const signed = await client.sign(objectUrl(bucket, key).toString(), {
+  const signed = await client.sign(objectUrl(logicalBucket, path).toString(), {
     method: 'PUT',
     body: bytes,
     headers: {
@@ -161,7 +130,7 @@ async function s3PutObject(
       'X-Amz-Content-Sha256': createHash('sha256').update(body).digest('hex'),
     },
   });
-  // Raw bytes, not the signed Request: Next's patched fetch re-streams a Request body, dropping Content-Length (S3 then answers 411).
+  // Raw bytes, not the signed Request: Next's patched fetch re-streams a Request body, dropping Content-Length (S3/R2 then answers 411).
   const res = await fetch(signed.url, {
     method: 'PUT',
     headers: signed.headers,
@@ -171,18 +140,18 @@ async function s3PutObject(
   if (!res.ok) throw await s3Error('PutObject', res);
 }
 
-async function s3DeleteObject(bucket: string, key: string): Promise<void> {
+async function s3DeleteObject(logicalBucket: string, path: string): Promise<void> {
   const { client } = s3();
-  const res = await client.fetch(objectUrl(bucket, key), {
+  const res = await client.fetch(objectUrl(logicalBucket, path), {
     method: 'DELETE',
     signal: AbortSignal.timeout(S3_REQUEST_TIMEOUT_MS),
   });
   if (!res.ok) throw await s3Error('DeleteObject', res);
 }
 
-async function s3PresignGetObject(bucket: string, key: string, expiresIn: number): Promise<string> {
+async function s3PresignGetObject(logicalBucket: string, path: string, expiresIn: number): Promise<string> {
   const { client } = s3();
-  const url = objectUrl(bucket, key);
+  const url = objectUrl(logicalBucket, path);
   url.searchParams.set('X-Amz-Expires', String(expiresIn));
   const signed = await client.sign(url.toString(), { method: 'GET', aws: { signQuery: true } });
   return signed.url;
@@ -294,7 +263,7 @@ export function validateImageFile(
 // ---------------------------------------------------------------------------
 
 /**
- * Uploads an image buffer to a Tigris S3 bucket.
+ * Uploads an image buffer to R2 under the logical bucket prefix.
  *
  * The calling Server Action is responsible for auth checks
  * (requireAdmin / requireTenant) BEFORE calling this function.
@@ -311,10 +280,9 @@ export async function uploadImage(
   buffer: Buffer,
   mimeType: AllowedMimeType
 ): Promise<{ path: string }> {
-  const physicalBucket = resolveBucket(bucket);
 
   try {
-    await s3PutObject(physicalBucket, path, buffer, mimeType);
+    await s3PutObject(bucket, path, buffer, mimeType);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.uploadImage] bucket=${bucket} path=${path} error=${msg}`);
@@ -324,7 +292,7 @@ export async function uploadImage(
 }
 
 /**
- * Uploads arbitrary bytes to a Tigris S3 bucket (used for non-image files
+ * Uploads arbitrary bytes to R2 (used for non-image files
  * such as PDF receipts and PNG signature images).
  *
  * @param bucket      Logical bucket name
@@ -341,7 +309,6 @@ export async function uploadFile(
   contentType: string,
   _upsert: boolean = false,
 ): Promise<{ path: string }> {
-  const physicalBucket = resolveBucket(bucket);
   let buffer: Buffer;
   if (body instanceof Buffer) {
     buffer = body;
@@ -352,10 +319,10 @@ export async function uploadFile(
   }
 
   try {
-    // Tigris does not have a native "upsert=false" guard; if the caller wants
+    // S3 PutObject has no native "upsert=false" guard; if the caller wants
     // strict "no overwrite" semantics, they should check existence first.
     // The upsert param is kept for API compatibility with the legacy storage seam.
-    await s3PutObject(physicalBucket, path, buffer, contentType);
+    await s3PutObject(bucket, path, buffer, contentType);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.uploadFile] bucket=${bucket} path=${path} error=${msg}`);
@@ -383,10 +350,9 @@ export async function getSignedUrl(
 ): Promise<string> {
   // Hard cap: never issue presigned URLs longer than 1 hour
   const safeTtl = Math.min(ttl, DEFAULT_SIGNED_URL_TTL_S);
-  const physicalBucket = resolveBucket(bucket);
 
   try {
-    return await s3PresignGetObject(physicalBucket, path, safeTtl);
+    return await s3PresignGetObject(bucket, path, safeTtl);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.getSignedUrl] bucket=${bucket} path=${path} error=${msg}`);
@@ -394,7 +360,7 @@ export async function getSignedUrl(
 }
 
 /**
- * Deletes an object from a Tigris S3 bucket.
+ * Deletes an object from R2.
  *
  * The calling Server Action is responsible for verifying ownership before
  * calling this function.
@@ -407,10 +373,9 @@ export async function deleteImage(
   bucket: string,
   path: string
 ): Promise<void> {
-  const physicalBucket = resolveBucket(bucket);
 
   try {
-    await s3DeleteObject(physicalBucket, path);
+    await s3DeleteObject(bucket, path);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`[storage.deleteImage] bucket=${bucket} path=${path} error=${msg}`);
