@@ -15,6 +15,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
+import { asBatch } from '@/lib/db/batch';
 import { unitImages, units, tenants } from '@/lib/db/schema';
 import { eq, and, asc, desc, count as drizzleCount } from 'drizzle-orm';
 import { requireAdmin, requireTenant } from '@/lib/auth/guards';
@@ -354,8 +355,7 @@ export async function reorderUnitImages(
 
   if (!unitRows[0]) return Errors.NOT_FOUND();
 
-  // Update sort_order for each image. N <= 20 so O(N) updates are trivial.
-  const updates = parsed.data.order.map((id, index) =>
+  const updates = asBatch(parsed.data.order.map((id, index) =>
     db
       .update(unitImages)
       .set({ sortOrder: index })
@@ -364,14 +364,15 @@ export async function reorderUnitImages(
         eq(unitImages.unitId, parsed.data.unit_id),
         eq(unitImages.orgId, ctx.orgId),
       ))
-      .catch((e: Error) => e)
-  );
+  ));
 
-  const results = await Promise.all(updates);
-  const firstError = results.find((r): r is Error => r instanceof Error);
-  if (firstError) {
-    log.error('[reorderUnitImages] db update error', { code: firstError.message });
-    return Errors.INTERNAL();
+  if (updates) {
+    try {
+      await db.batch(updates);
+    } catch (e) {
+      log.error('[reorderUnitImages] db update error', { code: e instanceof Error ? e.message : 'unknown' });
+      return Errors.INTERNAL();
+    }
   }
 
   log.adminAction(ctx.userId, 'unit_image.reorder', 'unit', parsed.data.unit_id);
