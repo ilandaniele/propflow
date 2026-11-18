@@ -131,7 +131,7 @@ Los conteos salen de grep sobre `src/` en la rama actual. Se marcan como "~" cua
 |---|---|
 | `@aws-sdk/client-s3` `S3Client` contra Tigris (`TIGRIS_*`/`STORAGE_*`) en `src/lib/storage/index.ts` | Binding R2 `env.FILES` para `put`/`get`/`delete` |
 | `@aws-sdk/s3-request-presigner` para `getSignedUrl` (TTL máx. 3600 s) | `aws4fetch` (`AwsClient.sign` con `signQuery: true`) contra el endpoint S3 de R2 (`https://<account_id>.r2.cloudflarestorage.com`). Requiere un token S3 de R2 (access key/secret) creado por el owner. Se elige presign en lugar de stream por el Worker para no gastar requests del Worker en cada imagen |
-| Buckets lógicos (`unit-images`, `tenant-avatars`, `receipts`, `incident-photos`, `task-proofs`, `contracts`) mapeados con `TIGRIS_BUCKET_*` | Un bucket R2 (`propflow-files`). La key R2 es `<logicalBucket>/<path>`, armada **dentro** del módulo. Los paths guardados en la DB no cambian |
+| Buckets lógicos (`unit-images`, `tenant-avatars`, `receipts`, `incident-photos`, `task-proofs`, `contracts`) mapeados con `TIGRIS_BUCKET_*` | Un bucket R2 (`propflow-files`). La key R2 es el path guardado en la DB, 1:1 con la key de Tigris (producción ya usa un solo bucket Tigris, `STORAGE_BUCKET`). Los paths guardados en la DB no cambian |
 | `images.remotePatterns`: `*.fly.storage.tigris.dev`, `dl.airtable.com`, `v5.airtableusercontent.com` | Solo el host de R2 (y el dominio público de R2 si se habilita; no recomendado para archivos privados) |
 | Referencias a Fly/Tigris en 39 archivos (p. ej. `Avatar.tsx`, `privacidad/page.tsx`, `agent/setup/page.tsx`, `whatsapp/attachments.ts`, `storage/path.ts`) | Se revisan en W-CF-12 (código) y W-CF-54 (textos legales: la lista de subprocesadores en `privacidad` pasa a nombrar a Cloudflare) |
 
@@ -431,7 +431,7 @@ pnpm exec wrangler d1 execute propflow-db --remote --file=.migration/sql/0001_or
 `scripts/migrate-to-r2/copy-objects.mjs`:
 
 - Lista cada bucket de Tigris con la API S3.
-- Copia cada objeto a R2 con la API S3 de R2 (`aws4fetch`) usando la key `<logicalBucket>/<path>`.
+- Copia cada objeto a R2 con la API S3 de R2 (`aws4fetch`) con la misma key que en Tigris (1:1). Los buckets lógicos que comparten un bucket Tigris se copian una sola vez.
 - Conserva `Content-Type`. Es idempotente: HEAD antes de PUT y compara tamaño/ETag.
 - Incluye el prefijo `airtable-archive/` que generó la Ola P.
 
@@ -664,7 +664,7 @@ Notas:
 
 - Archivos:
   - `src/lib/db/migrations-d1/0000_init.sql` (generado con `pnpm db:generate`)
-  - `src/lib/db/migrations-d1/0001_triggers_views.sql` (a mano: trigger `property_visits_no_overlap` con `RAISE(ABORT, 'visit_overlap')`, trigger `listings_set_published_at`, vista `tenant_statement`)
+  - `src/lib/db/migrations-d1/0001_triggers.sql` (a mano: trigger `property_visits_no_overlap` con `RAISE(ABORT, 'visit_overlap')`, trigger `listings_set_published_at`, vista `tenant_statement`)
   - `src/lib/db/migrations-d1/meta/**`
   - `tests/integration/sql-smoke/constraints.test.ts`
 - Tests: el solapamiento de visitas en estado scheduled/confirmed falla con `visit_overlap` y uno cancelado no falla; `published_at` se setea; `tenant_statement` devuelve los mismos saldos que un caso calculado a mano; un CHECK de estado inválido falla; un `ON CONFLICT` con índice parcial funciona.
