@@ -41,7 +41,7 @@
     "test": "npm run test:unit",
     "seed": "npx tsx scripts/seed.ts",
     "agent:eval": "tsx scripts/agent-eval/run.ts",
-    "cf:build": "PROPFLOW_TARGET=cloudflare opennextjs-cloudflare build",
+    "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview",
     "cf:size": "node scripts/check-worker-size.mjs .open-next",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false --strict-vars=false cloudflare-env.d.ts"

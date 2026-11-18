@@ -34,6 +34,7 @@
   "exclude": [
     "node_modules",
     "scripts/**",
-    "tests/**"
+    "tests/**",
+    "worker.ts"
   ]
 }

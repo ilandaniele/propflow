@@ -1,10 +1,11 @@
 /**
  * POST /api/cron/agent-dispatch
- * Backstop drain of agent_jobs — the primary drain is the instrumentation.ts
- * interval (src/instrumentation.ts), which runs as long as the Fly machine is
- * warm. This cron exists for the gap right after a machine resumes from
- * suspend, before the interval has had a chance to run, and as a fallback if
- * the in-process interval ever dies silently.
+ * Drains agent_jobs. Called every minute by the Cron Trigger (worker.ts).
+ *
+ * POST /api/cron/agent-dispatch?sweep=1
+ * Runs the periodic sweep instead of the drain (src/lib/cron/agent-sweep.ts):
+ * stale-inbound sweep, calendar-sync backstop, voice scanners. Called every
+ * 5 minutes, before the drain of the same tick.
  *
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
  */
@@ -16,10 +17,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { drainAgentJobs } from '@/lib/agent/jobs';
 import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
-import { sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
-import { ensureCalendarSyncJobs } from '@/lib/calendar/sync';
-import { scanSpeedToLead, scanVisitConfirmationCalls } from '@/lib/agent/voice/scanners';
-import { failStaleCalls } from '@/lib/agent/voice/usage';
+import { runAgentSweep } from '@/lib/cron/agent-sweep';
 import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
@@ -49,35 +47,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // Phase 8 (item W): outbound-call scanners are triggers, not hooks — run
-    // them before draining so anything they queue gets picked up in this
-    // same invocation. No-op cheaply when voice/the policy is off (default).
-    let voiceScanned = { speedToLead: 0, visitConfirmation: 0 };
-    try {
-      const speedToLead = await withDbRetry(() => scanSpeedToLead(), 'cron/agent-dispatch:voice-scan-stl');
-      const visitConfirmation = await withDbRetry(() => scanVisitConfirmationCalls(), 'cron/agent-dispatch:voice-scan-vc');
-      voiceScanned = { speedToLead, visitConfirmation };
-    } catch (e) {
-      log.error('[cron/agent-dispatch] voice scan failed', { error: e instanceof Error ? e.message : 'unknown' });
-    }
-
-    let staleCallsFailed = 0;
-    try {
-      staleCallsFailed = await withDbRetry(() => failStaleCalls(), 'cron/agent-dispatch:voice-stale-calls');
-    } catch (e) {
-      log.error('[cron/agent-dispatch] failStaleCalls failed', { error: e instanceof Error ? e.message : 'unknown' });
+    if (request.nextUrl.searchParams.get('sweep') === '1') {
+      const swept = await runAgentSweep();
+      log.info('[cron/agent-dispatch] sweep complete', swept);
+      return NextResponse.json({ status: 'ok', ...swept });
     }
 
     const result = await withDbRetry(() => drainAgentJobs(50), 'cron/agent-dispatch');
-    const swept = await withDbRetry(() => sweepStalePendingInbound(), 'cron/agent-dispatch:sweep');
-    let calendarSyncsEnqueued = 0;
-    try {
-      calendarSyncsEnqueued = await withDbRetry(() => ensureCalendarSyncJobs(), 'cron/agent-dispatch:calendar-sync');
-    } catch (e) {
-      log.error('[cron/agent-dispatch] ensureCalendarSyncJobs failed', { error: e instanceof Error ? e.message : 'unknown' });
-    }
-    log.info('[cron/agent-dispatch] run complete', { ...result, swept, calendarSyncsEnqueued, voiceScanned, staleCallsFailed });
-    return NextResponse.json({ status: 'ok', ...result, swept, calendarSyncsEnqueued, voiceScanned, staleCallsFailed });
+    log.info('[cron/agent-dispatch] run complete', { ...result });
+    return NextResponse.json({ status: 'ok', ...result });
   } catch (e) {
     log.error('[cron/agent-dispatch] exception', { error: e instanceof Error ? e.message : 'unknown' });
     return NextResponse.json(
