@@ -52,7 +52,7 @@ export function assertServerEnv(key: keyof typeof serverEnv, featureName: string
   if (!value) {
     throw new Error(
       `[env] ${key} is required for ${featureName} but is not set. ` +
-      `Add it to .env.local (dev) or Fly secrets (prod).`
+      `Add it to .env.local (dev) or wrangler secrets (prod).`
     );
   }
   return value;

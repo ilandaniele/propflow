@@ -19,7 +19,7 @@ const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 function isSecureContext(): boolean {
   if (process.env.NODE_ENV === 'production') return true;
-  const url = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const url = process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
   return url.startsWith('https://');
 }
 

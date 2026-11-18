@@ -31,29 +31,10 @@ import { users, accounts, sessions, verificationTokens, profiles } from '@/lib/d
 import { provisionOrgAndProfile, getExistingProfile, attemptAutoLink, attachToPrimaryOrgAsAdmin } from './provision';
 import { isAllowlistedAdmin } from './admin-allowlist';
 import { log } from '@/lib/log';
-import { withDbRetry } from '@/lib/db/retry';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const baseAdapter = DrizzleAdapter(db, { usersTable: users, accountsTable: accounts as any, sessionsTable: sessions, verificationTokensTable: verificationTokens });
-
-// getSessionAndUser runs on EVERY authenticated request. On Fly Postgres a stale
-// pooled socket makes this query throw `write CONNECTION_CLOSED`, which NextAuth
-// turns into a SessionTokenError → the user is bounced to /login mid-session.
-// Wrap just this hot-path lookup in the same retry used by the cron routes so a
-// transient connection blip is retried instead of logging the user out.
-// (A genuine "no session" returns null without throwing, so it is not retried.)
-const resilientAdapter: NextAuthConfig['adapter'] = {
-  ...baseAdapter,
-  ...(baseAdapter.getSessionAndUser
-    ? {
-        getSessionAndUser: (sessionToken: string) =>
-          withDbRetry(async () => baseAdapter.getSessionAndUser!(sessionToken), 'auth:getSessionAndUser'),
-      }
-    : {}),
-} as NextAuthConfig['adapter'];
 
 export const authConfig: NextAuthConfig = {
-  adapter: resilientAdapter,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adapter: DrizzleAdapter(db, { usersTable: users, accountsTable: accounts as any, sessionsTable: sessions, verificationTokensTable: verificationTokens }),
 
   session: {
     strategy: 'database',
@@ -99,16 +80,11 @@ export const authConfig: NextAuthConfig = {
 
     async session({ session, user }) {
       // Augment session.user with orgId and role from profiles table (AC4).
-      // Runs on every authenticated request; retry transient Fly-Postgres blips
-      // (CONNECTION_CLOSED) so they don't invalidate an otherwise-valid session.
       try {
-        const profile = await withDbRetry(
-          () => db.query.profiles.findFirst({
-            where: eq(profiles.userId, user.id),
-            columns: { orgId: true, role: true },
-          }),
-          'auth:session-profile',
-        );
+        const profile = await db.query.profiles.findFirst({
+          where: eq(profiles.userId, user.id),
+          columns: { orgId: true, role: true },
+        });
 
         if (!profile?.orgId) {
           log.error('[auth] session callback: profile missing or has no orgId — invalidating session', { userId: user.id });
