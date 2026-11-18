@@ -32,12 +32,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   // WhatsApp/social crawlers fetch this long after render, so it points at the
   // stable cover redirect route (fresh signed URL per fetch), not a signed URL.
   const imagePath = listing.coverImageUrl ?? DEFAULT_OG_IMAGE_PATH;
+  const images = [`${getAppOrigin()}${imagePath}`];
 
   return {
     title,
     description,
     alternates: { canonical: `/p/${org.slug}/${listing.slug}` },
-    openGraph: { title, description, type: 'website', images: [`${getAppOrigin()}${imagePath}`] },
+    openGraph: { title, description, type: 'website', images },
+    twitter: { card: 'summary_large_image', title, description, images },
     robots: { index: true, follow: true },
   };
 }
