@@ -45,9 +45,9 @@ export const BUCKET_ENV_MAP = {
 export const LOGICAL_BUCKETS = Object.keys(BUCKET_ENV_MAP);
 
 const DEFAULT_R2_BUCKET = 'propflow-files';
-const CONCURRENCY = 4;
+export const CONCURRENCY = 4;
 const MAX_RETRIES = 3;
-const BACKOFF_MS = 500;
+export const BACKOFF_MS = 500;
 const REQUEST_TIMEOUT_MS = 60_000;
 const FAILED_PATH = '.migration/r2-failed.json';
 
@@ -181,7 +181,7 @@ class HttpError extends Error {
 }
 
 /** Error text safe to log/persist: never the URL, never headers. */
-function safeMessage(err) {
+export function safeMessage(err) {
   if (err instanceof HttpError) return err.message;
   const code = err?.cause?.code ?? err?.code ?? err?.name;
   return code ? `network error: ${code}` : 'network error';
@@ -221,7 +221,7 @@ async function request(ctx, client, op, url, init = {}, accept = []) {
 // Core
 // ---------------------------------------------------------------------------
 
-async function* listObjects(ctx, physicalBucket) {
+export async function* listObjects(ctx, physicalBucket) {
   let token;
   do {
     const url = sourceUrl(ctx.source.endpoint, physicalBucket);
@@ -234,7 +234,7 @@ async function* listObjects(ctx, physicalBucket) {
   } while (token);
 }
 
-async function headDest(ctx, key) {
+export async function headDest(ctx, key) {
   const res = await request(ctx, ctx.dest.client, 'HeadObject', destUrl(ctx.dest.endpoint, ctx.dest.bucket, key), { method: 'HEAD' }, [404]);
   if (res.status === 404) return null;
   return {
@@ -256,7 +256,7 @@ async function copyOne(ctx, physical, obj) {
 }
 
 /** Runs `worker` over an async iterable with at most `limit` in flight. */
-async function pool(iterable, limit, worker) {
+export async function pool(iterable, limit, worker) {
   const it = iterable[Symbol.asyncIterator]();
   let done = false;
   const next = async () => {
