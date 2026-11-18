@@ -12,7 +12,8 @@
 import { randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
 import { listings, units, properties } from '@/lib/db/schema';
-import { and, eq, gte, lte, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
+import { containsLike } from '@/lib/db/like';
 import { buildListingSlug } from '@/lib/widget/slug';
 
 export interface SyncListingsResult {
@@ -118,9 +119,9 @@ export async function searchListings(orgId: string, filters: ListingSearchFilter
   ];
 
   if (filters.operation) conditions.push(eq(listings.operation, filters.operation));
-  if (filters.zone) conditions.push(sql`${listings.zone} ILIKE ${'%' + filters.zone + '%'}`);
+  if (filters.zone) conditions.push(containsLike(listings.zone, filters.zone));
   if (filters.bedroomsMin != null) conditions.push(gte(listings.bedrooms, filters.bedroomsMin));
-  if (filters.budgetMax != null) conditions.push(lte(listings.price, String(filters.budgetMax)));
+  if (filters.budgetMax != null) conditions.push(sql`CAST(${listings.price} AS REAL) <= ${filters.budgetMax}`);
   if (filters.petsAllowed) conditions.push(eq(listings.petsAllowed, true));
 
   const rows = await db

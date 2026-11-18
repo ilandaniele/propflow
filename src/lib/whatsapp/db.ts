@@ -292,7 +292,7 @@ export async function listStalePendingConversations(
 
   const now = Date.now();
   const rows = await db
-    .selectDistinctOn([whatsappMessages.conversationId], {
+    .selectDistinct({
       orgId: whatsappMessages.orgId,
       conversationId: whatsappMessages.conversationId,
     })
