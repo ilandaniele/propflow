@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import path from 'path';
 
 export default defineConfig({
@@ -6,7 +6,26 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     setupFiles: ['./tests/vitest.setup.ts'],
-    include: ['src/**/*.test.ts', 'tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'tests/rls/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['src/**/*.test.ts', 'tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'tests/rls/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+          exclude: [...configDefaults.exclude, 'tests/integration/sql-smoke/**'],
+        },
+      },
+      {
+        // Local D1 (workerd) per test file; see tests/integration/sql-smoke/setup.ts.
+        extends: true,
+        test: {
+          name: 'sql',
+          include: ['tests/integration/sql-smoke/**/*.test.ts'],
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
+        },
+      },
+    ],
     env: {
       // Stub values for unit tests — not real credentials
       NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',

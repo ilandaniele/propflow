@@ -68,9 +68,6 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^5.20261117.1
         version: 5.20261117.1
-      '@electric-sql/pglite':
-        specifier: ^0.5.16
-        version: 0.5.16
       '@opennextjs/cloudflare':
         specifier: ^1.20.17
         version: 1.20.17(next@16.4.6(@babel/core@7.29.7)(@playwright/test@1.65.1)(@types/node@24.13.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(wrangler@4.164.0(@cloudflare/workers-types@5.20261117.1)(@types/node@24.13.2))
@@ -5795,7 +5792,8 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@electric-sql/pglite@0.5.16': {}
+  '@electric-sql/pglite@0.5.16':
+    optional: true
 
   '@eloqnt/config@0.1.2': {}
 
