@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { eq, and, or, sql, count as sqlCount, desc } from 'drizzle-orm';
+import { eq, and, or, count as sqlCount, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
+import { containsLike } from '@/lib/db/like';
 import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
@@ -21,11 +22,6 @@ const GetQuerySchema = z.object({
   page:        z.coerce.number().int().min(1).default(1),
   limit:       z.coerce.number().int().min(1).max(100).default(20),
 });
-
-/** Contains-pattern for `LIKE ... ESCAPE '\'`: the term's own `\`, `%` and `_` match literally. */
-function likePattern(term: string): string {
-  return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   let ctx;
@@ -53,8 +49,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ? and(
         ...baseConditions,
         or(
-          sql`${tenants.fullName} LIKE ${likePattern(search)} ESCAPE '\\'`,
-          sql`${tenants.email} LIKE ${likePattern(search)} ESCAPE '\\'`,
+          containsLike(tenants.fullName, search),
+          containsLike(tenants.email, search),
         ),
       )
     : and(...baseConditions);
