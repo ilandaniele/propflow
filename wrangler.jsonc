@@ -13,8 +13,7 @@
     {
       "binding": "DB",
       "database_name": "propflow-db",
-      // Placeholder until the owner creates the D1 database (docs/07 §13 step 8).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "8f653248-ad53-48d7-82ac-208a03ce194c",
       "migrations_dir": "src/lib/db/migrations-d1"
     }
   ],

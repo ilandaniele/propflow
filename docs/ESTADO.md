@@ -44,14 +44,14 @@ Rama `feat/cloudflare-d1`, PR draft #113 (no se mergea antes del cutover). Produ
 
 ### Pendiente del owner para Cloudflare
 - API token de Cloudflare como secret de GitHub (`CLOUDFLARE_API_TOKEN`) y account id como variable (`CLOUDFLARE_ACCOUNT_ID`).
-- Aprobar la creación de D1 `propflow-db` y `propflow-db-staging`, y de R2 `propflow-files` y `propflow-files-staging`.
+- Creados (2026-11-18): D1 `propflow-db` (migraciones 0000–0002 aplicadas) y R2 `propflow-files` y `propflow-files-staging`. `propflow-db-staging` no se pudo crear: la cuenta llegó al máximo de 10 D1 del plan Free. El ensayo se hace sobre `propflow-db`, que todavía no sirve tráfico, y se vacía antes del import final.
+- `DATABASE_URL` de `propflow-db2` (para `flyctl proxy`) y `PRIMARY_OWNER_EMAIL`, para correr inventory y export.
 - Token S3 de R2 (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_S3_ENDPOINT`).
 - Decidir Workers Paid después de medir el CPU por ruta en el preview (umbral: p99 > 10 ms sostenido; `docs/07` §12).
 - Dominio.
 - Cutover (W-CF-60): importar Postgres a D1, copiar Tigris a R2, cambiar `DEPLOY_TARGET`.
 
 ## Bloqueos que dependen del owner
-- `flyctl auth login` con la cuenta dueña de `propflow-app`.
 - Cloudflare: API token como secret de GitHub, D1, R2 y token S3 de R2 (`docs/07` §13).
 - GitHub: protección de rama en `main`, secret scanning y push protection (F-11, F-12).
 - Resend: dominio verificado (bloquea el reset de contraseña y la verificación de email: F-23, F-25).
