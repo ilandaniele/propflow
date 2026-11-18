@@ -64,7 +64,10 @@ function fakeStorage({ pages, r2 = {}, failGet = new Set() }) {
     if (method === 'HEAD') {
       const hit = r2[r2Key];
       if (!hit) return new Response(null, { status: 404 });
-      return new Response(null, { status: 200, headers: { 'content-length': String(hit.size), etag: `"${hit.etag}"` } });
+      // Like R2: a compressible object served gzip has no Content-Length unless the client asks for identity.
+      const identity = new Headers(init.headers).get('accept-encoding') === 'identity';
+      const headers = identity ? { 'content-length': String(hit.size), etag: `"${hit.etag}"` } : { 'content-encoding': 'gzip', etag: `"${hit.etag}"` };
+      return new Response(null, { status: 200, headers });
     }
     if (method === 'PUT') {
       r2[r2Key] = { size: init.body.byteLength, contentType: new Headers(init.headers).get('content-type') };

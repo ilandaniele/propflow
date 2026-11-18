@@ -235,7 +235,10 @@ export async function* listObjects(ctx, physicalBucket) {
 }
 
 export async function headDest(ctx, key) {
-  const res = await request(ctx, ctx.dest.client, 'HeadObject', destUrl(ctx.dest.endpoint, ctx.dest.bucket, key), { method: 'HEAD' }, [404]);
+  const res = await request(ctx, ctx.dest.client, 'HeadObject', destUrl(ctx.dest.endpoint, ctx.dest.bucket, key), {
+    method: 'HEAD',
+    headers: { 'Accept-Encoding': 'identity' },
+  }, [404]);
   if (res.status === 404) return null;
   return {
     size: Number(res.headers.get('content-length') ?? -1),
