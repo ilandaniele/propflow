@@ -45,3 +45,33 @@ describe('provisionOrgAndProfile (real SQL)', () => {
       .toHaveLength(0);
   });
 });
+
+describe('email lookups (real SQL)', () => {
+  it('resolvePrimaryOrgId matches the owner email ignoring case', async () => {
+    const { resolvePrimaryOrgId, provisionOrgAndProfile } = await import('@/lib/auth/provision');
+    vi.stubEnv('PRIMARY_OWNER_EMAIL', 'boss@example.com');
+    const [user] = await smoke.db.insert(schema.users)
+      .values({ id: crypto.randomUUID(), email: 'Boss@Example.com' }).returning();
+    const { orgId } = await provisionOrgAndProfile(user.id, 'Boss@Example.com', 'Boss Org');
+
+    expect(await resolvePrimaryOrgId()).toBe(orgId);
+    vi.unstubAllEnvs();
+  });
+
+  it('attemptAutoLink links a tenant whose email differs only in case, and treats _ literally', async () => {
+    const { attemptAutoLink } = await import('@/lib/auth/provision');
+    const [org] = await smoke.db.insert(schema.organizations)
+      .values({ name: 'Link Org', slug: 'link-org' }).returning();
+    await smoke.db.insert(schema.tenants)
+      .values({ orgId: org.id, fullName: 'Ana', email: 'Ana.Link@Example.com' });
+    await smoke.db.insert(schema.tenants)
+      .values({ orgId: org.id, fullName: 'Wild', email: 'wildXcard@example.com' });
+    const [user] = await smoke.db.insert(schema.users)
+      .values({ id: crypto.randomUUID(), email: 'ana.link@example.com' }).returning();
+    const [other] = await smoke.db.insert(schema.users)
+      .values({ id: crypto.randomUUID(), email: 'wild_card@example.com' }).returning();
+
+    expect(await attemptAutoLink(user.id, 'ana.link@example.com')).toEqual({ linked: true, orgId: org.id });
+    expect(await attemptAutoLink(other.id, 'wild_card@example.com')).toEqual({ linked: false, reason: 'no_match' });
+  });
+});

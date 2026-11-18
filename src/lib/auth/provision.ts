@@ -5,7 +5,8 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { and, asc, eq, ilike, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
+import { equalsIgnoreCase } from '@/lib/db/like';
 import { db } from '@/lib/db';
 import { organizations, profiles, tenants } from '@/lib/db/schema';
 import { isUniqueViolation } from '@/lib/db/errors';
@@ -90,7 +91,7 @@ export async function resolvePrimaryOrgId(): Promise<string | null> {
   const ownerEmail = getPrimaryOwnerEmail();
 
   const ownerProfile = await db.query.profiles.findFirst({
-    where: and(ilike(profiles.email, ownerEmail), eq(profiles.role, 'admin')),
+    where: and(equalsIgnoreCase(profiles.email, ownerEmail), eq(profiles.role, 'admin')),
     columns: { orgId: true },
   });
   if (ownerProfile?.orgId) return ownerProfile.orgId;
@@ -189,7 +190,7 @@ export async function attemptAutoLink(userId: string, email: string): Promise<Au
     const rows = await db
       .select({ id: tenants.id, orgId: tenants.orgId })
       .from(tenants)
-      .where(and(ilike(tenants.email, email), isNull(tenants.profileId)));
+      .where(and(equalsIgnoreCase(tenants.email, email), isNull(tenants.profileId)));
 
     if (rows.length === 0) {
       log.info('[provision] attemptAutoLink: no unlinked tenant row', { event: 'auto_link_no_match', userId });

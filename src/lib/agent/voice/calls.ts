@@ -156,7 +156,7 @@ export interface TransitionCallPatch {
 export async function transitionCall(id: string, from: CallStatus[], patch: TransitionCallPatch): Promise<AgentCallRecord | null> {
   const rows = await db
     .update(agentCalls)
-    .set({ ...patch, updatedAt: sql`now()` })
+    .set({ ...patch, updatedAt: new Date() })
     .where(and(eq(agentCalls.id, id), inArray(agentCalls.status, from)))
     .returning();
   return rows[0] ? toCallRecord(rows[0]) : null;

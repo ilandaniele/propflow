@@ -6,7 +6,7 @@
 
 import { db } from '@/lib/db';
 import { agentConfigs } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import {
   parseBusinessHours,
   parseVoiceConfig,
@@ -120,7 +120,7 @@ export async function updateAgentLiveSettings(
       channelsEnabled,
       ...(patch.shadowMode !== undefined ? { shadowMode: patch.shadowMode } : {}),
       ...(patch.maxAgentTurns !== undefined ? { maxAgentTurns: patch.maxAgentTurns } : {}),
-      updatedAt: sql`now()`,
+      updatedAt: new Date(),
     })
     .where(eq(agentConfigs.orgId, orgId))
     .returning();
@@ -134,7 +134,7 @@ export async function setPublicPagesEnabled(orgId: string, enabled: boolean): Pr
   await getOrCreateAgentConfig(orgId); // ensures the row exists before the update below
   await db
     .update(agentConfigs)
-    .set({ publicPagesEnabled: enabled, updatedAt: sql`now()` })
+    .set({ publicPagesEnabled: enabled, updatedAt: new Date() })
     .where(eq(agentConfigs.orgId, orgId));
 }
 
@@ -202,7 +202,7 @@ export async function updateAgentConfig(orgId: string, patch: AgentConfigPatch):
       ...(patch.maxListingPhotos !== undefined ? { maxListingPhotos: patch.maxListingPhotos } : {}),
       ...(patch.voice !== undefined ? { voiceConfig: patch.voice } : {}),
       ...(channelsEnabled ? { channelsEnabled } : {}),
-      updatedAt: sql`now()`,
+      updatedAt: new Date(),
     })
     .where(eq(agentConfigs.orgId, orgId))
     .returning();

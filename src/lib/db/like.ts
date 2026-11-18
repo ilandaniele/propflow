@@ -11,3 +11,8 @@ export function escapeLike(term: string): string {
 export function containsLike(column: SQLWrapper, term: string): SQL {
   return sql`${column} LIKE ${`%${escapeLike(term)}%`} ${ESCAPE_CLAUSE}`;
 }
+
+/** Case-insensitive equality (ASCII), without LIKE wildcards. */
+export function equalsIgnoreCase(column: SQLWrapper, value: string): SQL {
+  return sql`lower(${column}) = lower(${value})`;
+}
