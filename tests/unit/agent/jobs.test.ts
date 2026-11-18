@@ -6,30 +6,30 @@ const dueRows = [
 
 // vi.mock factories are hoisted above regular declarations, so any mock fns
 // they close over must be created via vi.hoisted() to avoid a TDZ error.
-const { selectForUpdate, txUpdate, insertReturning, rootUpdate } = vi.hoisted(() => ({
-  selectForUpdate: vi.fn(async () => [] as unknown[]),
-  txUpdate: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => []) })) })),
-  insertReturning: vi.fn(async () => [{ id: 'job-new' }]),
-  rootUpdate: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => []) })) })),
-}));
+const { claimReturning, insertReturning, rootUpdate, rootSelect } = vi.hoisted(() => {
+  const claimReturning = vi.fn(async () => [] as unknown[]);
+  return {
+    claimReturning,
+    insertReturning: vi.fn(async () => [{ id: 'job-new' }]),
+    rootUpdate: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => Object.assign(Promise.resolve([]), { returning: claimReturning })),
+      })),
+    })),
+    rootSelect: vi.fn(() => ({
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+    })),
+  };
+});
 
 vi.mock('@/lib/db', () => ({
   db: {
     insert: vi.fn(() => ({ values: vi.fn(() => ({ returning: insertReturning })) })),
     update: rootUpdate,
-    transaction: vi.fn(async (cb: (tx: unknown) => unknown) => {
-      const tx = {
-        select: vi.fn(() => ({
-          from: vi.fn().mockReturnThis(),
-          where: vi.fn().mockReturnThis(),
-          orderBy: vi.fn().mockReturnThis(),
-          limit: vi.fn().mockReturnThis(),
-          for: selectForUpdate,
-        })),
-        update: txUpdate,
-      };
-      return cb(tx);
-    }),
+    select: rootSelect,
   },
 }));
 
@@ -43,7 +43,7 @@ import { enqueueJob, drainAgentJobs, registerAgentJobHandler, registeredJobKinds
 describe('agent/jobs', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    selectForUpdate.mockResolvedValue(dueRows);
+    claimReturning.mockResolvedValue(dueRows);
     _resetAgentJobHandlers();
     registerAgentJobHandler('noop', vi.fn(async () => {}));
   });
@@ -64,7 +64,7 @@ describe('agent/jobs', () => {
   });
 
   it('drainAgentJobs marks a job for retry when no handler is registered', async () => {
-    selectForUpdate.mockResolvedValueOnce([
+    claimReturning.mockResolvedValueOnce([
       { id: 'job-2', orgId: 'org-1', kind: 'unregistered-kind', payload: {}, attempts: 0 },
     ]);
 
@@ -75,7 +75,7 @@ describe('agent/jobs', () => {
   });
 
   it('returns zero when there is nothing due', async () => {
-    selectForUpdate.mockResolvedValueOnce([]);
+    claimReturning.mockResolvedValueOnce([]);
     const result = await drainAgentJobs(10);
     expect(result).toEqual({ processed: 0, failed: 0 });
   });
@@ -87,7 +87,7 @@ describe('agent/jobs', () => {
     const result = await drainAgentJobs(10);
 
     expect(result).toEqual({ processed: 0, failed: 0 });
-    expect(db.transaction).not.toHaveBeenCalled();
-    expect(selectForUpdate).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+    expect(claimReturning).not.toHaveBeenCalled();
   });
 });

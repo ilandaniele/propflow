@@ -18,7 +18,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { drainAgentJobs } from '@/lib/agent/jobs';
 import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
 import { runAgentSweep } from '@/lib/cron/agent-sweep';
-import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
 registerAgentJobHandlers();
@@ -53,7 +52,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ status: 'ok', ...swept });
     }
 
-    const result = await withDbRetry(() => drainAgentJobs(50), 'cron/agent-dispatch');
+    const result = await drainAgentJobs(50);
     log.info('[cron/agent-dispatch] run complete', { ...result });
     return NextResponse.json({ status: 'ok', ...result });
   } catch (e) {
