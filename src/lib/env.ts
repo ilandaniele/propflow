@@ -4,7 +4,7 @@
  * evaluation from throwing when env vars are absent from the build container.
  *
  * NEXT_PUBLIC_* vars: available in the browser bundle AND on the server at request time.
- *   They are injected at compile time (Fly build args or local .env). Lazy getters prevent
+ *   They are injected at compile time (build-time env or local .env). Lazy getters prevent
  *   build-time throws when static-analysis runs before the runtime context is set up.
  *
  * Server-only vars (ANTHROPIC_API_KEY, RESEND_*, CRON_SECRET):
@@ -18,7 +18,7 @@ function optional(name: string, fallback = ''): string {
 // ---------------------------------------------------------------------------
 // Public env — safe to import in both Server and Client components.
 // NEXT_PUBLIC_* values are inlined by the compiler into the browser bundle, so
-// they must still be set in Vercel project settings under "Build & Development".
+// they must still be set in the build environment (CI or local .env).
 // ---------------------------------------------------------------------------
 export const env = {
   get NEXT_PUBLIC_SITE_URL() { return optional('NEXT_PUBLIC_SITE_URL', 'http://localhost:3000'); },

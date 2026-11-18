@@ -1,6 +1,6 @@
 /**
  * POST /api/cron/task-reminders
- * Fly scheduled machine (replaces Vercel Cron) — send WhatsApp reminder buttons
+ * Cloudflare Cron Trigger (src/lib/cron/schedule.ts) — send WhatsApp reminder buttons
  * to tenants with pending tasks due within the next 24 hours.
  *
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).

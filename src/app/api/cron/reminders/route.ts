@@ -9,7 +9,7 @@ import { log } from '@/lib/log';
 
 /**
  * POST /api/cron/reminders
- * Called by Fly scheduled machine (replaces Vercel Cron).
+ * Called by a Cloudflare Cron Trigger (src/lib/cron/schedule.ts).
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare)
  * No user session — uses Drizzle ORM directly (W6 migration complete).
  * Idempotent: dedup via reminders table.

@@ -1,6 +1,6 @@
 /**
  * Profile + Org provisioning — SERVER ONLY.
- * Uses Drizzle ORM against Fly Postgres.
+ * Uses Drizzle ORM against D1.
  * Called during the NextAuth signIn callback when a user has no profile yet.
  */
 

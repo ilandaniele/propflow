@@ -1,6 +1,6 @@
 /**
  * POST /api/cron/weekly-summary
- * Fly scheduled machine (replaces Vercel Cron) — send property weekly summary
+ * Cloudflare Cron Trigger (src/lib/cron/schedule.ts) — send property weekly summary
  * to all org admin phones.
  *
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
