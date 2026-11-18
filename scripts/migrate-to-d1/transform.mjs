@@ -130,7 +130,8 @@ export function buildStatements(table, rows, pgTypes, batch) {
   return { statements, droppedColumns: [...present].filter((c) => !d1Types.has(c)).sort() };
 }
 
-async function readExport(dir, table) {
+/** One table of the export directory, or null when it was not exported. */
+export async function readExport(dir, table) {
   const rowsFile = join(dir, `${table}.jsonl`);
   if (!existsSync(rowsFile)) return null;
   const rows = (await readFile(rowsFile, 'utf8'))
