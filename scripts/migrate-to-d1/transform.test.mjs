@@ -45,6 +45,16 @@ describe('tables', () => {
     assert.deepEqual(byName('organizations').columns.at(-1), { name: 'created_at', type: 'integer' });
   });
 
+  it('adds the columns of later ALTER TABLE ADD statements', () => {
+    const altered = parseSchema(`${SCHEMA}--> statement-breakpoint
+ALTER TABLE \`units\` ADD \`unit_type\` text;--> statement-breakpoint
+ALTER TABLE \`units\` ADD \`rooms\` integer;`);
+    assert.deepEqual(altered.find((t) => t.name === 'units').columns.slice(-2), [
+      { name: 'unit_type', type: 'text' },
+      { name: 'rooms', type: 'integer' },
+    ]);
+  });
+
   it('orders parents before children, ignoring self references', () => {
     const names = tables().map((t) => t.name);
     assert.ok(names.indexOf('organizations') < names.indexOf('units'));
@@ -62,6 +72,8 @@ describe('tables', () => {
     assert.equal(names[0], 'organizations');
     assert.ok(names.includes('payments'));
     assert.ok(!names.includes('sessions') && !names.includes('rate_limits'));
+    const tenantColumns = loadTables().find((t) => t.name === 'tenants').columns.map((c) => c.name);
+    assert.ok(tenantColumns.includes('dni'), 'columns added by later migrations are read');
   });
 });
 

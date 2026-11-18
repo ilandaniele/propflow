@@ -520,6 +520,8 @@ export const trashCompliance = sqliteTable('trash_compliance', {
   fotoUrl:            text('foto_url'),
   horaConfirmacion:   ts('hora_confirmacion'),
   hashImagen:         text('hash_imagen'),
+  registroTipo:       text('registro_tipo'),
+  problemaDescripcion:text('problema_descripcion'),
   createdAt:          ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:          ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
