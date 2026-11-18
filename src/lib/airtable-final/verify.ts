@@ -46,7 +46,7 @@ function isAttachmentList(value: unknown): value is Array<{ id: string; url: str
 }
 
 /** Stable comparison value: attachments by id only (their URLs expire), objects with sorted keys. */
-function normalize(value: unknown): string {
+export function normalize(value: unknown): string {
   if (isAttachmentList(value)) return JSON.stringify(value.map((a) => a.id));
   return JSON.stringify(value, (_key, v: unknown) =>
     v && typeof v === 'object' && !Array.isArray(v)
@@ -118,24 +118,31 @@ async function countColumnsOnAirtable(): Promise<Record<string, number>> {
   return Object.fromEntries(ATTACHMENT_COLUMNS.map((col, i) => [`${col.dbTable}.${col.dbColumn}`, counts[i]]));
 }
 
+/** First snapshot table (alphabetical) after `after`, and the cursor for the call after it. */
+export function pickTable(after?: string | null): { table: string | undefined; nextAfter: string | null } {
+  const pending = TABLES.filter((t) => !after || t > after);
+  return { table: pending[0], nextAfter: pending.length > 1 ? pending[0] : null };
+}
+
+/** Every record of one snapshot table as it is in Airtable today (GET only), or why it could not be read. */
+export async function readLiveTable(table: string): Promise<{ records: AirtableRecord[] } | { error: string }> {
+  const tableId = resolveTableId(SNAPSHOT_TABLE_ENV[table]);
+  if (!tableId) return { error: 'table_not_configured' };
+  try {
+    return { records: await new AttachmentFetcher(readAirtableCredentials()).listAllRecords(tableId) };
+  } catch (err) {
+    return { error: err instanceof AirtableFetchError ? err.message : 'airtable_fetch_failed' };
+  }
+}
+
 /** Verifies the first table (alphabetical) after `after`. */
 export async function runVerifyTable({ after }: { after?: string | null }): Promise<VerifyResult> {
-  const pending = TABLES.filter((t) => !after || t > after);
-  const table = pending[0];
-  const nextAfter = pending.length > 1 ? table : null;
+  const { table, nextAfter } = pickTable(after);
   const columnsOnAirtable = await countColumnsOnAirtable();
   if (!table) return { table: null, columnsOnAirtable, nextAfter: null };
 
-  const tableId = resolveTableId(SNAPSHOT_TABLE_ENV[table]);
-  if (!tableId) return { table: null, error: { table, reason: 'table_not_configured' }, columnsOnAirtable, nextAfter };
-  const fetcher = new AttachmentFetcher(readAirtableCredentials());
-  let records: AirtableRecord[];
-  try {
-    records = await fetcher.listAllRecords(tableId);
-  } catch (err) {
-    const reason = err instanceof AirtableFetchError ? err.message : 'airtable_fetch_failed';
-    return { table: null, error: { table, reason }, columnsOnAirtable, nextAfter };
-  }
+  const live = await readLiveTable(table);
+  if ('error' in live) return { table: null, error: { table, reason: live.error }, columnsOnAirtable, nextAfter };
   const [snapshots, manifest] = await Promise.all([listSnapshotTable(table), readManifest()]);
-  return { table: compareTable(table, records, snapshots, manifest), columnsOnAirtable, nextAfter };
+  return { table: compareTable(table, live.records, snapshots, manifest), columnsOnAirtable, nextAfter };
 }

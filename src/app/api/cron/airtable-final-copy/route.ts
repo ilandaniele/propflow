@@ -1,9 +1,10 @@
 /**
- * POST /api/cron/airtable-final-copy?mode=dry-run|apply|report|recover|verify&limit=50[&after=<key>]
+ * POST /api/cron/airtable-final-copy?mode=dry-run|apply|report|recover|verify|refresh&limit=50[&after=<key>]
  * One-off: copies every file still referenced by an Airtable URL into our own
  * storage (see src/lib/airtable-final/copy.ts). `report` and `recover` take a
  * second pass over the permanent failures (src/lib/airtable-final/recover.ts);
- * `verify` compares one Airtable table per call with our copy (src/lib/airtable-final/verify.ts).
+ * `verify` compares one Airtable table per call with our copy (src/lib/airtable-final/verify.ts);
+ * `refresh` updates that table's snapshots to Airtable today (src/lib/airtable-final/refresh.ts).
  * `after` is the `nextAfter` cursor of the previous call. Airtable is only read.
  * Triggered manually from the `airtable-final-copy` GitHub Actions workflow, not scheduled.
  *
@@ -19,6 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { runCopyBatch, type CopyMode } from '@/lib/airtable-final/copy';
 import { runRecoverBatch, type RecoverMode } from '@/lib/airtable-final/recover';
+import { runRefreshTable } from '@/lib/airtable-final/refresh';
 import { runVerifyTable } from '@/lib/airtable-final/verify';
 import { db } from '@/lib/db';
 import { withDbRetry } from '@/lib/db/retry';
@@ -27,8 +29,8 @@ import { log } from '@/lib/log';
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_CURSOR_LENGTH = 500;
-type Mode = CopyMode | RecoverMode | 'verify';
-const MODES: ReadonlySet<string> = new Set<Mode>(['dry-run', 'apply', 'report', 'recover', 'verify']);
+type Mode = CopyMode | RecoverMode | 'verify' | 'refresh';
+const MODES: ReadonlySet<string> = new Set<Mode>(['dry-run', 'apply', 'report', 'recover', 'verify', 'refresh']);
 
 function parseMode(raw: string | null): Mode | null {
   if (raw === null) return 'dry-run';
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const after = params.get('after');
   if (!mode || !limit || (after !== null && after.length > MAX_CURSOR_LENGTH)) {
     return NextResponse.json(
-      { error: { code: 'VALIDATION_ERROR', message: 'mode must be dry-run|apply|report|recover|verify, limit a positive integer' } },
+      { error: { code: 'VALIDATION_ERROR', message: 'mode must be dry-run|apply|report|recover|verify|refresh, limit a positive integer' } },
       { status: 400 }
     );
   }
@@ -84,7 +86,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const summary =
       mode === 'verify'
         ? await runVerifyTable({ after })
-        : isRecoverMode(mode)
+        : mode === 'refresh'
+          ? await runRefreshTable({ after })
+          : isRecoverMode(mode)
           ? await runRecoverBatch({ mode, limit, after })
           : await runCopyBatch({ mode, limit });
     return NextResponse.json({ status: 'ok', mode, ...summary });

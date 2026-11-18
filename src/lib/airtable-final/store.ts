@@ -104,14 +104,54 @@ export async function listSnapshotRows(): Promise<SnapshotRow[]> {
   return rows as unknown as SnapshotRow[];
 }
 
+export interface SnapshotTableRow {
+  orgId: string;
+  recordId: string;
+  data: unknown;
+}
+
 /** Every snapshot row of one Airtable table, whatever it contains. */
-export async function listSnapshotTable(table: string): Promise<Array<{ recordId: string; data: unknown }>> {
+export async function listSnapshotTable(table: string): Promise<SnapshotTableRow[]> {
   const rows = await db.execute(sql`
-    SELECT external_id AS "recordId", data
+    SELECT org_id AS "orgId", external_id AS "recordId", data
     FROM airtable_snapshots
     WHERE table_name = ${table}
   `);
-  return rows as unknown as Array<{ recordId: string; data: unknown }>;
+  return rows as unknown as SnapshotTableRow[];
+}
+
+const SNAPSHOT_WRITE_CHUNK = 200;
+
+function chunks<T>(items: readonly T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += SNAPSHOT_WRITE_CHUNK) out.push(items.slice(i, i + SNAPSHOT_WRITE_CHUNK));
+  return out;
+}
+
+const recordset = (rows: readonly SnapshotTableRow[]) =>
+  JSON.stringify(rows.map((r) => ({ org_id: r.orgId, external_id: r.recordId, data: r.data })));
+
+/** Replaces `data` of existing snapshot rows, matched by org, table and record id. */
+export async function updateSnapshotRows(table: string, rows: readonly SnapshotTableRow[]): Promise<void> {
+  for (const chunk of chunks(rows)) {
+    await db.execute(sql`
+      UPDATE airtable_snapshots s SET data = v.data, synced_at = now()
+      FROM jsonb_to_recordset(${recordset(chunk)}::jsonb) AS v(org_id uuid, external_id text, data jsonb)
+      WHERE s.org_id = v.org_id AND s.table_name = ${table} AND s.external_id = v.external_id
+    `);
+  }
+}
+
+/** Adds snapshot rows for records we never had; existing rows are left alone. */
+export async function insertSnapshotRows(table: string, rows: readonly SnapshotTableRow[]): Promise<void> {
+  for (const chunk of chunks(rows)) {
+    await db.execute(sql`
+      INSERT INTO airtable_snapshots (org_id, table_name, external_id, data)
+      SELECT v.org_id, ${table}, v.external_id, v.data
+      FROM jsonb_to_recordset(${recordset(chunk)}::jsonb) AS v(org_id uuid, external_id text, data jsonb)
+      ON CONFLICT (org_id, table_name, external_id) DO NOTHING
+    `);
+  }
 }
 
 /** airtable_external_id -> units.id */
