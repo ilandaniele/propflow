@@ -2,9 +2,9 @@
  * Real-SQL smoke test for src/lib/agent/metrics.ts (see setup.ts's header for
  * why this exists alongside tests/unit/agent/metrics.test.ts, which mocks
  * `@/lib/db` entirely and only asserts the *shape* of the emitted SQL). This
- * file runs `getAgentMetrics` against a real (PGlite) Postgres so the
- * `GROUPING SETS`, `to_char(... AT TIME ZONE ...)`, and `percentile_cont`
- * queries are actually parsed and executed, not just pattern-matched.
+ * file runs `getAgentMetrics` against a real local D1 so the `UNION ALL`
+ * rollups, `json_extract`, 15-minute daily slots and first-response CTEs are
+ * actually parsed and executed, not just pattern-matched.
  */
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
@@ -43,7 +43,7 @@ afterAll(async () => {
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 describe('getAgentMetrics (real SQL)', () => {
-  it('aggregates whatsapp/web/voice into the GROUPING SETS rollup and returns YYYY-MM-DD daily keys', async () => {
+  it('aggregates whatsapp/web/voice into the UNION ALL rollup and returns YYYY-MM-DD daily keys', async () => {
     const { db } = await import('@/lib/db');
     const { getAgentMetrics } = await import('@/lib/agent/metrics');
     const typedDb = db as unknown as SmokeDb;
@@ -86,6 +86,18 @@ describe('getAgentMetrics (real SQL)', () => {
     await seedMessage(typedDb, org.id, waSession.id, { role: 'assistant', costUsd: '0.01', createdAt: inRange });
     await seedMessage(typedDb, org.id, webSession.id, { role: 'assistant', costUsd: '0.02', createdAt: inRange });
 
+    // ── web first response: user at +60s, sent assistant reply at +70s ─────
+    await seedMessage(typedDb, org.id, webSession.id, { role: 'user', createdAt: new Date(inRange.getTime() + 60_000) });
+    await seedMessage(typedDb, org.id, webSession.id, {
+      role: 'assistant',
+      sendStatus: 'sent',
+      costUsd: '0',
+      createdAt: new Date(inRange.getTime() + 70_000),
+    });
+
+    // ── a mode_change-to-human handoff on the web session (json_extract) ──
+    await seedEvent(typedDb, org.id, webSession.id, { kind: 'mode_change', data: { to: 'human' }, createdAt: inRange });
+
     // ── one voice call ──────────────────────────────────────────────────────
     await seedCall(typedDb, org.id, {
       direction: 'outbound',
@@ -101,9 +113,8 @@ describe('getAgentMetrics (real SQL)', () => {
       to: new Date('2024-06-20T00:00:00Z'),
     });
 
-    // Daily series keys are plain 'YYYY-MM-DD' strings, never a JS Date leaking
-    // through the to_char(...) cast (postgres.js can hand back a Date for a
-    // date/timestamp-typed column depending on the driver path).
+    // Daily series keys are plain 'YYYY-MM-DD' strings built in JS from the
+    // integer-ms slots the queries return.
     expect(result.daily.length).toBeGreaterThan(0);
     for (const day of result.daily) {
       expect(day.day).toMatch(DAY_RE);
@@ -111,7 +122,7 @@ describe('getAgentMetrics (real SQL)', () => {
     const juneTenth = result.daily.find((d) => d.day === '2024-06-10');
     expect(juneTenth).toEqual({ day: '2024-06-10', conversations: 2, leads: 2, visitsBooked: 1 });
 
-    // The `all` rollup (channel IS NULL / GROUPING(channel)=1 row) must equal
+    // The `all` rollup (is_total = 1 row) must equal
     // the sum of the per-channel rows from the SAME query — not a separate
     // recomputation that could drift.
     const { byChannel } = result;
@@ -131,5 +142,30 @@ describe('getAgentMetrics (real SQL)', () => {
     expect(byChannel.voice.answeredCalls).toBe(1);
     expect(byChannel.voice.voiceMinutes).toBe(2); // ceil(90s / 60)
     expect(byChannel.all.calls).toBe(1);
+    expect(byChannel.web.handoffs).toBe(1);
+    expect(byChannel.web.firstResponseP50Sec).toBe(10);
+    expect(byChannel.all.firstResponseP90Sec).toBe(10);
+    expect(byChannel.whatsapp.firstResponseP50Sec).toBeNull();
+  });
+
+  it('buckets the daily series by the org timezone (America/Lima, UTC-5)', async () => {
+    const { db } = await import('@/lib/db');
+    const { getAgentMetrics } = await import('@/lib/agent/metrics');
+    const typedDb = db as unknown as SmokeDb;
+
+    const org = await seedOrg(typedDb);
+    await seedAgentConfig(typedDb, org.id, { timezone: 'America/Lima' });
+    await seedSession(typedDb, org.id, { channel: 'web', createdAt: new Date('2024-06-11T04:59:00Z') });
+    await seedSession(typedDb, org.id, { channel: 'web', createdAt: new Date('2024-06-11T05:00:00Z') });
+
+    const result = await getAgentMetrics(org.id, {
+      from: new Date('2024-06-10T05:00:00Z'),
+      to: new Date('2024-06-12T05:00:00Z'),
+    });
+
+    expect(result.daily).toEqual([
+      { day: '2024-06-10', conversations: 1, leads: 0, visitsBooked: 0 },
+      { day: '2024-06-11', conversations: 1, leads: 0, visitsBooked: 0 },
+    ]);
   });
 });
