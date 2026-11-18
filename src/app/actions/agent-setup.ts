@@ -12,6 +12,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { E164_RE } from '@/lib/widget/channel';
 import { META_API_HOST, META_API_VERSION } from '@/lib/whatsapp/meta-provider';
 import type { ActionResult } from '@/lib/errors';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 const SETUP_PATH = '/dashboard/agent/setup';
 const PHONE_NUMBER_ID_RE = /^\d{6,20}$/;
@@ -97,7 +98,7 @@ async function verifyPhoneNumberOwnership(
  *
  * Rejects:
  * - a phoneNumberId already bound to ANOTHER org (org_channels_one_whatsapp_per_org,
- *   migration 0012, backs this up at the DB level too — see the 23505 branch below).
+ *   migration 0012, backs this up at the DB level too — see the unique-violation branch below).
  * - a phoneNumberId that doesn't match WHATSAPP_PHONE_NUMBER_ID, once that env
  *   var is set server-side (before that, the value can't be checked — a
  *   warning is returned instead so the setup wizard can flag it).
@@ -181,8 +182,7 @@ export async function saveWhatsAppChannel(input: SaveWhatsAppChannelInput): Prom
     // A pre-thrown ActionResult (the cross-org conflict check above) — surface as-is.
     if (e && typeof e === 'object' && 'error' in e) return e as ActionResult<never>;
 
-    const code = (e as { code?: string } | null)?.code;
-    if (code === '23505') {
+    if (isUniqueViolation(e)) {
       return Errors.CONFLICT('Este phone number ID ya está vinculado a otra organización.');
     }
 

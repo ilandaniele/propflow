@@ -16,6 +16,7 @@ import {
   UpdateExpenseSchema,
   MatchReceiptSchema,
 } from '@/lib/schemas/finance';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 export async function createExpenseCategory(
   _prev: ActionResult,
@@ -38,7 +39,7 @@ export async function createExpenseCategory(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes('unique') || msg.includes('23505')) return Errors.CONFLICT('Category name already exists');
+    if (isUniqueViolation(e)) return Errors.CONFLICT('Category name already exists');
     log.error('[createExpenseCategory] db error', { code: msg });
     return Errors.INTERNAL();
   }

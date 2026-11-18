@@ -9,6 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { db } from '@/lib/db';
 import { agentWebHandoffCodes } from '@/lib/db/schema';
 import { and, eq, gt, lte, count, sql, or } from 'drizzle-orm';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 export const HANDOFF_CODE_TTL_MS = 30 * 60_000;
 export const MAX_CODES_PER_SESSION_PER_DAY = 5;
@@ -176,8 +177,7 @@ export async function createHandoffCode(args: CreateHandoffCodeArgs): Promise<Ha
       });
     } catch (err) {
       // uq_web_handoff_code (org_id, code) collision — retry with a freshly generated code.
-      const code = (err as { code?: string })?.code;
-      if (code !== '23505' || attempt === MAX_INSERT_RETRIES - 1) throw err;
+      if (!isUniqueViolation(err) || attempt === MAX_INSERT_RETRIES - 1) throw err;
     }
   }
   throw new Error('[widget/handoff-codes] createHandoffCode: exhausted retries');

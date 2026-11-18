@@ -28,6 +28,7 @@ import {
 import type { ContractPdfSource, ContractVariables } from '@/lib/contracts/pdf.tsx';
 import { sendEmail, buildSignatureRequestEmail } from '@/lib/notifications/email';
 import { env } from '@/lib/env';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
 
@@ -62,7 +63,7 @@ export async function createContractTemplate(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes('unique') || msg.includes('23505')) return Errors.CONFLICT('Template name already exists');
+    if (isUniqueViolation(e)) return Errors.CONFLICT('Template name already exists');
     log.error('[createContractTemplate] db error', { code: msg });
     return Errors.INTERNAL();
   }

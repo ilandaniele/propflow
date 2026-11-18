@@ -19,6 +19,7 @@ import { buildWeeklySummary } from '@/lib/whatsapp/weekly-summary';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
 import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // Constant-time secret comparison (AC10)
@@ -83,9 +84,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
               body:       summary.body,
             });
           } catch (insertErr: unknown) {
-            // Drizzle throws on unique constraint violation (23505)
-            const code = (insertErr as { code?: string })?.code;
-            if (code === '23505') {
+            if (isUniqueViolation(insertErr)) {
               // Duplicate — already sent this week; skip sends
               log.debug('[cron/weekly-summary] already sent this week', {
                 orgId:      org.id,
