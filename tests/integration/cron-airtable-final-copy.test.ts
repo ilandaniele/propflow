@@ -8,10 +8,12 @@ import { NextRequest } from 'next/server';
 const runCopyBatch = vi.hoisted(() => vi.fn());
 const runRecoverBatch = vi.hoisted(() => vi.fn());
 const runVerifyTable = vi.hoisted(() => vi.fn());
+const runRefreshTable = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/airtable-final/copy', () => ({ runCopyBatch }));
 vi.mock('@/lib/airtable-final/recover', () => ({ runRecoverBatch }));
 vi.mock('@/lib/airtable-final/verify', () => ({ runVerifyTable }));
+vi.mock('@/lib/airtable-final/refresh', () => ({ runRefreshTable }));
 vi.mock('@/lib/db', () => ({ db: { execute: vi.fn().mockResolvedValue([]) } }));
 vi.mock('@/lib/log', () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
@@ -33,6 +35,7 @@ describe('POST /api/cron/airtable-final-copy', () => {
     runCopyBatch.mockResolvedValue({ copied: 2, skipped: 1, failed: 0, remaining: 5, errors: [] });
     runRecoverBatch.mockResolvedValue({ total: 3, processed: 3, recovered: 1, nextAfter: null, groups: [], errors: [] });
     runVerifyTable.mockResolvedValue({ table: null, columnsOnAirtable: {}, nextAfter: 'eecc' });
+    runRefreshTable.mockResolvedValue({ table: null, nextAfter: 'eecc' });
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -72,6 +75,14 @@ describe('POST /api/cron/airtable-final-copy', () => {
     expect(runVerifyTable).toHaveBeenCalledWith({ after: 'adicionales' });
     expect(runCopyBatch).not.toHaveBeenCalled();
     expect(await res.json()).toMatchObject({ status: 'ok', mode: 'verify', nextAfter: 'eecc' });
+  });
+
+  it('routes mode=refresh to the snapshot refresh with the cursor', async () => {
+    const res = await POST(request('?mode=refresh&after=adicionales', `Bearer ${SECRET}`));
+    expect(res.status).toBe(200);
+    expect(runRefreshTable).toHaveBeenCalledWith({ after: 'adicionales' });
+    expect(runCopyBatch).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ status: 'ok', mode: 'refresh', nextAfter: 'eecc' });
   });
 
   it.each(['report', 'recover'])('routes mode=%s to the recovery pass with the cursor', async (mode) => {

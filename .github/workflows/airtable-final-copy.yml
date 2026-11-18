@@ -10,7 +10,9 @@
 # `report` diagnoses those permanent failures against Airtable today; `recover`
 # copies every one that can still be found. `verify` reads every Airtable table
 # again and compares it with our copy (records, field values, attachments).
-# All three only read Airtable; `verify` writes nothing anywhere.
+# `refresh` updates our snapshots to Airtable today (previous data archived
+# first); run `apply` after it to copy attachments added since the last copy.
+# Every mode only reads Airtable; `verify` writes nothing anywhere.
 #
 # Only counters, table/field names and reason codes are printed — never
 # response bodies, refs, file names or URLs.
@@ -35,6 +37,7 @@ on:
           - report
           - recover
           - verify
+          - refresh
 
 permissions:
   contents: read
@@ -112,6 +115,32 @@ jobs:
             jq -r '.error // empty | "table=\(.table) error=\(.reason)"' "$BODY"
             NEXT_AFTER=$(jq -r '.nextAfter // ""' "$BODY")
           }
+
+          # post_refresh <after>: sets NEXT_AFTER and prints counts only
+          post_refresh() {
+            STATUS=$(curl -sS -o "$BODY" -w "%{http_code}" -G \
+              -X POST "$APP_URL/api/cron/airtable-final-copy" \
+              --data-urlencode "mode=refresh" --data-urlencode "after=$1" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              --max-time 900)
+            if [ "$STATUS" -ge 400 ]; then
+              echo "HTTP $STATUS" >&2
+              exit 1
+            fi
+            jq -r '.table // empty | "table=\(.table) updated=\(.updated) inserted=\(.inserted) unchanged=\(.unchanged) skipped_no_org=\(.skippedNoOrg)"' "$BODY"
+            jq -r '.error // empty | "table=\(.table) error=\(.reason)"' "$BODY"
+            NEXT_AFTER=$(jq -r '.nextAfter // ""' "$BODY")
+          }
+
+          if [ "$MODE" = "refresh" ]; then
+            AFTER=""
+            while :; do
+              post_refresh "$AFTER"
+              [ -z "$NEXT_AFTER" ] && break
+              AFTER=$NEXT_AFTER
+            done
+            exit 0
+          fi
 
           if [ "$MODE" = "verify" ]; then
             AFTER=""
