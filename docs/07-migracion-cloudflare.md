@@ -581,7 +581,7 @@ Reglas comunes:
 **W-CF-12 — Storage en R2**
 
 - Archivos: `src/lib/storage/index.ts`, `src/lib/storage/r2-presign.ts` (nuevo), `src/lib/storage/index.test.ts`, `next.config.ts` (solo `images`), `src/proxy.ts` (solo el host CSP `img-src`).
-- Contrato: **se mantienen exactas** las firmas públicas actuales: `uploadImage(bucket, path, buffer, ...)`, `uploadFile(bucket, path, body, ...)`, `getSignedUrl(bucket, path, ttl = 3600)` (con tope de 3600), `deleteImage(bucket, path)`, `validateImageFile`, `buildStoragePath` y las constantes exportadas. Internamente usa `objectKey(bucket, path) = \`${bucket}/${path}\``, el binding `FILES` y presign con `aws4fetch` (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_S3_ENDPOINT`, `R2_BUCKET`).
+- Contrato: **se mantienen exactas** las firmas públicas actuales: `uploadImage(bucket, path, buffer, ...)`, `uploadFile(bucket, path, body, ...)`, `getSignedUrl(bucket, path, ttl = 3600)` (con tope de 3600), `deleteImage(bucket, path)`, `validateImageFile`, `buildStoragePath` y las constantes exportadas. Internamente usa `objectKey(bucket, path) = path` (producción en Tigris ya usa un solo bucket `STORAGE_BUCKET` con esas keys, así la copia a R2 es 1:1), el binding `FILES` y presign con `aws4fetch` (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_S3_ENDPOINT`, `R2_BUCKET`).
   ```ts
   export async function presignGet(key: string, ttlSeconds: number): Promise<string>; // r2-presign.ts
   ```

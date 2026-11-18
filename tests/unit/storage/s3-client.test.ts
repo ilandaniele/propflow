@@ -53,7 +53,7 @@ describe('storage R2 client (aws4fetch, S3 API)', () => {
       expect(result).toEqual({ path: 'org1/unit1/a b.jpg' });
       const request = lastRequest(fetchMock);
       expect(request.method).toBe('PUT');
-      expect(request.url).toBe(`${ORIGIN}/propflow-bucket/unit-images/org1/unit1/a%20b.jpg`);
+      expect(request.url).toBe(`${ORIGIN}/propflow-bucket/org1/unit1/a%20b.jpg`);
       expect(request.headers.get('content-type')).toBe('image/jpeg');
       expect(request.headers.get('x-amz-content-sha256')).toBe(createHash('sha256').update(body).digest('hex'));
       expect(request.headers.get('authorization')).toMatch(
@@ -80,7 +80,7 @@ describe('storage R2 client (aws4fetch, S3 API)', () => {
       const result = await uploadFile('receipts', 'org/r.pdf', new Uint8Array([1, 2, 3]), 'application/pdf');
 
       expect(result).toEqual({ path: 'org/r.pdf' });
-      expect(lastRequest(fetchMock).url).toBe(`${ORIGIN}/propflow-files/receipts/org/r.pdf`);
+      expect(lastRequest(fetchMock).url).toBe(`${ORIGIN}/propflow-files/org/r.pdf`);
     });
 
     it('wraps a non-2xx response with the S3 error code', async () => {
@@ -96,10 +96,10 @@ describe('storage R2 client (aws4fetch, S3 API)', () => {
   });
 
   describe('objectKey', () => {
-    it('prefixes the stored path with the logical bucket', async () => {
+    it('uses the stored path as the key, like the shared Tigris bucket', async () => {
       const { objectKey } = await loadStorage();
 
-      expect(objectKey('receipts', 'org/r.pdf')).toBe('receipts/org/r.pdf');
+      expect(objectKey('receipts', 'org/r.pdf')).toBe('org/r.pdf');
     });
   });
 
@@ -110,7 +110,7 @@ describe('storage R2 client (aws4fetch, S3 API)', () => {
       const url = new URL(await getSignedUrl('unit-images', 'org/unit/x.jpg', 600));
 
       expect(url.origin).toBe(ORIGIN);
-      expect(url.pathname).toBe('/propflow-bucket/unit-images/org/unit/x.jpg');
+      expect(url.pathname).toBe('/propflow-bucket/org/unit/x.jpg');
       expect(url.searchParams.get('X-Amz-Expires')).toBe('600');
       expect(url.searchParams.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256');
       expect(url.searchParams.get('X-Amz-Credential')).toMatch(/^AKIATESTKEY\/\d{8}\/auto\/s3\/aws4_request$/);
@@ -146,7 +146,7 @@ describe('storage R2 client (aws4fetch, S3 API)', () => {
 
       const request = lastRequest(fetchMock);
       expect(request.method).toBe('DELETE');
-      expect(request.url).toBe(`${ORIGIN}/propflow-bucket/unit-images/org/unit/x.jpg`);
+      expect(request.url).toBe(`${ORIGIN}/propflow-bucket/org/unit/x.jpg`);
       expect(request.headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 /);
     });
 

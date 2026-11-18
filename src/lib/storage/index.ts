@@ -24,7 +24,7 @@
  * Bucket layout:
  *   One physical R2 bucket (R2_BUCKET, default 'propflow-files'). Callers keep
  *   passing the logical bucket name (e.g. 'receipts') and the DB-stored path;
- *   this module builds the object key as `${logicalBucket}/${path}`.
+ *   the object key is the stored path, as in the shared Tigris bucket (see objectKey).
  */
 
 import { AwsClient } from 'aws4fetch';
@@ -55,9 +55,13 @@ export const MAX_IMAGES_PER_UNIT = 20;
 /** Physical R2 bucket used when R2_BUCKET is not set */
 const DEFAULT_R2_BUCKET = 'propflow-files';
 
-/** Object key inside the single physical bucket: `${logicalBucket}/${path}` */
-export function objectKey(bucket: string, path: string): string {
-  return `${bucket}/${path}`;
+/**
+ * Object key inside the single physical bucket: the stored path itself. Production
+ * Tigris already kept every logical bucket in one bucket under these keys, so
+ * the copy to R2 is 1:1 and stored paths stay valid.
+ */
+export function objectKey(_bucket: string, path: string): string {
+  return path;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +105,7 @@ function s3(): S3Backend {
   return _s3;
 }
 
-/** Path-style object URL: https://{account}.r2.cloudflarestorage.com/{bucket}/{logicalBucket}/{path} */
+/** Path-style object URL: https://{account}.r2.cloudflarestorage.com/{bucket}/{path} */
 function objectUrl(logicalBucket: string, path: string): URL {
   const { endpoint, bucket } = s3();
   const encodedKey = objectKey(logicalBucket, path).split('/').map(encodeURIComponent).join('/');
