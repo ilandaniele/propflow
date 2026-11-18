@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     setupFiles: ['./tests/vitest.setup.ts'],
-    include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'tests/rls/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'tests/rls/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     env: {
       // Stub values for unit tests — not real credentials
       NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',
