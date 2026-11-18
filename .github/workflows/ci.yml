@@ -360,6 +360,8 @@ jobs:
 
       - name: Build Worker (OpenNext)
         run: pnpm cf:build
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ vars.APP_URL }}
 
       - name: Apply D1 migrations
         run: pnpm exec wrangler d1 migrations apply propflow-db --remote

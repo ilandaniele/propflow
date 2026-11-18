@@ -26,6 +26,8 @@
   "observability": { "enabled": true },
   "vars": {
     "WHATSAPP_PROVIDER": "meta",
-    "R2_BUCKET": "propflow-files"
+    "R2_BUCKET": "propflow-files",
+    "AUTH_URL": "https://propflow-app.ilandaniele.workers.dev",
+    "NEXT_PUBLIC_SITE_URL": "https://propflow-app.ilandaniele.workers.dev"
   }
 }
