@@ -236,20 +236,21 @@ export async function assignLeadManually(a: AssignLeadManuallyArgs): Promise<Ass
   if (!lead) return { ok: false, reason: 'not_found' };
 
   const now = new Date();
-  await db
-    .update(crmLeads)
-    .set({ assignedProfileId: a.profileId, assignedAt: a.profileId ? now : null, updatedAt: now })
-    .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId)));
-
   const method: AssignmentMethod = lead.assignedProfileId ? 'reassign' : 'manual';
-  await db.insert(leadAssignments).values({
-    orgId: a.orgId,
-    leadId: a.leadId,
-    profileId: a.profileId,
-    previousProfileId: lead.assignedProfileId,
-    method,
-    assignedByProfileId: a.actorProfileId,
-  });
+  await db.batch([
+    db
+      .update(crmLeads)
+      .set({ assignedProfileId: a.profileId, assignedAt: a.profileId ? now : null, updatedAt: now })
+      .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId))),
+    db.insert(leadAssignments).values({
+      orgId: a.orgId,
+      leadId: a.leadId,
+      profileId: a.profileId,
+      previousProfileId: lead.assignedProfileId,
+      method,
+      assignedByProfileId: a.actorProfileId,
+    }),
+  ]);
 
   if (a.profileId) {
     await notifyAdvisorLeadAssigned({ orgId: a.orgId, leadId: a.leadId, profileId: a.profileId, method }).catch(

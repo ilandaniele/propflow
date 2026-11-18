@@ -104,3 +104,26 @@ describe('routeLead (real SQL)', () => {
     expect(new Set([r1.profileId, r2.profileId])).toEqual(new Set([advisorA.id, advisorB.id]));
   });
 });
+
+describe('assignLeadManually (real SQL)', () => {
+  it('assigns, then reassigns, writing one lead_assignments row per change', async () => {
+    const { assignLeadManually } = await import('@/lib/leads/routing');
+    const org = await seedOrg(smoke.db);
+    const actor = await seedProfile(smoke.db, org.id, { role: 'admin', fullName: 'Actor' });
+    const advisor = await seedProfile(smoke.db, org.id, { role: 'admin', fullName: 'Advisor' });
+    const lead = await seedLead(smoke.db, org.id, { pipeline: 'demand' });
+
+    expect(await assignLeadManually({ orgId: org.id, leadId: lead.id, profileId: advisor.id, actorProfileId: actor.id }))
+      .toEqual({ ok: true });
+    expect(await assignLeadManually({ orgId: org.id, leadId: lead.id, profileId: actor.id, actorProfileId: actor.id }))
+      .toEqual({ ok: true });
+
+    const [updatedLead] = await smoke.db.select().from(schema.crmLeads).where(eq(schema.crmLeads.id, lead.id));
+    expect(updatedLead.assignedProfileId).toBe(actor.id);
+    const history = await smoke.db.select().from(schema.leadAssignments).where(eq(schema.leadAssignments.leadId, lead.id));
+    expect(history.map((h) => [h.method, h.previousProfileId, h.profileId]).sort()).toEqual([
+      ['manual', null, advisor.id],
+      ['reassign', advisor.id, actor.id],
+    ]);
+  });
+});
