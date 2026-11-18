@@ -11,21 +11,36 @@ interface RateLimitEntry {
 }
 
 const store = new Map<string, RateLimitEntry>();
+const SWEEP_EVERY_MS = 60_000;
+let lastSweep = 0;
 
-export function getClientIp(request: Request): string {
-  const flyClientIp = request.headers.get('fly-client-ip');
-  if (flyClientIp) return flyClientIp.trim();
-  const xff = request.headers.get('x-forwarded-for');
+/** Drops expired entries at most once a minute. Lazy because Workers forbid timers in global scope. */
+function sweepExpired(now: number): void {
+  if (now - lastSweep < SWEEP_EVERY_MS) return;
+  lastSweep = now;
+  for (const [key, entry] of store.entries()) {
+    if (now > entry.resetAt) store.delete(key);
+  }
+}
+
+export function clientIpFromHeaders(headers: Headers): string {
+  const cfConnectingIp = headers.get('cf-connecting-ip');
+  if (cfConnectingIp) return cfConnectingIp.trim();
+  const xff = headers.get('x-forwarded-for');
   if (xff) {
-    // Fly appends the connecting peer's IP to the end of the list, so the
+    // The proxy appends the connecting peer's IP to the end of the list, so the
     // last entry is the one closest to the actual client (earlier entries
     // are client-supplied and can be spoofed).
     const parts = xff.split(',').map((p) => p.trim()).filter(Boolean);
     if (parts.length > 0) return parts[parts.length - 1];
   }
-  const realIp = request.headers.get('x-real-ip');
+  const realIp = headers.get('x-real-ip');
   if (realIp) return realIp;
   return 'anonymous';
+}
+
+export function getClientIp(request: Request): string {
+  return clientIpFromHeaders(request.headers);
 }
 
 export function checkRateLimit(
@@ -34,6 +49,7 @@ export function checkRateLimit(
   windowMs: number = 10_000
 ): { success: boolean; retryAfterMs: number } {
   const now = Date.now();
+  sweepExpired(now);
   const entry = store.get(key);
 
   if (!entry || now > entry.resetAt) {
@@ -148,14 +164,4 @@ export function webMessageRateLimit(ip: string, webSessionId: string): { success
 /** `/api/public/listing-image/*` and other public assets — 120 / min / IP. */
 export function publicAssetRateLimit(ip: string): { success: boolean; retryAfterMs: number } {
   return checkRateLimit(`public-asset:${ip}`, 120, ONE_MINUTE_MS);
-}
-
-// Cleanup stale entries periodically (only in non-edge environments)
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, entry] of store.entries()) {
-      if (now > entry.resetAt) store.delete(key);
-    }
-  }, 60_000);
 }

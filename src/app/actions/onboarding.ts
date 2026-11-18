@@ -22,7 +22,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { provisionOrgAndProfile, getExistingProfile } from '@/lib/auth/provision';
-import { checkRateLimit } from '@/lib/ratelimit';
+import { checkRateLimit, clientIpFromHeaders } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 import { db } from '@/lib/db';
 import { profiles } from '@/lib/db/schema';
@@ -37,8 +37,7 @@ const CreateOrgSchema = z.object({
 export async function createOrg(_prev: AuthState, formData: FormData): Promise<AuthState> {
   // 1. Rate limit by IP
   const headersList = await headers();
-  const forwardedFor = headersList.get('x-forwarded-for') ?? 'anonymous';
-  const ip = forwardedFor.split(',')[0].trim();
+  const ip = clientIpFromHeaders(headersList);
 
   const rl = checkRateLimit(`onboarding:${ip}`, 5, 10_000);
   if (!rl.success) {

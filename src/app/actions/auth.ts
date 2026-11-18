@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { signOut as nextAuthSignOut } from '@/auth';
 import { err, Errors } from '@/lib/errors';
 import { log } from '@/lib/log';
-import { checkRateLimit } from '@/lib/ratelimit';
+import { checkRateLimit, clientIpFromHeaders } from '@/lib/ratelimit';
 import { headers } from 'next/headers';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
@@ -61,9 +61,7 @@ async function verifyPasswordAndStartSession(email: string, password: string): P
 }
 
 export async function signIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
-  const headersList = await headers();
-  const forwardedFor = headersList.get('x-forwarded-for') ?? 'anonymous';
-  const ip = forwardedFor.split(',')[0].trim();
+  const ip = clientIpFromHeaders(await headers());
 
   const rl = checkAuthRateLimitByIp(ip);
   if (!rl.success) {
@@ -111,9 +109,7 @@ export async function signInWithPassword(
   email: string,
   password: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const headersList = await headers();
-  const forwardedFor = headersList.get('x-forwarded-for') ?? 'anonymous';
-  const ip = forwardedFor.split(',')[0].trim();
+  const ip = clientIpFromHeaders(await headers());
 
   if (!checkAuthRateLimitByIp(ip).success) {
     return { ok: false, error: 'RATE_LIMITED' };
@@ -159,9 +155,7 @@ const RegisterSchema = z.object({
  * by role. Mirrors the credentials provider so the same password works at login.
  */
 export async function registerWithEmail(_prev: AuthState, formData: FormData): Promise<AuthState> {
-  const headersList = await headers();
-  const forwardedFor = headersList.get('x-forwarded-for') ?? 'anonymous';
-  const ip = forwardedFor.split(',')[0].trim();
+  const ip = clientIpFromHeaders(await headers());
 
   const rl = checkRateLimit(`register:${ip}`, 5, 10_000);
   if (!rl.success) {
@@ -220,9 +214,7 @@ export async function requestPasswordReset(
   _prev: AuthState,
   formData: FormData
 ): Promise<AuthState> {
-  const headersList = await headers();
-  const forwardedFor = headersList.get('x-forwarded-for') ?? 'anonymous';
-  const ip = forwardedFor.split(',')[0].trim();
+  const ip = clientIpFromHeaders(await headers());
 
   const rl = checkAuthRateLimitByIp(ip);
   if (!rl.success) {
