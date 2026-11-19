@@ -14,12 +14,24 @@
 #   vars.APP_URL    — https://propflow-app.fly.dev  (repo variable, not a secret)
 #   secrets.CRON_SECRET — same value as the Fly secret CRON_SECRET
 
-# On Cloudflare the schedules live in wrangler.jsonc (Cron Triggers, see
-# src/lib/cron/schedule.ts). This workflow stays for manual runs only.
+# On Cloudflare this workflow is the scheduler: the account already uses the
+# 5 Cron Triggers allowed on Workers Free, so wrangler.jsonc declares none
+# (docs/07-migracion-cloudflare.md §4.4). Moving back to Cron Triggers needs
+# Workers Paid. The webhook drains agent_jobs with ctx.waitUntil; the
+# agent-dispatch schedule below is only the backstop.
 
 name: Cron dispatch
 
 on:
+  schedule:
+    - cron: '0 7 * * 1'    # weekly-summary   — 07:00 UTC Monday
+    - cron: '0 8 * * *'    # reminders        — 08:00 UTC daily
+    - cron: '0 9 * * *'    # task-reminders   — 09:00 UTC daily
+    - cron: '0 12 * * 1'   # qa-export        — 07:00 Lima Monday
+    - cron: '0 14 * * *'   # lead-alerts      — 09:00 Lima daily
+    - cron: '*/5 * * * *'  # agent-dispatch   — every 5 min (backstop drain)
+    - cron: '*/10 * * * *' # agent-sweep      — every 10 min (stale inbound, calendar, voice scanners)
+    - cron: '0 15 * * 1-6' # voice-reactivation — 10:00 Lima, Mon-Sat
   workflow_dispatch:
     inputs:
       job:
@@ -33,6 +45,7 @@ on:
           - qa-export
           - lead-alerts
           - agent-dispatch
+          - agent-sweep
           - voice-reactivation
 
 permissions:
@@ -53,14 +66,15 @@ jobs:
           EVENT_SCHEDULE: ${{ github.event.schedule }}
           INPUT_JOB: ${{ github.event.inputs.job }}
         run: |
-          # job|cron schedule|timeout-minutes|curl --max-time seconds
-          ENDPOINTS='weekly-summary|0 7 * * 1|2|90
-          reminders|0 8 * * *|2|90
-          task-reminders|0 9 * * *|2|90
-          qa-export|0 12 * * 1|4|240
-          lead-alerts|0 14 * * *|5|240
-          agent-dispatch|*/10 * * * *|2|60
-          voice-reactivation|0 15 * * 1-6|4|240'
+          # job|cron schedule|timeout-minutes|curl --max-time seconds|path
+          ENDPOINTS='weekly-summary|0 7 * * 1|2|90|weekly-summary
+          reminders|0 8 * * *|2|90|reminders
+          task-reminders|0 9 * * *|2|90|task-reminders
+          qa-export|0 12 * * 1|4|240|qa-export
+          lead-alerts|0 14 * * *|5|240|lead-alerts
+          agent-dispatch|*/5 * * * *|2|60|agent-dispatch
+          agent-sweep|*/10 * * * *|2|60|agent-dispatch?sweep=1
+          voice-reactivation|0 15 * * 1-6|4|240|voice-reactivation'
           if [ "$EVENT_NAME" = "schedule" ]; then
             FIELD=schedule; SELECTOR="$EVENT_SCHEDULE"
           else
@@ -68,7 +82,7 @@ jobs:
           fi
           MATRIX=$(printf '%s\n' "$ENDPOINTS" | jq -R -s -c --arg field "$FIELD" --arg selector "$SELECTOR" '
             [split("\n")[] | select(length > 0) | ltrimstr(" ") | split("|")
-              | {job: .[0], schedule: .[1], timeout: (.[2] | tonumber), max_time: (.[3] | tonumber)}]
+              | {job: .[0], schedule: .[1], timeout: (.[2] | tonumber), max_time: (.[3] | tonumber), path: .[4]}]
             | map(select(.[$field] == $selector))
             | {include: .}')
           if [ "$(printf '%s' "$MATRIX" | jq '.include | length')" -eq 0 ]; then
@@ -90,11 +104,11 @@ jobs:
         env:
           APP_URL: ${{ vars.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          JOB: ${{ matrix.job }}
+          CRON_PATH: ${{ matrix.path }}
           MAX_TIME: ${{ matrix.max_time }}
         run: |
           STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -X POST "$APP_URL/api/cron/$JOB" \
+            -X POST "$APP_URL/api/cron/$CRON_PATH" \
             -H "Authorization: Bearer $CRON_SECRET" \
             -H "Content-Type: application/json" \
             --max-time "$MAX_TIME")

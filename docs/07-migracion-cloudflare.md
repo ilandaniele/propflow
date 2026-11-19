@@ -281,6 +281,8 @@ Si OpenNext exporta otros símbolos (p. ej. Durable Objects de cache), `worker.t
 
 **Decisión: Cron Triggers de Cloudflare, consolidados en 2 expresiones.** `cron-dispatch.yml` queda solo con `workflow_dispatch` (disparo manual) durante la transición y después se elimina.
 
+> **Estado real (2026-11-19): los crons corren en GitHub Actions, no en Cron Triggers.** En el cutover el deploy falló con `This account has reached the Workers Free limit of 5 cron triggers per account` (code 10072): el plan Free permite 5 Cron Triggers **por cuenta** y otros Workers de la cuenta ya usan los 5. El owner eligió GitHub Actions (gratis) en vez de Workers Paid (USD 5/mes). Por eso `wrangler.jsonc` no declara `triggers` y `cron-dispatch.yml` volvió a tener `schedule`: `agent-dispatch` cada 5 min, `agent-sweep` (`?sweep=1`) cada 10 min y los diarios/semanales en los horarios de la tabla de abajo. El drain principal es `ctx.waitUntil` después del webhook; el schedule es solo backstop. Costo aceptado: latencia del backstop de 5 a 10+ min (GitHub atrasa schedules) y ~430 requests/día externas. Para volver a Cron Triggers: pasar a Workers Paid, restaurar `"triggers": { "crons": ["* * * * *", "0 * * * *"] }` en `wrangler.jsonc` y sacar el bloque `schedule` de `cron-dispatch.yml`. `src/lib/cron/schedule.ts` y el handler `scheduled` quedan para ese caso.
+
 Razones:
 
 1. El backstop del agente necesita correr cada minuto: reemplaza el `setInterval` de 30 s de `instrumentation.ts`. Los schedules de GitHub Actions no garantizan esa frecuencia: tienen retrasos de varios minutos y GitHub los desactiva en repos inactivos.
