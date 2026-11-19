@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { eq, and, or, ilike, count as sqlCount, desc } from 'drizzle-orm';
+import { eq, and, or, count as sqlCount, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
+import { containsLike } from '@/lib/db/like';
 import { tenants } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
 import { tenantRegistrationSchema } from '@/lib/schemas/tenantRegistration';
@@ -48,8 +49,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ? and(
         ...baseConditions,
         or(
-          ilike(tenants.fullName, `%${search}%`),
-          ilike(tenants.email!, `%${search}%`),
+          containsLike(tenants.fullName, search),
+          containsLike(tenants.email, search),
         ),
       )
     : and(...baseConditions);

@@ -10,6 +10,7 @@
 import { db } from '@/lib/db';
 import { agentJobs, crmLeads, leadFollowups, propertyVisits } from '@/lib/db/schema';
 import { and, asc, eq, inArray, lt } from 'drizzle-orm';
+import { isUniqueViolation } from '@/lib/db/errors';
 import { log } from '@/lib/log';
 import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import { getLead } from '@/lib/agent/lead';
@@ -21,15 +22,13 @@ import { getStage } from './stages';
 import { decideFollowup, planFollowups } from './followup-plan';
 import { LEAD_JOB_KINDS, parseFollowupPolicy, type FollowupStopReason, type Pipeline } from './types';
 
-// Same query-builder surface as `db` (select/insert/update/execute).
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
 /**
  * (Re)anchors the follow-up sequence for a lead: cancels any still-scheduled
  * rows ('superseded'), plans a fresh sequence from the org's follow-up
  * policy and inserts both the lead_followups rows and their agent_jobs
- * (tx-inserted, like visits/service.ts, so a crash between the two never
- * leaves an orphaned row). Returns the number of steps scheduled.
+ * (one D1 batch, so a crash between the two never leaves an orphaned row).
+ * Steps already stored for the same anchor are skipped. Returns the number
+ * of steps scheduled.
  */
 export async function scheduleFollowupSequence(a: {
   orgId: string;
@@ -43,48 +42,52 @@ export async function scheduleFollowupSequence(a: {
   const plan = planFollowups(a.anchorAt, policy, config.timezone);
   if (plan.length === 0) return 0;
 
-  return db.transaction(async (tx: Tx) => {
-    await tx
-      .update(leadFollowups)
-      .set({ status: 'cancelled', stopReason: 'superseded' as FollowupStopReason, updatedAt: new Date() })
-      .where(and(eq(leadFollowups.leadId, a.leadId), eq(leadFollowups.orgId, a.orgId), eq(leadFollowups.status, 'scheduled')));
+  const existing = await db
+    .select({ step: leadFollowups.step })
+    .from(leadFollowups)
+    .where(and(eq(leadFollowups.leadId, a.leadId), eq(leadFollowups.sequenceAnchorAt, a.anchorAt)));
+  const existingSteps = new Set(existing.map((r) => r.step));
+  const rows = plan
+    .filter((p) => !existingSteps.has(p.step))
+    .map((p) => ({ id: crypto.randomUUID(), step: p.step, kind: p.kind, templateName: p.template, scheduledFor: p.scheduledFor }));
 
-    const inserted = await tx
-      .insert(leadFollowups)
-      .values(
-        plan.map((p) => ({
-          orgId: a.orgId,
-          leadId: a.leadId,
-          sessionId: a.sessionId,
-          sequenceAnchorAt: a.anchorAt,
-          step: p.step,
-          kind: p.kind,
-          templateName: p.template,
-          scheduledFor: p.scheduledFor,
-        })),
-      )
-      .onConflictDoNothing({ target: [leadFollowups.leadId, leadFollowups.sequenceAnchorAt, leadFollowups.step] })
-      .returning({ id: leadFollowups.id, scheduledFor: leadFollowups.scheduledFor });
+  const supersede = db
+    .update(leadFollowups)
+    .set({ status: 'cancelled', stopReason: 'superseded' as FollowupStopReason, updatedAt: new Date() })
+    .where(and(eq(leadFollowups.leadId, a.leadId), eq(leadFollowups.orgId, a.orgId), eq(leadFollowups.status, 'scheduled')));
 
-    if (inserted.length > 0) {
-      await tx.insert(agentJobs).values(
-        inserted.map((row) => ({
+  if (rows.length === 0) {
+    await supersede;
+    return 0;
+  }
+
+  const nextAt = rows.reduce((min, r) => (r.scheduledFor < min ? r.scheduledFor : min), rows[0].scheduledFor);
+  try {
+    await db.batch([
+      supersede,
+      db.insert(leadFollowups).values(
+        rows.map((r) => ({ ...r, orgId: a.orgId, leadId: a.leadId, sessionId: a.sessionId, sequenceAnchorAt: a.anchorAt })),
+      ),
+      db.insert(agentJobs).values(
+        rows.map((r) => ({
           orgId: a.orgId,
           kind: LEAD_JOB_KINDS.followup,
-          runAt: row.scheduledFor,
-          payload: { followupId: row.id },
+          runAt: r.scheduledFor,
+          payload: { followupId: r.id },
         })),
-      );
-
-      const nextAt = inserted.reduce((min, r) => (r.scheduledFor < min ? r.scheduledFor : min), inserted[0].scheduledFor);
-      await tx
+      ),
+      db
         .update(crmLeads)
         .set({ followupState: 'active', followupStopReason: null, nextFollowupAt: nextAt, updatedAt: new Date() })
-        .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId)));
-    }
+        .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId))),
+    ]);
+  } catch (err) {
+    // A concurrent call for the same anchor already scheduled these steps; the batch rolled back whole.
+    if (isUniqueViolation(err, 'lead_followups')) return 0;
+    throw err;
+  }
 
-    return inserted.length;
-  });
+  return rows.length;
 }
 
 /**

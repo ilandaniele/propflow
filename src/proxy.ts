@@ -1,4 +1,26 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { Errors } from '@/lib/errors';
+import { clientIpFromHeaders } from '@/lib/ratelimit';
+import { limitIp, type IpLimitBinding } from '@/lib/ratelimit-edge';
+
+const R2_HOST = process.env.R2_S3_ENDPOINT ?? 'https://*.r2.cloudflarestorage.com';
+
+// /login and /register are limited on POST only: their server-action submits are
+// POSTs to the page path, while GET page views should not burn the auth budget.
+function ipLimitBindingFor(path: string, method: string): IpLimitBinding | null {
+  if (path.startsWith('/api/auth/')) return 'RL_IP_AUTH';
+  if ((path === '/login' || path === '/register') && method === 'POST') return 'RL_IP_AUTH';
+  if (path === '/api/whatsapp/webhook' || path.startsWith('/api/cron/')) return null;
+  if (path.startsWith('/api/')) return 'RL_IP_API';
+  return null;
+}
+
+function tooManyRequests(retryAfterMs: number) {
+  return NextResponse.json(Errors.RATE_LIMITED(), {
+    status: 429,
+    headers: { 'Retry-After': String(Math.max(1, Math.ceil(retryAfterMs / 1000))) },
+  });
+}
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -11,15 +33,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
+  const binding = ipLimitBindingFor(path, request.method);
+  if (binding) {
+    const rl = await limitIp(binding, clientIpFromHeaders(request.headers));
+    if (!rl.success) return tooManyRequests(rl.retryAfterMs);
+  }
+
   // Generate nonce for strict CSP
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const nonce = btoa(crypto.randomUUID());
 
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
-    `connect-src 'self' ${process.env.TIGRIS_ENDPOINT ?? 'https://fly.storage.tigris.dev'} https://accounts.google.com`,
-    `img-src 'self' data: https: ${process.env.TIGRIS_ENDPOINT ?? 'https://fly.storage.tigris.dev'}`,
+    `connect-src 'self' ${R2_HOST} https://accounts.google.com`,
+    `img-src 'self' data: https: ${R2_HOST}`,
     "font-src 'self' data:",
     "frame-ancestors 'none'",
     "frame-src 'self' https://accounts.google.com",     // 'self': /p pages host the widget iframe (Phase 7); accounts.google.com: OAuth redirect/popup

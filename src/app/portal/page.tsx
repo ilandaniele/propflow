@@ -13,7 +13,7 @@ import {
   payments,
 } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { getTenantStatement } from '@/lib/dashboard/queries';
 import { Card } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -60,7 +60,7 @@ export default async function PortalOverviewPage() {
 
   const tenantRecord = tenantRows[0];
 
-  const [contractRows, statementResult, incidentRows, paymentRows, unitImagesRes] = await Promise.all([
+  const [contractRows, statement, incidentRows, paymentRows, unitImagesRes] = await Promise.all([
     db
       .select({
         id:          contracts.id,
@@ -72,8 +72,7 @@ export default async function PortalOverviewPage() {
       .from(contracts)
       .where(and(eq(contracts.tenantId, tenantRecord.id), eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active')))
       .limit(1),
-    // tenant_statement is a PG VIEW — raw SQL
-    db.execute(sql`SELECT balance, is_overdue FROM tenant_statement WHERE tenant_id = ${tenantRecord.id} LIMIT 1`),
+    getTenantStatement(ctx.orgId, tenantRecord.id),
     db
       .select({ id: incidents.id, title: incidents.title, status: incidents.status, createdAt: incidents.createdAt })
       .from(incidents)
@@ -90,8 +89,6 @@ export default async function PortalOverviewPage() {
   ]);
 
   const contract = contractRows[0] ?? null;
-  const stmtRows = (statementResult as unknown as Array<{ balance: string; is_overdue: boolean }>);
-  const statement = stmtRows[0] ?? null;
   const unitImages = unitImagesRes.data ?? [];
 
   const firstName = ctx.profile.full_name?.split(' ')[0] ?? 'Tenant';

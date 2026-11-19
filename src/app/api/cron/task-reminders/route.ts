@@ -1,6 +1,6 @@
 /**
  * POST /api/cron/task-reminders
- * Fly scheduled machine (replaces Vercel Cron) — send WhatsApp reminder buttons
+ * Cloudflare Cron Trigger (src/lib/cron/schedule.ts) — send WhatsApp reminder buttons
  * to tenants with pending tasks due within the next 24 hours.
  *
  * Auth: Authorization: Bearer {CRON_SECRET} (constant-time compare — AC10).
@@ -17,7 +17,6 @@ import { tenantTasks, tenants } from '@/lib/db/schema';
 import { eq, and, isNull, lte } from 'drizzle-orm';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
 import { buildWhatsAppPhase6Template } from '@/lib/whatsapp/templates';
-import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -50,8 +49,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Query tasks due within the next 24 hours, not yet reminded — Drizzle (AC1)
     const cutoff = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // First query after a Fly machine resume can hit a stale connection — retry.
-    const tasks = await withDbRetry(() => db
+    const tasks = await db
       .select({
         id:       tenantTasks.id,
         orgId:    tenantTasks.orgId,
@@ -68,7 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           lte(tenantTasks.dueAt, cutoff),
           isNull(tenantTasks.reminderSentAt)
         )
-      ), 'cron/task-reminders');
+      );
 
     let sent    = 0;
     let skipped = 0;

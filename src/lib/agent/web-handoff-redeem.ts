@@ -91,7 +91,7 @@ async function linkLeadFromCode(
     .update(crmLeads)
     .set({
       phone: phoneE164,
-      sourceMeta: sql`jsonb_set(coalesce(${crmLeads.sourceMeta}, '{}'::jsonb), '{phoneVerified}', 'true'::jsonb, true)`,
+      sourceMeta: sql`json_set(coalesce(${crmLeads.sourceMeta}, '{}'), '$.phoneVerified', json('true'))`,
     })
     .where(and(eq(crmLeads.id, codeLeadId), eq(crmLeads.orgId, orgId)));
 

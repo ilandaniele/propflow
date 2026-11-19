@@ -12,6 +12,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { E164_RE } from '@/lib/widget/channel';
 import { META_API_HOST, META_API_VERSION } from '@/lib/whatsapp/meta-provider';
 import type { ActionResult } from '@/lib/errors';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 const SETUP_PATH = '/dashboard/agent/setup';
 const PHONE_NUMBER_ID_RE = /^\d{6,20}$/;
@@ -97,7 +98,7 @@ async function verifyPhoneNumberOwnership(
  *
  * Rejects:
  * - a phoneNumberId already bound to ANOTHER org (org_channels_one_whatsapp_per_org,
- *   migration 0012, backs this up at the DB level too — see the 23505 branch below).
+ *   migration 0012, backs this up at the DB level too — see the unique-violation branch below).
  * - a phoneNumberId that doesn't match WHATSAPP_PHONE_NUMBER_ID, once that env
  *   var is set server-side (before that, the value can't be checked — a
  *   warning is returned instead so the setup wizard can flag it).
@@ -137,52 +138,49 @@ export async function saveWhatsAppChannel(input: SaveWhatsAppChannelInput): Prom
   }
 
   try {
-    await db.transaction(async (tx) => {
-      const conflictRows = await tx
-        .select({ orgId: orgChannels.orgId })
-        .from(orgChannels)
-        .where(and(
-          eq(orgChannels.channel, 'whatsapp'),
-          eq(orgChannels.externalId, phoneNumberId),
-          ne(orgChannels.orgId, ctx.orgId),
-        ))
-        .limit(1);
-      if (conflictRows.length > 0) {
-        throw Errors.CONFLICT('Este phone number ID ya está vinculado a otra organización.');
-      }
+    const conflictRows = await db
+      .select({ orgId: orgChannels.orgId })
+      .from(orgChannels)
+      .where(and(
+        eq(orgChannels.channel, 'whatsapp'),
+        eq(orgChannels.externalId, phoneNumberId),
+        ne(orgChannels.orgId, ctx.orgId),
+      ))
+      .limit(1);
+    if (conflictRows.length > 0) {
+      throw Errors.CONFLICT('Este phone number ID ya está vinculado a otra organización.');
+    }
 
-      const existingRows = await tx
-        .select({ id: orgChannels.id, config: orgChannels.config })
-        .from(orgChannels)
-        .where(and(eq(orgChannels.orgId, ctx.orgId), eq(orgChannels.channel, 'whatsapp')))
-        .limit(1);
-      const existing = existingRows[0];
+    const existingRows = await db
+      .select({ id: orgChannels.id, config: orgChannels.config })
+      .from(orgChannels)
+      .where(and(eq(orgChannels.orgId, ctx.orgId), eq(orgChannels.channel, 'whatsapp')))
+      .limit(1);
+    const existing = existingRows[0];
 
-      const nextConfig: WhatsAppChannelConfig = {
-        ...((existing?.config as WhatsAppChannelConfig) ?? {}),
-        displayPhoneE164,
-      };
+    const nextConfig: WhatsAppChannelConfig = {
+      ...((existing?.config as WhatsAppChannelConfig) ?? {}),
+      displayPhoneE164,
+    };
 
-      if (existing) {
-        await tx
-          .update(orgChannels)
-          .set({ externalId: phoneNumberId, config: nextConfig, updatedAt: new Date() })
-          .where(eq(orgChannels.id, existing.id));
-      } else {
-        await tx.insert(orgChannels).values({
-          orgId: ctx.orgId,
-          channel: 'whatsapp',
-          externalId: phoneNumberId,
-          config: nextConfig,
-        });
-      }
-    });
+    if (existing) {
+      await db
+        .update(orgChannels)
+        .set({ externalId: phoneNumberId, config: nextConfig, updatedAt: new Date() })
+        .where(eq(orgChannels.id, existing.id));
+    } else {
+      await db.insert(orgChannels).values({
+        orgId: ctx.orgId,
+        channel: 'whatsapp',
+        externalId: phoneNumberId,
+        config: nextConfig,
+      });
+    }
   } catch (e) {
     // A pre-thrown ActionResult (the cross-org conflict check above) — surface as-is.
     if (e && typeof e === 'object' && 'error' in e) return e as ActionResult<never>;
 
-    const code = (e as { code?: string } | null)?.code;
-    if (code === '23505') {
+    if (isUniqueViolation(e)) {
       return Errors.CONFLICT('Este phone number ID ya está vinculado a otra organización.');
     }
 

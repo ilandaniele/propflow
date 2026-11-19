@@ -8,8 +8,8 @@ const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9
 
 /** The app's own origin — the widget iframe (src/app/widget/[publicKey]) is served from here. */
 export function getAppOrigin(): string {
-  const url = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXTAUTH_URL;
-  if (!url) throw new Error('[widget/origins] NEXT_PUBLIC_SITE_URL or NEXTAUTH_URL is required');
+  const url = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.AUTH_URL;
+  if (!url) throw new Error('[widget/origins] NEXT_PUBLIC_SITE_URL or AUTH_URL is required');
   return new URL(url).origin;
 }
 

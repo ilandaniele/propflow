@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { RoutingMember } from '@/lib/leads/types';
 
-const { selectQueue, updateCalls, insertedValues, executedSql, txExecuteCalls, agentConfig, notifyMock } = vi.hoisted(() => ({
+const { selectQueue, updateCalls, insertedValues, memberClaimQueue, agentConfig, notifyMock } = vi.hoisted(() => ({
   selectQueue: [] as unknown[][],
   updateCalls: [] as Array<{ table: string; set: Record<string, unknown> }>,
   insertedValues: [] as Array<{ table: string; values: Record<string, unknown> }>,
-  executedSql: [] as unknown[],
-  txExecuteCalls: [] as unknown[],
+  // Rows the member cursor CAS returns per call; [] = another router won the race.
+  memberClaimQueue: [] as unknown[][],
   agentConfig: { routingMode: 'round_robin' as 'round_robin' | 'weighted' | 'manual' },
   notifyMock: vi.fn(async () => {}),
 }));
@@ -29,14 +29,16 @@ function tableNameOf(table: unknown): string {
   return (table as { _tableName?: string })?._tableName ?? 'unknown';
 }
 
-function makeQueryable(execTracker: unknown[]) {
-  return {
+vi.mock('@/lib/db', () => ({
+  db: {
     select: vi.fn(() => selectChain()),
     update: vi.fn((table: unknown) => ({
       set: vi.fn((set: Record<string, unknown>) => {
         updateCalls.push({ table: tableNameOf(table), set });
         return {
-          where: vi.fn(() => ({ returning: vi.fn(async () => (tableNameOf(table) === 'crm_leads' ? [{ id: 'lead-1' }] : [])) })),
+          where: vi.fn(() => ({
+            returning: vi.fn(async () => (tableNameOf(table) === 'crm_leads' ? [{ id: 'lead-1' }] : (memberClaimQueue.shift() ?? [{ id: 'm-1' }]))),
+          })),
         };
       }),
     })),
@@ -47,17 +49,6 @@ function makeQueryable(execTracker: unknown[]) {
       }),
     })),
     delete: vi.fn(() => ({ where: vi.fn(async () => {}) })),
-    execute: vi.fn((sql: unknown) => {
-      execTracker.push(sql);
-      return Promise.resolve();
-    }),
-  };
-}
-
-vi.mock('@/lib/db', () => ({
-  db: {
-    ...makeQueryable(executedSql),
-    transaction: vi.fn(async (cb: (tx: unknown) => unknown) => cb(makeQueryable(txExecuteCalls))),
   },
 }));
 
@@ -146,14 +137,13 @@ describe('leads/routing routeLead', () => {
     selectQueue.length = 0;
     updateCalls.length = 0;
     insertedValues.length = 0;
-    executedSql.length = 0;
-    txExecuteCalls.length = 0;
+    memberClaimQueue.length = 0;
     agentConfig.routingMode = 'round_robin';
     notifyMock.mockClear();
     notifyMock.mockImplementation(async () => {});
   });
 
-  it('no-ops without opening a transaction when routing_mode is manual', async () => {
+  it('no-ops without touching the DB when routing_mode is manual', async () => {
     agentConfig.routingMode = 'manual';
     const result = await routeLead({ orgId: 'org-1', leadId: 'lead-1' });
     expect(result).toEqual({ profileId: null, method: null });
@@ -169,11 +159,31 @@ describe('leads/routing routeLead', () => {
     expect(notifyMock).not.toHaveBeenCalled();
   });
 
-  it('takes the per-org advisory lock inside the transaction', async () => {
-    selectQueue.push([{ id: 'lead-1', pipeline: 'demand', assignedProfileId: null }]); // lead
-    selectQueue.push([]); // no eligible members -> no-op, but the lock is taken first
-    await routeLead({ orgId: 'org-1', leadId: 'lead-1' });
-    expect(txExecuteCalls.length).toBe(1);
+  it('re-reads and picks again when the member cursor CAS loses a race', async () => {
+    const adv = { profileId: 'adv-1', pipeline: 'both', weight: 1, active: true, maxOpenLeads: null, assignedCount: 0, lastAssignedAt: null };
+    selectQueue.push([{ id: 'lead-1', pipeline: 'demand', assignedProfileId: null }], [adv], []);
+    selectQueue.push([{ id: 'lead-1', pipeline: 'demand', assignedProfileId: null }], [{ ...adv, assignedCount: 1 }], []);
+    memberClaimQueue.push([]);
+
+    const result = await routeLead({ orgId: 'org-1', leadId: 'lead-1' });
+
+    expect(result).toEqual({ profileId: 'adv-1', method: 'round_robin' });
+    expect(updateCalls.filter((c) => c.table === 'lead_routing_members')).toHaveLength(2);
+    expect(insertedValues.filter((v) => v.table === 'lead_assignments')).toHaveLength(1);
+  });
+
+  it('gives up without assigning when every attempt is contended', async () => {
+    const adv = { profileId: 'adv-1', pipeline: 'both', weight: 1, active: true, maxOpenLeads: null, assignedCount: 0, lastAssignedAt: null };
+    for (let i = 0; i < 5; i++) {
+      selectQueue.push([{ id: 'lead-1', pipeline: 'demand', assignedProfileId: null }], [adv], []);
+      memberClaimQueue.push([]);
+    }
+
+    const result = await routeLead({ orgId: 'org-1', leadId: 'lead-1' });
+
+    expect(result).toEqual({ profileId: null, method: null });
+    expect(updateCalls.find((c) => c.table === 'crm_leads')).toBeUndefined();
+    expect(notifyMock).not.toHaveBeenCalled();
   });
 
   it('assigns, bumps counters, records the assignment, and notifies the advisor', async () => {

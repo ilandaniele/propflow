@@ -1,35 +1,12 @@
 /**
- * AC22: src/lib/db/index.ts — singleton Drizzle client
- * Tests that:
- *   1. Import throws a clear error when DATABASE_URL is not set
- *   2. All domain table exports from schema.ts are defined (non-null)
+ * AC22: every domain table is exported from the schema barrel.
+ * The D1 client itself is covered by src/lib/db/index.test.ts.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
-describe('db/index.ts', () => {
-  beforeEach(() => {
-    // Reset module registry so re-imports pick up new env state
-    vi.resetModules();
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('throws a clear error when DATABASE_URL is not set', async () => {
-    vi.stubEnv('DATABASE_URL', '');
-    // Delete the var entirely so the undefined check fires
-    delete process.env['DATABASE_URL'];
-
-    await expect(import('../../src/lib/db/index')).rejects.toThrow(
-      'DATABASE_URL env var is required',
-    );
-  });
-});
+import { describe, it, expect } from 'vitest';
 
 describe('db/schema.ts exports', () => {
-  it('exports all 50 tables (46 domain + 4 NextAuth)', async () => {
+  it('exports every domain and NextAuth table', async () => {
     const schema = await import('../../src/lib/db/schema');
 
     // NextAuth tables
@@ -71,7 +48,6 @@ describe('db/schema.ts exports', () => {
     expect(schema.whatsappMessages).toBeDefined();
     expect(schema.paymentReceipts).toBeDefined();
     expect(schema.airtableSnapshots).toBeDefined();
-    expect(schema.airtableSyncLogs).toBeDefined();
     expect(schema.csvImports).toBeDefined();
     expect(schema.importRows).toBeDefined();
     expect(schema.accountMappings).toBeDefined();

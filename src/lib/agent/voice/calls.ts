@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import { agentCalls, orgChannels } from '@/lib/db/schema';
 import { and, count, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { AgentCallRecord, CallDirection, CallOutcome, CallPurpose, CallStatus, VoiceChannel } from './types';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 interface VoiceChannelConfig {
   phoneNumberId?: string;
@@ -116,8 +117,7 @@ export async function createCallRow(a: CreateCallRowArgs): Promise<AgentCallReco
     return null;
   } catch (err) {
     // vapi_call_id UNIQUE conflict — a concurrent webhook delivery for the same call already inserted it.
-    const code = (err as { code?: string } | undefined)?.code;
-    if (code === '23505' && a.vapiCallId) {
+    if (isUniqueViolation(err) && a.vapiCallId) {
       return getCallByVapiId(a.vapiCallId);
     }
     throw err;
@@ -156,7 +156,7 @@ export interface TransitionCallPatch {
 export async function transitionCall(id: string, from: CallStatus[], patch: TransitionCallPatch): Promise<AgentCallRecord | null> {
   const rows = await db
     .update(agentCalls)
-    .set({ ...patch, updatedAt: sql`now()` })
+    .set({ ...patch, updatedAt: new Date() })
     .where(and(eq(agentCalls.id, id), inArray(agentCalls.status, from)))
     .returning();
   return rows[0] ? toCallRecord(rows[0]) : null;

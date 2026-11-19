@@ -4,11 +4,12 @@
  * from createProspectLead() (src/lib/agent/lead.ts) and from the dashboard
  * actions in src/app/actions/lead-routing.ts (item F).
  *
- * Concurrency safety: routeLead() takes a per-org Postgres advisory xact
- * lock (same pattern as visits/service.ts's phone-cap lock) before reading
- * routing members and open-lead counts, so two leads created back-to-back
- * never race onto the same "next" advisor, and the UPDATE ... WHERE
- * assigned_profile_id IS NULL guards against a lost race even without it.
+ * Concurrency safety (D1, no locks): a member's assigned_count is its
+ * routing cursor. routeLead() claims the picked member with one atomic
+ * UPDATE ... SET assigned_count = assigned_count + 1 WHERE assigned_count =
+ * <value read> RETURNING, so two leads created back-to-back never land on
+ * the same "next" advisor: the loser re-reads and picks again. The UPDATE
+ * ... WHERE assigned_profile_id IS NULL guards the lead itself.
  */
 
 import { db } from '@/lib/db';
@@ -19,8 +20,8 @@ import { getOrCreateAgentConfig } from '@/lib/agent/config';
 import type { AssignmentMethod, Pipeline, RoutingMember } from './types';
 import { notifyAdvisorLeadAssigned } from './notify-advisor';
 
-// Same query-builder surface as `db` (select/insert/update/delete/execute).
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+/** Cursor-claim retries before routeLead gives up and leaves the lead unassigned. */
+const MAX_ROUTING_ATTEMPTS = 5;
 
 /** Thrown by upsertRoutingMember() when the target profile isn't an org admin — callers map this to FORBIDDEN. */
 export class RoutingMemberForbiddenError extends Error {
@@ -87,11 +88,11 @@ function toRoutingMember(row: typeof leadRoutingMembers.$inferSelect): RoutingMe
 }
 
 /** Open leads = assigned to that profile and on a stage whose kind isn't 'won'/'lost' (or unseeded — treated as open). */
-async function getOpenLeadCounts(tx: Tx, orgId: string, profileIds: string[]): Promise<Record<string, number>> {
+async function getOpenLeadCounts(orgId: string, profileIds: string[]): Promise<Record<string, number>> {
   if (profileIds.length === 0) return {};
 
-  const rows = await tx
-    .select({ profileId: crmLeads.assignedProfileId, cnt: sql<number>`count(*)::int` })
+  const rows = await db
+    .select({ profileId: crmLeads.assignedProfileId, cnt: sql<number>`count(*)` })
     .from(crmLeads)
     .leftJoin(
       leadPipelineStages,
@@ -123,6 +124,67 @@ export interface RouteLeadResult {
   method: AssignmentMethod | null;
 }
 
+/** One routing pass. 'contended' = another routeLead advanced the picked member's cursor first; the caller retries. */
+async function tryRouteLead(
+  a: RouteLeadArgs,
+  mode: 'round_robin' | 'weighted',
+): Promise<{ profileId: string; method: AssignmentMethod } | null | 'contended'> {
+  const leadRows = await db
+    .select({ id: crmLeads.id, pipeline: crmLeads.pipeline, assignedProfileId: crmLeads.assignedProfileId })
+    .from(crmLeads)
+    .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId)))
+    .limit(1);
+  const lead = leadRows[0];
+  if (!lead || lead.assignedProfileId) return null;
+
+  const memberRows = await db
+    .select()
+    .from(leadRoutingMembers)
+    .where(and(eq(leadRoutingMembers.orgId, a.orgId), eq(leadRoutingMembers.active, true)));
+  const members = memberRows.map(toRoutingMember);
+  if (members.length === 0) return null;
+
+  const openCounts = await getOpenLeadCounts(a.orgId, members.map((m) => m.profileId));
+
+  const profileId = pickAssignee(members, mode, lead.pipeline as Pipeline, openCounts);
+  if (!profileId) return null;
+  const picked = members.find((m) => m.profileId === profileId)!;
+  const memberWhere = and(eq(leadRoutingMembers.orgId, a.orgId), eq(leadRoutingMembers.profileId, profileId));
+
+  const now = new Date();
+  const claimed = await db
+    .update(leadRoutingMembers)
+    .set({ assignedCount: sql`${leadRoutingMembers.assignedCount} + 1`, lastAssignedAt: now, updatedAt: now })
+    .where(and(memberWhere, eq(leadRoutingMembers.assignedCount, picked.assignedCount)))
+    .returning({ id: leadRoutingMembers.id });
+  if (claimed.length === 0) return 'contended';
+
+  const updated = await db
+    .update(crmLeads)
+    .set({ assignedProfileId: profileId, assignedAt: now, updatedAt: now })
+    .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId), isNull(crmLeads.assignedProfileId)))
+    .returning({ id: crmLeads.id });
+  if (updated.length === 0) {
+    // Another writer assigned the lead first: hand the member its turn back.
+    await db
+      .update(leadRoutingMembers)
+      .set({ assignedCount: picked.assignedCount, lastAssignedAt: picked.lastAssignedAt, updatedAt: now })
+      .where(and(memberWhere, eq(leadRoutingMembers.assignedCount, picked.assignedCount + 1)));
+    return null;
+  }
+
+  const method: AssignmentMethod = mode;
+  await db.insert(leadAssignments).values({
+    orgId: a.orgId,
+    leadId: a.leadId,
+    profileId,
+    previousProfileId: null,
+    method,
+  });
+
+  return { profileId, method };
+}
+
 /**
  * No-op (profileId:null, method:null) when the lead is already assigned,
  * routing_mode is 'manual', or there is no eligible member.
@@ -132,55 +194,11 @@ export async function routeLead(a: RouteLeadArgs): Promise<RouteLeadResult> {
   if (config.routingMode === 'manual') return { profileId: null, method: null };
   const mode = config.routingMode as 'round_robin' | 'weighted';
 
-  const result = await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'lead_routing:' + a.orgId}))`);
-
-    const leadRows = await tx
-      .select({ id: crmLeads.id, pipeline: crmLeads.pipeline, assignedProfileId: crmLeads.assignedProfileId })
-      .from(crmLeads)
-      .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId)))
-      .limit(1);
-    const lead = leadRows[0];
-    if (!lead || lead.assignedProfileId) return null;
-
-    const memberRows = await tx
-      .select()
-      .from(leadRoutingMembers)
-      .where(and(eq(leadRoutingMembers.orgId, a.orgId), eq(leadRoutingMembers.active, true)));
-    const members = memberRows.map(toRoutingMember);
-    if (members.length === 0) return null;
-
-    const openCounts = await getOpenLeadCounts(tx, a.orgId, members.map((m) => m.profileId));
-
-    const profileId = pickAssignee(members, mode, lead.pipeline as Pipeline, openCounts);
-    if (!profileId) return null;
-
-    const now = new Date();
-    const updated = await tx
-      .update(crmLeads)
-      .set({ assignedProfileId: profileId, assignedAt: now, updatedAt: now })
-      .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId), isNull(crmLeads.assignedProfileId)))
-      .returning({ id: crmLeads.id });
-    if (updated.length === 0) return null; // lost the race to another writer despite the advisory lock
-
-    await tx
-      .update(leadRoutingMembers)
-      .set({ assignedCount: sql`${leadRoutingMembers.assignedCount} + 1`, lastAssignedAt: now, updatedAt: now })
-      .where(and(eq(leadRoutingMembers.orgId, a.orgId), eq(leadRoutingMembers.profileId, profileId)));
-
-    const method: AssignmentMethod = mode;
-    await tx.insert(leadAssignments).values({
-      orgId: a.orgId,
-      leadId: a.leadId,
-      profileId,
-      previousProfileId: null,
-      method,
-    });
-
-    return { profileId, method };
-  });
-
-  if (!result) return { profileId: null, method: null };
+  let result: Awaited<ReturnType<typeof tryRouteLead>> = 'contended';
+  for (let attempt = 0; attempt < MAX_ROUTING_ATTEMPTS && result === 'contended'; attempt++) {
+    result = await tryRouteLead(a, mode);
+  }
+  if (!result || result === 'contended') return { profileId: null, method: null };
 
   await notifyAdvisorLeadAssigned({ orgId: a.orgId, leadId: a.leadId, profileId: result.profileId, method: result.method }).catch(
     (err) => log.warn('[leads/routing] notifyAdvisorLeadAssigned failed', { orgId: a.orgId, err: (err as Error).message }),
@@ -218,20 +236,21 @@ export async function assignLeadManually(a: AssignLeadManuallyArgs): Promise<Ass
   if (!lead) return { ok: false, reason: 'not_found' };
 
   const now = new Date();
-  await db
-    .update(crmLeads)
-    .set({ assignedProfileId: a.profileId, assignedAt: a.profileId ? now : null, updatedAt: now })
-    .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId)));
-
   const method: AssignmentMethod = lead.assignedProfileId ? 'reassign' : 'manual';
-  await db.insert(leadAssignments).values({
-    orgId: a.orgId,
-    leadId: a.leadId,
-    profileId: a.profileId,
-    previousProfileId: lead.assignedProfileId,
-    method,
-    assignedByProfileId: a.actorProfileId,
-  });
+  await db.batch([
+    db
+      .update(crmLeads)
+      .set({ assignedProfileId: a.profileId, assignedAt: a.profileId ? now : null, updatedAt: now })
+      .where(and(eq(crmLeads.id, a.leadId), eq(crmLeads.orgId, a.orgId))),
+    db.insert(leadAssignments).values({
+      orgId: a.orgId,
+      leadId: a.leadId,
+      profileId: a.profileId,
+      previousProfileId: lead.assignedProfileId,
+      method,
+      assignedByProfileId: a.actorProfileId,
+    }),
+  ]);
 
   if (a.profileId) {
     await notifyAdvisorLeadAssigned({ orgId: a.orgId, leadId: a.leadId, profileId: a.profileId, method }).catch(

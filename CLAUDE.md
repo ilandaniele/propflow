@@ -168,12 +168,15 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 # Project: Propflow
 
-- **What it is:** multi-tenant property-management SaaS for Peruvian landlords (tenants, units, contracts, payments, incidents, Airtable sync) plus a WhatsApp AI leasing agent.
-- **Stack:** Next.js 16 App Router + React 19 + TypeScript, Drizzle ORM on Postgres (Fly `propflow-db2`), NextAuth v5 (database sessions), Tigris S3 storage, Anthropic SDK, Meta WhatsApp Cloud API. Hosted on Fly.io (`propflow-app`), not Cloudflare.
+- **What it is:** multi-tenant property-management SaaS for Peruvian landlords (tenants, units, contracts, payments, incidents) plus a WhatsApp AI leasing agent.
+- **Stack:** Next.js 16 App Router + React 19 + TypeScript on Cloudflare Workers via OpenNext (`@opennextjs/cloudflare`, Worker `propflow-app`, entry `worker.ts`, config `wrangler.jsonc`). Drizzle ORM (`sqlite-core`) on D1 (binding `DB`). Files in R2 (bucket `propflow-files`, binding `FILES`; stored key = path, 1:1 with the old Tigris keys; app file I/O still goes through the S3 API with `R2_*` vars). Scheduled jobs via Cron Triggers (`* * * * *` and `0 * * * *`, mapping in `src/lib/cron/schedule.ts`). NextAuth v5 with database sessions on D1; set `AUTH_URL` (not `NEXTAUTH_URL`). Anthropic SDK, Meta WhatsApp Cloud API.
+- **Migration state:** production still runs on Fly.io (`propflow-app`, Postgres `propflow-db2`, Tigris) until cutover (W-CF-60). Fly/Postgres artifacts (`Dockerfile`, `fly.toml`, `scripts/migrate.mjs`, `src/lib/db/migrations/`) are removed in W-CF-55 after the owner approves the decommission. Plan: `docs/07-migracion-cloudflare.md`.
 - **Source of truth:** `docs/01-PRD.md` … `docs/06-plan-implementacion.md`. Read only the doc the current task needs.
 - **Status:** `docs/ESTADO.md`. Handoffs: `.claude/handoff/` (gitignored).
-- **Commands:** `pnpm dev` · `pnpm lint` · `pnpm typecheck` · `pnpm test` · `pnpm test:e2e` · `pnpm build`. Deploy happens in CI (`flyctl deploy`) on push to `main`; migrations run as the Fly `release_command` (`node scripts/migrate.mjs`). Never run `drizzle-kit push`.
+- **Commands:** `pnpm dev` · `pnpm lint` · `pnpm typecheck` · `pnpm test` (unit) · `pnpm test:sql` (SQL smoke on local D1 via Miniflare) · `pnpm test:i18n` · `pnpm test:e2e` · `pnpm build` · `pnpm cf:build` (OpenNext build) · `pnpm cf:size` (gzipped Worker size gate, 3 MiB on Workers Free) · `pnpm cf:preview` (workerd local) · `pnpm cf:typegen`. Migration script tests: `node --test scripts/migrate-to-d1/*.test.mjs scripts/migrate-to-r2/*.test.mjs`.
+- **Database:** D1 migrations are SQL files in `src/lib/db/migrations-d1/` (`pnpm exec drizzle-kit generate`, config `drizzle.config.ts`). Never run `drizzle-kit push`. Remote D1 migrations run in CI, not by hand.
+- **Deploy:** `.github/workflows/ci.yml`, push to `main`, after the `quality` job. Job `deploy-cloudflare` runs only when repo var `DEPLOY_TARGET` is `cloudflare`: `pnpm cf:build`, `wrangler d1 migrations apply propflow-db --remote`, `wrangler deploy`. Needs secret `CLOUDFLARE_API_TOKEN` and var `CLOUDFLARE_ACCOUNT_ID`. Job `deploy` (`flyctl deploy`) runs only when `DEPLOY_TARGET` is `fly`. Cutover and rollback flip that var. `cron-dispatch.yml` is manual-only.
 - **Package manager:** pnpm only (no `package-lock.json`).
 - **Always:** caveman in chat; delegate through `/orchestrator`; run lint and tests before each commit.
-- **Ask first:** anything that costs money; deleting remote resources or data; custom domains; sending real emails or WhatsApp messages; load tests against production.
+- **Ask first:** anything that costs money; deleting remote resources or data; custom domains; creating Cloudflare resources or running `wrangler` against remote; sending real emails or WhatsApp messages; load tests against production.
 - **Never:** commit secrets; print secrets; disable security checks or tests; force-push.

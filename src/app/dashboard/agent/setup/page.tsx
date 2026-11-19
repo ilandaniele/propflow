@@ -49,7 +49,7 @@ export default async function AgentSetupPage() {
 
   let appOrigin: string | null = null;
   try { appOrigin = getAppOrigin(); } catch { appOrigin = null; }
-  const webhookUrl = `${appOrigin ?? 'https://propflow-app.fly.dev'}/api/whatsapp/webhook`;
+  const webhookUrl = `${appOrigin ?? ''}/api/whatsapp/webhook`;
 
   const canSyncTemplates =
     status.env.whatsappAccessToken && status.env.whatsappBusinessAccountId && !templatesFetchError;

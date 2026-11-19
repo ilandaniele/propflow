@@ -4,7 +4,6 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { tenants, units, properties } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
@@ -14,6 +13,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Avatar } from '@/components/ui/Avatar';
 import { ClickableRow } from '@/components/ui/ClickableRow';
 import { computePastDueBalance } from '@/lib/finance/kpis';
+import { getOrgOverdueSummary } from '@/lib/dashboard/queries';
 import { CreateTenantForm } from './CreateTenantForm';
 import { TenantsCsvButtons } from './TenantsCsvButtons';
 
@@ -25,7 +25,7 @@ export default async function TenantsPage() {
 
   const t = await getTranslations('tenants');
 
-  const [list, statements] = await Promise.all([
+  const [list, overdue] = await Promise.all([
     db
       .select({
         id:          tenants.id,
@@ -45,19 +45,13 @@ export default async function TenantsPage() {
       .leftJoin(properties, and(eq(properties.id, units.propertyId), eq(properties.orgId, ctx.orgId)))
       .where(eq(tenants.orgId, ctx.orgId))
       .orderBy(desc(tenants.createdAt)),
-    // tenant_statement is a PG VIEW — use raw SQL
-    db.execute(sql`SELECT tenant_id, total_charged, total_paid, is_overdue, org_id FROM tenant_statement WHERE org_id = ${ctx.orgId}`),
+    getOrgOverdueSummary(ctx.orgId),
   ]);
 
-  const stmtRows = (statements as unknown as Array<{ tenant_id: string; total_charged: string; total_paid: string; is_overdue: boolean }>);
-
-  const overdueAmounts: number[] = stmtRows
-    .filter((s) => s.is_overdue)
-    .map((s) => Math.max(0, Number(s.total_charged ?? 0) - Number(s.total_paid ?? 0)));
-  const pastDueKpi  = computePastDueBalance(overdueAmounts);
+  const pastDueKpi  = computePastDueBalance([overdue.pastDue]);
 
   const linkedCount  = list.filter((tn) => tn.profileId).length;
-  const overdueCount = stmtRows.filter((s) => s.is_overdue).length;
+  const overdueCount = overdue.overdueCount;
 
   // Tenure analysis
   const tenantNow    = new Date();

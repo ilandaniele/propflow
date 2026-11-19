@@ -21,31 +21,26 @@ function makeChain(): unknown {
   return chain;
 }
 
-const { getOrCreateAgentConfig, isListingKnownToSession, sendWhatsAppImage, getSignedUrl, recordAgentEvent, txExecute, txInsertValues } = vi.hoisted(() => ({
+const { getOrCreateAgentConfig, isListingKnownToSession, sendWhatsAppImage, getSignedUrl, recordAgentEvent, insertValues, claimReturning } = vi.hoisted(() => ({
   getOrCreateAgentConfig: vi.fn(async () => ({ maxListingPhotos: 5 }) as unknown),
   isListingKnownToSession: vi.fn(async () => true),
   sendWhatsAppImage: vi.fn(async () => ({ ok: true, messageId: 'm1' }) as unknown),
   getSignedUrl: vi.fn(async (_b: string, path: string) => `https://signed.example/${path}`),
   recordAgentEvent: vi.fn(async () => {}),
-  // db.transaction's callback receives a tx that exposes the same
-  // select-chain surface as `db`, plus execute() (the advisory lock) and
-  // insert().values() (the batch-reservation marker row).
-  txExecute: vi.fn(async () => []),
-  txInsertValues: vi.fn(async () => undefined),
+  // insert().values().onConflictDoNothing().returning(): one row = slot claimed, [] = slot taken.
+  insertValues: vi.fn(),
+  claimReturning: vi.fn(async () => [{ id: 'reserved-1' }] as unknown[]),
 }));
-
-function makeTx(): unknown {
-  return {
-    select: vi.fn(() => makeChain()),
-    execute: txExecute,
-    insert: vi.fn(() => ({ values: txInsertValues })),
-  };
-}
 
 vi.mock('@/lib/db', () => ({
   db: {
     select: vi.fn(() => makeChain()),
-    transaction: vi.fn(async (cb: (tx: unknown) => unknown) => cb(makeTx())),
+    insert: vi.fn(() => ({
+      values: (v: unknown) => {
+        insertValues(v);
+        return { onConflictDoNothing: () => ({ returning: claimReturning }) };
+      },
+    })),
   },
 }));
 
@@ -114,23 +109,22 @@ describe('send_listing_photos tool', () => {
 
   it('rejects when there is no linked whatsapp conversation (e.g. web/voice)', async () => {
     const tool = makeSendListingPhotosTool(makeCtx({ whatsappConversationId: null }));
-    setQueue([[]]); // the daily-count select
     const result = await tool.run({ listingId: LISTING_ID });
     expect(String(result)).toMatch(/solo se pueden enviar por whatsapp/i);
     expect(sendWhatsAppImage).not.toHaveBeenCalled();
   });
 
-  it('rejects after 3 calls already sent today for this session', async () => {
-    setQueue([[{ batch: 'a' }, { batch: 'b' }, { batch: 'c' }]]);
+  it('rejects once all 3 daily slots for this conversation are taken', async () => {
+    claimReturning.mockResolvedValueOnce([]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const tool = makeSendListingPhotosTool(makeCtx());
     const result = await tool.run({ listingId: LISTING_ID });
     expect(String(result)).toMatch(/ya enviamos fotos/i);
+    expect(insertValues).toHaveBeenCalledTimes(3);
     expect(sendWhatsAppImage).not.toHaveBeenCalled();
   });
 
   it('sends up to config.maxListingPhotos images, cover first, via signed URLs never exposed in the result', async () => {
     setQueue([
-      [], // daily count
       [{ id: LISTING_ID, title: 'Depa Sol', price: '1500', currency: 'PEN', unitId: 'unit-1' }], // listing row
       [{ path: 'unit-1/cover.jpg' }, { path: 'unit-1/2.jpg' }], // unit images
     ]);
@@ -142,34 +136,37 @@ describe('send_listing_photos tool', () => {
     expect(recordAgentEvent).not.toHaveBeenCalled();
   });
 
-  it('takes the per-conversation advisory lock and reserves a batch marker before sending, inside one transaction', async () => {
+  it('reserves a per-day slot marker before sending', async () => {
     setQueue([
-      [], // daily count
       [{ id: LISTING_ID, title: 'Depa Sol', price: '1500', currency: 'PEN', unitId: 'unit-1' }],
       [{ path: 'unit-1/cover.jpg' }],
     ]);
     const tool = makeSendListingPhotosTool(makeCtx());
     await tool.run({ listingId: LISTING_ID });
-    expect(txExecute).toHaveBeenCalledTimes(1);
-    expect(txInsertValues).toHaveBeenCalledTimes(1);
-    const reserved = (txInsertValues.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>;
+    expect(insertValues).toHaveBeenCalledTimes(1);
+    const reserved = (insertValues.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>;
     expect(reserved).toMatchObject({ conversationId: 'conv-1', direction: 'outbound' });
+    expect(reserved.providerMessageId).toMatch(/^listing_photos:conv-1:\d{4}-\d{2}-\d{2}:1$/);
     expect((reserved.meta as Record<string, unknown>)?.kind).toBe('listing_photos');
-    // the reservation must be inserted before any image is actually sent
-    expect(txInsertValues.mock.invocationCallOrder[0]).toBeLessThan(sendWhatsAppImage.mock.invocationCallOrder[0]);
+    expect(insertValues.mock.invocationCallOrder[0]).toBeLessThan(sendWhatsAppImage.mock.invocationCallOrder[0]);
   });
 
-  it('never reserves a batch marker once the daily cap is already hit', async () => {
-    setQueue([[{ batch: 'a' }, { batch: 'b' }, { batch: 'c' }]]);
+  it('falls through to the next slot when an earlier one is taken', async () => {
+    claimReturning.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    setQueue([
+      [{ id: LISTING_ID, title: 'Depa Sol', price: '1500', currency: 'PEN', unitId: 'unit-1' }],
+      [{ path: 'unit-1/cover.jpg' }],
+    ]);
     const tool = makeSendListingPhotosTool(makeCtx());
     await tool.run({ listingId: LISTING_ID });
-    expect(txInsertValues).not.toHaveBeenCalled();
+    expect(insertValues).toHaveBeenCalledTimes(3);
+    expect((insertValues.mock.calls[2]?.[0] as Record<string, unknown>).providerMessageId).toMatch(/:3$/);
+    expect(sendWhatsAppImage).toHaveBeenCalledTimes(1);
   });
 
   it('respects an explicit lower max than config.maxListingPhotos', async () => {
     getOrCreateAgentConfig.mockResolvedValueOnce({ maxListingPhotos: 5 });
     setQueue([
-      [],
       [{ id: LISTING_ID, title: 'Depa', price: null, currency: 'PEN', unitId: null }],
       [{ path: 'listing-x/1.jpg' }],
     ]);
@@ -180,7 +177,6 @@ describe('send_listing_photos tool', () => {
 
   it('reports no photos found when the listing has none', async () => {
     setQueue([
-      [],
       [{ id: LISTING_ID, title: 'Depa', price: null, currency: 'PEN', unitId: null }],
       [],
     ]);

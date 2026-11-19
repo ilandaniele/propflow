@@ -60,8 +60,7 @@ export default function PrivacyPolicyPage() {
           <li><strong>Meta / WhatsApp Business Platform</strong> — para enviar y recibir mensajes de WhatsApp.</li>
           <li><strong>Anthropic</strong> — provee el modelo de lenguaje que redacta las respuestas del asistente.</li>
           <li><strong>Google Calendar</strong> — para coordinar la disponibilidad y el registro de las visitas de los asesores que conectan su calendario.</li>
-          <li><strong>Fly.io</strong> — aloja la aplicación y la base de datos.</li>
-          <li><strong>Tigris</strong> — almacena archivos adjuntos (fotos, comprobantes) de forma segura.</li>
+          <li><strong>Cloudflare</strong> — aloja la aplicación, la base de datos y los archivos adjuntos (fotos, comprobantes).</li>
           <li><strong>Resend</strong> — envía notificaciones por email.</li>
         </ul>
 

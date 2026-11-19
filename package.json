@@ -31,19 +31,21 @@
     "start": "next start",
     "lint": "eslint src --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test:unit": "vitest run --config vitest.config.ts",
-    "test:unit:watch": "vitest --config vitest.config.ts",
-    "test:unit:coverage": "vitest run --config vitest.config.ts --coverage",
-    "test:rls": "vitest run tests/rls --config vitest.config.ts",
-    "test:i18n": "vitest run tests/unit/i18n --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts --project unit",
+    "test:unit:watch": "vitest --config vitest.config.ts --project unit",
+    "test:unit:coverage": "vitest run --config vitest.config.ts --project unit --coverage",
+    "test:rls": "vitest run tests/rls --config vitest.config.ts --project unit",
+    "test:i18n": "vitest run tests/unit/i18n --config vitest.config.ts --project unit",
+    "test:sql": "vitest run --config vitest.config.ts --project sql",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test": "npm run test:unit",
     "seed": "npx tsx scripts/seed.ts",
     "agent:eval": "tsx scripts/agent-eval/run.ts",
-    "cf:build": "PROPFLOW_TARGET=cloudflare opennextjs-cloudflare build",
+    "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview",
-    "cf:size": "node scripts/check-worker-size.mjs .open-next"
+    "cf:size": "node scripts/check-worker-size.mjs .open-next",
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv --include-runtime=false --strict-vars=false cloudflare-env.d.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
@@ -65,7 +67,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.16",
+    "@cloudflare/workers-types": "^5.20261117.1",
     "@opennextjs/cloudflare": "^1.20.17",
     "@playwright/test": "^1.65.1",
     "@swc/helpers": "^0.5.24",

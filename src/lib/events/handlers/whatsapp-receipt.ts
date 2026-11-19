@@ -22,6 +22,7 @@ import { runOcr } from '@/lib/ocr/run-ocr';
 import { sha256Hex } from '@/lib/whatsapp/dedupe';
 import { log } from '@/lib/log';
 import type { WhatsAppAttachmentReceivedPayload } from '../types';
+import { isUniqueViolation } from '@/lib/db/errors';
 
 const AUTO_APPROVE_CONFIDENCE  = 0.92;
 const AUTO_APPROVE_AMOUNT_DELTA = 0.01; // 1%
@@ -77,8 +78,7 @@ export async function handleWhatsAppReceipt(
         status:             'pending_review',
       });
     } catch (err) {
-      const code = (err as { code?: string })?.code;
-      if (code === '23505') {
+      if (isUniqueViolation(err)) {
         log.info('[receipt-handler] duplicate detected (OCR-fail path) — skipping', { orgId });
         return;
       }
@@ -167,8 +167,7 @@ export async function handleWhatsAppReceipt(
           status:            'pending_review',
         });
       } catch (err) {
-        const code = (err as { code?: string })?.code;
-        if (code === '23505') {
+        if (isUniqueViolation(err)) {
           log.info('[receipt-handler] duplicate detected (no-contract path) — skipping', { orgId });
           return;
         }
@@ -200,8 +199,7 @@ export async function handleWhatsAppReceipt(
 
       receiptId = inserted[0]?.id ?? '';
     } catch (err) {
-      const code = (err as { code?: string })?.code;
-      if (code === '23505') {
+      if (isUniqueViolation(err)) {
         log.info('[receipt-handler] duplicate detected (auto-approve path) — skipping', { orgId });
         return;
       }
@@ -261,8 +259,7 @@ export async function handleWhatsAppReceipt(
         status:            'pending_review',
       });
     } catch (err) {
-      const code = (err as { code?: string })?.code;
-      if (code === '23505') {
+      if (isUniqueViolation(err)) {
         log.info('[receipt-handler] duplicate detected (pending_review path) — skipping', { orgId });
         return;
       }

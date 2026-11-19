@@ -88,7 +88,7 @@ vi.mock('@/lib/auth/guards', () => ({
 // Mock @/lib/db — Drizzle
 // ---------------------------------------------------------------------------
 
-// Holds current return values for select/execute calls
+// Holds current return values for select/run calls
 let mockTenantRows: unknown[] = [];
 let mockUnitRows: unknown[] = [];
 let mockPropertyRows: unknown[] = [];
@@ -112,9 +112,9 @@ vi.mock('@/lib/db', () => ({
       };
       return chain;
     }),
-    execute: vi.fn(async () => {
+    run: vi.fn(async () => {
       // tenant_statement view — return empty (no overdue tenants needed for these tests)
-      return [];
+      return { results: [], meta: {} };
     }),
     insert: vi.fn(() => ({
       values: vi.fn(() => ({

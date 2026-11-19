@@ -34,7 +34,10 @@ vi.mock('next/headers', () => ({
   headers: async () => new Headers({ 'x-forwarded-for': '203.0.113.9' }),
 }));
 vi.mock('@/auth', () => ({ signOut: vi.fn() }));
-vi.mock('@/lib/ratelimit', () => ({ checkRateLimit: () => ({ success: true }) }));
+vi.mock('@/lib/ratelimit', () => ({
+  checkRateLimit: () => ({ success: true }),
+  clientIpFromHeaders: () => '203.0.113.9',
+}));
 vi.mock('@/lib/log', () => ({
   log: { authFailure: vi.fn(), authSuccess: vi.fn(), error: vi.fn() },
 }));

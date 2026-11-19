@@ -8,7 +8,7 @@ import { eq, and } from 'drizzle-orm';
 import { Errors } from '@/lib/errors';
 import { uploadFile } from '@/lib/storage';
 import { SignSubmitSchema } from '@/lib/schemas/contractDoc';
-import { signatureRateLimit } from '@/lib/ratelimit';
+import { getClientIp, signatureRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 
 /** GET /api/sign/[token] — public, no session; validates token, marks viewed */
@@ -110,8 +110,7 @@ export async function POST(
   }
 
   // Rate limit: 5/min per token+IP (prevent brute-force)
-  const xff = request.headers.get('x-forwarded-for');
-  const ip = xff ? xff.split(',')[0].trim() : 'anonymous';
+  const ip = getClientIp(request);
   const rl = signatureRateLimit(token, ip);
   if (!rl.success) {
     return NextResponse.json(Errors.RATE_LIMITED(), { status: 429 });

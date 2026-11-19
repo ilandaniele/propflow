@@ -3,8 +3,9 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { agentSessions, crmLeads, profiles } from '@/lib/db/schema';
-import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { profiles } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
+import { getLatestSessionByLead, getLeadCards, getLeadStageCounts, leadBoardWhere } from '@/lib/dashboard/queries';
 import { getPipelineStages } from '@/lib/leads/stages';
 import { listRoutingMembers } from '@/lib/leads/routing';
 import { parseFollowupPolicy, type Pipeline } from '@/lib/leads/types';
@@ -51,50 +52,18 @@ export default async function LeadsPage({
   const advisorParam = rawAdvisor === 'all' || rawAdvisor === 'unassigned' || UUID_RE.test(rawAdvisor) ? rawAdvisor : 'all';
   const q = (params.q ?? '').trim().slice(0, 80);
 
-  const filters = [eq(crmLeads.orgId, ctx.orgId), eq(crmLeads.pipeline, pipeline)];
-  if (advisorParam === 'unassigned') filters.push(isNull(crmLeads.assignedProfileId));
-  else if (advisorParam !== 'all') filters.push(eq(crmLeads.assignedProfileId, advisorParam));
-  if (q) filters.push(or(ilike(crmLeads.fullName, `%${q}%`), ilike(crmLeads.phone, `%${q}%`))!);
-  const where = and(...filters);
+  const where = leadBoardWhere({ orgId: ctx.orgId, pipeline, advisor: advisorParam, q });
 
-  const [stages, counts, cardRows, advisors, config] = await Promise.all([
+  const [stages, counts, cardRows, sessionByLead, advisors, config] = await Promise.all([
     getPipelineStages(ctx.orgId, pipeline),
-    db.select({ stage: crmLeads.stage, count: sql<number>`count(*)::int` })
-      .from(crmLeads)
-      .where(where)
-      .groupBy(crmLeads.stage),
-    db.select({
-      id: crmLeads.id,
-      fullName: crmLeads.fullName,
-      stage: crmLeads.stage,
-      score: crmLeads.score,
-      intentTag: crmLeads.intentTag,
-      assignedProfileId: crmLeads.assignedProfileId,
-      nextFollowupAt: crmLeads.nextFollowupAt,
-      followupState: crmLeads.followupState,
-      source: crmLeads.source,
-      sourceChannel: crmLeads.sourceChannel,
-      doNotContact: crmLeads.doNotContact,
-      updatedAt: crmLeads.updatedAt,
-    })
-      .from(crmLeads)
-      .where(where)
-      .orderBy(desc(crmLeads.updatedAt))
-      .limit(CARDS_FETCH_LIMIT),
+    getLeadStageCounts(where),
+    getLeadCards(where, CARDS_FETCH_LIMIT),
+    getLatestSessionByLead(ctx.orgId, where, CARDS_FETCH_LIMIT),
     db.select({ id: profiles.id, fullName: profiles.fullName })
       .from(profiles)
       .where(and(eq(profiles.orgId, ctx.orgId), eq(profiles.role, 'admin'))),
     getOrCreateAgentConfig(ctx.orgId),
   ]);
-
-  const leadIds = cardRows.map((r) => r.id);
-  const sessionRows = leadIds.length === 0 ? [] : await db
-    .select({ id: agentSessions.id, leadId: agentSessions.leadId })
-    .from(agentSessions)
-    .where(and(eq(agentSessions.orgId, ctx.orgId), inArray(agentSessions.leadId, leadIds)))
-    .orderBy(desc(agentSessions.updatedAt));
-  const sessionByLead = new Map<string, string>();
-  for (const s of sessionRows) if (s.leadId && !sessionByLead.has(s.leadId)) sessionByLead.set(s.leadId, s.id);
 
   const advisorNameById = new Map(advisors.map((a) => [a.id, a.fullName ?? a.id]));
   const activeStageKeys = new Set(stages.map((s) => s.key));

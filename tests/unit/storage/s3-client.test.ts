@@ -1,16 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash } from 'crypto';
 
-const ENV_KEYS = [
-  'TIGRIS_ENDPOINT',
-  'STORAGE_ENDPOINT',
-  'TIGRIS_ACCESS_KEY_ID',
-  'STORAGE_ACCESS_KEY_ID',
-  'TIGRIS_SECRET_ACCESS_KEY',
-  'STORAGE_SECRET_ACCESS_KEY',
-  'STORAGE_BUCKET',
-  'TIGRIS_BUCKET_RECEIPTS',
-] as const;
+const ENV_KEYS = ['R2_S3_ENDPOINT', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
+
+const ORIGIN = 'https://acct123.r2.cloudflarestorage.com';
 
 type FetchMock = ReturnType<typeof vi.fn<(input: RequestInfo, init?: RequestInit) => Promise<Response>>>;
 
@@ -24,7 +17,7 @@ function lastRequest(fetchMock: FetchMock): Request {
   return new Request(input, init);
 }
 
-describe('storage S3 client (aws4fetch)', () => {
+describe('storage R2 client (aws4fetch, S3 API)', () => {
   let fetchMock: FetchMock;
   const savedEnv: Record<string, string | undefined> = {};
 
@@ -33,10 +26,10 @@ describe('storage S3 client (aws4fetch)', () => {
       savedEnv[key] = process.env[key];
       delete process.env[key];
     }
-    process.env.TIGRIS_ENDPOINT = 'https://fly.storage.tigris.dev';
-    process.env.TIGRIS_ACCESS_KEY_ID = 'AKIATESTKEY';
-    process.env.TIGRIS_SECRET_ACCESS_KEY = 'test-secret';
-    process.env.STORAGE_BUCKET = 'propflow-bucket';
+    process.env.R2_S3_ENDPOINT = ORIGIN;
+    process.env.R2_ACCESS_KEY_ID = 'AKIATESTKEY';
+    process.env.R2_SECRET_ACCESS_KEY = 'test-secret';
+    process.env.R2_BUCKET = 'propflow-bucket';
 
     fetchMock = vi.fn<(input: RequestInfo, init?: RequestInit) => Promise<Response>>().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -51,7 +44,7 @@ describe('storage S3 client (aws4fetch)', () => {
   });
 
   describe('uploadImage / uploadFile', () => {
-    it('PUTs a signed request to the virtual-hosted bucket URL', async () => {
+    it('PUTs a signed request to the path-style R2 URL, key prefixed with the logical bucket', async () => {
       const { uploadImage } = await loadStorage();
       const body = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
 
@@ -60,7 +53,7 @@ describe('storage S3 client (aws4fetch)', () => {
       expect(result).toEqual({ path: 'org1/unit1/a b.jpg' });
       const request = lastRequest(fetchMock);
       expect(request.method).toBe('PUT');
-      expect(request.url).toBe('https://propflow-bucket.fly.storage.tigris.dev/org1/unit1/a%20b.jpg');
+      expect(request.url).toBe(`${ORIGIN}/propflow-bucket/org1/unit1/a%20b.jpg`);
       expect(request.headers.get('content-type')).toBe('image/jpeg');
       expect(request.headers.get('x-amz-content-sha256')).toBe(createHash('sha256').update(body).digest('hex'));
       expect(request.headers.get('authorization')).toMatch(
@@ -80,13 +73,14 @@ describe('storage S3 client (aws4fetch)', () => {
       expect(init?.body).toEqual(new Uint8Array(body));
     });
 
-    it('resolves the per-bucket env var before STORAGE_BUCKET', async () => {
-      process.env.TIGRIS_BUCKET_RECEIPTS = 'receipts-bucket';
+    it('defaults the physical bucket to propflow-files when R2_BUCKET is unset', async () => {
+      delete process.env.R2_BUCKET;
       const { uploadFile } = await loadStorage();
 
-      await uploadFile('receipts', 'org/r.pdf', new Uint8Array([1, 2, 3]), 'application/pdf');
+      const result = await uploadFile('receipts', 'org/r.pdf', new Uint8Array([1, 2, 3]), 'application/pdf');
 
-      expect(lastRequest(fetchMock).url).toBe('https://receipts-bucket.fly.storage.tigris.dev/org/r.pdf');
+      expect(result).toEqual({ path: 'org/r.pdf' });
+      expect(lastRequest(fetchMock).url).toBe(`${ORIGIN}/propflow-files/org/r.pdf`);
     });
 
     it('wraps a non-2xx response with the S3 error code', async () => {
@@ -101,14 +95,22 @@ describe('storage S3 client (aws4fetch)', () => {
     });
   });
 
+  describe('objectKey', () => {
+    it('uses the stored path as the key, like the shared Tigris bucket', async () => {
+      const { objectKey } = await loadStorage();
+
+      expect(objectKey('receipts', 'org/r.pdf')).toBe('org/r.pdf');
+    });
+  });
+
   describe('getSignedUrl', () => {
     it('returns a query-signed GET URL with the requested expiry', async () => {
       const { getSignedUrl } = await loadStorage();
 
       const url = new URL(await getSignedUrl('unit-images', 'org/unit/x.jpg', 600));
 
-      expect(url.origin).toBe('https://propflow-bucket.fly.storage.tigris.dev');
-      expect(url.pathname).toBe('/org/unit/x.jpg');
+      expect(url.origin).toBe(ORIGIN);
+      expect(url.pathname).toBe('/propflow-bucket/org/unit/x.jpg');
       expect(url.searchParams.get('X-Amz-Expires')).toBe('600');
       expect(url.searchParams.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256');
       expect(url.searchParams.get('X-Amz-Credential')).toMatch(/^AKIATESTKEY\/\d{8}\/auto\/s3\/aws4_request$/);
@@ -124,10 +126,11 @@ describe('storage S3 client (aws4fetch)', () => {
 
       expect(defaulted.searchParams.get('X-Amz-Expires')).toBe(String(DEFAULT_SIGNED_URL_TTL_S));
       expect(capped.searchParams.get('X-Amz-Expires')).toBe('3600');
+      expect(capped.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
     });
 
     it('throws a storage error when credentials are missing', async () => {
-      delete process.env.TIGRIS_SECRET_ACCESS_KEY;
+      delete process.env.R2_SECRET_ACCESS_KEY;
       const { getSignedUrl } = await loadStorage();
 
       await expect(getSignedUrl('unit-images', 'a/b.jpg')).rejects.toThrow('Missing storage credentials');
@@ -143,7 +146,7 @@ describe('storage S3 client (aws4fetch)', () => {
 
       const request = lastRequest(fetchMock);
       expect(request.method).toBe('DELETE');
-      expect(request.url).toBe('https://propflow-bucket.fly.storage.tigris.dev/org/unit/x.jpg');
+      expect(request.url).toBe(`${ORIGIN}/propflow-bucket/org/unit/x.jpg`);
       expect(request.headers.get('authorization')).toMatch(/^AWS4-HMAC-SHA256 /);
     });
 

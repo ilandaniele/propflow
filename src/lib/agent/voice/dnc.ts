@@ -5,7 +5,8 @@
 
 import { db } from '@/lib/db';
 import { voiceDoNotCall } from '@/lib/db/schema';
-import { and, count, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, count, eq, or, sql } from 'drizzle-orm';
+import { containsLike } from '@/lib/db/like';
 import { toE164 } from '@/lib/whatsapp/phone';
 
 const PAGE_SIZE = 50;
@@ -74,7 +75,7 @@ export interface DoNotCallEntry {
 export async function listDoNotCall(orgId: string, o: ListDoNotCallOptions = {}): Promise<{ items: DoNotCallEntry[]; total: number }> {
   const page = Math.max(1, o.page ?? 1);
   const qFilter = o.q?.trim()
-    ? or(ilike(voiceDoNotCall.phoneE164, `%${o.q.trim()}%`), ilike(voiceDoNotCall.reason, `%${o.q.trim()}%`))
+    ? or(containsLike(voiceDoNotCall.phoneE164, o.q.trim()), containsLike(voiceDoNotCall.reason, o.q.trim()))
     : undefined;
   const where = qFilter ? and(eq(voiceDoNotCall.orgId, orgId), qFilter) : eq(voiceDoNotCall.orgId, orgId);
 

@@ -4,7 +4,8 @@
 // `wrangler deploy --dry-run` first) or a wrangler --outdir.
 // Prints JSON { gzipBytes, limitBytes, paidLimitBytes, topModules[], topPackages[] }
 // (module sizes come from the esbuild *.meta.json files OpenNext leaves in <outdir>).
-// Exit 1 when gzipBytes exceeds the Workers Free limit (3 MiB).
+// Exit 1 when gzipBytes exceeds the limit: the Workers Free limit (3 MiB) by
+// default, or WORKER_SIZE_LIMIT_BYTES when set (e.g. the Paid limit in CI).
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
@@ -12,10 +13,20 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
-const LIMIT_BYTES = 3 * 1024 * 1024;
+const FREE_LIMIT_BYTES = 3 * 1024 * 1024;
 const PAID_LIMIT_BYTES = 10 * 1024 * 1024;
 const TOP_N = 15;
 const UPLOADED_EXTENSIONS = ['.js', '.mjs', '.cjs', '.wasm', '.bin'];
+
+function limitFromEnv() {
+  const raw = process.env.WORKER_SIZE_LIMIT_BYTES?.trim();
+  if (!raw) return FREE_LIMIT_BYTES;
+  if (!/^[1-9]\d*$/.test(raw)) {
+    console.error(`WORKER_SIZE_LIMIT_BYTES must be a positive integer, got "${raw}"`);
+    process.exit(2);
+  }
+  return Number(raw);
+}
 
 function isOpenNextOutput(dir) {
   return existsSync(join(dir, 'worker.js')) && existsSync(join(dir, 'server-functions'));
@@ -97,6 +108,7 @@ function main() {
     console.error('usage: check-worker-size.mjs <outdir>');
     process.exit(2);
   }
+  const limitBytes = limitFromEnv();
   const given = resolve(outdirArg);
   const dir = isOpenNextOutput(given) ? bundleWithWrangler(given) : given;
   try {
@@ -104,15 +116,15 @@ function main() {
     const sizes = metafileSizes(given);
     const report = {
       gzipBytes,
-      limitBytes: LIMIT_BYTES,
+      limitBytes,
       paidLimitBytes: PAID_LIMIT_BYTES,
-      withinFreeLimit: gzipBytes <= LIMIT_BYTES,
+      withinFreeLimit: gzipBytes <= FREE_LIMIT_BYTES,
       withinPaidLimit: gzipBytes <= PAID_LIMIT_BYTES,
       topModules: top([...sizes], 'path'),
       topPackages: topPackageSizes(sizes),
     };
     console.log(JSON.stringify(report, null, 2));
-    process.exitCode = gzipBytes > LIMIT_BYTES ? 1 : 0;
+    process.exitCode = gzipBytes > limitBytes ? 1 : 0;
   } finally {
     if (dir !== given) rmSync(dir, { recursive: true, force: true });
   }

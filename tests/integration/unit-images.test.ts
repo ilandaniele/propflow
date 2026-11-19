@@ -145,6 +145,7 @@ vi.mock('@/lib/db', () => ({
     insert: (...args: unknown[]) => mockDbInsert(...args),
     update: (...args: unknown[]) => mockDbUpdate(...args),
     delete: (...args: unknown[]) => mockDbDelete(...args),
+    batch: async (items: unknown[]) => Promise.all(items),
   },
 }));
 

@@ -19,14 +19,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      # Fly.io Postgres stub — db/index.ts detects NEXT_PHASE=phase-production-build
-      # and skips real connection; unit tests mock @/lib/db directly.
-      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+      # No DB stub: the D1 client reads the `DB` binding at request time
+      # (getCloudflareContext); unit tests mock @/lib/db directly.
       # NextAuth v5 stubs
       AUTH_SECRET: placeholder_auth_secret_32chars_minimum_length
       AUTH_GOOGLE_ID: placeholder_google_id
       AUTH_GOOGLE_SECRET: placeholder_google_secret
-      NEXTAUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3000
       # Other service stubs
       ANTHROPIC_API_KEY: placeholder_anthropic_key
       RESEND_API_KEY: placeholder_resend_key
@@ -57,11 +56,24 @@ jobs:
       - name: Unit tests (Vitest)
         run: pnpm run test:unit -- --reporter=verbose
 
+      - name: SQL smoke tests (local D1 via Miniflare)
+        run: pnpm run test:sql
+
+      - name: Migration script tests (D1 + R2)
+        run: node --test scripts/migrate-to-d1/*.test.mjs scripts/migrate-to-r2/*.test.mjs
+
       - name: i18n missing-key test
         run: pnpm run test:i18n -- --reporter=verbose
 
       - name: Build (Next.js)
         run: pnpm run build
+
+      # OpenNext build + gzipped Worker size gate. Fails over 3 MiB (Workers
+      # Free) unless vars.WORKER_SIZE_LIMIT_BYTES overrides it (e.g. Paid).
+      - name: Build Worker (OpenNext) + size check
+        run: pnpm cf:build && pnpm cf:size
+        env:
+          WORKER_SIZE_LIMIT_BYTES: ${{ vars.WORKER_SIZE_LIMIT_BYTES }}
 
       - name: Security audit
         run: pnpm audit --prod --audit-level=high
@@ -187,17 +199,13 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    # Shared by the build AND the server LHCI starts. The server needs the
-    # same stubs as the build: src/instrumentation.ts imports @/lib/db at
-    # startup, which throws without DATABASE_URL and turns every request
-    # (including the public / and /login) into a 500.
+    # Shared by the build AND the server LHCI starts.
     env:
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
-      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
       AUTH_SECRET: placeholder_auth_secret_32chars_minimum_length
       AUTH_GOOGLE_ID: placeholder_google_id
       AUTH_GOOGLE_SECRET: placeholder_google_secret
-      NEXTAUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3000
       ANTHROPIC_API_KEY: placeholder_anthropic_key
       RESEND_API_KEY: placeholder_resend_key
       CRON_SECRET: placeholder_cron_secret
@@ -234,6 +242,8 @@ jobs:
   # Requires STAGING_DATABASE_URL (Fly Postgres) to stand up test data.
   # Gate: only runs when the E2E secret group is configured (senior-dev step).
   # The senior-dev should extend this with actual test environment setup.
+  # Cloudflare: still targets `next build/start` (Postgres). Switching to
+  # `pnpm cf:preview` needs a seeded local D1, which arrives with W-CF-14.
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
@@ -287,13 +297,17 @@ jobs:
   # ---------------------------------------------------------------------------
   # Deploy to Fly.io — runs on every push to main after quality gate passes.
   # Requires FLY_API_TOKEN secret set in GitHub repo settings.
+  # Transition switch: only runs while vars.DEPLOY_TARGET == 'fly'.
   # ---------------------------------------------------------------------------
   deploy:
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
     needs: quality
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: vars.DEPLOY_TARGET == 'fly' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: Production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     permissions:
       contents: read
 
@@ -307,3 +321,50 @@ jobs:
       - run: flyctl deploy --remote-only --app propflow-app
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Deploy to Cloudflare Workers — push to main, only while
+  # vars.DEPLOY_TARGET == 'cloudflare' (cutover and rollback = flip the var).
+  # Applies pending D1 migrations before shipping the new Worker.
+  # Requires secrets.CLOUDFLARE_API_TOKEN and vars.CLOUDFLARE_ACCOUNT_ID.
+  # ---------------------------------------------------------------------------
+  deploy-cloudflare:
+    name: Deploy to Cloudflare Workers
+    runs-on: ubuntu-latest
+    needs: quality
+    if: vars.DEPLOY_TARGET == 'cloudflare' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: Production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115  # v6.1.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Worker (OpenNext)
+        run: pnpm cf:build
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ vars.APP_URL }}
+
+      - name: Apply D1 migrations
+        run: pnpm exec wrangler d1 migrations apply propflow-db --remote
+
+      - name: Deploy Worker
+        run: pnpm exec wrangler deploy

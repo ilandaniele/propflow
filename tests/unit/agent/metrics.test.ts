@@ -5,7 +5,7 @@
  * of canned `db.execute` results, consumed in call order) so these are
  * "SQL-shape" tests: they assert every emitted query has no `LIMIT` before
  * its aggregate, excludes playground sessions, and that the `all` rollup
- * (the `GROUP BY GROUPING SETS ((channel), ())` grand-total row) equals the
+ * (the `UNION ALL` grand-total row, `is_total = 1`) equals the
  * sum of the per-channel rows returned by the SAME query.
  */
 
@@ -169,17 +169,38 @@ describe('agent/metrics — getAgentMetrics', () => {
     expect(metrics.daily.every((d) => d.conversations === 0 && d.leads === 0 && d.visitsBooked === 0)).toBe(true);
   });
 
-  it('daily series tolerates a driver that hands back Date objects for `day` instead of strings', async () => {
+  it('daily series folds 15-minute UTC slots into America/Lima calendar days', async () => {
     queueDefaults();
-    // Replace the 3 trailing daily-series pushes queueDefaults already queued
-    // with Date-valued rows — postgres.js can do this for date/timestamp
-    // columns depending on the query path, even though to_char() returns text.
-    resultQueue[resultQueue.length - 3] = [{ day: new Date('2026-01-01T00:00:00Z'), n: '2' }];
-    resultQueue[resultQueue.length - 2] = [{ day: new Date('2026-01-02T00:00:00Z'), n: '1' }];
+    const slot = (iso: string) => new Date(iso).getTime() / (15 * 60 * 1000);
+    // Replace the 3 trailing daily-series pushes queueDefaults already queued.
+    resultQueue[resultQueue.length - 3] = [
+      { slot: slot('2026-01-02T04:45:00Z'), n: 2 }, // 23:45 Jan 1 in Lima
+      { slot: slot('2026-01-02T05:00:00Z'), n: 1 }, // 00:00 Jan 2 in Lima
+    ];
+    resultQueue[resultQueue.length - 2] = [{ slot: slot('2026-01-01T05:00:00Z'), n: 1 }];
     resultQueue[resultQueue.length - 1] = [];
-    const metrics = await getAgentMetrics(ORG_ID, { from: new Date('2026-01-01T00:00:00Z'), to: new Date('2026-01-03T00:00:00Z') });
-    expect(metrics.daily.find((d) => d.day === '2026-01-01')?.conversations).toBe(2);
-    expect(metrics.daily.find((d) => d.day === '2026-01-02')?.leads).toBe(1);
+    const metrics = await getAgentMetrics(ORG_ID, { from: new Date('2026-01-01T05:00:00Z'), to: new Date('2026-01-03T05:00:00Z') });
+    expect(metrics.daily).toEqual([
+      { day: '2026-01-01', conversations: 2, leads: 1, visitsBooked: 0 },
+      { day: '2026-01-02', conversations: 1, leads: 0, visitsBooked: 0 },
+    ]);
+  });
+
+  it('first-response percentiles interpolate like percentile_cont, per channel and pooled into all', async () => {
+    queueDefaults({
+      firstResponse: [
+        { channel: 'whatsapp', delta_sec: 10 },
+        { channel: 'whatsapp', delta_sec: 30 },
+        { channel: 'web', delta_sec: 20 },
+      ],
+    });
+    const metrics = await getAgentMetrics(ORG_ID, RANGE);
+    expect(metrics.byChannel.whatsapp.firstResponseP50Sec).toBe(20);
+    expect(metrics.byChannel.whatsapp.firstResponseP90Sec).toBeCloseTo(28);
+    expect(metrics.byChannel.web.firstResponseP50Sec).toBe(20);
+    expect(metrics.byChannel.all.firstResponseP50Sec).toBe(20);
+    expect(metrics.byChannel.all.firstResponseP90Sec).toBeCloseTo(28);
+    expect(metrics.byChannel.voice.firstResponseP50Sec).toBeNull();
   });
 
   it('a real (non-rollup) NULL channel row is dropped, not mistaken for the `all` total', async () => {
@@ -187,7 +208,7 @@ describe('agent/metrics — getAgentMetrics', () => {
       conversations: [
         { channel: 'whatsapp', n: '3' },
         { channel: null, n: '99', is_total: '0' }, // e.g. a legacy row with no channel recorded
-        { channel: null, n: '3', is_total: '1' }, // the real GROUPING SETS rollup
+        { channel: null, n: '3', is_total: '1' }, // the real UNION ALL rollup
       ],
     });
     const metrics = await getAgentMetrics(ORG_ID, RANGE);

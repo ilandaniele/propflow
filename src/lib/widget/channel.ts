@@ -9,7 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import { db } from '@/lib/db';
 import { organizations, orgChannels, agentConfigs } from '@/lib/db/schema';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getOrCreateAgentConfig } from '@/lib/agent/config';
 
 export const PUBLIC_KEY_RE = /^pk_[A-Za-z0-9]{24}$/;
@@ -152,7 +152,7 @@ export async function upsertWebChannel(orgId: string, patch: UpsertWebChannelPat
     .set({
       channelsEnabled,
       ...(patch.allowedOrigins !== undefined ? { widgetAllowedOrigins: patch.allowedOrigins } : {}),
-      updatedAt: sql`now()`,
+      updatedAt: new Date(),
     })
     .where(eq(agentConfigs.orgId, orgId));
 

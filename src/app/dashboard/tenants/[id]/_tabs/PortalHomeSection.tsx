@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
 import { contracts } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
+import { getTenantStatement } from '@/lib/dashboard/queries';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 import {
@@ -40,7 +40,7 @@ export async function PortalHomeSection({ tenant }: Props) {
 
   const t = await getTranslations('tenants');
 
-  const [activeContractRows, statementResult, recentPayments, recentIncidents, allVisitors] =
+  const [activeContractRows, statementRes, recentPayments, recentIncidents, allVisitors] =
     await Promise.all([
       db
         .select({ monthlyRent: contracts.monthlyRent, status: contracts.status, startDate: contracts.startDate, endDate: contracts.endDate })
@@ -48,20 +48,13 @@ export async function PortalHomeSection({ tenant }: Props) {
         .where(and(eq(contracts.tenantId, tenant.id), eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active')))
         .orderBy(desc(contracts.startDate))
         .limit(1),
-      // tenant_statement is a PG VIEW — use raw SQL
-      db.execute(sql`SELECT total_charges, total_approved_payments, balance, is_overdue FROM tenant_statement WHERE tenant_id = ${tenant.id} LIMIT 1`),
+      getTenantStatement(ctx.orgId, tenant.id),
       getPortalPreviewRecentPayments(tenant.id, ctx.orgId),
       getPortalPreviewRecentIncidents(tenant.id, ctx.orgId),
       getPortalPreviewVisitors(tenant.id, ctx.orgId),
     ]);
 
   const contract = activeContractRows[0] ?? null;
-  const statementRes = ((statementResult as unknown as Array<{
-    total_charges: string;
-    total_approved_payments: string;
-    balance: string;
-    is_overdue: boolean;
-  }>)?.[0] ?? null);
 
   // Visitor count for last 30 days — derived in-memory from already-fetched rows
   const now = new Date();

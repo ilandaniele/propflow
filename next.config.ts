@@ -1,17 +1,12 @@
 import type { NextConfig } from 'next';
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts');
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,
-
-  // Build-time constant so the bundler can drop Fly-only code (see src/instrumentation.ts).
-  env: {
-    PROPFLOW_TARGET: process.env.PROPFLOW_TARGET ?? 'node',
-  },
 
   // Security headers — CSP is nonce-based (generated in middleware.ts per request).
   // Static headers here provide non-CSP security headers as a base layer.
@@ -58,12 +53,14 @@ const nextConfig: NextConfig = {
   },
 
   images: {
+    // Images are served straight from R2 presigned URLs; no Next image optimizer on Workers.
+    unoptimized: true,
     // dangerouslyAllowSVG is intentionally NOT set (ASVS V13.1.5 — SVG can carry XSS)
     remotePatterns: [
-      // Tigris S3 — signed URLs for unit-images, tenant-avatars, incident-photos, etc.
+      // Cloudflare R2 (S3 API) — presigned URLs for unit-images, tenant-avatars, incident-photos, etc.
       {
         protocol: 'https',
-        hostname: '*.fly.storage.tigris.dev',
+        hostname: '*.r2.cloudflarestorage.com',
       },
     ],
   },
@@ -77,3 +74,6 @@ const nextConfig: NextConfig = {
 };
 
 export default withNextIntl(nextConfig);
+
+// Gives `next dev` the wrangler bindings (D1, R2) through getCloudflareContext().
+void initOpenNextCloudflareForDev();

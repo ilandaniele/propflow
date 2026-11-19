@@ -1652,7 +1652,7 @@
     "emptyAction": "Adicionar propriedade",
     "diagnosticTitle": "Alguns dados não estão carregando corretamente.",
     "diagnosticCheck": "Verifique:",
-    "diagnosticCause": "Possíveis causas: DATABASE_URL ausente ou erro de conexão com o Fly Postgres, migrações do Drizzle pendentes, ou perfil sem organização atribuída.",
+    "diagnosticCause": "Possíveis causas: banco de dados D1 (binding DB) indisponível, migrações do D1 pendentes, ou perfil sem organização atribuída.",
     "kpis": {
       "occupancy": "Ocupação",
       "occupancySub": "{occupied} / {total} unidades",
