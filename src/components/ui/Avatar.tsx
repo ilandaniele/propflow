@@ -9,7 +9,7 @@ interface AvatarProps {
   name?: string | null;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
-  /** Optional photo URL (signed Tigris storage URL). Falls back to initials. */
+  /** Optional photo URL (signed R2 storage URL). Falls back to initials. */
   src?: string | null;
 }
 

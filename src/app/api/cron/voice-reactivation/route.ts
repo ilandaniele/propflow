@@ -3,8 +3,8 @@
  *
  * The reactivation scanner (src/lib/agent/voice/scanners.ts's
  * scanReactivationCalls) also runs every ~60s from instrumentation.ts, but
- * that only helps while the Fly machine is warm. This cron is the primary
- * trigger for orgs that would otherwise sit suspended most of the day —
+ * that only helps while a server process is warm. This cron is the primary
+ * trigger for orgs that would otherwise go without a scan most of the day —
  * scheduled once daily (see .github/workflows/cron-dispatch.yml), not every
  * few minutes like the other scanners, since reactivation calls are meant to
  * be a low-frequency nudge, not a live-latency path like speed-to-lead.

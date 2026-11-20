@@ -49,7 +49,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const provider = getWhatsAppProvider();
 
     // Fetch all organizations — Drizzle (AC1).
-    // First query after a Fly machine resume can hit a stale connection — retry.
+    // First query can hit a transient DB error — retry.
     const orgs = await withDbRetry(
       () => db.select({ id: organizations.id, name: organizations.name }).from(organizations),
       'cron/weekly-summary',

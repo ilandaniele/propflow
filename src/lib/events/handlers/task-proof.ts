@@ -3,7 +3,7 @@
  * IC5: valid + confidence ≥ 0.80 → completed; else → proof_pending_review.
  * LLM02: output parsed via TaskProofVerifySchema.
  *
- * Migrated from Supabase admin client + storage to Drizzle ORM + Tigris (W6).
+ * Migrated from Supabase admin client + storage to Drizzle ORM + object storage (W6; now Cloudflare R2).
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -60,7 +60,7 @@ export async function handleTaskProof(
   const { imagePath } = proof;
   const { taskType, title } = task;
 
-  // Get presigned URL from Tigris storage
+  // Get presigned URL from R2 storage
   let signedUrl: string;
   try {
     signedUrl = await getSignedUrl('task-proofs', imagePath, 60);

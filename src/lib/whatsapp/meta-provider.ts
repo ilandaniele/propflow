@@ -440,7 +440,7 @@ export class MetaWhatsAppProvider implements IWhatsAppProvider {
       throw e;
     }
 
-    // Step 3: Upload to Tigris storage
+    // Step 3: Upload to R2 storage
     const { uploadFile } = await import('@/lib/storage');
 
     try {

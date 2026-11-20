@@ -1,7 +1,7 @@
 /**
  * Storage-path validation for signed-URL routes.
  *
- * Object keys are `{org_id}/{resource_id}/{filename}`. Even though S3/Tigris keys
+ * Object keys are `{org_id}/{resource_id}/{filename}`. Even though S3/R2 keys
  * are opaque (a literal `..` segment is not filesystem traversal), we reject any
  * key that isn't a clean 3+-segment path prefixed by the caller's org id. This
  * gives every file route the same defense as unit-image and blocks prefix tricks

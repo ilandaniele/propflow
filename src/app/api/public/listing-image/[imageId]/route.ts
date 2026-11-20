@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 /**
  * GET /api/public/listing-image/[imageId]?src=unit|listing — Agent Phase 7,
  * item B. A stable URL that survives the widget/OG-crawler round trip;
- * redirects to a fresh 1h signed Tigris URL so no signed URL ever gets baked
+ * redirects to a fresh 1h signed R2 URL so no signed URL ever gets baked
  * into rendered HTML. Any failure returns a bare 404 — no detail leaked.
  */
 

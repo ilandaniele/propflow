@@ -61,7 +61,7 @@ export interface PublicListingDetail extends PublicListingCard {
   imageUrls: string[];
 }
 
-/** `/api/public/listing-image/[imageId]` route — a stable redirect to a fresh signed Tigris URL. */
+/** `/api/public/listing-image/[imageId]` route — a stable redirect to a fresh signed R2 URL. */
 export function publicImageUrl(imageId: string, src: 'unit' | 'listing'): string {
   return `/api/public/listing-image/${imageId}?src=${src}`;
 }

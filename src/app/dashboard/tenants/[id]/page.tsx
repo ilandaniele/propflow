@@ -140,7 +140,7 @@ export default async function TenantDetailPage({ params }: Props) {
       .limit(1);
   }
 
-  // Signed URL for avatar (Tigris S3)
+  // Signed URL for avatar (R2)
   let avatarSignedUrl: string | null = null;
   if (tenant.photoUrl) {
     try { avatarSignedUrl = await getSignedUrl('tenant-avatars', tenant.photoUrl, 3600); } catch { avatarSignedUrl = null; }

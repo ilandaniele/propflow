@@ -24,7 +24,7 @@
  * Bucket layout:
  *   One physical R2 bucket (R2_BUCKET, default 'propflow-files'). Callers keep
  *   passing the logical bucket name (e.g. 'receipts') and the DB-stored path;
- *   the object key is the stored path, as in the shared Tigris bucket (see objectKey).
+ *   the object key is the stored path, as in the pre-R2 shared bucket (see objectKey).
  */
 
 import { AwsClient } from 'aws4fetch';
@@ -57,7 +57,7 @@ const DEFAULT_R2_BUCKET = 'propflow-files';
 
 /**
  * Object key inside the single physical bucket: the stored path itself. Production
- * Tigris already kept every logical bucket in one bucket under these keys, so
+ * storage (pre-R2) already kept every logical bucket in one bucket under these keys, so
  * the copy to R2 is 1:1 and stored paths stay valid.
  */
 export function objectKey(_bucket: string, path: string): string {

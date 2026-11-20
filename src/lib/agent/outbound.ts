@@ -92,7 +92,7 @@ export async function sendWhatsAppText(args: SendWhatsAppTextArgs): Promise<Send
 export interface SendWhatsAppImageArgs {
   orgId: string;
   conversationId: string;
-  /** A short-lived signed Tigris URL — never persisted, never logged. */
+  /** A short-lived signed R2 URL — never persisted, never logged. */
   imageUrl: string;
   caption?: string | null;
   senderKind: 'agent' | 'human' | 'system';

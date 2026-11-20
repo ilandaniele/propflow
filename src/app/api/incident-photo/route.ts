@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: { code: 'NOT_FOUND', message: 'Resource not found' } }, { status: 404 });
   }
 
-  // Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
+  // Generate signed URL via R2 storage lib (AC1: no supabase.storage calls)
   try {
     const signedUrl = await getSignedUrl('incident-photos', storagePath, 3600);
     return NextResponse.json({ signedUrl });

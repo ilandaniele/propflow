@@ -2,7 +2,7 @@
 #
 # One-off: copies every file still referenced by an expiring Airtable URL into
 # our own storage, by calling the protected route on the live app (Airtable and
-# storage credentials only exist as Fly secrets). Run `dry-run` first, then
+# storage credentials only exist as Worker secrets). Run `dry-run` first, then
 # `apply`. After `apply` the workflow runs one final dry-run and fails unless
 # it reports remaining == 0. Permanent failures (file gone, type not allowed)
 # are reported but do not fail the run.
@@ -18,8 +18,8 @@
 # response bodies, refs, file names or URLs.
 #
 # Required GitHub settings:
-#   vars.APP_URL        — https://propflow-app.fly.dev
-#   secrets.CRON_SECRET — same value as the Fly secret CRON_SECRET
+#   vars.APP_URL        — https://propflow-app.ilandaniele.workers.dev
+#   secrets.CRON_SECRET — same value as the Worker secret CRON_SECRET
 
 name: Airtable final copy
 

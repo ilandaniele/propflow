@@ -63,7 +63,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .where(eq(receiptUploads.id, receipt.id));
 
   try {
-    // Get a short-TTL signed URL to the stored image — Tigris storage lib (AC1)
+    // Get a short-TTL signed URL to the stored image — R2 storage lib (AC1)
     const signedUrl = await getSignedUrl('receipts', receipt.filePath, 60); // 60-second TTL for OCR call
 
     // Fetch the image for Claude

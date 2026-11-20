@@ -13,25 +13,24 @@ import { CopyField } from './_components/CopyField';
 
 export const metadata: Metadata = { title: 'Agente IA — Configuración inicial' };
 
-const WHATSAPP_COMMAND = `flyctl secrets set -a propflow-app \\
-  WHATSAPP_PROVIDER=meta \\
-  WHATSAPP_ACCESS_TOKEN=<token permanente> \\
-  WHATSAPP_PHONE_NUMBER_ID=<phone number id> \\
-  WHATSAPP_BUSINESS_ACCOUNT_ID=<waba id> \\
-  META_APP_SECRET=<app secret> \\
-  WHATSAPP_WEBHOOK_VERIFY_TOKEN=<texto al azar>`;
+// Cloudflare Worker secrets: `wrangler secret put` takes one name per call
+// and prompts for the value, so every secret gets its own line.
+// WHATSAPP_PROVIDER=meta is a plain var in wrangler.jsonc, not a secret.
+const WHATSAPP_COMMAND = `pnpm exec wrangler secret put WHATSAPP_ACCESS_TOKEN
+pnpm exec wrangler secret put WHATSAPP_PHONE_NUMBER_ID
+pnpm exec wrangler secret put WHATSAPP_BUSINESS_ACCOUNT_ID
+pnpm exec wrangler secret put META_APP_SECRET
+pnpm exec wrangler secret put WHATSAPP_WEBHOOK_VERIFY_TOKEN`;
 
-const CALENDAR_COMMAND = `flyctl secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32) -a propflow-app`;
+const CALENDAR_COMMAND = `openssl rand -base64 32 | pnpm exec wrangler secret put TOKEN_ENCRYPTION_KEY`;
 
-const EMAIL_COMMAND = `flyctl secrets set -a propflow-app \\
-  RESEND_API_KEY=<key> \\
-  RESEND_FROM_EMAIL="Propflow <no-reply@tudominio>"`;
+const EMAIL_COMMAND = `pnpm exec wrangler secret put RESEND_API_KEY
+pnpm exec wrangler secret put RESEND_FROM_EMAIL   # Propflow <no-reply@tudominio>`;
 
-const AGENT_COMMAND = `flyctl secrets set -a propflow-app ANTHROPIC_API_KEY=<key>`;
+const AGENT_COMMAND = `pnpm exec wrangler secret put ANTHROPIC_API_KEY`;
 
-const VOICE_COMMAND = `flyctl secrets set -a propflow-app \\
-  VAPI_API_KEY=<key> \\
-  VAPI_WEBHOOK_SECRET=<secreto>`;
+const VOICE_COMMAND = `pnpm exec wrangler secret put VAPI_API_KEY
+pnpm exec wrangler secret put VAPI_WEBHOOK_SECRET`;
 
 export default async function AgentSetupPage() {
   let ctx;

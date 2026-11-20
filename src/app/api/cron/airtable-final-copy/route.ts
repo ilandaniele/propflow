@@ -81,7 +81,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    // A batch mutates storage and the DB, so only the connection warm-up is retried (stale socket after Fly resume).
+    // A batch mutates storage and the DB, so only the connection warm-up is retried (transient connection error).
     await withDbRetry(() => db.execute(sql`SELECT 1`), 'cron/airtable-final-copy');
     const summary =
       mode === 'verify'

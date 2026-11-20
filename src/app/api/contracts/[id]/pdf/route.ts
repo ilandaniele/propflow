@@ -53,7 +53,7 @@ export async function GET(
     }
   }
 
-  // Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
+  // Generate signed URL via R2 storage lib (AC1: no supabase.storage calls)
   try {
     const url = await getSignedUrl('contracts', contract.documentUrl, SIGNED_URL_TTL_SECONDS);
     return NextResponse.json({ url });

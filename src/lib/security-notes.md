@@ -6,17 +6,17 @@
 
 ## Implemented guards (this PR)
 
-- **CSP**: nonce-based strict CSP in `src/proxy.ts`. `connect-src` and `img-src` include Tigris
-  endpoint (`process.env.TIGRIS_ENDPOINT ?? https://fly.storage.tigris.dev`). No `*.supabase.co`
+- **CSP**: nonce-based strict CSP in `src/proxy.ts`. `connect-src` and `img-src` include the R2
+  S3 endpoint (`process.env.R2_S3_ENDPOINT ?? https://*.r2.cloudflarestorage.com`). No `*.supabase.co`
   domains remain. No `unsafe-eval`. Script src uses `nonce-{nonce} strict-dynamic`.
 - **/api/dev absent**: directory does not exist in this codebase.
 - **WhatsApp webhook rate limiting**: `webhookRateLimit` (60 req/min/IP) enforced in
   `src/app/api/whatsapp/webhook/route.ts` before any DB work.
 - **Cron endpoints**: protected by `CRON_SECRET` bearer (constant-time compare) — no additional
-  rate limit needed; they are only called by Fly scheduled machines.
+  rate limit needed; they are only called by the GitHub Actions workflow `cron-dispatch.yml`.
 - **NEXT_PUBLIC_ exposure audit**: only `NEXT_PUBLIC_SITE_URL` (safe) and
-  `NEXT_PUBLIC_META_APP_ID` (safe — Meta public app ID) are exposed to the browser. All Tigris,
-  database, and auth secrets are server-only.
+  `NEXT_PUBLIC_META_APP_ID` (safe — Meta public app ID) are exposed to the browser. All R2,
+  database, and auth secrets are server-only (Cloudflare Worker secrets).
 
 ---
 
@@ -24,19 +24,10 @@
 
 ### CRITICAL — do immediately after deploy
 
-1. **Rotate exposed Supabase anon key**: The Supabase anon key was committed in `fly.toml` git
-   history. Go to https://supabase.com → project settings → API → "Roll anon key". Old key will
-   be invalidated. (Supabase project itself is being decommissioned, but the key should be rotated
+1. **Rotate exposed Supabase anon key**: The Supabase anon key was committed in the (now removed)
+   Fly config file's git history. Go to https://supabase.com → project settings → API →
+   "Roll anon key". Old key will be invalidated. (Supabase project itself is being decommissioned, but the key should be rotated
    now to prevent any abuse window.)
-
-2. **Unset stale secrets from Fly**: After deploy, run:
-   ```
-   flyctl secrets unset NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY RESET_ADMIN_TOKEN
-   ```
-
-3. **Set Tigris bucket CORS policy**: Allow `https://propflow-app.fly.dev` as the only origin for
-   PUT/GET on the bucket. Use `flyctl storage cors` or the Tigris dashboard. Without this,
-   browser-direct S3 presigned URL uploads may be blocked or overly permissive.
 
 ### Medium priority
 
@@ -52,11 +43,10 @@
    standard for Tailwind-based apps. No script injection risk from style-only unsafe-inline.
 
 8. **`img-src https:`**: The `img-src` directive allows all HTTPS image sources. This is
-   intentional for tenant-uploaded receipt images that may be served from Tigris presigned URLs
-   with dynamic hostnames. Tightening to `img-src 'self' data: *.fly.storage.tigris.dev` would
-   be more restrictive — consider doing this once the Tigris bucket hostname is confirmed stable.
+   intentional for tenant-uploaded receipt images that may be served from R2 presigned URLs.
+   Tightening to `img-src 'self' data: *.r2.cloudflarestorage.com` would be more restrictive —
+   consider doing this once the R2 endpoint hostname is confirmed stable.
 
 9. **Org-level IDOR**: All Drizzle queries on org-scoped tables include `eq(table.orgId, ctx.orgId)`.
    This is enforced at the application layer (not DB-level RLS, since Supabase was removed).
-   A defense-in-depth option is to add a Postgres row-level policy on the Fly Postgres instance,
-   but this is optional for a single-tenant deployment.
+   D1 (SQLite) has no row-level security, so this stays an application-layer guarantee.

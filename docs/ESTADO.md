@@ -35,7 +35,7 @@ Actualizado: 2026-11-17. La app está en producción en `https://propflow-app.fl
 Terminada el 2026-11-17: `remaining: 0` (run 44167931927, verificación dry-run sin pendientes). 369 adjuntos no se pueden copiar; quedan en `manifest.failed` con su motivo: casi todos `attachment_not_found` (campo o adjunto que ya no existe en Airtable), algunos `record_not_found` y `unsupported_type`. Segunda pasada (modo `recover`, solo lectura de Airtable, run 44191623623): 252 recuperados a nuestro storage. Quedan 117 en `manifest.failed`: 43 `record_deleted` (el registro ya no existe en Airtable), 73 `not_found` (el adjunto ya no está en el registro) y 1 foto archivada cuyo tipo no sirve para la columna. Decisión del owner (2026-11-17): se dan por perdidos. Airtable no se modificó. Verificación completa (modos `verify` y `refresh`, #110 y #111, 2026-11-17): todos los registros de Airtable están en `airtable_snapshots`; los snapshots se actualizaron a los valores de hoy (versión anterior archivada en `airtable-archive/snapshots-before-refresh/`) y se copiaron 920 adjuntos subidos después de la copia final. Verify final: 0 registros faltantes, 0 campos distintos, 0 adjuntos sin copiar. Tabla `feedback` no verificable (403: el token no tiene acceso). 5 filas siguen con URL de Airtable (`responsables.photo_url` 3, `tenants.photo_url` 1, `trash_compliance.foto_url` 1): son pérdidas aceptadas.
 
 ## Migración a Cloudflare (`docs/07`)
-Rama `feat/cloudflare-d1`, PR draft #113 (no se mergea antes del cutover). Producción sigue en Fly hasta el cutover (W-CF-60); los artefactos de Fly y Postgres se remueven en W-CF-55, después de que el owner apruebe el decommission.
+Cutover hecho el 2026-11-20 (W-CF-60): producción corre en Cloudflare Workers (https://propflow-app.ilandaniele.workers.dev) con D1 y R2. W-CF-55 (código) hecho: se removieron `Dockerfile`, `.dockerignore`, `fly.toml`, `scripts/migrate.mjs` y las migraciones Postgres (`src/lib/db/migrations/`), y el job de deploy a Fly. Ese estado queda en el tag `archive/fly-postgres`. Falta borrar los recursos de Fly (app, Postgres, Tigris), que hace el owner.
 
 - Hecho (Olas 1-4 de código): W-CF-30..43 y W-CF-53. Schema y queries en `sqlite-core` sobre D1 (binding `DB`, migraciones en `src/lib/db/migrations-d1/`), storage en R2, Cron Triggers y build con OpenNext.
 - CI (`.github/workflows/ci.yml`): corre `pnpm test:sql` (D1 local con Miniflare) y `node --test` de los scripts `scripts/migrate-to-d1` y `scripts/migrate-to-r2`; `pnpm cf:build && pnpm cf:size` valida el tamaño del Worker. El job `deploy-cloudflare` solo corre con la variable `DEPLOY_TARGET=cloudflare`; aplica las migraciones D1 y después `wrangler deploy`.
@@ -57,6 +57,6 @@ Rama `feat/cloudflare-d1`, PR draft #113 (no se mergea antes del cutover). Produ
 - Resend: dominio verificado (bloquea el reset de contraseña y la verificación de email: F-23, F-25).
 
 ## Siguiente
-- Migración a Cloudflare: ensayo en staging y cutover cuando el owner cree los recursos (ver arriba). Después W-CF-55 (remover Fly/Postgres).
+- Migración a Cloudflare: cutover hecho (2026-11-20) y W-CF-55 de código hecho. Queda que el owner borre los recursos de Fly.
 - El resto de `docs/06` (F-04..F-18 altos), re-targeteado a D1.
 - Backup: `../propflow-backups/propflow-2026-11-17.dump` (pg_dump del 2026-11-17).

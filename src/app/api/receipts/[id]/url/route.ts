@@ -39,7 +39,7 @@ export async function GET(
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  // Generate signed URL via Tigris storage lib (AC3: no direct supabase.storage calls)
+  // Generate signed URL via R2 storage lib (AC3: no direct supabase.storage calls)
   try {
     const url = await getSignedUrl('receipts', receipt.filePath, SIGNED_URL_TTL_SECONDS);
     return NextResponse.json({ url });

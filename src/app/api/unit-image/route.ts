@@ -89,7 +89,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // 5. Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
+  // 5. Generate signed URL via R2 storage lib (AC1: no supabase.storage calls)
   let signedUrl: string;
   try {
     signedUrl = await getSignedUrl(BUCKET, path, SIGNED_URL_TTL_S);
