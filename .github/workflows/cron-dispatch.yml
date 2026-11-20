@@ -1,18 +1,15 @@
 # .github/workflows/cron-dispatch.yml
 #
-# WHY GitHub Actions instead of Fly scheduled machines:
-# Fly.io scheduled machines (fly machine run --schedule) only support coarse
-# intervals: hourly / daily / weekly / monthly — with NO time-of-day control.
-# That makes it impossible to hit 08:00 UTC vs 04:00 UTC daily from fly.toml.
-# This workflow replicates the four Vercel cron jobs with exact schedules and
+# WHY GitHub Actions: this workflow is the app's scheduler (see the Cloudflare
+# note below). It gives exact time-of-day schedules. This workflow replicates the four Vercel cron jobs with exact schedules and
 # replaces vercel.json entirely.  The `plan` job selects the endpoint(s) for the
 # trigger; the `dispatch` matrix POSTs to the live app with the CRON_SECRET
 # bearer token already used by all /api/cron/* handlers.  Only the HTTP status
 # code is logged (never the response body); status >= 400 fails the job.
 #
 # Required GitHub settings:
-#   vars.APP_URL    — https://propflow-app.fly.dev  (repo variable, not a secret)
-#   secrets.CRON_SECRET — same value as the Fly secret CRON_SECRET
+#   vars.APP_URL    — https://propflow-app.ilandaniele.workers.dev  (repo variable, not a secret)
+#   secrets.CRON_SECRET — same value as the Worker secret CRON_SECRET
 
 # On Cloudflare this workflow is the scheduler: the account already uses the
 # 5 Cron Triggers allowed on Workers Free, so wrangler.jsonc declares none

@@ -31,7 +31,7 @@ export function _resetAgentJobHandlers(): void {
   HANDLERS.clear();
 }
 
-const CLAIM_LOCK_MS = 2 * 60 * 1000; // 2 minutes — long enough for a Fly resume + a Claude call
+const CLAIM_LOCK_MS = 2 * 60 * 1000; // 2 minutes — long enough for a cold start + a Claude call
 const MAX_ATTEMPTS = 5;
 const BACKOFF_MS = [30_000, 60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000]; // per attempt
 

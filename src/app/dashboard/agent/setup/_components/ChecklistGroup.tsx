@@ -4,7 +4,7 @@ export interface ChecklistItemData {
   key: string;
   ok: boolean;
   label: string;
-  /** Condensed instruction — env var NAMES and flyctl command templates only, never values. Shown only while `ok` is false. */
+  /** Condensed instruction — env var NAMES and `wrangler secret put` command templates only, never values. Shown only while `ok` is false. */
   instruction?: string;
   /** Extra content shown regardless of `ok` (e.g. a live count, a warning). */
   extra?: ReactNode;
@@ -13,7 +13,7 @@ export interface ChecklistItemData {
 export interface ChecklistGroupProps {
   title: string;
   items: ChecklistItemData[];
-  /** flyctl command template (var NAMES only, never values) — shown once, below the rows, only while at least one item in the group is unmet. */
+  /** `wrangler secret put` command template (var NAMES only, never values) — shown once, below the rows, only while at least one item in the group is unmet. */
   command?: string;
   /** Rendered below the checklist rows — e.g. the WhatsApp channel form or the templates table. */
   children?: ReactNode;

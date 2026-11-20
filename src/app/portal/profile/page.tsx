@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: 'My Profile' };
  * Data flow:
  * 1. requireTenant() — verifies JWT + tenant role (defense-in-depth over middleware).
  * 2. Fetch tenant row for display info + current photo_url.
- * 3. If photoUrl exists, generate a signed URL via Tigris S3 getSignedUrl().
+ * 3. If photoUrl exists, generate a signed URL via the R2 storage lib getSignedUrl().
  *    We resolve server-side to avoid exposing the raw storage path to the client.
  * 4. Pass signed URL to AvatarUploader (client component) — it handles upload/delete
  *    via Server Actions which re-enforce auth + IDOR.

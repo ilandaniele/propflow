@@ -54,7 +54,8 @@ export interface ReminderRunResult {
 export async function runReminderEngine(siteUrl: string): Promise<ReminderRunResult[]> {
   const start = Date.now();
 
-  // Fly.io machines resume from suspension with stale TCP connections.
+  // The first DB query can hit a transient error (originally stale TCP
+  // connections after a Fly.io resume; kept as a cheap guard).
   // Retry the first DB query up to 3 times with 2s backoff before giving up.
   let orgRows: Array<{ id: string }> = [];
   for (let attempt = 0; attempt < 3; attempt++) {

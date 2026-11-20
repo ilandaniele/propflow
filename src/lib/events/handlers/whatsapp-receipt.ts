@@ -3,7 +3,7 @@
  * IC4: classify → OCR → match charge → gate (conf ≥ 0.92, ≤1% delta, no dup) → insert.
  * LLM08: auto-approval requires hard threshold — LLM cannot trigger directly.
  *
- * Migrated from Supabase admin client + storage to Drizzle ORM + Tigris (W6).
+ * Migrated from Supabase admin client + storage to Drizzle ORM + object storage (W6; now Cloudflare R2).
  */
 
 import { db } from '@/lib/db';
@@ -35,7 +35,7 @@ export async function handleWhatsAppReceipt(
 
   const { orgId, tenantId, messageId, attachmentPath } = payload;
 
-  // Fetch presigned URL from Tigris storage
+  // Fetch presigned URL from R2 storage
   let signedUrl: string;
   try {
     signedUrl = await getSignedUrl('receipts', attachmentPath, 60);

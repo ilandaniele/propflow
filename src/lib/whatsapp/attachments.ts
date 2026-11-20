@@ -3,8 +3,8 @@
  * In production, the real provider's downloadAttachment() fetches from Meta/Twilio CDN.
  * MockProvider returns the storagePath as-is (no real download).
  *
- * This module handles the Tigris S3 storage upload side.
- * Migrated from Supabase storage to Tigris S3 (W6).
+ * This module handles the R2 storage upload side.
+ * Migrated from Supabase storage to object storage (W6; now Cloudflare R2).
  */
 
 import { uploadFile } from '@/lib/storage';
@@ -19,7 +19,7 @@ export interface StoreAttachmentResult {
 }
 
 /**
- * Download a URL (from a signed storage URL or provider URL) and upload to Tigris S3.
+ * Download a URL (from a signed storage URL or provider URL) and upload to R2.
  * Returns { storagePath, imageBytes, sha256, mimeType }.
  */
 export async function downloadAndStoreAttachment(
@@ -38,7 +38,7 @@ export async function downloadAndStoreAttachment(
   const sha256 = sha256Hex(buf);
   const mimeType = imageRes.headers.get('content-type') ?? 'image/jpeg';
 
-  // Upload to Tigris S3 via storage lib
+  // Upload to R2 via storage lib
   try {
     await uploadFile(bucket, storagePath, buf, mimeType, false);
   } catch (err) {

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(Errors.NOT_FOUND(), { status: 404 });
   }
 
-  // Generate signed URL via Tigris storage lib (AC1: no supabase.storage calls)
+  // Generate signed URL via R2 storage lib (AC1: no supabase.storage calls)
   try {
     const signedUrl = await getSignedUrl('tenant-avatars', path, 3600);
     return NextResponse.json({ signedUrl });

@@ -60,7 +60,7 @@ export interface TemplateMessageOpts {
 
 export interface ImageMessageOpts {
   to:       string; // E.164 phone (PII — never log)
-  imageUrl: string; // publicly reachable HTTPS URL (e.g. a signed Tigris link)
+  imageUrl: string; // publicly reachable HTTPS URL (e.g. a signed R2 link)
   caption?: string;
 }
 
@@ -78,7 +78,7 @@ export interface IWhatsAppProvider {
   validateWebhookSignature(rawBody: Buffer, signature: string): boolean;
 
   /**
-   * Download an attachment from the provider and store it in Tigris storage.
+   * Download an attachment from the provider and store it in R2 storage.
    * Returns the storage path or throws on error.
    */
   downloadAttachment(

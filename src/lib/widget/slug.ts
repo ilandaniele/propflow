@@ -1,13 +1,14 @@
 /**
  * Public listing slugs (src/app/p/[orgSlug]/[listingSlug]) — pure, no DB
- * access. Byte-identical to the backfill in
- * src/lib/db/migrations/0009_agent_web.sql, so a listing minted by
- * syncListingsFromUnits() (this function) and one backfilled by the
- * migration always agree.
+ * access. Byte-identical to the backfill in the old Postgres migration
+ * src/lib/db/migrations/0009_agent_web.sql (kept at git tag
+ * archive/fly-postgres; D1 inherited the backfilled slugs), so a listing
+ * minted by syncListingsFromUnits() (this function) and one backfilled by
+ * the migration always agree.
  *
  * Not a general Unicode fold: only the accented Latin letters common in
  * es/pt titles are translated (matches the migration's SQL TRANSLATE()
- * table char-for-char). If either side changes, change both.
+ * table char-for-char). Do not change the map: existing slugs depend on it.
  */
 
 const ACCENT_MAP: Record<string, string> = {
