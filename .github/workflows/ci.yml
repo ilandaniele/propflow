@@ -286,9 +286,6 @@ jobs:
             echo "AUTH_SECRET=$(openssl rand -base64 32)"
             echo "AUTH_URL=$BASE_URL"
             echo "NEXT_PUBLIC_SITE_URL=$BASE_URL"
-            echo "R2_S3_ENDPOINT=http://localhost:9090"
-            echo "R2_ACCESS_KEY_ID=e2e"
-            echo "R2_SECRET_ACCESS_KEY=e2e"
           } > .dev.vars
 
       - name: Migrate and seed local D1, build Worker
