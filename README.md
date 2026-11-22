@@ -28,6 +28,24 @@ npm run test:e2e         # Playwright E2E tests
 npm run seed             # run seed script (idempotent)
 ```
 
+### Local E2E
+
+Uploads go to a local S3Mock, never to the production R2 bucket. Add these lines to `.dev.vars` (they override the R2 values baked in from `.env.local`):
+
+```bash
+R2_S3_ENDPOINT=http://localhost:9090
+R2_ACCESS_KEY_ID=e2e
+R2_SECRET_ACCESS_KEY=e2e
+```
+
+Then:
+
+```bash
+pnpm e2e:s3              # start S3Mock (docker)
+pnpm e2e:prepare         # migrate + seed local D1, build the Worker
+pnpm test:e2e
+```
+
 ## Google OAuth Setup — Human Steps Required
 
 Google sign-in requires one-time configuration by the project owner. The app adds zero new env vars; Google credentials live in Supabase Auth.

@@ -277,7 +277,7 @@ jobs:
       # Fake S3 endpoint so upload specs never touch the production R2 bucket.
       - name: Start local S3 (S3Mock)
         run: |
-          docker run -d --name s3mock -p 9090:9090             -e COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS=propflow-files             adobe/s3mock@sha256:468ba0b0e87f20ad54fbb6085e98c143f5bd1e384a844fa12a58535b4e39d4aa  # 4.7.0
+          pnpm run e2e:s3
           timeout 60 sh -c 'until curl -sf http://localhost:9090/propflow-files?list-type=2 >/dev/null; do sleep 1; done'
 
       - name: Write local Worker vars
