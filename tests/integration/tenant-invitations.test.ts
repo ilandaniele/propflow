@@ -231,7 +231,7 @@ vi.mock('@/lib/db', () => {
         }
         if (tableName === 'profiles') {
           const p = vals as Record<string, unknown>;
-          const id = String(p['userId'] ?? p['id'] ?? '');
+          const id = String(p['id'] ?? `random-profile-${String(p['userId'] ?? '')}`);
           if (id) state.profiles[id] = { id, org_id: String(p['orgId'] ?? ''), role: String(p['role'] ?? 'tenant') };
         }
         return { returning: vi.fn(async () => []) };
