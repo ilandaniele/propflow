@@ -5,24 +5,27 @@ export default defineConfig({
   timeout: 60_000,
   retries: process.env.CI ? 2 : 0,
   use: {
-    baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
+    baseURL: process.env.BASE_URL ?? 'http://localhost:8787',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     headless: true,
   },
   webServer: {
-    command: 'npm run build && npm run start',
-    url: 'http://localhost:3000',
+    command: 'pnpm cf:preview',
+    url: 'http://localhost:8787',
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    env: {
-      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
-    },
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+      use: { browserName: 'chromium' },
+    },
+    {
       name: 'chromium',
       use: { browserName: 'chromium' },
+      dependencies: ['setup'],
     },
   ],
   reporter: process.env.CI ? 'github' : 'list',

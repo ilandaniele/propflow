@@ -17,6 +17,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { signInAs } from './fixtures/session';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -24,10 +25,7 @@ import { test, expect } from '@playwright/test';
 
 // Helper to log in as admin (reuse the seed credentials)
 async function loginAsAdmin(page: import('@playwright/test').Page) {
-  await page.goto('/login');
-  await page.fill('[name=email]', 'admin@dev.local');
-  await page.fill('[name=password]', 'DevPass1234!');
-  await page.click('[type=submit]');
+  await signInAs(page, 'admin');
   // Wait for redirect to dashboard
   await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
 }
@@ -58,7 +56,7 @@ test.describe('Admin Import — navigation', () => {
     // Check specific tab labels (Spanish)
     await expect(page.getByRole('link', { name: 'CSV Mensual' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Rendimiento' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Historial' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Historial', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Cuartos fantasma' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Mapeo propiedades' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Mapeo cuentas' })).toBeVisible();
@@ -116,9 +114,9 @@ test.describe('Admin Import — Logs tab', () => {
     await expect(table).toBeVisible();
 
     // Check column headers
-    await expect(page.getByText('Tipo', { exact: false })).toBeVisible();
-    await expect(page.getByText('Archivo', { exact: false })).toBeVisible();
-    await expect(page.getByText('Estado', { exact: false })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Tipo' })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Archivo' })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Estado' })).toBeVisible();
   });
 });
 
@@ -134,7 +132,7 @@ test.describe('Admin Import — Phantom Rooms tab (AC19)', () => {
   });
 
   test('phantom rooms page renders info banner', async ({ page }) => {
-    await expect(page.getByText('Cuartos fantasma')).toBeVisible();
+    await expect(page.locator('span', { hasText: /^Cuartos fantasma$/ })).toBeVisible();
     await expect(page.getByText(/Mapea cada etiqueta/)).toBeVisible();
   });
 

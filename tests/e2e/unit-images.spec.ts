@@ -1,16 +1,12 @@
 import { test, expect } from '@playwright/test';
-import * as path from 'path';
+import { signInAs } from './fixtures/session';
 import * as fs from 'fs';
-import * as os from 'os';
 
 // ---------------------------------------------------------------------------
 // Credentials — match existing E2E pattern
 // ---------------------------------------------------------------------------
 
-const ADMIN_EMAIL  = process.env.E2E_ADMIN_EMAIL  ?? 'admin@org-a.demo';
-const ADMIN_PASS   = process.env.E2E_ADMIN_PASS   ?? 'DemoAdmin123!';
 const TENANT_EMAIL = process.env.E2E_TENANT_EMAIL ?? 'tenant@org-a.demo';
-const TENANT_PASS  = process.env.E2E_TENANT_PASS  ?? 'DemoTenant123!';
 
 /**
  * TEST_UNIT_ID must be a unit that:
@@ -29,36 +25,22 @@ const SKIP = !TEST_UNIT_ID;
 // ---------------------------------------------------------------------------
 
 async function loginAsAdmin(page: Parameters<Parameters<typeof test>[1]>[0]['page']) {
-  await page.goto('/login');
-  await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-  await page.getByLabel(/password/i).fill(ADMIN_PASS);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await signInAs(page, 'admin');
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 }
 
 async function loginAsTenant(page: Parameters<Parameters<typeof test>[1]>[0]['page']) {
-  await page.goto('/login');
-  await page.getByLabel(/email/i).fill(TENANT_EMAIL);
-  await page.getByLabel(/password/i).fill(TENANT_PASS);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await signInAs(page, 'tenant');
   await expect(page).toHaveURL(/\/portal/, { timeout: 15_000 });
 }
 
-/** Creates a minimal valid JPEG file in a temp dir and returns its path. */
+/** Creates a minimal valid JPEG in the test's output dir (Playwright cleans it up) and returns its path. */
 function createTempJpeg(name = 'test-upload.jpg'): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'propflow-e2e-'));
-  const filePath = path.join(dir, name);
-  // Minimal JPEG header (FFD8 FFE0 ... FFD9) — enough to pass MIME sniff
+  const filePath = test.info().outputPath(name);
+  // Valid 1x1 JPEG so the browser can decode and render it after upload
   const jpegBytes = Buffer.from(
-    'ffd8ffe000104a46494600010100000100010000' +
-    'ffdb004300080606070605080707070909080a0c' +
-    '140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20' +
-    '242e2720222c231c1c2837292c30313434341f27' +
-    '39' + '3d38323c2e333432ffc0000b08000100010' +
-    '1011100ffc4001f0000010501010101010100000' +
-    '000000000000102030405060708090a0bffda000' +
-    '8010100003f00f50000000000000000ffd9',
-    'hex',
+    '/9j/2wBDABALDA4MChAODQ4SERATGCgaGBYWGDEjJR0oOjM9PDkzODdASFxOQERXRTc4UG1RV19iZ2hnPk1xeXBkeFxlZ2P/2wBDARESEhgVGC8aGi9jQjhCY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2P/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAP/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKAA/9k=',
+    'base64',
   );
   fs.writeFileSync(filePath, jpegBytes);
   return filePath;
@@ -101,9 +83,6 @@ test.describe('Unit Images — Admin upload flow', () => {
     await expect(
       page.locator('img[src*="unit-images"], img[alt*="unit"], [data-testid="unit-image"]').first(),
     ).toBeVisible({ timeout: 20_000 });
-
-    // Clean up temp file
-    fs.rmSync(path.dirname(tempFile), { recursive: true, force: true });
   });
 });
 
@@ -162,15 +141,14 @@ test.describe('Tenant Avatar — upload from portal profile', () => {
     const tempFile = createTempJpeg('tenant-avatar.jpg');
     await avatarInput.setInputFiles(tempFile);
 
-    // Wait for success indicator: the avatar <img> should update its src, or
-    // a success toast / "avatar updated" message should appear.
+    // Wait for success indicator: the avatar renders as an <img> (initials
+    // before upload), or a success toast / "avatar updated" message appears.
     const successIndicator = page
-      .getByRole('img', { name: /avatar|profile photo/i })
+      .getByRole('main')
+      .getByRole('img')
       .or(page.getByText(/updated|guardado|saved|avatar/i))
       .first();
 
     await expect(successIndicator).toBeVisible({ timeout: 20_000 });
-
-    fs.rmSync(path.dirname(tempFile), { recursive: true, force: true });
   });
 });

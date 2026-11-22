@@ -66,4 +66,9 @@ describe('proxy — Workers headers', () => {
     expect(csp).toMatch(/img-src [^;]*https:\/\/\*\.r2\.cloudflarestorage\.com/);
     expect(csp).not.toContain('tigris');
   });
+
+  it('allows blob: images so upload previews render', async () => {
+    const csp = (await proxy(req('/login'))).headers.get('content-security-policy')!;
+    expect(csp).toMatch(/img-src [^;]*blob:/);
+  });
 });

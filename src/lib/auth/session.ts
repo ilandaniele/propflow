@@ -13,15 +13,10 @@ import { randomBytes } from 'crypto';
 import { cookies } from 'next/headers';
 import { db } from '@/lib/db';
 import { sessions } from '@/lib/db/schema';
+import { shouldUseSecureAuthCookies } from './secure-cookies';
 
 // Matches NextAuth's default session maxAge (30 days).
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-
-function isSecureContext(): boolean {
-  if (process.env.NODE_ENV === 'production') return true;
-  const url = process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? '';
-  return url.startsWith('https://');
-}
 
 /**
  * Create a database session for `userId` and set the NextAuth session cookie.
@@ -34,7 +29,7 @@ export async function createUserSession(userId: string): Promise<void> {
 
   await db.insert(sessions).values({ sessionToken, userId, expires });
 
-  const secure = isSecureContext();
+  const secure = shouldUseSecureAuthCookies();
   const cookieName = secure ? '__Secure-authjs.session-token' : 'authjs.session-token';
 
   const cookieStore = await cookies();

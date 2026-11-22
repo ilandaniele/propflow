@@ -3,8 +3,6 @@ import { test, expect } from '@playwright/test';
 // These tests require the seed to have been run
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@org-a.demo';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS ?? 'DemoAdmin123!';
-const TENANT_EMAIL = process.env.E2E_TENANT_EMAIL ?? 'tenant@org-a.demo';
-const TENANT_PASS = process.env.E2E_TENANT_PASS ?? 'DemoTenant123!';
 
 const HAVE_CREDENTIALS = !!process.env.E2E_ADMIN_EMAIL || ADMIN_EMAIL !== '';
 
@@ -13,22 +11,6 @@ test.describe.configure({ mode: 'serial' });
 test.describe('Authentication flows', () => {
   test.beforeEach(({}, testInfo) => {
     if (!HAVE_CREDENTIALS) testInfo.skip();
-  });
-
-  test('admin login redirects to /dashboard', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
-  });
-
-  test('tenant login redirects to /portal', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TENANT_EMAIL);
-    await page.getByLabel(/password/i).fill(TENANT_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 10_000 });
   });
 
   test('unauthenticated access to /dashboard redirects to /login', async ({ page }) => {
@@ -40,9 +22,9 @@ test.describe('Authentication flows', () => {
 
   test('signed-in admin can sign out', async ({ page }) => {
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await page.getByLabel(/email|correo/i).fill(ADMIN_EMAIL);
+    await page.getByLabel(/password|contraseña/i).fill(ADMIN_PASS);
+    await page.getByRole('button', { name: /sign in|ingresar/i }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
     const logoutBtn = page.getByTestId('logout-button');
@@ -68,14 +50,14 @@ test('login page renders correctly without JavaScript errors', async ({ page }) 
 
 test('login page has "Continue with Google" button', async ({ page }) => {
   await page.goto('/login');
-  const googleBtn = page.getByRole('button', { name: /continue with google/i });
+  const googleBtn = page.getByRole('button', { name: /continue with google|continuar con google/i });
   await expect(googleBtn).toBeVisible();
 });
 
 test('login page has OR divider between password form and Google button', async ({ page }) => {
   await page.goto('/login');
   // The OR text is aria-hidden but still in the DOM
-  const orDivider = page.locator('span', { hasText: /^or$/i });
+  const orDivider = page.locator('span', { hasText: /^(or|o)$/i });
   await expect(orDivider).toBeVisible();
 });
 
@@ -87,7 +69,7 @@ test('Google button shows loading state when clicked', async ({ page }) => {
   });
 
   await page.goto('/login');
-  const googleBtn = page.getByRole('button', { name: /continue with google/i });
+  const googleBtn = page.getByRole('button', { name: /continue with google|continuar con google/i });
   await expect(googleBtn).toBeVisible();
 
   // Clicking the button should trigger the loading state or at least not crash

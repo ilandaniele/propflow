@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { signInAs } from './fixtures/session';
 
 // ---------------------------------------------------------------------------
 // Credential / seed constants — match existing auth.spec.ts pattern
 // ---------------------------------------------------------------------------
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@org-a.demo';
-const ADMIN_PASS = process.env.E2E_ADMIN_PASS ?? 'DemoAdmin123!';
 
 // TEST_TENANT_ID: a seeded tenant in Org A that has profile_id set.
 // TEST_TENANT_NULL_PROFILE_ID: a seeded tenant in Org A with profile_id=null.
@@ -17,10 +16,7 @@ const TEST_TENANT_NULL_PROFILE_ID = process.env.TEST_TENANT_NULL_PROFILE_ID;
 // ---------------------------------------------------------------------------
 
 async function loginAsAdmin(page: Parameters<Parameters<typeof test>[1]>[0]['page']) {
-  await page.goto('/login');
-  await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-  await page.getByLabel(/password/i).fill(ADMIN_PASS);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await signInAs(page, 'admin');
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 }
 

@@ -30,7 +30,7 @@ let hostServer: Server;
 test.beforeAll(async () => {
   const template = readFileSync(path.join(__dirname, 'fixtures', 'widget-host.html'), 'utf8');
   const html = template
-    .replace('{{WIDGET_JS_URL}}', `${process.env.BASE_URL ?? 'http://localhost:3000'}/widget.js`)
+    .replace('{{WIDGET_JS_URL}}', `${process.env.BASE_URL ?? 'http://localhost:8787'}/widget.js`)
     .replace('{{PUBLIC_KEY}}', PUBLIC_KEY);
 
   hostServer = createServer((_req, res) => {
@@ -63,11 +63,7 @@ test.describe('widget embed', () => {
       });
     });
 
-    await page.goto(`${ALLOWED_HOST_ORIGIN}/widget-host.html`).catch(() => {});
-    await page.goto('about:blank');
-    await page.setContent(readFileSync(path.join(__dirname, 'fixtures', 'widget-host.html'), 'utf8')
-      .replace('{{WIDGET_JS_URL}}', `${process.env.BASE_URL ?? 'http://localhost:3000'}/widget.js`)
-      .replace('{{PUBLIC_KEY}}', PUBLIC_KEY));
+    await page.goto(`${ALLOWED_HOST_ORIGIN}/widget-host.html`);
 
     const launcher = page.getByRole('button', { name: /abrir chat/i });
     await expect(launcher).toBeVisible({ timeout: 15_000 });
@@ -86,7 +82,7 @@ test.describe('widget embed', () => {
     });
 
     await page.setContent(`<!DOCTYPE html><html><body>
-      <iframe title="Chat" src="${process.env.BASE_URL ?? 'http://localhost:3000'}/widget/${PUBLIC_KEY}"></iframe>
+      <iframe title="Chat" src="${process.env.BASE_URL ?? 'http://localhost:8787'}/widget/${PUBLIC_KEY}"></iframe>
     </body></html>`, { baseURL: 'http://not-an-allowed-origin.invalid' });
 
     // The iframe never gets a document from the app (frame-ancestors blocks it) —

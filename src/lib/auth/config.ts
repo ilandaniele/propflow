@@ -30,6 +30,7 @@ import { db } from '@/lib/db';
 import { users, accounts, sessions, verificationTokens, profiles } from '@/lib/db/schema';
 import { provisionOrgAndProfile, getExistingProfile, attemptAutoLink, attachToPrimaryOrgAsAdmin } from './provision';
 import { isAllowlistedAdmin } from './admin-allowlist';
+import { shouldUseSecureAuthCookies } from './secure-cookies';
 import { log } from '@/lib/log';
 
 export const authConfig: NextAuthConfig = {
@@ -170,4 +171,7 @@ export const authConfig: NextAuthConfig = {
 
   // Trusthost required on Vercel (host header comes from the CDN)
   trustHost: true,
+
+  // Must match createUserSession()'s cookie name (src/lib/auth/session.ts).
+  useSecureCookies: shouldUseSecureAuthCookies(),
 };

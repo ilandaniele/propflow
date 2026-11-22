@@ -124,9 +124,10 @@ test.describe('AC10 — Pricing section with 3 tiers and toggle', () => {
   test('pricing tiers have Spanish names: Starter, Pro, Enterprise', async ({ page }) => {
     await page.context().clearCookies();
     await page.goto('/');
-    await expect(page.getByText('Starter')).toBeVisible();
-    await expect(page.getByText('Pro')).toBeVisible();
-    await expect(page.getByText('Enterprise')).toBeVisible();
+    const tiers = page.locator('[data-testid="pricing-tier"]');
+    await expect(tiers.getByRole('heading', { name: 'Starter', exact: true })).toBeVisible();
+    await expect(tiers.getByRole('heading', { name: 'Pro', exact: true })).toBeVisible();
+    await expect(tiers.getByRole('heading', { name: 'Enterprise', exact: true })).toBeVisible();
   });
 
   test('each pricing tier has at least 4 bullet points', async ({ page }) => {
@@ -254,8 +255,8 @@ test.describe('Login Page', () => {
   test('loads the login page', async ({ page }) => {
     const response = await page.goto('/login');
     expect(response?.status()).toBe(200);
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByLabel(/email|correo/i)).toBeVisible();
+    await expect(page.getByLabel(/password|contraseña/i)).toBeVisible();
   });
 
   test('redirects unauthenticated users to login from dashboard', async ({ page }) => {
@@ -284,8 +285,8 @@ test.describe('Accessibility — Landing & Login', () => {
 
   test('login form has proper labels', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByLabel(/email|correo/i)).toBeVisible();
+    await expect(page.getByLabel(/password|contraseña/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /sign in|ingresar/i })).toBeVisible();
   });
 });

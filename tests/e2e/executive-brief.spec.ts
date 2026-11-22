@@ -12,19 +12,15 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { signInAs } from './fixtures/session';
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@org-a.demo';
-const ADMIN_PASS = process.env.E2E_ADMIN_PASS ?? 'DemoAdmin123!';
 const HAVE_CREDENTIALS = !!process.env.E2E_ADMIN_EMAIL;
 
 // ---------------------------------------------------------------------------
 // Auth helper — logs in as admin before each test
 // ---------------------------------------------------------------------------
 async function loginAsAdmin(page: Parameters<typeof test>[1] extends (args: { page: infer P }) => unknown ? P : never) {
-  await page.goto('/login');
-  await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-  await page.getByLabel(/password/i).fill(ADMIN_PASS);
-  await page.getByRole('button', { name: /sign in/i }).click();
+  await signInAs(page, 'admin');
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 }
 
@@ -146,7 +142,7 @@ test.describe('Executive Brief page — structural (no auth required)', () => {
   }) => {
     await page.context().clearCookies();
     await page.goto('/dashboard/executive-brief');
-    // Should redirect away from executive-brief
-    await expect(page).not.toHaveURL(/executive-brief/);
+    await expect(page).toHaveURL(/\/login/);
+    expect(new URL(page.url()).pathname).toBe('/login');
   });
 });

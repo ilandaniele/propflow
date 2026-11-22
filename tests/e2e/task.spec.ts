@@ -15,11 +15,8 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { signInAs } from './fixtures/session';
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@org-a.demo';
-const ADMIN_PASS = process.env.E2E_ADMIN_PASS ?? 'DemoAdmin123!';
-const TENANT_EMAIL = process.env.E2E_TENANT_EMAIL ?? 'tenant@org-a.demo';
-const TENANT_PASS = process.env.E2E_TENANT_PASS ?? 'DemoTenant123!';
 
 const TEST_ADMIN_ID = process.env.TEST_ADMIN_ID ?? '';
 const TEST_TENANT_ID = process.env.TEST_TENANT_ID ?? '';
@@ -40,10 +37,7 @@ test.describe('Task create (admin)', () => {
   });
 
   test('admin can navigate to task list at /dashboard/tasks', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'admin');
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
     await page.goto('/dashboard/tasks');
@@ -51,10 +45,7 @@ test.describe('Task create (admin)', () => {
   });
 
   test('task list has "+ New Task" link pointing to /dashboard/tasks/new', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'admin');
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
     await page.goto('/dashboard/tasks');
@@ -65,10 +56,7 @@ test.describe('Task create (admin)', () => {
   });
 
   test('task creation form renders all required fields', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'admin');
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
     await page.goto('/dashboard/tasks/new');
@@ -85,10 +73,7 @@ test.describe('Task create (admin)', () => {
   });
 
   test('task form submit button is not disabled on load', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'admin');
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
     await page.goto('/dashboard/tasks/new');
@@ -99,10 +84,7 @@ test.describe('Task create (admin)', () => {
   });
 
   test('task form shows error when submitted empty (HTML5 validation or server error)', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'admin');
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
     await page.goto('/dashboard/tasks/new');
@@ -134,10 +116,7 @@ test.describe('Task view on portal (/portal/tasks)', () => {
   });
 
   test('tenant can view tasks at /portal/tasks', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TENANT_EMAIL);
-    await page.getByLabel(/password/i).fill(TENANT_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'tenant');
     await expect(page).toHaveURL(/\/portal/, { timeout: 10_000 });
 
     await page.goto('/portal/tasks');
@@ -145,10 +124,7 @@ test.describe('Task view on portal (/portal/tasks)', () => {
   });
 
   test('portal tasks page renders task list or empty state', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TENANT_EMAIL);
-    await page.getByLabel(/password/i).fill(TENANT_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'tenant');
     await expect(page).toHaveURL(/\/portal/, { timeout: 10_000 });
 
     await page.goto('/portal/tasks');
@@ -176,10 +152,7 @@ test.describe('Task detail — photo upload form (/portal/tasks/[id])', () => {
     // The page may 404 if no task exists with this ID — that is acceptable and
     // tested separately. The key assertion is that the route renders correctly
     // (not a hard crash) when the tenant is authenticated.
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TENANT_EMAIL);
-    await page.getByLabel(/password/i).fill(TENANT_PASS);
-    await page.getByRole('button', { name: /sign in/i }).click();
+    await signInAs(page, 'tenant');
     await expect(page).toHaveURL(/\/portal/, { timeout: 10_000 });
 
     // Navigate to the portal tasks page — this confirms the task list works

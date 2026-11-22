@@ -47,7 +47,7 @@ export async function proxy(request: NextRequest) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     `connect-src 'self' ${R2_HOST} https://accounts.google.com`,
-    `img-src 'self' data: https: ${R2_HOST}`,
+    `img-src 'self' data: blob: https: ${R2_HOST}`,
     "font-src 'self' data:",
     "frame-ancestors 'none'",
     "frame-src 'self' https://accounts.google.com",     // 'self': /p pages host the widget iframe (Phase 7); accounts.google.com: OAuth redirect/popup
