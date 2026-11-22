@@ -30,15 +30,7 @@ npm run seed             # run seed script (idempotent)
 
 ### Local E2E
 
-Uploads go to a local S3Mock, never to the production R2 bucket. Add these lines to `.dev.vars` (they override the R2 values baked in from `.env.local`):
-
-```bash
-R2_S3_ENDPOINT=http://localhost:9090
-R2_ACCESS_KEY_ID=e2e
-R2_SECRET_ACCESS_KEY=e2e
-```
-
-Then:
+Uploads go to a local S3Mock, never to the production R2 bucket: the Playwright web server passes the S3Mock endpoint and keys to wrangler with `--var`, overriding `.dev.vars` and `.env.local`.
 
 ```bash
 pnpm e2e:s3              # start S3Mock (docker)
