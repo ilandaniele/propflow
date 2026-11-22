@@ -246,7 +246,7 @@ jobs:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
     needs: quality
-    # Local Worker (wrangler dev) + local D1: no secrets needed.
+    # Local Worker (wrangler dev) + local D1 + S3Mock: no secrets needed.
     # Opt-in via vars.E2E_ENABLED until the suite is green.
     if: ${{ vars.E2E_ENABLED == 'true' }}
     env:
@@ -274,12 +274,21 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
+      # Fake S3 endpoint so upload specs never touch the production R2 bucket.
+      - name: Start local S3 (S3Mock)
+        run: |
+          pnpm run e2e:s3
+          timeout 60 sh -c 'until curl -sf http://localhost:9090/propflow-files?list-type=2 >/dev/null; do sleep 1; done'
+
       - name: Write local Worker vars
         run: |
           {
             echo "AUTH_SECRET=$(openssl rand -base64 32)"
             echo "AUTH_URL=$BASE_URL"
             echo "NEXT_PUBLIC_SITE_URL=$BASE_URL"
+            echo "R2_S3_ENDPOINT=http://localhost:9090"
+            echo "R2_ACCESS_KEY_ID=e2e"
+            echo "R2_SECRET_ACCESS_KEY=e2e"
           } > .dev.vars
 
       - name: Migrate and seed local D1, build Worker

@@ -139,16 +139,22 @@ test.describe('Tenant Avatar — upload from portal profile', () => {
     await expect(avatarInput).toBeAttached({ timeout: 5_000 });
 
     const tempFile = createTempJpeg('tenant-avatar.jpg');
+    const uploadAction = page.waitForResponse(
+      (res) => res.request().method() === 'POST' && !!res.request().headers()['next-action'],
+      { timeout: 20_000 },
+    );
     await avatarInput.setInputFiles(tempFile);
+    expect((await uploadAction).ok()).toBe(true);
 
-    // Wait for success indicator: the avatar renders as an <img> (initials
-    // before upload), or a success toast / "avatar updated" message appears.
-    const successIndicator = page
-      .getByRole('main')
-      .getByRole('img')
-      .or(page.getByText(/updated|guardado|saved|avatar/i))
-      .first();
+    await expect(page.getByText(/no se pudo subir la foto|could not upload photo/i)).toBeHidden();
 
-    await expect(successIndicator).toBeVisible({ timeout: 20_000 });
+    // The optimistic preview is client-only; after a reload the <img> (initials
+    // when there is no avatar) proves the upload was stored and is served back.
+    await page.reload();
+    const avatar = page.getByRole('main').locator('img').first();
+    await expect(avatar).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(() => avatar.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth), { timeout: 20_000 })
+      .toBeGreaterThan(0);
   });
 });
