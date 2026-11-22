@@ -239,19 +239,20 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # E2E (Playwright) — optional gated job; runs on PRs and main pushes.
-  # Requires STAGING_DATABASE_URL (a Postgres test database) to stand up test data.
-  # Gate: only runs when the E2E secret group is configured (senior-dev step).
-  # The senior-dev should extend this with actual test environment setup.
-  # Cloudflare: still targets `next build/start` (Postgres). Switching to
-  # `pnpm cf:preview` needs a seeded local D1, which arrives with W-CF-14.
+  # Boots the OpenNext Worker with `pnpm cf:preview` against a local D1
+  # migrated and seeded by `pnpm e2e:prepare` (scripts/e2e/seed-d1.mjs).
   # ---------------------------------------------------------------------------
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
     needs: quality
-    # Guard: skip gracefully if the required secrets are not yet configured.
-    # Fork PRs get no secrets, so the job only runs for same-repo PRs and pushes.
-    if: ${{ vars.E2E_ENABLED == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    # Local Worker (wrangler dev) + local D1: no secrets needed.
+    # Opt-in via vars.E2E_ENABLED until the suite is green.
+    if: ${{ vars.E2E_ENABLED == 'true' }}
+    env:
+      BASE_URL: http://localhost:8787
+      NEXT_PUBLIC_SITE_URL: http://localhost:8787
+      WRANGLER_SEND_METRICS: 'false'
     permissions:
       contents: read
 
@@ -273,18 +274,19 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Build
-        run: pnpm run build
-        env:
-          NEXT_PUBLIC_SITE_URL: ${{ secrets.STAGING_SITE_URL }}
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+      - name: Write local Worker vars
+        run: |
+          {
+            echo "AUTH_SECRET=$(openssl rand -base64 32)"
+            echo "AUTH_URL=$BASE_URL"
+            echo "NEXT_PUBLIC_SITE_URL=$BASE_URL"
+          } > .dev.vars
+
+      - name: Migrate and seed local D1, build Worker
+        run: pnpm run e2e:prepare
 
       - name: Run E2E tests
         run: pnpm run test:e2e
-        env:
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          NEXT_PUBLIC_SITE_URL: ${{ secrets.STAGING_SITE_URL }}
 
       - name: Upload Playwright report
         if: always()
