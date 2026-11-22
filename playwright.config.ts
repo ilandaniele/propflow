@@ -18,8 +18,14 @@ export default defineConfig({
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+      use: { browserName: 'chromium' },
+    },
+    {
       name: 'chromium',
       use: { browserName: 'chromium' },
+      dependencies: ['setup'],
     },
   ],
   reporter: process.env.CI ? 'github' : 'list',

@@ -14,20 +14,16 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { signInAs } from './fixtures/session';
 
 const RUN = process.env.E2E_AGENT === '1';
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@org-a.demo';
-const ADMIN_PASS = process.env.E2E_ADMIN_PASS ?? 'DemoAdmin123!';
 const SESSION_ID = process.env.TEST_AGENT_SESSION_ID ?? '';
 
 test.describe('Agent inbox', () => {
   test.skip(!RUN || !SESSION_ID, 'Skipped: set E2E_AGENT=1 and TEST_AGENT_SESSION_ID to run against a live server');
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(ADMIN_EMAIL);
-    await page.getByLabel(/password|contraseña/i).fill(ADMIN_PASS);
-    await page.getByRole('button', { name: /iniciar sesión|sign in|ingresar/i }).click();
+    await signInAs(page, 'admin');
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
   });
 

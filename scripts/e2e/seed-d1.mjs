@@ -11,11 +11,11 @@ import { webcrypto as crypto } from 'node:crypto';
 
 const ITERATIONS = 100_000;
 
+// profiles.id mirrors users.id: tenants.profile_id holds the user id across the app.
 const ORG_ID = 'e2e00000-0000-4000-8000-000000000001';
 const ACCOUNTS = [
   {
     userId: 'e2e00000-0000-4000-8000-000000000011',
-    profileId: 'e2e00000-0000-4000-8000-000000000021',
     email: process.env.E2E_ADMIN_EMAIL ?? 'admin@org-a.demo',
     password: process.env.E2E_ADMIN_PASS ?? 'DemoAdmin123!',
     name: 'Demo Admin',
@@ -23,7 +23,6 @@ const ACCOUNTS = [
   },
   {
     userId: 'e2e00000-0000-4000-8000-000000000012',
-    profileId: 'e2e00000-0000-4000-8000-000000000022',
     email: process.env.E2E_TENANT_EMAIL ?? 'tenant@org-a.demo',
     password: process.env.E2E_TENANT_PASS ?? 'DemoTenant123!',
     name: 'Demo Tenant',
@@ -31,6 +30,12 @@ const ACCOUNTS = [
   },
 ];
 const TENANT_ROW_ID = 'e2e00000-0000-4000-8000-000000000031';
+const WIDGET = {
+  channelId: 'e2e00000-0000-4000-8000-000000000041',
+  agentConfigId: 'e2e00000-0000-4000-8000-000000000051',
+  publicKey: process.env.E2E_WIDGET_PUBLIC_KEY ?? 'pk_TESTTESTTESTTESTTESTTEST',
+  allowedOrigins: ['http://localhost:4173'],
+};
 
 async function hashPassword(plain) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -55,12 +60,14 @@ async function buildSql() {
     const hash = await hashPassword(account.password);
     statements.push(
       `INSERT OR REPLACE INTO users (id, name, email, email_verified, password_hash) VALUES (${quote(account.userId)}, ${quote(account.name)}, ${quote(account.email)}, ${now}, ${quote(hash)});`,
-      `INSERT OR REPLACE INTO profiles (id, user_id, org_id, role, full_name, email, preferred_language, terms_accepted_at, terms_version, privacy_accepted_at, privacy_version, created_at, updated_at) VALUES (${quote(account.profileId)}, ${quote(account.userId)}, ${quote(ORG_ID)}, ${quote(account.role)}, ${quote(account.name)}, ${quote(account.email)}, 'es', ${now}, '1.0', ${now}, '1.0', ${now}, ${now});`,
+      `INSERT OR REPLACE INTO profiles (id, user_id, org_id, role, full_name, email, preferred_language, terms_accepted_at, terms_version, privacy_accepted_at, privacy_version, created_at, updated_at) VALUES (${quote(account.userId)}, ${quote(account.userId)}, ${quote(ORG_ID)}, ${quote(account.role)}, ${quote(account.name)}, ${quote(account.email)}, 'es', ${now}, '1.0', ${now}, '1.0', ${now}, ${now});`,
     );
   }
   const tenant = ACCOUNTS.find((a) => a.role === 'tenant');
   statements.push(
-    `INSERT OR REPLACE INTO tenants (id, org_id, profile_id, full_name, email, portal_access, created_at, updated_at) VALUES (${quote(TENANT_ROW_ID)}, ${quote(ORG_ID)}, ${quote(tenant.profileId)}, ${quote(tenant.name)}, ${quote(tenant.email)}, 'active', ${now}, ${now});`,
+    `INSERT OR REPLACE INTO tenants (id, org_id, profile_id, full_name, email, portal_access, created_at, updated_at) VALUES (${quote(TENANT_ROW_ID)}, ${quote(ORG_ID)}, ${quote(tenant.userId)}, ${quote(tenant.name)}, ${quote(tenant.email)}, 'active', ${now}, ${now});`,
+    `INSERT OR REPLACE INTO org_channels (id, org_id, channel, external_id, config, created_at, updated_at) VALUES (${quote(WIDGET.channelId)}, ${quote(ORG_ID)}, 'web', ${quote(WIDGET.publicKey)}, '{}', ${now}, ${now});`,
+    `INSERT OR REPLACE INTO agent_configs (id, org_id, channels_enabled, widget_allowed_origins, created_at, updated_at) VALUES (${quote(WIDGET.agentConfigId)}, ${quote(ORG_ID)}, ${quote(JSON.stringify({ whatsapp: false, web: true, voice: false }))}, ${quote(JSON.stringify(WIDGET.allowedOrigins))}, ${now}, ${now});`,
   );
   return statements.join('\n');
 }
@@ -73,7 +80,7 @@ try {
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
-  console.log(`[e2e-seed] seeded ${ACCOUNTS.length} accounts into local D1`);
+  console.log(`[e2e-seed] seeded ${ACCOUNTS.length} accounts + web widget channel into local D1`);
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

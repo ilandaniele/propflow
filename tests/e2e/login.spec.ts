@@ -14,21 +14,21 @@
 
 import { test, expect } from '@playwright/test';
 
-const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'admin@e2e.local';
-const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'TestPass1234!';
+const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'admin@org-a.demo';
+const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'DemoAdmin123!';
 
 test.describe('Login page', () => {
   test('renders login page with Google and credentials form', async ({ page }) => {
     await page.goto('/login');
     // Title or heading
     await expect(page.getByRole('button', { name: /Continuar con Google/i })).toBeVisible();
-    await expect(page.getByLabel(/email/i)).toBeVisible();
+    await expect(page.getByLabel(/email|correo/i)).toBeVisible();
     await expect(page.getByLabel(/password|contraseña/i)).toBeVisible();
   });
 
   test('shows error on invalid credentials', async ({ page }) => {
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill('wrong@example.com');
+    await page.getByLabel(/email|correo/i).fill('wrong@example.com');
     await page.getByLabel(/password|contraseña/i).fill('wrongpassword');
     await page.getByRole('button', { name: /iniciar sesión|sign in|ingresar/i }).click();
 
@@ -56,7 +56,7 @@ test.describe('Credentials login flow (requires seeded test user)', () => {
 
   test('admin user can log in and reaches /dashboard', async ({ page }) => {
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TEST_EMAIL);
+    await page.getByLabel(/email|correo/i).fill(TEST_EMAIL);
     await page.getByLabel(/password|contraseña/i).fill(TEST_PASSWORD);
     await page.getByRole('button', { name: /iniciar sesión|sign in|ingresar/i }).click();
 
@@ -66,7 +66,7 @@ test.describe('Credentials login flow (requires seeded test user)', () => {
 
   test('auth() session.user contains id, orgId, role, email after login', async ({ page }) => {
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TEST_EMAIL);
+    await page.getByLabel(/email|correo/i).fill(TEST_EMAIL);
     await page.getByLabel(/password|contraseña/i).fill(TEST_PASSWORD);
     await page.getByRole('button', { name: /iniciar sesión|sign in|ingresar/i }).click();
     await expect(page).toHaveURL('/dashboard', { timeout: 10_000 });
@@ -86,7 +86,7 @@ test.describe('Credentials login flow (requires seeded test user)', () => {
   test('user can sign out', async ({ page }) => {
     // Sign in first
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill(TEST_EMAIL);
+    await page.getByLabel(/email|correo/i).fill(TEST_EMAIL);
     await page.getByLabel(/password|contraseña/i).fill(TEST_PASSWORD);
     await page.getByRole('button', { name: /iniciar sesión|sign in|ingresar/i }).click();
     await expect(page).toHaveURL('/dashboard', { timeout: 10_000 });
