@@ -75,3 +75,51 @@ describe('email lookups (real SQL)', () => {
     expect(await attemptAutoLink(other.id, 'wild_card@example.com')).toEqual({ linked: false, reason: 'no_match' });
   });
 });
+
+describe('profiles.id == users.id invariant (real SQL)', () => {
+  async function newUser(email: string) {
+    const [user] = await smoke.db.insert(schema.users)
+      .values({ id: crypto.randomUUID(), email }).returning();
+    return user;
+  }
+
+  async function profileOf(userId: string) {
+    const [profile] = await smoke.db.select().from(schema.profiles).where(eq(schema.profiles.userId, userId));
+    return profile;
+  }
+
+  it('provisionOrgAndProfile reuses the user id as profile id', async () => {
+    const { provisionOrgAndProfile } = await import('@/lib/auth/provision');
+    const user = await newUser('inv-owner@example.com');
+
+    const result = await provisionOrgAndProfile(user.id, user.email!, 'Invariant Org');
+
+    expect(result.profileId).toBe(user.id);
+    expect((await profileOf(user.id)).id).toBe(user.id);
+  });
+
+  it('attachToPrimaryOrgAsAdmin reuses the user id as profile id', async () => {
+    const { attachToPrimaryOrgAsAdmin } = await import('@/lib/auth/provision');
+    const user = await newUser('inv-admin@example.com');
+
+    const result = await attachToPrimaryOrgAsAdmin(user.id, user.email!, 'Admin');
+
+    expect(result.profileId).toBe(user.id);
+    expect((await profileOf(user.id)).id).toBe(user.id);
+  });
+
+  it('attemptAutoLink reuses the user id as profile id and links the tenant to it', async () => {
+    const { attemptAutoLink } = await import('@/lib/auth/provision');
+    const [org] = await smoke.db.insert(schema.organizations)
+      .values({ name: 'Invariant Link Org', slug: 'invariant-link-org' }).returning();
+    const [tenant] = await smoke.db.insert(schema.tenants)
+      .values({ orgId: org.id, fullName: 'Inv', email: 'inv-tenant@example.com' }).returning();
+    const user = await newUser('inv-tenant@example.com');
+
+    expect(await attemptAutoLink(user.id, user.email!)).toEqual({ linked: true, orgId: org.id });
+
+    expect((await profileOf(user.id)).id).toBe(user.id);
+    const [linked] = await smoke.db.select().from(schema.tenants).where(eq(schema.tenants.id, tenant.id));
+    expect(linked.profileId).toBe(user.id);
+  });
+});

@@ -56,7 +56,7 @@ export async function provisionOrgAndProfile(
         .values({ id: orgId, name: orgName, slug })
         .returning({ id: organizations.id, slug: organizations.slug }),
       db.insert(profiles)
-        .values({ userId, orgId, role: 'admin', email, fullName: fullName ?? null })
+        .values({ id: userId, userId, orgId, role: 'admin', email, fullName: fullName ?? null })
         .returning({ id: profiles.id }),
     ]);
   } catch (err) {
@@ -123,7 +123,7 @@ export async function attachToPrimaryOrgAsAdmin(
 
   const [inserted] = await db
     .insert(profiles)
-    .values({ userId, orgId, role: 'admin', email, fullName: fullName ?? null })
+    .values({ id: userId, userId, orgId, role: 'admin', email, fullName: fullName ?? null })
     .onConflictDoNothing()
     .returning({ id: profiles.id });
 
@@ -206,7 +206,7 @@ export async function attemptAutoLink(userId: string, email: string): Promise<Au
     // Insert profile (role=tenant); ignore conflict from concurrent requests
     const inserted = await db
       .insert(profiles)
-      .values({ userId, orgId: tenant.orgId, role: 'tenant', email })
+      .values({ id: userId, userId, orgId: tenant.orgId, role: 'tenant', email })
       .onConflictDoNothing()
       .returning({ id: profiles.id });
 

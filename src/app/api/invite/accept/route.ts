@@ -121,6 +121,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!existingProfile) {
     try {
       await db.insert(profiles).values({
+        id:     user.id,
         userId: user.id,
         orgId:  invitation.orgId,
         role:   'tenant',
