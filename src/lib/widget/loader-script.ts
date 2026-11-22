@@ -37,9 +37,7 @@ export function buildLoaderScript(appOrigin: string): string {
     return url;
   }
 
-  function ensureUi() {
-    if (container) return;
-
+  function mountLauncher() {
     launcher = document.createElement("button");
     launcher.type = "button";
     launcher.setAttribute("aria-label", "Abrir chat");
@@ -53,6 +51,11 @@ export function buildLoaderScript(appOrigin: string): string {
     launcher.style.border = "none";
     launcher.style.cursor = "pointer";
     launcher.addEventListener("click", function () { setOpen(!open); });
+    document.body.appendChild(launcher);
+  }
+
+  function ensureFrame() {
+    if (container) return;
 
     container = document.createElement("div");
     container.style.position = "fixed";
@@ -75,13 +78,11 @@ export function buildLoaderScript(appOrigin: string): string {
     iframe.style.height = "100%";
     iframe.style.border = "0";
     container.appendChild(iframe);
-
-    document.body.appendChild(launcher);
     document.body.appendChild(container);
   }
 
   function setOpen(next) {
-    ensureUi();
+    ensureFrame();
     open = next;
     container.style.display = open ? "block" : "none";
   }
@@ -113,6 +114,9 @@ export function buildLoaderScript(appOrigin: string): string {
     close: function () { setOpen(false); },
     setListing: setListing,
   };
+
+  if (document.body) mountLauncher();
+  else document.addEventListener("DOMContentLoaded", mountLauncher);
 })();
 `;
 }
