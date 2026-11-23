@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { eq } from 'drizzle-orm';
 import * as schema from '@/lib/db/schema';
 import { generateRentCharges } from '@/lib/finance/generate-rent-charges';
+import { isRentScheduleEnabled, setRentScheduleEnabled } from '@/lib/finance/rent-schedule-settings';
 import { createSmokeDb, seedOrg, seedProperty, type SmokeDb } from './setup';
 
 let smoke: { db: SmokeDb; close: () => Promise<void> };
@@ -36,6 +37,7 @@ async function seedContract(orgId: string, status: string) {
 describe('generateRentCharges (real SQL)', () => {
   it('creates one rent charge per active contract and is idempotent', async () => {
     const org = await seedOrg(db);
+    await setRentScheduleEnabled(org.id, true);
     const active = await seedContract(org.id, 'active');
     await seedContract(org.id, 'terminated');
     await db.insert(schema.charges).values({
@@ -50,5 +52,17 @@ describe('generateRentCharges (real SQL)', () => {
     const rent = rows.filter((row) => row.kind === 'rent');
     expect(rows).toHaveLength(2);
     expect(rent).toMatchObject([{ contractId: active.id, period: '2026-11-01', dueDate: '2026-11-15', amount: '850.00' }]);
+  });
+
+  it('skips orgs that did not opt in, and the toggle round-trips', async () => {
+    const org = await seedOrg(db);
+    await seedContract(org.id, 'active');
+    expect(await isRentScheduleEnabled(org.id)).toBe(false);
+    await generateRentCharges('2026-11-22');
+    expect(await db.select().from(schema.charges).where(eq(schema.charges.orgId, org.id))).toHaveLength(0);
+
+    await setRentScheduleEnabled(org.id, true);
+    await setRentScheduleEnabled(org.id, false);
+    expect(await isRentScheduleEnabled(org.id)).toBe(false);
   });
 });

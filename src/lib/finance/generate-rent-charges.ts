@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { asBatch, chunk, rowsPerInsert } from '@/lib/db/batch';
-import { charges, contracts } from '@/lib/db/schema';
+import { charges, contracts, rentScheduleSettings } from '@/lib/db/schema';
 import { rentChargesFor } from './rent-schedule';
 
+/** Only orgs that opted in (rent_schedule_settings.enabled): new charges feed payment_due reminders to tenants. */
 export async function generateRentCharges(today: string): Promise<number> {
   const activeContracts = await db
     .select({
@@ -15,7 +16,8 @@ export async function generateRentCharges(today: string): Promise<number> {
       monthlyRent: contracts.monthlyRent,
     })
     .from(contracts)
-    .where(eq(contracts.status, 'active'));
+    .innerJoin(rentScheduleSettings, eq(rentScheduleSettings.orgId, contracts.orgId))
+    .where(and(eq(contracts.status, 'active'), eq(rentScheduleSettings.enabled, true)));
 
   const rows = rentChargesFor(activeContracts, today);
   const statements = chunk(rows, rowsPerInsert(charges)).map((part) =>
