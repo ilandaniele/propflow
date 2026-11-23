@@ -66,6 +66,7 @@
     "cleaning": "Limpieza",
     "leads": "Prospectos",
     "community": "Comunidad",
+    "periodClose": "Cierre de mes",
     "visitors": "Visitantes",
     "aiAssistant": "Asistente IA",
     "whatsapp": "WhatsApp",
@@ -2364,5 +2365,18 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "periodClose": {
+    "title": "Cierre de mes",
+    "subtitle": "Un mes cerrado bloquea cargar o editar gastos, pagos y cargos con fecha en ese mes.",
+    "closeTitle": "Cerrar un mes",
+    "periodLabel": "Mes",
+    "noteLabel": "Nota (opcional)",
+    "notePlaceholder": "Conciliado con el banco",
+    "close": "Cerrar mes",
+    "reopen": "Reabrir",
+    "closedOn": "Cerrado el {date} por {name}",
+    "emptyTitle": "Sin meses cerrados",
+    "emptyDesc": "Cerrá un mes cuando termines de conciliarlo."
   }
 }

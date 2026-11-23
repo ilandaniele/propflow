@@ -9,6 +9,7 @@ import { Errors, ok } from '@/lib/errors';
 import { RecordPaymentSchema, ApprovePaymentSchema, CreateChargeSchema } from '@/lib/schemas/payment';
 import { log } from '@/lib/log';
 import type { ActionResult } from '@/lib/errors';
+import { closedPeriodError } from '@/lib/period-close/guard';
 
 export async function recordPayment(
   _prev: ActionResult,
@@ -29,6 +30,9 @@ export async function recordPayment(
 
   if (!contractRows[0]) return Errors.NOT_FOUND();
   const contract = contractRows[0];
+
+  const closed = await closedPeriodError(ctx.orgId, [parsed.data.paid_at]);
+  if (closed) return closed;
 
   // If the caller is a tenant, verify it's their own contract
   if (ctx.role === 'tenant') {
@@ -78,13 +82,16 @@ export async function approvePayment(
 
   // Verify payment belongs to this org
   const paymentRows = await db
-    .select({ id: payments.id, status: payments.status })
+    .select({ id: payments.id, status: payments.status, paidAt: payments.paidAt })
     .from(payments)
     .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)))
     .limit(1);
 
   if (!paymentRows[0]) return Errors.NOT_FOUND();
   if (paymentRows[0].status === 'approved') return Errors.CONFLICT('Payment is already approved');
+
+  const closed = await closedPeriodError(ctx.orgId, [paymentRows[0].paidAt]);
+  if (closed) return closed;
 
   try {
     await db
@@ -124,6 +131,9 @@ export async function createCharge(
     .limit(1);
 
   if (!contractRows[0]) return Errors.NOT_FOUND();
+
+  const closed = await closedPeriodError(ctx.orgId, [parsed.data.period, parsed.data.due_date]);
+  if (closed) return closed;
 
   // B5: Always derive tenant_id from the fetched contract server-side.
   try {
