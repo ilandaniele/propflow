@@ -548,3 +548,17 @@ export const absences = sqliteTable('absences', {
   index('idx_absences_org').on(t.orgId),
   uniqueIndex('absences_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
 ]);
+
+export const propertyOwnerTerms = sqliteTable('property_owner_terms', {
+  id:            id(),
+  orgId:         text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  propertyId:    text('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  ownerId:       text('owner_id').notNull().references(() => owners.id, { onDelete: 'cascade' }),
+  commissionPct: money('commission_pct').notNull().default('0'),
+  createdAt:     ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:     ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('property_owner_terms_property_uniq').on(t.propertyId),
+  index('idx_property_owner_terms_org_owner').on(t.orgId, t.ownerId),
+  check('property_owner_terms_commission_check', sql`CAST(commission_pct AS REAL) >= 0 AND CAST(commission_pct AS REAL) <= 100`),
+]);
