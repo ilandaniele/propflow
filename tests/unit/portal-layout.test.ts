@@ -85,6 +85,10 @@ vi.mock('@/lib/auth/guards', () => ({
 // Stub TenantNav so the layout can be called without DOM / React infra
 // ---------------------------------------------------------------------------
 
+vi.mock('@/lib/branding/org-branding', () => ({
+  getOrgBranding: vi.fn().mockResolvedValue({ accentColor: null, logoUrl: null }),
+}));
+
 vi.mock('@/components/shell/TenantNav', () => ({
   TenantNav: vi.fn(() => null),
 }));

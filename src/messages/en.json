@@ -89,6 +89,7 @@
     "portfolio": "Portfolio",
     "pricingTables": "Pricing Tables",
     "adminImport": "Import",
+    "branding": "Branding",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
     "accountStatements": "Account Statements",
@@ -1734,6 +1735,24 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "branding": {
+    "title": "Branding",
+    "subtitle": "Logo and accent color shown on the dashboard, the tenant portal and receipts.",
+    "logoTitle": "Logo",
+    "logoHint": "PNG, JPG or WebP. Max 1 MB.",
+    "currentLogo": "Current logo",
+    "removeLogo": "Remove logo",
+    "logoWillBeRemoved": "The logo will be removed when you save.",
+    "accentTitle": "Accent color",
+    "accentHint": "Used for the organization name and the total on receipts.",
+    "useAccent": "Use accent color",
+    "save": "Save",
+    "saved": "Changes saved.",
+    "errorTooLarge": "The logo is larger than 1 MB.",
+    "errorInvalidFile": "The file is not a valid PNG, JPG or WebP image.",
+    "errorInvalidColor": "The color must use the #RRGGBB format.",
+    "errorGeneric": "Could not save. Please try again."
   },
   "paymentReceipt": {
     "download": "Receipt",

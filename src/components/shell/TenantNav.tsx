@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { signOut } from '@/app/actions/auth';
 import { LanguageDropdown } from '@/components/i18n/LanguageDropdown';
 import { NotificationBadge } from '@/components/portal/NotificationBadge';
+import { OrgLogo } from './OrgLogo';
 import { useTransition } from 'react';
 import type { Locale } from '@/i18n/config';
 
@@ -95,9 +96,11 @@ interface TenantNavProps {
    */
   profileId?: string;
   currentLocale?: Locale;
+  logoUrl?: string | null;
+  orgName?: string | null;
 }
 
-export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
+export function TenantNav({ userName, currentLocale = 'es', logoUrl, orgName }: TenantNavProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
@@ -106,10 +109,16 @@ export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
       {/* Desktop top nav */}
       <header className="hidden sm:flex h-14 bg-white border-b border-slate-200 items-center justify-between px-6 shrink-0">
         <Link href="/portal" className="flex items-center gap-2 font-semibold text-slate-900">
-          <div className="h-6 w-6 rounded-md bg-brand-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">P</span>
-          </div>
-          PropFlow
+          {logoUrl ? (
+            <OrgLogo src={logoUrl} alt={orgName ?? ''} className="h-8 max-w-[140px]" />
+          ) : (
+            <>
+              <div className="h-6 w-6 rounded-md bg-brand-600 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">P</span>
+              </div>
+              PropFlow
+            </>
+          )}
         </Link>
         <nav className="flex items-center gap-1" aria-label="Tenant navigation">
           {navItems.map((item) => {

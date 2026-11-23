@@ -100,6 +100,10 @@ vi.mock('@/lib/auth/guards', () => ({
 // without importing their full implementation.
 // ---------------------------------------------------------------------------
 
+vi.mock('@/lib/branding/org-branding', () => ({
+  getOrgBranding: vi.fn().mockResolvedValue({ accentColor: null, logoUrl: null }),
+}));
+
 vi.mock('@/components/shell/AdminSidebar', () => ({
   AdminSidebar: vi.fn(() => null),
 }));

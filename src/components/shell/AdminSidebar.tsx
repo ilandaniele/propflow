@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { type ReactNode } from 'react';
+import { OrgLogo } from './OrgLogo';
 
 interface NavItem {
   labelKey: string;
@@ -331,6 +332,15 @@ const adminNavItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    labelKey: 'branding',
+    href: '/dashboard/admin/branding',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z"/>
+      </svg>
+    ),
+  },
 ];
 
 const intelligenceNavItems: NavItem[] = [
@@ -395,6 +405,7 @@ const communityNavItems: NavItem[] = [
 
 export interface AdminSidebarProps {
   orgName?:  string;
+  logoUrl?:  string | null;
   open?:     boolean;
   onClose?:  () => void;
 }
@@ -447,7 +458,7 @@ function NavSection({
   );
 }
 
-export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
+export function AdminSidebar({ orgName, logoUrl, open, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const t = useTranslations('navigation');
 
@@ -487,9 +498,10 @@ export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
       </div>
 
       {/* Org name */}
-      {orgName && (
-        <div className="px-5 py-3 border-b border-slate-100">
-          <p className="text-xs text-slate-500 font-medium truncate">{orgName}</p>
+      {(orgName || logoUrl) && (
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100">
+          {logoUrl && <OrgLogo src={logoUrl} alt={orgName ?? ''} className="h-7 max-w-[96px]" />}
+          {orgName && <p className="text-xs text-slate-500 font-medium truncate">{orgName}</p>}
         </div>
       )}
 

@@ -57,7 +57,21 @@ describe('getPaymentReceipt (real SQL)', () => {
       number: `REC-${payment.id.slice(0, 8).toUpperCase()}`,
       orgName: 'Acme Rentas', tenantName: 'Tenant One', propertyName: 'Torre Sol', unitLabel: '301',
       amount: '850.00', currency: 'PEN', paidAt: '2026-11-05', method: 'transfer', concept: '2026-11', reference: 'OP-1',
+      logoUrl: null, accentColor: null,
     });
+  });
+
+  it('includes the org branding when one is saved', async () => {
+    const org = await seedOrg(db);
+    const payment = await seedPayment(org.id, 'approved');
+    await db.insert(schema.orgBranding).values({
+      orgId: org.id, logoKey: `${org.id}/branding/logo.png`, accentColor: '#1d4ed8', updatedAt: new Date(1_700_000_000_000),
+    });
+    as('admin', org.id);
+
+    const result = await getPaymentReceipt(payment.id);
+
+    expect(result.data).toMatchObject({ accentColor: '#1d4ed8', logoUrl: '/api/org-branding/logo?v=1700000000000' });
   });
 
   it('refuses pending payments and other orgs', async () => {

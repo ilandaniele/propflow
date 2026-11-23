@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { getPaymentReceipt } from '@/app/actions/payment-receipt';
 import { actionErrorMessage } from '@/lib/errors';
+import { loadLogoAsPngDataUrl } from '@/lib/receipts/logo-data-url';
 
 function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -30,8 +31,11 @@ export function ReceiptButton({ paymentId }: { paymentId: string }) {
         unit: t('pdf.unit'), date: t('pdf.date'), method: t('pdf.method'), concept: t('pdf.concept'),
         reference: t('pdf.reference'), amount: t('pdf.amount'), footer: t('pdf.footer'),
       };
-      const { renderReceiptPdfBlob } = await import('@/lib/receipts/receipt-pdf.tsx');
-      saveBlob(await renderReceiptPdfBlob(result.data, labels), `${result.data.number}.pdf`);
+      const [{ renderReceiptPdfBlob }, logoDataUrl] = await Promise.all([
+        import('@/lib/receipts/receipt-pdf.tsx'),
+        loadLogoAsPngDataUrl(result.data.logoUrl),
+      ]);
+      saveBlob(await renderReceiptPdfBlob(result.data, labels, logoDataUrl), `${result.data.number}.pdf`);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('error'));
     } finally {
