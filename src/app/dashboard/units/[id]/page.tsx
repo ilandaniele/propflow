@@ -183,6 +183,10 @@ export default async function UnitDetailPage({ params }: Props) {
         {t('detail.backToUnits')}
       </Link>
 
+      <Link href={`/dashboard/units/${id}/calendar`} className="ml-4 text-sm text-blue-600 hover:underline">
+        {t('calendarLink')}
+      </Link>
+
       <Tabs tabs={tabs} defaultTab="details" className="bg-white border border-slate-200 rounded-xl overflow-hidden" />
     </div>
   );

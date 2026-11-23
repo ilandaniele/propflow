@@ -924,6 +924,7 @@
     "step3": "Step 3: First tenant"
   },
   "units": {
+    "calendarLink": "Calendar & Airbnb sync →",
     "toiletType": {
       "private": "Private",
       "shared": "Shared",
@@ -2385,5 +2386,27 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "unitCalendar": {
+    "back": "← Back to unit",
+    "title": "Calendar & sync",
+    "subtitle": "Sync this unit's availability with Airbnb, Booking or Vrbo through iCal links.",
+    "enable": "Enable calendar",
+    "saving": "Saving…",
+    "exportTitle": "Export to Airbnb / Booking",
+    "exportHelp": "Paste this link under \"Import calendar\" in the channel. It only publishes dates taken by active contracts, no tenant data.",
+    "importTitle": "Import channel bookings",
+    "importHelp": "Paste the iCal export link from Airbnb, Booking or Vrbo. Syncs every hour.",
+    "importUrl": "Channel iCal link",
+    "save": "Save",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "lastSynced": "Last synced: {date}",
+    "neverSynced": "Not synced yet",
+    "syncError": "Error: {error}",
+    "blocksTitle": "Upcoming channel blocks",
+    "noBlocks": "No upcoming blocks.",
+    "range": "{from} → {to}",
+    "blocked": "Blocked"
   }
 }

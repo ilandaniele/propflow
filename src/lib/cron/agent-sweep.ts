@@ -2,6 +2,7 @@ import { sweepStalePendingInbound } from '@/lib/agent/whatsapp-dispatch';
 import { ensureCalendarSyncJobs } from '@/lib/calendar/sync';
 import { scanSpeedToLead, scanVisitConfirmationCalls } from '@/lib/agent/voice/scanners';
 import { failStaleCalls } from '@/lib/agent/voice/usage';
+import { syncDueUnitCalendars } from '@/lib/unit-calendar/sync';
 import { withDbRetry } from '@/lib/db/retry';
 import { log } from '@/lib/log';
 
@@ -11,6 +12,7 @@ const SWEEP_STEPS = {
   speedToLeadCalls: scanSpeedToLead,
   visitConfirmationCalls: scanVisitConfirmationCalls,
   staleCallsFailed: failStaleCalls,
+  unitCalendarsSynced: syncDueUnitCalendars,
 } satisfies Record<string, () => Promise<number>>;
 
 export type AgentSweepResult = Record<keyof typeof SWEEP_STEPS, number> & { failed: number };

@@ -924,6 +924,7 @@
     "step3": "Etapa 3: Primeiro inquilino"
   },
   "units": {
+    "calendarLink": "Calendário e sincronização com Airbnb →",
     "toiletType": {
       "private": "Privativo",
       "shared": "Compartilhado",
@@ -2385,5 +2386,27 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "unitCalendar": {
+    "back": "← Voltar à unidade",
+    "title": "Calendário e sincronização",
+    "subtitle": "Sincronize a disponibilidade desta unidade com Airbnb, Booking ou Vrbo por links iCal.",
+    "enable": "Ativar calendário",
+    "saving": "Salvando…",
+    "exportTitle": "Exportar para Airbnb / Booking",
+    "exportHelp": "Cole este link em \"Importar calendário\" do canal. Publica só datas ocupadas por contratos ativos, sem dados do inquilino.",
+    "importTitle": "Importar reservas do canal",
+    "importHelp": "Cole o link de exportação iCal do Airbnb, Booking ou Vrbo. Sincroniza a cada hora.",
+    "importUrl": "Link iCal do canal",
+    "save": "Salvar",
+    "syncNow": "Sincronizar agora",
+    "syncing": "Sincronizando…",
+    "lastSynced": "Última sincronização: {date}",
+    "neverSynced": "Ainda não sincronizado",
+    "syncError": "Erro: {error}",
+    "blocksTitle": "Próximos bloqueios do canal",
+    "noBlocks": "Sem bloqueios próximos.",
+    "range": "{from} → {to}",
+    "blocked": "Bloqueado"
   }
 }
