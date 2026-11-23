@@ -1710,6 +1710,10 @@
     "statusDone": "Done"
   },
   "visitors": {
+    "colUnit": "Unit",
+    "colPassphrase": "Passphrase",
+    "noMatchTitle": "No matches",
+    "noMatchDesc": "No registered visit uses that passphrase.",
     "title": "Visitor Log",
     "logVisitor": "Log Visitor",
     "emptyTitle": "No visitors yet",
@@ -2083,6 +2087,7 @@
       "cancel": "Cancel"
     },
     "createVisitor": {
+      "passphraseLabel": "Passphrase (optional)",
       "logging": "Logging…",
       "submit": "Log Visitor",
       "nameLabel": "Visitor name",
@@ -2364,5 +2369,31 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "visitorAccess": {
+    "portalTitle": "Visitors",
+    "registerVisitor": "Register visitor",
+    "recentVisits": "Recent visits",
+    "emptyVisits": "You have not registered any visitors yet.",
+    "noActiveUnit": "You need an active contract to manage visitors.",
+    "passphraseLabel": "Passphrase",
+    "passphraseOptional": "Passphrase (optional)",
+    "passphraseHint": "At least 5 characters. The front desk asks the visitor for it to confirm entry.",
+    "checkPassphrase": "Check passphrase",
+    "check": "Check",
+    "clear": "Clear",
+    "authorizedTitle": "Permanently authorized people",
+    "authorizedAdminDesc": "People who may enter a unit without each visit being registered.",
+    "authorizedPortalDesc": "People who may enter your unit without you registering each visit.",
+    "unitLabel": "Unit",
+    "chooseUnit": "Choose a unit",
+    "fullNameLabel": "Full name",
+    "documentLabel": "ID document (optional)",
+    "relationshipLabel": "Relationship (optional)",
+    "relationshipPlaceholder": "Family, nanny, driver…",
+    "addAuthorized": "Add authorized person",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "emptyAuthorized": "No authorized people."
   }
 }

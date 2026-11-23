@@ -27,6 +27,7 @@ export function CreateVisitorForm() {
         <input id="visit_date" type="date" name="visit_date" required defaultValue={today} className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-brand-500" />
       </div>
       <Input label={t('purposeLabel')} name="purpose" placeholder={t('purposePlaceholder')} />
+      <Input label={t('passphraseLabel')} name="passphrase" minLength={5} maxLength={40} />
       <div className="sm:col-span-2 lg:col-span-3">
         <SubmitButton />
       </div>

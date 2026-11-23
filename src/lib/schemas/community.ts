@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PassphraseSchema } from '@/lib/visitors/schemas';
 
 export const CommunityPostSchema = z.object({
   title: z.string().min(1).max(300),
@@ -35,6 +36,7 @@ export const VisitorLogSchema = z.object({
   visit_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   entry_time: z.string().datetime().optional(),
   purpose: z.string().max(300).optional(),
+  passphrase: PassphraseSchema,
   notes: z.string().max(1000).optional(),
 });
 export type VisitorLogInput = z.infer<typeof VisitorLogSchema>;
