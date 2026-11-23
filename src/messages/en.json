@@ -2364,5 +2364,18 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "incidentNotification": {
+    "title": {
+      "pending": "Your incident is pending",
+      "in_progress": "Your incident is in progress",
+      "solved": "Your incident was solved"
+    },
+    "body": "\"{title}\" is now: {status}.",
+    "status": {
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "solved": "Solved"
+    }
   }
 }

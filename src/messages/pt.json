@@ -2364,5 +2364,18 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "incidentNotification": {
+    "title": {
+      "pending": "Seu chamado está pendente",
+      "in_progress": "Seu chamado está em andamento",
+      "solved": "Seu chamado foi resolvido"
+    },
+    "body": "\"{title}\" agora está: {status}.",
+    "status": {
+      "pending": "Pendente",
+      "in_progress": "Em andamento",
+      "solved": "Resolvido"
+    }
   }
 }
