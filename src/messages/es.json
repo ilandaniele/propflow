@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "occupancyHistory": "Ocupación histórica",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -1734,6 +1735,18 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "occupancyHistory": {
+    "title": "Ocupación histórica",
+    "subtitle": "Porcentaje de días ocupados por mes, según las fechas de los contratos.",
+    "yearNav": "Cambiar año",
+    "byMonth": "Ocupación por mes",
+    "property": "Propiedad",
+    "units": "Unidades",
+    "average": "Promedio",
+    "emptyTitle": "Sin unidades",
+    "emptyDesc": "Carga propiedades y unidades para ver su ocupación.",
+    "note": "Una unidad cuenta como ocupada desde el inicio del contrato hasta la salida real o el fin del contrato. Los meses futuros no se calculan."
   },
   "accountStatements": {
     "title": "Estados de Cuenta",

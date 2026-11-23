@@ -91,6 +91,7 @@
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "occupancyHistory": "Occupancy history",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "taxReceipts": "Tax Receipts",
@@ -1734,6 +1735,18 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "occupancyHistory": {
+    "title": "Occupancy history",
+    "subtitle": "Share of occupied days per month, based on contract dates.",
+    "yearNav": "Change year",
+    "byMonth": "Occupancy by month",
+    "property": "Property",
+    "units": "Units",
+    "average": "Average",
+    "emptyTitle": "No units",
+    "emptyDesc": "Add properties and units to see their occupancy.",
+    "note": "A unit counts as occupied from contract start until the actual exit or contract end. Future months are not calculated."
   },
   "accountStatements": {
     "title": "Account Statements",
