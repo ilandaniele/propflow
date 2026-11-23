@@ -1205,7 +1205,10 @@
     "colStatus": "Status",
     "docsTitle": "How to use it",
     "docsAuth": "Send the key in the Authorization header of each GET request.",
-    "docsPagination": "Paginate with limit (max 100) and offset. The response includes pagination.hasMore."
+    "docsPagination": "Paginate with limit (max 100) and offset. The response includes pagination.hasMore.",
+    "mcpTitle": "Connect with Claude / ChatGPT",
+    "mcpDesc": "Read-only MCP server: query properties, units, tenants and payments from Claude, ChatGPT or any MCP client. Use this endpoint (HTTP) with one of your keys.",
+    "mcpConfigHint": "Example config for clients that accept headers (Claude Code, Cursor, VS Code). Replace the key with yours."
   },
   "adminImport": {
     "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
