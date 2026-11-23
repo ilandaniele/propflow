@@ -1,17 +1,35 @@
 import { z } from 'zod';
 
-export const AnnouncementSchema = z.object({
-  title: z.string().min(1).max(200),
-  body: z.string().min(1).max(5000),
-  audience: z.enum(['all', 'property', 'unit']).default('all'),
-  property_id: z.string().guid().optional(),
-  unit_id: z.string().guid().optional(),
-  expires_at: z.string().datetime().optional(),
-});
+const optionalGuid = z.preprocess((value) => (value === '' ? undefined : value), z.string().guid().optional());
+const checkbox = z.literal('on').optional().transform((value) => value === 'on');
+
+export const AnnouncementSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(5000),
+    audience: z.enum(['all', 'property', 'unit']).default('all'),
+    property_id: optionalGuid,
+    unit_id: optionalGuid,
+    expires_at: z.string().datetime().optional(),
+    pinned: checkbox,
+    important: checkbox,
+  })
+  .refine((data) => data.audience !== 'property' || data.property_id, { path: ['property_id'], message: 'Choose a property' })
+  .refine((data) => data.audience !== 'unit' || data.unit_id, { path: ['unit_id'], message: 'Choose a unit' })
+  .transform((data) => ({
+    ...data,
+    property_id: data.audience === 'property' ? data.property_id : undefined,
+    unit_id: data.audience === 'unit' ? data.unit_id : undefined,
+  }));
 export type AnnouncementInput = z.infer<typeof AnnouncementSchema>;
 
 export const PublishAnnouncementSchema = z.object({
   id: z.string().guid(),
+});
+
+export const PinAnnouncementSchema = z.object({
+  id: z.string().guid(),
+  pinned: z.enum(['true', 'false']).transform((value) => value === 'true'),
 });
 export type PublishAnnouncementInput = z.infer<typeof PublishAnnouncementSchema>;
 

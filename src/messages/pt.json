@@ -1698,7 +1698,11 @@
     "emptyDesc": "Crie e publique avisos para notificar seus inquilinos.",
     "publishNow": "Publicar agora",
     "audience": "Público",
-    "expires": "Expira"
+    "expires": "Expira",
+    "pinned": "Fixado",
+    "important": "Importante",
+    "pin": "Fixar",
+    "unpin": "Desafixar"
   },
   "cleaning": {
     "title": "Cronograma de Limpeza",
@@ -2034,7 +2038,12 @@
       "audienceLabel": "Público",
       "audienceAll": "Todos os inquilinos",
       "audienceProperty": "Propriedade específica",
-      "audienceUnit": "Unidade específica"
+      "audienceUnit": "Unidade específica",
+      "propertyLabel": "Imóvel",
+      "unitLabel": "Unidade",
+      "choosePlaceholder": "Escolha uma opção",
+      "pinnedLabel": "Fixar no topo",
+      "importantLabel": "Marcar como importante"
     },
     "cleaningTask": {
       "saving": "Salvando…",

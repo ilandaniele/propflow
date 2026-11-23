@@ -128,6 +128,8 @@ export const announcements = sqliteTable('announcements', {
   unitId:      text('unit_id').references(() => units.id, { onDelete: 'set null' }),
   publishedAt: ts('published_at'),
   expiresAt:   ts('expires_at'),
+  pinned:      bool('pinned').notNull().default(false),
+  important:   bool('important').notNull().default(false),
   createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
