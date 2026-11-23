@@ -67,7 +67,8 @@ export async function proxy(request: NextRequest) {
   // via the 'none' below XFO/frame-ancestors is still forced on THIS route;
   // only the widget iframe route above is exempt from those headers),
   // /privacidad and /terminos (required by Meta app review and Google OAuth
-  // verification — plain static legal pages, no auth needed).
+  // verification — plain static legal pages, no auth needed),
+  // /pay (online payment links, gated by a 64-hex token in the page itself).
   const isFullyPublicRoute =
     path === '/' ||
     path === '/login' ||
@@ -78,6 +79,7 @@ export async function proxy(request: NextRequest) {
     path === '/onboarding' ||
     path === '/p' ||
     path.startsWith('/p/') ||
+    path.startsWith('/pay/') ||
     path === '/privacidad' ||
     path === '/terminos';
 

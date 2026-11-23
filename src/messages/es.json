@@ -93,6 +93,7 @@
     "importHistory": "Historial de importaciones",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
+    "onlinePayments": "Pagos en línea",
     "taxReceipts": "Comprobantes",
     "tenantFeedback": "Feedback de Inquilinos",
     "sectionFinance": "Finanzas",
@@ -2385,5 +2386,55 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "payLink": {
+    "title": "Pago de alquiler",
+    "greeting": "Hola, {name}",
+    "concept": "Concepto",
+    "defaultConcept": "Cobro de alquiler",
+    "dueDate": "Vence",
+    "amount": "Monto",
+    "paid": "Pagado en línea. ¡Gracias!",
+    "unavailable": "Este link de pago ya no está disponible. Pide uno nuevo a tu administrador.",
+    "sandboxNotice": "Modo de prueba: no se cobrará dinero real.",
+    "simulate": "Simular pago",
+    "payWithMercadoPago": "Pagar con Mercado Pago",
+    "methods": "Tarjeta, Yape, Plin o transferencia vía Mercado Pago",
+    "rateLimited": "Demasiadas solicitudes. Intenta de nuevo en un momento."
+  },
+  "onlinePayments": {
+    "title": "Pagos en línea",
+    "subtitle": "Links de pago por cobro: tarjeta, Yape, Plin o transferencia vía Mercado Pago. Se concilian solos al confirmarse el pago.",
+    "createTitle": "Crear link de pago",
+    "emptyTitle": "Aún no hay links de pago",
+    "emptyDescription": "Crea un link desde un cobro y compártelo con tu inquilino.",
+    "colTenant": "Inquilino",
+    "colConcept": "Concepto",
+    "colAmount": "Monto",
+    "colStatus": "Estado",
+    "colPaid": "Pagado",
+    "colLink": "Link",
+    "openLink": "Abrir",
+    "next": "Siguiente",
+    "unknownTenant": "Sin inquilino",
+    "defaultConcept": "Cobro de alquiler",
+    "status": {
+      "pending": "Pendiente",
+      "paid": "Pagado en línea",
+      "expired": "Vencido",
+      "failed": "Fallido"
+    },
+    "provider": {
+      "sandbox": "Prueba",
+      "mercadopago": "Mercado Pago"
+    }
+  },
+  "onlinePaymentsForm": {
+    "chargeLabel": "Cobro",
+    "selectCharge": "Selecciona un cobro",
+    "submit": "Crear link de pago",
+    "linkLabel": "Link para compartir",
+    "copy": "Copiar",
+    "copied": "Copiado"
   }
 }

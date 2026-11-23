@@ -93,6 +93,7 @@
     "importHistory": "Histórico de importações",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
+    "onlinePayments": "Pagamentos online",
     "taxReceipts": "Comprovantes Fiscais",
     "tenantFeedback": "Avaliações dos Inquilinos",
     "sectionFinance": "Finanças",
@@ -2385,5 +2386,55 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "payLink": {
+    "title": "Pagamento de aluguel",
+    "greeting": "Olá, {name}",
+    "concept": "Descrição",
+    "defaultConcept": "Cobrança de aluguel",
+    "dueDate": "Vencimento",
+    "amount": "Valor",
+    "paid": "Pago online. Obrigado!",
+    "unavailable": "Este link de pagamento não está mais disponível. Peça um novo ao seu administrador.",
+    "sandboxNotice": "Modo de teste: nenhum dinheiro real será cobrado.",
+    "simulate": "Simular pagamento",
+    "payWithMercadoPago": "Pagar com Mercado Pago",
+    "methods": "Cartão, Yape, Plin ou transferência via Mercado Pago",
+    "rateLimited": "Muitas solicitações. Tente novamente em instantes."
+  },
+  "onlinePayments": {
+    "title": "Pagamentos online",
+    "subtitle": "Links de pagamento por cobrança: cartão, Yape, Plin ou transferência via Mercado Pago. Conciliados automaticamente quando o pagamento é confirmado.",
+    "createTitle": "Criar link de pagamento",
+    "emptyTitle": "Ainda não há links de pagamento",
+    "emptyDescription": "Crie um link a partir de uma cobrança e compartilhe com seu inquilino.",
+    "colTenant": "Inquilino",
+    "colConcept": "Descrição",
+    "colAmount": "Valor",
+    "colStatus": "Status",
+    "colPaid": "Pago",
+    "colLink": "Link",
+    "openLink": "Abrir",
+    "next": "Próxima",
+    "unknownTenant": "Sem inquilino",
+    "defaultConcept": "Cobrança de aluguel",
+    "status": {
+      "pending": "Pendente",
+      "paid": "Pago online",
+      "expired": "Vencido",
+      "failed": "Falhou"
+    },
+    "provider": {
+      "sandbox": "Teste",
+      "mercadopago": "Mercado Pago"
+    }
+  },
+  "onlinePaymentsForm": {
+    "chargeLabel": "Cobrança",
+    "selectCharge": "Selecione uma cobrança",
+    "submit": "Criar link de pagamento",
+    "linkLabel": "Link para compartilhar",
+    "copy": "Copiar",
+    "copied": "Copiado"
   }
 }
