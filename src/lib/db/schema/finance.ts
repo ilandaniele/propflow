@@ -343,3 +343,17 @@ export const aiTokenBudget = sqliteTable('ai_token_budget', {
   check('ai_token_budget_tokens_used_check', sql`tokens_used >= 0`),
   check('ai_token_budget_cost_usd_check', sql`CAST(cost_usd AS REAL) >= 0`),
 ]);
+
+export const expenseBudgets = sqliteTable('expense_budgets', {
+  id:         id(),
+  orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').notNull().references(() => expenseCategories.id, { onDelete: 'cascade' }),
+  year:       integer('year').notNull(),
+  amount:     money('amount').notNull(),
+  createdAt:  ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:  ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('expense_budgets_org_category_year_uniq').on(t.orgId, t.categoryId, t.year),
+  index('idx_expense_budgets_org_year').on(t.orgId, t.year),
+  check('expense_budgets_amount_check', sql`CAST(amount AS REAL) >= 0`),
+]);
