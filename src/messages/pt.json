@@ -1751,6 +1751,14 @@
       "reference": "Referência",
       "amount": "Valor recebido",
       "footer": "Recibo interno de pagamento. Não é nota fiscal eletrônica SUNAT."
+    },
+    "email": {
+      "subject": "Seu comprovante de pagamento {number}",
+      "greeting": "Olá {name},",
+      "body": "Aprovamos seu pagamento de {amount}. Você pode baixar o comprovante {number} no seu portal.",
+      "cta": "Ver meus pagamentos",
+      "inboxTitle": "Pagamento aprovado",
+      "inboxBody": "Seu comprovante {number} de {amount} já está disponível."
     }
   },
   "accountStatements": {

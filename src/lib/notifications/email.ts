@@ -140,6 +140,33 @@ export function buildReminderEmail(opts: {
   };
 }
 
+export function buildPaymentReceiptEmail(opts: {
+  subject: string;
+  greeting: string;
+  body: string;
+  cta: string;
+  portalUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: opts.subject,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b">
+  <h1 style="font-size:20px;margin-bottom:8px">${escapeHtml(opts.subject)}</h1>
+  <p>${escapeHtml(opts.greeting)}</p>
+  <p>${escapeHtml(opts.body)}</p>
+  <p style="margin:24px 0">
+    <a href="${escapeHtml(opts.portalUrl)}" style="background:#4f46e5;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;display:inline-block">
+      ${escapeHtml(opts.cta)}
+    </a>
+  </p>
+</body>
+</html>`,
+  };
+}
+
 /** Minimal HTML escaping to prevent injection in email templates */
 function escapeHtml(str: string): string {
   return str

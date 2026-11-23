@@ -1751,6 +1751,14 @@
       "reference": "Referencia",
       "amount": "Monto recibido",
       "footer": "Comprobante interno de pago. No es comprobante electrónico SUNAT."
+    },
+    "email": {
+      "subject": "Tu constancia de pago {number}",
+      "greeting": "Hola {name},",
+      "body": "Aprobamos tu pago de {amount}. Puedes descargar la constancia {number} desde tu portal.",
+      "cta": "Ver mis pagos",
+      "inboxTitle": "Pago aprobado",
+      "inboxBody": "Tu constancia {number} por {amount} ya está disponible."
     }
   },
   "accountStatements": {
