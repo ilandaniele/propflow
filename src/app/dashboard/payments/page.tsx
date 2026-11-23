@@ -12,6 +12,7 @@ import { StatusPill } from '@/components/ui/Badge';
 import { ApprovePaymentButton } from './ApprovePaymentButton';
 import { CreateChargeForm } from './CreateChargeForm';
 import { AdminPaymentsCsvButtons } from './AdminPaymentsCsvButtons';
+import { ReceiptButton } from '@/components/payments/ReceiptButton';
 
 export const metadata: Metadata = { title: 'Payments' };
 
@@ -185,6 +186,7 @@ export default async function PaymentsPage() {
                     {payment.status === 'pending' && (
                       <ApprovePaymentButton paymentId={payment.id} />
                     )}
+                    {payment.status === 'approved' && <ReceiptButton paymentId={payment.id} />}
                   </td>
                 </tr>
               ))}

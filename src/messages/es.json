@@ -1735,6 +1735,24 @@
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
   },
+  "paymentReceipt": {
+    "download": "Recibo",
+    "generating": "Generando…",
+    "error": "No se pudo generar el recibo",
+    "pdf": {
+      "title": "Recibo de pago",
+      "number": "N.º",
+      "receivedFrom": "Recibimos de",
+      "property": "Propiedad",
+      "unit": "Unidad",
+      "date": "Fecha de pago",
+      "method": "Método",
+      "concept": "Concepto",
+      "reference": "Referencia",
+      "amount": "Monto recibido",
+      "footer": "Comprobante interno de pago. No es comprobante electrónico SUNAT."
+    }
+  },
   "accountStatements": {
     "title": "Estados de Cuenta",
     "subtitle": "{count} estados · {sent} enviados · Total pendiente S/ {total}",

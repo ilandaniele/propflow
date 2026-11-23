@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { ReceiptButton } from '@/components/payments/ReceiptButton';
 import { useTranslations } from 'next-intl';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -310,6 +311,8 @@ export function PaymentsClient() {
                           >
                             {t('receipt')}
                           </a>
+                        ) : m.is_credit && m.status === 'approved' ? (
+                          <ReceiptButton paymentId={m.id} />
                         ) : (
                           <span className="text-slate-300">—</span>
                         )}

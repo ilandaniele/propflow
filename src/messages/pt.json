@@ -1735,6 +1735,24 @@
     "emptyDesc": "Acompanhe possíveis inquilinos no seu pipeline de CRM.",
     "source": "Origem"
   },
+  "paymentReceipt": {
+    "download": "Recibo",
+    "generating": "Gerando…",
+    "error": "Não foi possível gerar o recibo",
+    "pdf": {
+      "title": "Recibo de pagamento",
+      "number": "N.º",
+      "receivedFrom": "Recebemos de",
+      "property": "Imóvel",
+      "unit": "Unidade",
+      "date": "Data do pagamento",
+      "method": "Método",
+      "concept": "Conceito",
+      "reference": "Referência",
+      "amount": "Valor recebido",
+      "footer": "Recibo interno de pagamento. Não é nota fiscal eletrônica SUNAT."
+    }
+  },
   "accountStatements": {
     "title": "Extratos de Conta",
     "subtitle": "{count} extratos · {sent} enviados · Total a pagar S/ {total}",
