@@ -2244,7 +2244,28 @@
     "lastSync": "Última sincronização",
     "resyncNow": "Ressincronizar agora"
   },
+  "leadConversion": {
+    "back": "Voltar para leads",
+    "title": "Converter lead em inquilino",
+    "subtitle": "Cria o inquilino e um contrato ativo, e marca a unidade como ocupada.",
+    "fullName": "Nome completo",
+    "email": "Email",
+    "phone": "Telefone",
+    "unit": "Unidade",
+    "occupied": "ocupada",
+    "startDate": "Início do contrato",
+    "endDate": "Fim do contrato",
+    "monthlyRent": "Aluguel mensal",
+    "deposit": "Caução",
+    "submit": "Criar inquilino e contrato",
+    "saving": "Criando…",
+    "alreadyConverted": "Este lead já foi convertido em inquilino.",
+    "openTenant": "Ver inquilino",
+    "noUnitsTitle": "Sem unidades",
+    "noUnitsDesc": "Cadastre um imóvel com unidades antes de converter o lead."
+  },
   "leadsPipeline": {
+    "convert": "Converter em inquilino",
     "title": "Pipeline de leads",
     "demand": "Demanda",
     "supply": "Oferta",

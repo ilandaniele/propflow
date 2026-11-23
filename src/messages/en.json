@@ -2244,7 +2244,28 @@
     "lastSync": "Last sync",
     "resyncNow": "Resync now"
   },
+  "leadConversion": {
+    "back": "Back to leads",
+    "title": "Convert lead to tenant",
+    "subtitle": "Creates the tenant and an active contract, and marks the unit as occupied.",
+    "fullName": "Full name",
+    "email": "Email",
+    "phone": "Phone",
+    "unit": "Unit",
+    "occupied": "occupied",
+    "startDate": "Contract start",
+    "endDate": "Contract end",
+    "monthlyRent": "Monthly rent",
+    "deposit": "Deposit",
+    "submit": "Create tenant and contract",
+    "saving": "Creating…",
+    "alreadyConverted": "This lead was already converted into a tenant.",
+    "openTenant": "View tenant",
+    "noUnitsTitle": "No units",
+    "noUnitsDesc": "Add a property with units before converting the lead."
+  },
   "leadsPipeline": {
+    "convert": "Convert to tenant",
     "title": "Leads pipeline",
     "demand": "Demand",
     "supply": "Supply",
