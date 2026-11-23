@@ -2,7 +2,7 @@ import { sqliteTable, text, integer, primaryKey, uniqueIndex, index, check, type
 import { sql } from 'drizzle-orm';
 import { id, json, ts, money, dateStr, bool } from './columns';
 import { agentSessions, listings } from './agent';
-import { crmLeads, organizations, profiles } from './core';
+import { contracts, crmLeads, organizations, profiles, tenants } from './core';
 
 export const agentAdvisorSettings = sqliteTable('agent_advisor_settings', {
   id:               id(),
@@ -391,4 +391,16 @@ export const agentSessionListings = sqliteTable('agent_session_listings', {
 }, (t) => [
   primaryKey({ columns: [t.sessionId, t.listingId] }),
   check('agent_session_listings_source_check', sql`source IN ('search', 'attribution', 'page')`),
+]);
+
+export const leadConversions = sqliteTable('lead_conversions', {
+  id:         id(),
+  orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  leadId:     text('lead_id').notNull().references(() => crmLeads.id, { onDelete: 'cascade' }),
+  tenantId:   text('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  contractId: text('contract_id').notNull().references(() => contracts.id, { onDelete: 'cascade' }),
+  createdAt:  ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('lead_conversions_lead_uniq').on(t.leadId),
+  index('idx_lead_conversions_org').on(t.orgId),
 ]);

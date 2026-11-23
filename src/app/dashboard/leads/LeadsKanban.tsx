@@ -253,6 +253,9 @@ function LeadCard({
             →
           </Link>
         )}
+        <Link href={`/dashboard/leads/${lead.id}/convert`} className="text-[11px] text-brand-600 hover:underline">
+          {t('convert')}
+        </Link>
       </div>
 
       <select
