@@ -137,6 +137,15 @@ export default async function FinancePage() {
         </div>
       </div>
 
+      <form action="/api/admin/accounting/export" method="get" className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="space-y-1">
+          <label htmlFor="accounting-month" className="block text-sm font-medium text-slate-700">{t('accountingExportTitle')}</label>
+          <input id="accounting-month" type="month" name="month" required defaultValue={priorMonthStart.slice(0, 7)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+        </div>
+        <button type="submit" className="px-4 py-2 text-sm font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50">{t('accountingExportButton')}</button>
+        <p className="basis-full text-xs text-slate-500">{t('accountingExportHint')}</p>
+      </form>
+
       <div data-testid="finance-kpi-tiles">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{t('kpiTitle')}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">

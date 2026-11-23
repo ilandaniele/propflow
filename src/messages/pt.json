@@ -1255,6 +1255,9 @@
     }
   },
   "finance": {
+    "accountingExportTitle": "Exportar livro diário (CSV)",
+    "accountingExportButton": "Baixar",
+    "accountingExportHint": "Lançamentos de recebimentos aprovados e despesas do mês com contas PCGE sugeridas (1011/1041, 7542, 639), prontos para importar no Contasis ou Siscont. Confira as contas com seu contador.",
     "title": "Financeiro",
     "kpiTitle": "KPIs do Período Atual",
     "roomProfitability": "Rentabilidade por Quarto",
