@@ -2385,5 +2385,23 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "globalSearchBox": {
+    "label": "Pesquisar",
+    "placeholder": "Pesquisar inquilinos, unidades…"
+  },
+  "globalSearch": {
+    "title": "Pesquisa",
+    "placeholder": "Nome, email, telefone, documento, unidade…",
+    "submit": "Pesquisar",
+    "hint": "Digite pelo menos {min} caracteres.",
+    "noResults": "Sem resultados para “{query}”.",
+    "kinds": {
+      "tenant": "Inquilinos",
+      "property": "Imóveis",
+      "unit": "Unidades",
+      "incident": "Ocorrências",
+      "lead": "Leads"
+    }
   }
 }

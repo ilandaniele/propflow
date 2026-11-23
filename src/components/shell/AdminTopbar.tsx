@@ -2,6 +2,7 @@
 
 import { Avatar } from '@/components/ui/Avatar';
 import { LanguageDropdown } from '@/components/i18n/LanguageDropdown';
+import { GlobalSearchBox } from '@/components/search/GlobalSearchBox';
 import { signOut } from '@/app/actions/auth';
 import { useTransition, type RefObject } from 'react';
 import type { Locale } from '@/i18n/config';
@@ -38,6 +39,7 @@ export function AdminTopbar({ userName, pageTitle, currentLocale = 'es', onMenuC
         )}
       </div>
       <div className="flex items-center gap-3">
+        <GlobalSearchBox />
         <LanguageDropdown currentLocale={currentLocale} />
         <Avatar name={userName} size="sm" />
         <span className="text-sm text-slate-700 hidden sm:block">{userName}</span>

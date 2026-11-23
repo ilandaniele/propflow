@@ -2385,5 +2385,23 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "globalSearchBox": {
+    "label": "Search",
+    "placeholder": "Search tenants, units…"
+  },
+  "globalSearch": {
+    "title": "Search",
+    "placeholder": "Name, email, phone, ID, unit…",
+    "submit": "Search",
+    "hint": "Type at least {min} characters.",
+    "noResults": "No results for “{query}”.",
+    "kinds": {
+      "tenant": "Tenants",
+      "property": "Properties",
+      "unit": "Units",
+      "incident": "Incidents",
+      "lead": "Leads"
+    }
   }
 }
