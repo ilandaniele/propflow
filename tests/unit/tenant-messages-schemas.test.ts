@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { InboxFilterSchema, ReplyMessageSchema, SendMessageSchema } from '@/lib/messages/schemas';
+import { InboxFilterSchema, MAX_MESSAGE_ATTACHMENT_BYTES, MessageAttachmentSchema, ReplyMessageSchema, SendMessageSchema } from '@/lib/messages/schemas';
 
 describe('SendMessageSchema', () => {
   it('accepts a valid message and trims text', () => {
@@ -25,5 +25,22 @@ describe('InboxFilterSchema', () => {
     expect(InboxFilterSchema.parse({ status: 'open' })).toEqual({ status: 'open' });
     expect(InboxFilterSchema.parse({ status: 'weird' })).toEqual({ status: undefined });
     expect(InboxFilterSchema.parse({})).toEqual({});
+  });
+});
+
+describe('MessageAttachmentSchema', () => {
+  it('accepts images and PDFs up to 5 MB', () => {
+    for (const type of ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']) {
+      expect(MessageAttachmentSchema.safeParse({ type, size: 1024, name: 'file' }).success).toBe(true);
+    }
+    expect(MessageAttachmentSchema.safeParse({ type: 'application/pdf', size: MAX_MESSAGE_ATTACHMENT_BYTES, name: 'a.pdf' }).success).toBe(true);
+  });
+
+  it('rejects other types, oversize, empty files and missing names', () => {
+    expect(MessageAttachmentSchema.safeParse({ type: 'image/svg+xml', size: 10, name: 'x.svg' }).success).toBe(false);
+    expect(MessageAttachmentSchema.safeParse({ type: 'text/html', size: 10, name: 'x.html' }).success).toBe(false);
+    expect(MessageAttachmentSchema.safeParse({ type: 'application/pdf', size: MAX_MESSAGE_ATTACHMENT_BYTES + 1, name: 'a.pdf' }).success).toBe(false);
+    expect(MessageAttachmentSchema.safeParse({ type: 'application/pdf', size: 0, name: 'a.pdf' }).success).toBe(false);
+    expect(MessageAttachmentSchema.safeParse({ type: 'application/pdf', size: 10, name: '' }).success).toBe(false);
   });
 });

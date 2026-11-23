@@ -10,6 +10,10 @@ CREATE TABLE `tenant_messages` (
 	`replied_by` text,
 	`replied_at` integer,
 	`created_at` integer NOT NULL,
+	`attachment_key` text,
+	`attachment_name` text,
+	`attachment_mime` text,
+	`attachment_size` integer,
 	FOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`sender_id`) REFERENCES `profiles`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`replied_by`) REFERENCES `profiles`(`id`) ON UPDATE no action ON DELETE set null

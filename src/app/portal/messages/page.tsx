@@ -5,6 +5,7 @@ import { listSentMessages } from '@/lib/messages/queries';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MessageBadges } from '@/components/messages/MessageBadges';
+import { MessageAttachmentLink } from '@/components/messages/MessageAttachmentLink';
 import { SendMessageForm } from './SendMessageForm';
 
 export default async function PortalMessagesPage() {
@@ -34,6 +35,7 @@ export default async function PortalMessagesPage() {
               </div>
               <p className="text-xs text-slate-500 mt-0.5">{message.createdAt.toISOString().slice(0, 10)}</p>
               <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{message.body}</p>
+              <MessageAttachmentLink messageId={message.id} name={message.attachmentName} size={message.attachmentSize} />
               {message.reply && (
                 <div className="mt-3 rounded-lg bg-brand-50 p-3">
                   <p className="text-xs font-medium text-brand-700">{t('replyHeading')}</p>

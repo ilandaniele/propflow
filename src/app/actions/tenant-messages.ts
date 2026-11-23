@@ -7,7 +7,9 @@ import type { ActionResult } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 import { MessageIdSchema, ReplyMessageSchema, SendMessageSchema } from '@/lib/messages/schemas';
-import { closeMessage, insertTenantMessage, replyToMessage } from '@/lib/messages/queries';
+import { closeMessage, insertTenantMessage, replyToMessage, type StoredAttachment } from '@/lib/messages/queries';
+import { ATTACHMENT_INVALID, buildMessageAttachmentKey, MESSAGE_ATTACHMENT_BUCKET, readMessageAttachment } from '@/lib/messages/attachment';
+import { deleteImage, uploadFile } from '@/lib/storage';
 
 const INBOX_PATH = '/dashboard/messages';
 const PORTAL_PATH = '/portal/messages';
@@ -22,15 +24,29 @@ export async function sendTenantMessage(_prev: ActionResult, formData: FormData)
   try { ctx = await requireTenant(); } catch { return Errors.UNAUTHORIZED(); }
   if (!mutationRateLimit(ctx.userId, 'send-tenant-message').success) return Errors.RATE_LIMITED();
 
-  const parsed = SendMessageSchema.safeParse(Object.fromEntries(formData));
+  const parsed = SendMessageSchema.safeParse({ kind: formData.get('kind'), subject: formData.get('subject'), body: formData.get('body') });
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
+  const file = await readMessageAttachment(formData.get('attachment'));
+  if (!file.ok) return Errors.VALIDATION_ERROR({ formErrors: [], fieldErrors: { attachment: [ATTACHMENT_INVALID] } });
+
+  let attachment: StoredAttachment | null = null;
+  if (file.attachment) {
+    attachment = { key: buildMessageAttachmentKey(ctx.orgId, file.attachment.mime), name: file.attachment.name, mime: file.attachment.mime, size: file.attachment.size };
+    try {
+      await uploadFile(MESSAGE_ATTACHMENT_BUCKET, attachment.key, file.attachment.buffer, attachment.mime);
+    } catch (error) {
+      return failure('attachment_upload', error);
+    }
+  }
+
   try {
-    await insertTenantMessage({ orgId: ctx.orgId, senderId: ctx.userId, ...parsed.data });
+    await insertTenantMessage({ orgId: ctx.orgId, senderId: ctx.userId, ...parsed.data, attachment });
     revalidatePath(PORTAL_PATH);
     revalidatePath(INBOX_PATH);
     return { data: undefined };
   } catch (error) {
+    if (attachment) await deleteImage(MESSAGE_ATTACHMENT_BUCKET, attachment.key).catch(() => undefined);
     return failure('send', error);
   }
 }

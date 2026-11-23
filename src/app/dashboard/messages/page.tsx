@@ -8,6 +8,7 @@ import { InboxFilterSchema, MESSAGE_STATUSES } from '@/lib/messages/schemas';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MessageBadges } from '@/components/messages/MessageBadges';
+import { MessageAttachmentLink } from '@/components/messages/MessageAttachmentLink';
 import { CloseMessageForm, ReplyForm } from './InboxForms';
 
 export const metadata: Metadata = { title: 'Mensajes' };
@@ -54,6 +55,7 @@ export default async function TenantMessagesInboxPage({ searchParams }: { search
                 <MessageBadges kind={message.kind} status={message.status} />
               </div>
               <p className="mt-3 whitespace-pre-line text-sm text-slate-700">{message.body}</p>
+              <MessageAttachmentLink messageId={message.id} name={message.attachmentName} size={message.attachmentSize} />
               {message.status !== 'closed' && (
                 <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
                   <ReplyForm messageId={message.id} currentReply={message.reply} />

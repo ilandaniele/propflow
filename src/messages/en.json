@@ -2387,6 +2387,11 @@
     "emptyTitle": "No messages",
     "emptyInboxDesc": "Messages sent by tenants will show up here.",
     "emptyPortalDesc": "You have not sent any messages yet.",
+    "attachmentLabel": "Attachment (optional)",
+    "attachmentHint": "One image (JPEG, PNG, WebP) or PDF, up to 5 MB.",
+    "attachmentInvalid": "The attachment must be a JPEG, PNG, WebP or PDF file up to 5 MB.",
+    "attachmentOpen": "Open attachment {name}",
+    "attachmentSize": "{kb} KB",
     "kind": {
       "question": "Question",
       "request": "Request",

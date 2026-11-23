@@ -2387,6 +2387,11 @@
     "emptyTitle": "Sem mensagens",
     "emptyInboxDesc": "As mensagens enviadas pelos inquilinos aparecerão aqui.",
     "emptyPortalDesc": "Você ainda não enviou mensagens.",
+    "attachmentLabel": "Anexo (opcional)",
+    "attachmentHint": "Uma imagem (JPEG, PNG, WebP) ou um PDF, até 5 MB.",
+    "attachmentInvalid": "O anexo deve ser um arquivo JPEG, PNG, WebP ou PDF de até 5 MB.",
+    "attachmentOpen": "Abrir anexo {name}",
+    "attachmentSize": "{kb} KB",
     "kind": {
       "question": "Dúvida",
       "request": "Pedido",

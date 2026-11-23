@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { createSmokeDb, seedOrg, seedProfile, type SmokeDb } from './setup';
-import { closeMessage, insertTenantMessage, listInboxMessages, listSentMessages, replyToMessage } from '@/lib/messages/queries';
+import { closeMessage, findMessageAttachment, insertTenantMessage, listInboxMessages, listSentMessages, replyToMessage } from '@/lib/messages/queries';
 
 const dbBox = vi.hoisted(() => ({ current: undefined as unknown }));
 vi.mock('@/lib/db', () => ({
@@ -66,5 +66,54 @@ describe('tenant messages (real SQL)', () => {
     expect(await listInboxMessages(otherOrg.id)).toEqual([]);
     expect(await replyToMessage({ orgId: otherOrg.id, messageId, reply: 'Hijack', repliedBy: admin.id })).toBe(false);
     expect(await closeMessage(otherOrg.id, messageId)).toBe(false);
+  });
+
+  describe('attachments', () => {
+    async function seedWithAttachment() {
+      const scenario = await seedScenario();
+      const attachmentKey = `${scenario.org.id}/tenant-messages/${crypto.randomUUID()}.pdf`;
+      const messageId = await insertTenantMessage({
+        orgId: scenario.org.id,
+        senderId: scenario.tenant.id,
+        kind: 'request',
+        subject: 'Broken heater',
+        body: 'See the attached invoice.',
+        attachment: { key: attachmentKey, name: 'invoice.pdf', mime: 'application/pdf', size: 2048 },
+      });
+      return { ...scenario, messageId, attachmentKey };
+    }
+
+    it('stores the attachment and shows its metadata (not the key) to the admin inbox and the sender', async () => {
+      const { org, tenant, messageId } = await seedWithAttachment();
+      const inboxRow = (await listInboxMessages(org.id)).find((m) => m.id === messageId);
+      expect(inboxRow).toMatchObject({ attachmentName: 'invoice.pdf', attachmentMime: 'application/pdf', attachmentSize: 2048 });
+      expect(inboxRow).not.toHaveProperty('attachmentKey');
+      const sentRow = (await listSentMessages(org.id, tenant.id)).find((m) => m.id === messageId);
+      expect(sentRow).toMatchObject({ attachmentName: 'invoice.pdf' });
+    });
+
+    it('leaves attachment columns null when none is sent', async () => {
+      const { org, messageId } = await seedScenario();
+      const [row] = await listInboxMessages(org.id);
+      expect(row).toMatchObject({ id: messageId, attachmentName: null, attachmentMime: null, attachmentSize: null });
+      expect(await findMessageAttachment({ orgId: org.id, messageId })).toBeNull();
+    });
+
+    it('resolves the key for an admin of the same org and for the sending tenant', async () => {
+      const { org, tenant, messageId, attachmentKey } = await seedWithAttachment();
+      expect(await findMessageAttachment({ orgId: org.id, messageId })).toEqual({ key: attachmentKey, name: 'invoice.pdf', mime: 'application/pdf' });
+      expect(await findMessageAttachment({ orgId: org.id, messageId, senderId: tenant.id })).toMatchObject({ key: attachmentKey });
+    });
+
+    it('returns not-found for another org admin', async () => {
+      const { messageId } = await seedWithAttachment();
+      const otherOrg = await seedOrg(smoke.db, { name: 'Other Org' });
+      expect(await findMessageAttachment({ orgId: otherOrg.id, messageId })).toBeNull();
+    });
+
+    it('returns not-found for another tenant of the same org', async () => {
+      const { org, neighbour, messageId } = await seedWithAttachment();
+      expect(await findMessageAttachment({ orgId: org.id, messageId, senderId: neighbour.id })).toBeNull();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { sqliteTable, text, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { id, ts } from './columns';
 import { organizations, profiles } from './core';
 
@@ -14,6 +14,10 @@ export const tenantMessages = sqliteTable('tenant_messages', {
   repliedBy: text('replied_by').references(() => profiles.id, { onDelete: 'set null' }),
   repliedAt: ts('replied_at'),
   createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+  attachmentKey:  text('attachment_key'),
+  attachmentName: text('attachment_name'),
+  attachmentMime: text('attachment_mime'),
+  attachmentSize: integer('attachment_size'),
 }, (t) => [
   index('idx_tenant_messages_org_status').on(t.orgId, t.status, t.createdAt),
   index('idx_tenant_messages_sender').on(t.senderId, t.createdAt),
