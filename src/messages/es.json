@@ -105,7 +105,8 @@
     "mainNav": "Navegación principal",
     "utilities": "Servicios",
     "responsables": "Responsables",
-    "agentQa": "QA del agente"
+    "agentQa": "QA del agente",
+    "payables": "Cuentas por pagar"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -1287,6 +1288,7 @@
     "noData": "Sin datos disponibles"
   },
   "finance": {
+    "payablesLink": "Cuentas por pagar: {amount}",
     "title": "Finanzas",
     "kpiTitle": "KPIs del Período Actual",
     "roomProfitability": "Rentabilidad por habitación",
@@ -2385,5 +2387,62 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "payables": {
+    "title": "Cuentas por pagar",
+    "back": "← Finanzas",
+    "totals": {
+      "pending": "Total pendiente",
+      "overdue": "Total vencido"
+    },
+    "form": {
+      "title": "Nueva obligación de pago",
+      "supplier": "Proveedor",
+      "description": "Detalle",
+      "documentRef": "Doc. referencia",
+      "amount": "Monto (S/)",
+      "issuedOn": "Fecha",
+      "dueOn": "Fecha de vencimiento",
+      "property": "Propiedad",
+      "category": "Categoría",
+      "none": "Ninguna",
+      "create": "Registrar obligación",
+      "saving": "Guardando…",
+      "created": "Obligación registrada"
+    },
+    "filters": {
+      "status": "Estado",
+      "all": "Todos",
+      "dueFrom": "Vence desde",
+      "dueTo": "Vence hasta",
+      "apply": "Filtrar"
+    },
+    "status": {
+      "pending": "Pendiente",
+      "partial": "Pago parcial",
+      "paid": "Pagada",
+      "overdue": "Vencida"
+    },
+    "columns": {
+      "issuedOn": "Fecha",
+      "supplier": "Proveedor",
+      "description": "Detalle",
+      "documentRef": "Doc. referencia",
+      "amount": "Monto",
+      "saldo": "Saldo",
+      "dueOn": "Vencimiento",
+      "status": "Estado"
+    },
+    "empty": {
+      "title": "Sin obligaciones de pago",
+      "description": "Registra facturas de proveedores para controlar saldos y vencimientos."
+    },
+    "payment": {
+      "open": "Registrar pago",
+      "submit": "Guardar pago",
+      "amount": "Monto",
+      "paidOn": "Fecha de pago",
+      "note": "Nota"
+    }
   }
 }

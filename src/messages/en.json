@@ -105,7 +105,8 @@
     "mainNav": "Main navigation",
     "utilities": "Utilities",
     "responsables": "Responsables",
-    "agentQa": "Agent QA"
+    "agentQa": "Agent QA",
+    "payables": "Accounts payable"
   },
   "tenants": {
     "title": "Tenants",
@@ -1255,6 +1256,7 @@
     }
   },
   "finance": {
+    "payablesLink": "Accounts payable: {amount}",
     "title": "Finance",
     "kpiTitle": "Current Period KPIs",
     "roomProfitability": "Room Profitability",
@@ -2385,5 +2387,62 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "payables": {
+    "title": "Accounts payable",
+    "back": "← Finance",
+    "totals": {
+      "pending": "Total outstanding",
+      "overdue": "Total overdue"
+    },
+    "form": {
+      "title": "New payable",
+      "supplier": "Supplier",
+      "description": "Details",
+      "documentRef": "Document ref.",
+      "amount": "Amount (S/)",
+      "issuedOn": "Date",
+      "dueOn": "Due date",
+      "property": "Property",
+      "category": "Category",
+      "none": "None",
+      "create": "Add payable",
+      "saving": "Saving…",
+      "created": "Payable added"
+    },
+    "filters": {
+      "status": "Status",
+      "all": "All",
+      "dueFrom": "Due from",
+      "dueTo": "Due to",
+      "apply": "Filter"
+    },
+    "status": {
+      "pending": "Pending",
+      "partial": "Partially paid",
+      "paid": "Paid",
+      "overdue": "Overdue"
+    },
+    "columns": {
+      "issuedOn": "Date",
+      "supplier": "Supplier",
+      "description": "Details",
+      "documentRef": "Document ref.",
+      "amount": "Amount",
+      "saldo": "Balance",
+      "dueOn": "Due",
+      "status": "Status"
+    },
+    "empty": {
+      "title": "No payables",
+      "description": "Record supplier bills to track balances and due dates."
+    },
+    "payment": {
+      "open": "Record payment",
+      "submit": "Save payment",
+      "amount": "Amount",
+      "paidOn": "Payment date",
+      "note": "Note"
+    }
   }
 }

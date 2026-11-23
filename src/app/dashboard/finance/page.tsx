@@ -27,6 +27,8 @@ import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import type { IncomeRow, ExpenseRow } from '@/lib/finance/reports';
 import type { ExpenseWithCategory } from '@/lib/finance/kpis';
+import { payablesSummary } from '@/lib/finance/payables/queries';
+import { formatSolesCents } from '@/lib/finance/payables/format';
 
 export default async function FinancePage() {
   const ctx = await requireAdmin();
@@ -50,6 +52,7 @@ export default async function FinancePage() {
     totalUnitsRows,
     occupiedContracts,
     overdueCharges,
+    payablesTotals,
   ] = await Promise.all([
     db
       .select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, contractId: paymentsTable.contractId })
@@ -96,6 +99,7 @@ export default async function FinancePage() {
       .from(charges)
       .where(and(eq(charges.orgId, ctx.orgId), lt(charges.dueDate, today))),
       // No .limit(): feeds the org-wide overdue-balance total.
+    payablesSummary(ctx.orgId, today),
   ]);
 
   const incomeRows: IncomeRow[] = allPayments.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt ? String(p.paidAt) : '' }));
@@ -134,6 +138,7 @@ export default async function FinancePage() {
           <Link href="/dashboard/finance/rooms" className="text-sm text-brand-600 hover:underline">{t('roomProfitability')}</Link>
           <Link href="/dashboard/finance/receipts" className="text-sm text-brand-600 hover:underline ml-4">{t('ocrReceipts')}</Link>
           <Link href="/dashboard/finance/expenses/categories" className="text-sm text-brand-600 hover:underline ml-4">{t('categories')}</Link>
+          <Link href="/dashboard/finance/payables" className="text-sm text-brand-600 hover:underline ml-4" data-testid="finance-payables-link">{t('payablesLink', { amount: formatSolesCents(payablesTotals.pendingCents) })}</Link>
         </div>
       </div>
 

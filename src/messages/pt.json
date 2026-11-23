@@ -105,7 +105,8 @@
     "mainNav": "Navegação principal",
     "utilities": "Serviços",
     "responsables": "Responsáveis",
-    "agentQa": "QA do agente"
+    "agentQa": "QA do agente",
+    "payables": "Contas a pagar"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -1255,6 +1256,7 @@
     }
   },
   "finance": {
+    "payablesLink": "Contas a pagar: {amount}",
     "title": "Financeiro",
     "kpiTitle": "KPIs do Período Atual",
     "roomProfitability": "Rentabilidade por Quarto",
@@ -2385,5 +2387,62 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "payables": {
+    "title": "Contas a pagar",
+    "back": "← Finanças",
+    "totals": {
+      "pending": "Total pendente",
+      "overdue": "Total vencido"
+    },
+    "form": {
+      "title": "Nova obrigação de pagamento",
+      "supplier": "Fornecedor",
+      "description": "Detalhe",
+      "documentRef": "Doc. referência",
+      "amount": "Valor (S/)",
+      "issuedOn": "Data",
+      "dueOn": "Data de vencimento",
+      "property": "Imóvel",
+      "category": "Categoria",
+      "none": "Nenhuma",
+      "create": "Registrar obrigação",
+      "saving": "Salvando…",
+      "created": "Obrigação registrada"
+    },
+    "filters": {
+      "status": "Status",
+      "all": "Todos",
+      "dueFrom": "Vence a partir de",
+      "dueTo": "Vence até",
+      "apply": "Filtrar"
+    },
+    "status": {
+      "pending": "Pendente",
+      "partial": "Pagamento parcial",
+      "paid": "Paga",
+      "overdue": "Vencida"
+    },
+    "columns": {
+      "issuedOn": "Data",
+      "supplier": "Fornecedor",
+      "description": "Detalhe",
+      "documentRef": "Doc. referência",
+      "amount": "Valor",
+      "saldo": "Saldo",
+      "dueOn": "Vencimento",
+      "status": "Status"
+    },
+    "empty": {
+      "title": "Sem obrigações de pagamento",
+      "description": "Registre faturas de fornecedores para controlar saldos e vencimentos."
+    },
+    "payment": {
+      "open": "Registrar pagamento",
+      "submit": "Salvar pagamento",
+      "amount": "Valor",
+      "paidOn": "Data do pagamento",
+      "note": "Nota"
+    }
   }
 }
