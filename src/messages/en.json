@@ -91,6 +91,7 @@
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "profitability": "Profitability",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "taxReceipts": "Tax Receipts",
@@ -1734,6 +1735,25 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "profitability": {
+    "title": "Profitability by property",
+    "subtitle": "Collected income minus expenses for the year, split by currency.",
+    "exportCsv": "Download CSV",
+    "yearNav": "Change year",
+    "property": "Property",
+    "allProperties": "All properties",
+    "apply": "Filter",
+    "currency": "Currency",
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "noProperty": "No property",
+    "netIn": "Net in {currency}",
+    "incomeVsExpenses": "{income} income · {expenses} expenses",
+    "emptyTitle": "No activity",
+    "emptyDesc": "No approved payments or expenses this year.",
+    "expensesNote": "Expenses are recorded in soles (PEN). Dollar income is shown separately, without conversion."
   },
   "accountStatements": {
     "title": "Account Statements",

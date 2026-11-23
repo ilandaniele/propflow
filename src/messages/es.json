@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "profitability": "Rentabilidad",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -1734,6 +1735,25 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "profitability": {
+    "title": "Rentabilidad por propiedad",
+    "subtitle": "Ingresos cobrados menos gastos del año, separados por moneda.",
+    "exportCsv": "Descargar CSV",
+    "yearNav": "Cambiar año",
+    "property": "Propiedad",
+    "allProperties": "Todas las propiedades",
+    "apply": "Filtrar",
+    "currency": "Moneda",
+    "income": "Ingresos",
+    "expenses": "Gastos",
+    "net": "Neto",
+    "noProperty": "Sin propiedad",
+    "netIn": "Neto en {currency}",
+    "incomeVsExpenses": "{income} ingresos · {expenses} gastos",
+    "emptyTitle": "Sin movimientos",
+    "emptyDesc": "No hay pagos aprobados ni gastos en este año.",
+    "expensesNote": "Los gastos se registran en soles (PEN). Los ingresos en dólares se muestran aparte, sin convertir."
   },
   "accountStatements": {
     "title": "Estados de Cuenta",
