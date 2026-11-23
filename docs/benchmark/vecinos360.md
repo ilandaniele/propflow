@@ -123,3 +123,33 @@ Leyenda como en `homming-habitamax.md`. Se omiten filas ya cubiertas allí (esta
 | V17 | #159 |
 | V18 | #184 |
 | V19 | #183 |
+
+## Cobertura por página de la consola
+
+Lectura solo con GET de cada página enlazada desde el menú del residente y desde Reportes. Las páginas `adm_*`, `pnl_admin`, `constancia_pago` y `recibo_mantenimiento` devuelven la misma página vacía para esta cuenta (requieren rol administrador o un id de registro).
+
+| Página | Función | Fila / PR |
+|---|---|---|
+| `pnl_user` | Menú inicial: saldo, muro, reservas | V11, V8 |
+| `cuentas_usuario` | Mis comunidades (selector) | V15 / #166 |
+| `cuenta` | Perfil, unidad, persona autorizada, correos | V9 / #163, V19 / #183 |
+| `agrega_post_ci` | Enviar mensaje a la administración | V17 / #159 |
+| `agrega_post`, `comunicaciones` | Muro de publicaciones | V11 / #160 |
+| `solicitudes` | Solicitudes a la administración | V7 / #132 |
+| `blog_votaciones` | Encuestas y votaciones | V12 / #158 |
+| `agenda`, `agenda_lista`, `agrega_post_ae` | Reservas: instalación, franjas, cantidad de personas, comentario | V8 / #133 |
+| `reg_invitados` | Visitantes y palabra clave | V9 / #163 |
+| `estcta_depa`, `constancia_pago`, `recibo_mantenimiento` | Estado de cuenta y constancias | ya existe (portal de pagos y recibos) |
+| `cobroOnlineController` | Cobro online | fila 9 / #181 |
+| `cierre_mes` | Cierre del mes | V6 / #161 |
+| `cajasbancos` | Cajas y bancos | V1 / #130 |
+| `liquidacion_mensual`, `liquidacion_anual`, `expexcel`, `exppdf` | Liquidaciones y exportación | V2, V3 / #130 |
+| `emisionjustificacion` | Emisión y justificación de cuotas | V16 / #124 |
+| `presupuestos` | Presupuesto de egresos | V4 / #131 |
+| `estadisticas` | Gastos por partida y obligaciones de pago | V5 / #162, V18 / #184 |
+| `lista_ingresos`, `lista_egresos` | Reportes de ingresos y egresos | ya existe (finanzas), V5 / #162 |
+| `activos`, `cuadro_mantenimiento` | Activos y plan de mantenimiento | V10 / #134 |
+| `incidentes` | Incidentes | ya existe (`incidents`) |
+| `docs_comunidad` | Documentos de la comunidad | fila 25 / #147 |
+| `directorio` | Directorio | V14 / #165 |
+| `actividad_admin` | Actividad del administrador | V13 / #164 |
