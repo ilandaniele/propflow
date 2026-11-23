@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import { PriorityLegend } from '@/components/incidents/PriorityLegend';
+import { SlaBadge } from '@/components/incidents/SlaBadge';
 
 export const metadata: Metadata = { title: 'Incidents' };
 
@@ -28,6 +29,7 @@ export default async function IncidentsPage() {
       status:     incidents.status,
       cost:       incidents.cost,
       createdAt:  incidents.createdAt,
+      resolvedAt: incidents.resolvedAt,
       creatorName: profiles.fullName,
     })
     .from(incidents)
@@ -169,6 +171,7 @@ export default async function IncidentsPage() {
                   </p>
                 </div>
                 <StatusPill status={incident.status} />
+                <SlaBadge incident={incident} onlyBreached />
               </div>
             </Link>
           ))}

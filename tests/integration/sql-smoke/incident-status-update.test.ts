@@ -27,6 +27,7 @@ vi.mock('next-intl/server', () => ({
 }));
 
 const { updateIncident } = await import('@/app/actions/incidents');
+const { listIncidentStatusEvents } = await import('@/lib/incidents/history');
 
 let smoke: { db: SmokeDb; close: () => Promise<void> };
 
@@ -52,24 +53,25 @@ function form(values: Record<string, string>): FormData {
 async function seedIncident(db: SmokeDb, withProfile: boolean) {
   const org = await seedOrg(db);
   const profile = await seedProfile(db, org.id, { role: 'tenant', email: null });
+  const admin = await seedProfile(db, org.id, { fullName: 'Admin Uno', email: null });
   const [tenant] = await db.insert(schema.tenants)
     .values({ orgId: org.id, fullName: 'Tenant', profileId: withProfile ? profile.id : null })
     .returning();
   const [incident] = await db.insert(schema.incidents)
     .values({ orgId: org.id, tenantId: tenant.id, title: 'Fuga de agua', description: 'Baño', category: 'plumbing', status: 'pending' })
     .returning();
-  return { org, profile, incident };
+  return { org, profile, admin, incident };
 }
 
 async function inbox(db: SmokeDb, profileId: string) {
   return db.select().from(schema.notificationInbox).where(eq(schema.notificationInbox.profileId, profileId));
 }
 
-describe('updateIncident status notification', () => {
+describe('updateIncident status change', () => {
   it('notifies the tenant once per real status change', async () => {
     const { db } = smoke;
-    const { org, profile, incident } = await seedIncident(db, true);
-    authBox.ctx = { userId: crypto.randomUUID(), orgId: org.id };
+    const { org, profile, admin, incident } = await seedIncident(db, true);
+    authBox.ctx = { userId: admin.id, orgId: org.id };
 
     expect((await updateIncident({}, form({ id: incident.id, status: 'in_progress' }))).error).toBeUndefined();
     expect((await updateIncident({}, form({ id: incident.id, status: 'in_progress' }))).error).toBeUndefined();
@@ -91,15 +93,23 @@ describe('updateIncident status notification', () => {
     const [updated] = await db.select().from(schema.incidents).where(eq(schema.incidents.id, incident.id));
     expect(updated.status).toBe('solved');
     expect(updated.resolvedAt).toBeInstanceOf(Date);
+
+    const history = await listIncidentStatusEvents(org.id, incident.id);
+    expect(history.map((e) => [e.fromStatus, e.toStatus, e.changedByName])).toEqual([
+      ['pending', 'in_progress', 'Admin Uno'],
+      ['in_progress', 'solved', 'Admin Uno'],
+    ]);
+    expect(await listIncidentStatusEvents(crypto.randomUUID(), incident.id)).toHaveLength(0);
   });
 
   it('skips the notification when the tenant has no portal profile', async () => {
     const { db } = smoke;
-    const { org, profile, incident } = await seedIncident(db, false);
-    authBox.ctx = { userId: crypto.randomUUID(), orgId: org.id };
+    const { org, profile, admin, incident } = await seedIncident(db, false);
+    authBox.ctx = { userId: admin.id, orgId: org.id };
 
     expect((await updateIncident({}, form({ id: incident.id, status: 'solved' }))).error).toBeUndefined();
     expect(await inbox(db, profile.id)).toHaveLength(0);
+    expect(await listIncidentStatusEvents(org.id, incident.id)).toHaveLength(1);
   });
 
   it('does not touch or notify across orgs', async () => {
@@ -110,5 +120,6 @@ describe('updateIncident status notification', () => {
 
     expect((await updateIncident({}, form({ id: incident.id, status: 'solved' }))).error?.code).toBe('NOT_FOUND');
     expect(await inbox(db, profile.id)).toHaveLength(0);
+    expect(await listIncidentStatusEvents(other.id, incident.id)).toHaveLength(0);
   });
 });

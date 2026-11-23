@@ -2377,5 +2377,16 @@
       "in_progress": "En progreso",
       "solved": "Resuelta"
     }
+  },
+  "incidentSla": {
+    "breached": "SLA vencido",
+    "due": "SLA: {date}",
+    "met": "SLA cumplido",
+    "metLate": "Resuelto fuera de SLA"
+  },
+  "incidentHistory": {
+    "title": "Historial de estados",
+    "empty": "Sin cambios de estado todavía.",
+    "unknown": "Desconocido"
   }
 }

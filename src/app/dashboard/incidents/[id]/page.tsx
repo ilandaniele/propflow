@@ -10,6 +10,9 @@ import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { UpdateIncidentForm } from './UpdateIncidentForm';
 import { CommentForm } from './CommentForm';
+import { IncidentStatusHistory } from '@/components/incidents/IncidentStatusHistory';
+import { SlaBadge } from '@/components/incidents/SlaBadge';
+import { listIncidentStatusEvents } from '@/lib/incidents/history';
 
 export const metadata: Metadata = { title: 'Incident Details' };
 
@@ -25,7 +28,7 @@ export default async function IncidentDetailPage({ params }: Props) {
   // Alias profiles twice — once for createdBy, once for assignedTo
   const createdByProfiles = profiles;
 
-  const [incidentRows, commentRows, adminRows] = await Promise.all([
+  const [incidentRows, commentRows, adminRows, statusEvents] = await Promise.all([
     db
       .select({
         id:          incidents.id,
@@ -66,6 +69,7 @@ export default async function IncidentDetailPage({ params }: Props) {
       .select({ id: profiles.id, fullName: profiles.fullName })
       .from(profiles)
       .where(and(eq(profiles.orgId, ctx.orgId), eq(profiles.role, 'admin'))),
+    listIncidentStatusEvents(ctx.orgId, id),
   ]);
 
   if (!incidentRows.length) notFound();
@@ -102,6 +106,7 @@ export default async function IncidentDetailPage({ params }: Props) {
         <div className="flex items-center gap-2 mb-2">
           <PriorityPill priority={incident.priority} />
           <StatusPill status={incident.status} />
+          <SlaBadge incident={incident} />
           <span className="text-sm text-slate-400 capitalize">{incident.category}</span>
         </div>
         <h1 className="text-2xl font-bold text-slate-900">{incident.title}</h1>
@@ -150,6 +155,7 @@ export default async function IncidentDetailPage({ params }: Props) {
             <CardHeader><CardTitle>{t('cardManage')}</CardTitle></CardHeader>
             <UpdateIncidentForm incident={incidentForForm as never} admins={adminsForForm} />
           </Card>
+          <IncidentStatusHistory events={statusEvents} />
         </div>
       </div>
     </div>
