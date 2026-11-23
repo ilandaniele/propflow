@@ -440,6 +440,7 @@
       "high": "Alto — atender en 24–48 hs",
       "urgent": "Urgente — acción inmediata"
     },
+    "statsLink": "Estadísticas",
     "noIncidents": "Sin incidentes",
     "kpi": {
       "totalCost": "Costo Total",
@@ -2364,5 +2365,20 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "maintenanceStats": {
+    "title": "Estadísticas de mantenimiento",
+    "subtitle": "Tiempo medio de resolución e incidencias por propiedad y categoría.",
+    "back": "← Incidencias",
+    "total": "Total",
+    "open": "Abiertas",
+    "solved": "Resueltas",
+    "avgResolution": "Resolución media",
+    "days": "{count} días",
+    "byProperty": "Por propiedad",
+    "byCategory": "Por categoría",
+    "property": "Propiedad",
+    "noProperty": "Sin propiedad",
+    "empty": "Sin incidencias aún."
   }
 }

@@ -68,6 +68,7 @@ export default async function IncidentsPage() {
           <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{list.length} total · {openCount} {t('list.open')} · {solvedCount} {t('list.solved')}</p>
         </div>
+        <Link href="/dashboard/incidents/stats" className="text-sm text-brand-600 hover:underline">{t('statsLink')}</Link>
       </div>
 
       {/* Cost KPI tiles */}

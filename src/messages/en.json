@@ -440,6 +440,7 @@
       "high": "High — address within 24–48 h",
       "urgent": "Urgent — immediate action required"
     },
+    "statsLink": "Stats",
     "noIncidents": "No incidents",
     "kpi": {
       "totalCost": "Total Cost",
@@ -2364,5 +2365,20 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "maintenanceStats": {
+    "title": "Maintenance stats",
+    "subtitle": "Average resolution time and incidents by property and category.",
+    "back": "← Incidents",
+    "total": "Total",
+    "open": "Open",
+    "solved": "Solved",
+    "avgResolution": "Avg. resolution",
+    "days": "{count} days",
+    "byProperty": "By property",
+    "byCategory": "By category",
+    "property": "Property",
+    "noProperty": "No property",
+    "empty": "No incidents yet."
   }
 }
