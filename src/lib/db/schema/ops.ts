@@ -548,3 +548,40 @@ export const absences = sqliteTable('absences', {
   index('idx_absences_org').on(t.orgId),
   uniqueIndex('absences_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
 ]);
+
+export const amenities = sqliteTable('amenities', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  propertyId:  text('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  name:        text('name').notNull(),
+  openTime:    text('open_time').notNull(),
+  closeTime:   text('close_time').notNull(),
+  slotMinutes: integer('slot_minutes').notNull().default(60),
+  active:      bool('active').notNull().default(true),
+  createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_amenities_org').on(t.orgId),
+  uniqueIndex('amenities_property_name_uniq').on(t.propertyId, t.name),
+  check('amenities_slot_minutes_check', sql`slot_minutes BETWEEN 15 AND 720`),
+  check('amenities_hours_check', sql`open_time < close_time`),
+]);
+
+export const amenityBookings = sqliteTable('amenity_bookings', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  amenityId: text('amenity_id').notNull().references(() => amenities.id, { onDelete: 'cascade' }),
+  tenantId:  text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  bookedOn:  dateStr('booked_on').notNull(),
+  startTime: text('start_time').notNull(),
+  endTime:   text('end_time').notNull(),
+  status:    text('status').notNull().default('confirmed'),
+  createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('amenity_bookings_slot_uniq').on(t.amenityId, t.bookedOn, t.startTime).where(sql`status = 'confirmed'`),
+  index('idx_amenity_bookings_org_date').on(t.orgId, t.bookedOn),
+  index('idx_amenity_bookings_tenant').on(t.tenantId),
+  check('amenity_bookings_status_check', sql`status IN ('confirmed','cancelled')`),
+]);
