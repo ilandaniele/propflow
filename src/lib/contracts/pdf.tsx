@@ -6,6 +6,8 @@
  * The allowlist prevents template injection (OWASP A05).
  */
 
+import type { OrgSignature } from './org-signature';
+
 // ── Allowed template variables ────────────────────────────────────────────────
 export const ALLOWED_VARIABLES = [
   'tenant_name',
@@ -19,28 +21,25 @@ export const ALLOWED_VARIABLES = [
   'deposit',
   'org_name',
   'generated_date',
+  'tenant_phone',
+  'tenant_document',
+  'payment_day',
+  'duration_months',
+  'property_district',
+  'contract_code',
+  'landlord_name',
+  'landlord_document',
 ] as const;
 
 export type AllowedVariable = typeof ALLOWED_VARIABLES[number];
 
-export interface ContractVariables {
-  tenant_name?: string;
-  tenant_email?: string;
-  unit_label?: string;
-  property_name?: string;
-  property_address?: string;
-  start_date?: string;
-  end_date?: string;
-  monthly_rent?: string;
-  deposit?: string;
-  org_name?: string;
-  generated_date?: string;
-}
+export type ContractVariables = Partial<Record<AllowedVariable, string>>;
 
 export interface ContractPdfSource {
   templateName: string;
   bodyMarkdown: string;
   variables: ContractVariables;
+  signature: OrgSignature | null;
 }
 
 /**

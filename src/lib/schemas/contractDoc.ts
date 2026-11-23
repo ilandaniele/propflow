@@ -36,12 +36,23 @@ export type SendSignatureInput = z.infer<typeof SendSignatureSchema>;
 // Public sign page submission (Zod for Route Handler body)
 const MAX_SIGNATURE_BYTES = 200_000; // ~200KB for base64 canvas image
 
+export const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
+
+const SignatureDataUrlSchema = z
+  .string()
+  .min(1)
+  .max(MAX_SIGNATURE_BYTES, 'Signature image too large')
+  .startsWith(PNG_DATA_URL_PREFIX, 'Must be a PNG data URL');
+
 export const SignSubmitSchema = z.object({
-  signature_image_base64: z
-    .string()
-    .min(1)
-    .max(MAX_SIGNATURE_BYTES, 'Signature image too large')
-    .regex(/^data:image\/png;base64,/, 'Must be a PNG data URL'),
+  signature_image_base64: SignatureDataUrlSchema,
   typed_name: z.string().min(1).max(200),
 });
 export type SignSubmitInput = z.infer<typeof SignSubmitSchema>;
+
+export const OrgSignatureSchema = z.object({
+  signer_name:     z.string().trim().min(2).max(120),
+  signer_document: z.string().trim().max(30).optional(),
+  signature_image: SignatureDataUrlSchema,
+});
+export type OrgSignatureInput = z.infer<typeof OrgSignatureSchema>;

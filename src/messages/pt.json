@@ -1859,7 +1859,21 @@
     "emptyTitle": "Sem comprovantes ainda",
     "emptyDesc": "Os comprovantes enviados por inquilinos ou administradores aparecerão aqui para processamento OCR."
   },
+  "orgSignature": {
+    "current": "Assinatura salva de {name}",
+    "currentAlt": "Assinatura salva",
+    "signerName": "Nome do signatário",
+    "signerDocument": "Documento ou CNPJ",
+    "draw": "Desenhe a assinatura",
+    "clear": "Limpar traço",
+    "save": "Salvar assinatura",
+    "saving": "Salvando…",
+    "saved": "Assinatura salva.",
+    "error": "Não foi possível salvar a assinatura. Revise os dados e tente novamente."
+  },
   "contractTemplates": {
+    "cardSignature": "Assinatura do locador",
+    "signatureNote": "Inserida no final de cada contrato gerado. Também preenche as variáveis landlord_name e landlord_document.",
     "title": "Modelos de Contratos",
     "cardVariables": "Variáveis Disponíveis",
     "variablesNote": "Use-as no corpo do modelo como {{variable_name}}",
@@ -1999,6 +2013,8 @@
       "submit": "Criar"
     },
     "contractTemplate": {
+      "previewLabel": "Pré-visualização com dados de exemplo",
+      "previewEmpty": "Escreva o corpo para ver a pré-visualização.",
       "saving": "Salvando…",
       "submit": "Criar modelo",
       "nameLabel": "Nome do modelo",

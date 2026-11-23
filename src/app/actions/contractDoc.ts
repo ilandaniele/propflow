@@ -29,6 +29,7 @@ import type { ContractPdfSource, ContractVariables } from '@/lib/contracts/pdf.t
 import { sendEmail, buildSignatureRequestEmail } from '@/lib/notifications/email';
 import { env } from '@/lib/env';
 import { isUniqueViolation } from '@/lib/db/errors';
+import { orgSignature } from '@/lib/contracts/org-signature';
 
 const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
 
@@ -135,6 +136,8 @@ export async function getContractPdfSource(
         deposit:     contracts.deposit,
         startDate:   contracts.startDate,
         endDate:     contracts.endDate,
+        durationMonths: contracts.durationMonths,
+        contractCode:   contracts.contractCode,
         tenantId:    contracts.tenantId,
         unitId:      contracts.unitId,
       })
@@ -155,18 +158,26 @@ export async function getContractPdfSource(
   const template = templateRows[0];
 
   // Load related rows
-  const [tenantRows, unitRows, orgRows] = await Promise.all([
-    db.select({ fullName: tenants.fullName, email: tenants.email }).from(tenants).where(eq(tenants.id, contract.tenantId)).limit(1),
+  const [tenantRows, unitRows, orgRows, signature] = await Promise.all([
+    db.select({
+      fullName: tenants.fullName,
+      email: tenants.email,
+      phone: tenants.phone,
+      documentNumber: tenants.documentNumber,
+      dni: tenants.dni,
+      paymentDueDay: tenants.paymentDueDay,
+    }).from(tenants).where(eq(tenants.id, contract.tenantId)).limit(1),
     db.select({ label: units.label, propertyId: units.propertyId }).from(units).where(eq(units.id, contract.unitId)).limit(1),
     db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, ctx.orgId)).limit(1),
+    orgSignature(ctx.orgId),
   ]);
 
   const tenant = tenantRows[0];
   const unit = unitRows[0];
 
-  let property: { name: string; address: string | null } | undefined;
+  let property: { name: string; address: string | null; district: string | null } | undefined;
   if (unit?.propertyId) {
-    const propRows = await db.select({ name: properties.name, address: properties.address }).from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+    const propRows = await db.select({ name: properties.name, address: properties.address, district: properties.district }).from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
     property = propRows[0];
   }
 
@@ -182,9 +193,17 @@ export async function getContractPdfSource(
     deposit:          contract.deposit != null ? String(contract.deposit) : '',
     org_name:         orgRows[0]?.name ?? '',
     generated_date:   new Date().toLocaleDateString('en-US'),
+    tenant_phone:     tenant?.phone ?? '',
+    tenant_document:  tenant?.documentNumber ?? tenant?.dni ?? '',
+    payment_day:      tenant?.paymentDueDay != null ? String(tenant.paymentDueDay) : '',
+    duration_months:  contract.durationMonths != null ? String(contract.durationMonths) : '',
+    property_district: property?.district ?? '',
+    contract_code:    contract.contractCode ?? '',
+    landlord_name:    signature?.signerName ?? '',
+    landlord_document: signature?.signerDocument ?? '',
   };
 
-  return ok({ templateName: template.name, bodyMarkdown: template.bodyMarkdown, variables });
+  return ok({ templateName: template.name, bodyMarkdown: template.bodyMarkdown, variables, signature });
 }
 
 /**

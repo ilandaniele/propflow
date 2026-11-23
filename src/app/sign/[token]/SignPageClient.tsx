@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import type { SignatureCanvasHandle } from './SignatureCanvas';
+import type { SignatureCanvasHandle } from '@/components/ui/SignatureCanvas';
 
 // Code-split the canvas component — HTMLCanvasElement is client-side only.
 // This keeps the main JS bundle under the 200 KB gzip budget.
-const SignatureCanvas = dynamic(() => import('./SignatureCanvas'), {
+const SignatureCanvas = dynamic(() => import('@/components/ui/SignatureCanvas'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-[120px] border border-slate-300 rounded-lg bg-white flex items-center justify-center">
