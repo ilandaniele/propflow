@@ -12,12 +12,14 @@ export const charges = sqliteTable('charges', {
   description: text('description'),
   amount:      money('amount').notNull(),
   dueDate:     dateStr('due_date'),
+  kind:        text('kind'),  // 'rent' for auto-generated monthly rent; null for manual charges
   createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_charges_org_id').on(t.orgId),
   index('idx_charges_contract_id').on(t.contractId),
   index('idx_charges_tenant_period').on(t.tenantId, t.period),
+  uniqueIndex('uq_charges_rent_contract_period').on(t.contractId, t.period).where(sql`kind = 'rent'`),
   check('charges_amount_check', sql`CAST(amount AS REAL) > 0`),
 ]);
 
