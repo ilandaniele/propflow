@@ -66,6 +66,7 @@
     "cleaning": "Cleaning",
     "leads": "Leads",
     "community": "Community",
+    "tenantMessages": "Messages",
     "visitors": "Visitors",
     "aiAssistant": "AI Assistant",
     "whatsapp": "WhatsApp",
@@ -2364,5 +2365,38 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "tenantMessages": {
+    "inboxTitle": "Tenant messages",
+    "inboxSubtitle": "Questions, requests and complaints sent from the portal.",
+    "portalTitle": "Messages to management",
+    "newMessage": "New message",
+    "filterLabel": "Filter by status",
+    "all": "All",
+    "kindLabel": "Type",
+    "subjectLabel": "Subject",
+    "bodyLabel": "Message",
+    "send": "Send",
+    "replyLabel": "Reply",
+    "replyPlaceholder": "Write the reply for the tenant",
+    "sendReply": "Reply",
+    "updateReply": "Update reply",
+    "replyHeading": "Reply from management",
+    "close": "Close",
+    "unknownSender": "Tenant",
+    "emptyTitle": "No messages",
+    "emptyInboxDesc": "Messages sent by tenants will show up here.",
+    "emptyPortalDesc": "You have not sent any messages yet.",
+    "kind": {
+      "question": "Question",
+      "request": "Request",
+      "complaint": "Complaint",
+      "suggestion": "Suggestion"
+    },
+    "status": {
+      "open": "Open",
+      "answered": "Answered",
+      "closed": "Closed"
+    }
   }
 }

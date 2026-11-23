@@ -66,6 +66,7 @@
     "cleaning": "Limpeza",
     "leads": "Leads",
     "community": "Comunidade",
+    "tenantMessages": "Mensagens",
     "visitors": "Visitantes",
     "aiAssistant": "Assistente IA",
     "whatsapp": "WhatsApp",
@@ -2364,5 +2365,38 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "tenantMessages": {
+    "inboxTitle": "Mensagens de inquilinos",
+    "inboxSubtitle": "Dúvidas, pedidos e reclamações enviados pelo portal.",
+    "portalTitle": "Mensagens para a administração",
+    "newMessage": "Nova mensagem",
+    "filterLabel": "Filtrar por status",
+    "all": "Todas",
+    "kindLabel": "Tipo",
+    "subjectLabel": "Assunto",
+    "bodyLabel": "Mensagem",
+    "send": "Enviar",
+    "replyLabel": "Resposta",
+    "replyPlaceholder": "Escreva a resposta para o inquilino",
+    "sendReply": "Responder",
+    "updateReply": "Atualizar resposta",
+    "replyHeading": "Resposta da administração",
+    "close": "Encerrar",
+    "unknownSender": "Inquilino",
+    "emptyTitle": "Sem mensagens",
+    "emptyInboxDesc": "As mensagens enviadas pelos inquilinos aparecerão aqui.",
+    "emptyPortalDesc": "Você ainda não enviou mensagens.",
+    "kind": {
+      "question": "Dúvida",
+      "request": "Pedido",
+      "complaint": "Reclamação",
+      "suggestion": "Sugestão"
+    },
+    "status": {
+      "open": "Aberta",
+      "answered": "Respondida",
+      "closed": "Encerrada"
+    }
   }
 }
