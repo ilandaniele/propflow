@@ -343,3 +343,38 @@ export const aiTokenBudget = sqliteTable('ai_token_budget', {
   check('ai_token_budget_tokens_used_check', sql`tokens_used >= 0`),
   check('ai_token_budget_cost_usd_check', sql`CAST(cost_usd AS REAL) >= 0`),
 ]);
+
+export const cashAccounts = sqliteTable('cash_accounts', {
+  id:             id(),
+  orgId:          text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name:           text('name').notNull(),
+  kind:           text('kind').notNull(),
+  bankName:       text('bank_name'),
+  accountNumber:  text('account_number'),
+  openingBalance: money('opening_balance').notNull().default('0'),
+  active:         bool('active').notNull().default(true),
+  createdAt:      ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:      ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_cash_accounts_org').on(t.orgId),
+  uniqueIndex('cash_accounts_org_name_uniq').on(t.orgId, t.name),
+  check('cash_accounts_kind_check', sql`kind IN ('cash', 'bank')`),
+]);
+
+export const cashMovements = sqliteTable('cash_movements', {
+  id:         id(),
+  orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  accountId:  text('account_id').notNull().references(() => cashAccounts.id, { onDelete: 'cascade' }),
+  occurredOn: dateStr('occurred_on').notNull(),
+  concept:    text('concept').notNull(),
+  document:   text('document'),
+  direction:  text('direction').notNull(),
+  amount:     money('amount').notNull(),
+  createdBy:  text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:  ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:  ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_cash_movements_org_account_date').on(t.orgId, t.accountId, t.occurredOn),
+  check('cash_movements_direction_check', sql`direction IN ('in', 'out')`),
+  check('cash_movements_amount_check', sql`CAST(amount AS REAL) > 0`),
+]);

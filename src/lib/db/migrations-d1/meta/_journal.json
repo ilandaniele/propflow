@@ -36,6 +36,13 @@
       "when": 1795029513849,
       "tag": "0004_pg_legacy_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795400785811,
+      "tag": "0005_cash_accounts",
+      "breakpoints": true
     }
   ]
 }
