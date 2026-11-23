@@ -91,6 +91,7 @@
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "adminNotifications": "Notifications",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "taxReceipts": "Tax Receipts",
@@ -1734,6 +1735,15 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "adminNotifications": {
+    "title": "Notifications",
+    "unread": "{count, plural, =0 {No unread notices} one {# unread notice} other {# unread notices}}",
+    "markRead": "Mark read",
+    "markAllRead": "Mark all as read",
+    "open": "View",
+    "emptyTitle": "No notifications",
+    "emptyDesc": "Receipts to review and automatically registered payments show up here."
   },
   "accountStatements": {
     "title": "Account Statements",

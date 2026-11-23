@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "adminNotifications": "Notificaciones",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -1734,6 +1735,15 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "adminNotifications": {
+    "title": "Notificaciones",
+    "unread": "{count, plural, =0 {Sin avisos sin leer} one {# aviso sin leer} other {# avisos sin leer}}",
+    "markRead": "Marcar leída",
+    "markAllRead": "Marcar todas como leídas",
+    "open": "Ver",
+    "emptyTitle": "Sin notificaciones",
+    "emptyDesc": "Aquí aparecen los comprobantes por revisar y los pagos registrados automáticamente."
   },
   "accountStatements": {
     "title": "Estados de Cuenta",
