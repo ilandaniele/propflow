@@ -43,6 +43,13 @@
       "when": 1795407949153,
       "tag": "0005_profile_id_equals_user_id",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795449383940,
+      "tag": "0006_org_memberships",
+      "breakpoints": true
     }
   ]
 }

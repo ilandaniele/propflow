@@ -63,6 +63,7 @@
     "finance": "Finance",
     "reminders": "Reminders",
     "announcements": "Announcements",
+    "communities": "Communities",
     "cleaning": "Cleaning",
     "leads": "Leads",
     "community": "Community",
@@ -2364,5 +2365,22 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "communities": {
+    "title": "Multi-community access",
+    "subtitle": "Add users who already have a Propflow account so they can access this community without losing their own. They switch communities with the selector.",
+    "addTitle": "Grant access",
+    "emailLabel": "Account email",
+    "roleLabel": "Role",
+    "role": {
+      "admin": "Admin",
+      "tenant": "Tenant"
+    },
+    "add": "Grant access",
+    "saving": "Saving…",
+    "remove": "Revoke access",
+    "empty": "Nobody else has access to this community.",
+    "switchLabel": "Active community",
+    "switch": "Switch"
   }
 }

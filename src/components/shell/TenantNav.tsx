@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { signOut } from '@/app/actions/auth';
 import { LanguageDropdown } from '@/components/i18n/LanguageDropdown';
 import { NotificationBadge } from '@/components/portal/NotificationBadge';
-import { useTransition } from 'react';
+import { useTransition, type ReactNode } from 'react';
 import type { Locale } from '@/i18n/config';
 
 const navItems = [
@@ -95,9 +95,10 @@ interface TenantNavProps {
    */
   profileId?: string;
   currentLocale?: Locale;
+  communitySwitcher?: ReactNode;
 }
 
-export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
+export function TenantNav({ userName, currentLocale = 'es', communitySwitcher }: TenantNavProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
@@ -130,6 +131,7 @@ export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
           })}
         </nav>
         <div className="flex items-center gap-3">
+          {communitySwitcher}
           {/* Notification bell — count fetched client-side (spec AC4) */}
           <NotificationBadge variant="desktop" />
 

@@ -100,6 +100,16 @@ vi.mock('@/lib/auth/guards', () => ({
 // without importing their full implementation.
 // ---------------------------------------------------------------------------
 
+const mockListUserCommunities = vi.fn(async (_userId: string) => [] as unknown[]);
+
+vi.mock('@/lib/memberships/queries', () => ({
+  listUserCommunities: (userId: string) => mockListUserCommunities(userId),
+}));
+
+vi.mock('@/components/communities/CommunitySwitcher', () => ({
+  CommunitySwitcher: vi.fn(() => null),
+}));
+
 vi.mock('@/components/shell/AdminSidebar', () => ({
   AdminSidebar: vi.fn(() => null),
 }));
@@ -201,6 +211,15 @@ describe('DashboardLayout — fast-auth path (AC3)', () => {
 
     expect(mockGetProfileFast).toHaveBeenCalledTimes(1);
     expect(mockGetProfileFast).toHaveBeenCalledWith('user-abc');
+  });
+
+  it('loads the session user communities for the switcher', async () => {
+    setupAdminSession('user-abc', 'org-xyz');
+    const { default: DashboardLayout } = await import('@/app/dashboard/layout');
+
+    await DashboardLayout({ children: null });
+
+    expect(mockListUserCommunities).toHaveBeenCalledWith('user-abc');
   });
 
   // -------------------------------------------------------------------------
