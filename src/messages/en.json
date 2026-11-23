@@ -91,6 +91,7 @@
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "suppliers": "Suppliers",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "taxReceipts": "Tax Receipts",
@@ -1735,6 +1736,58 @@
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
   },
+  "suppliers": {
+    "title": "Suppliers",
+    "subtitle": "Plumbers, electricians and technicians you assign incidents to.",
+    "newTitle": "New supplier",
+    "emptyTitle": "No suppliers",
+    "emptyDesc": "Add your first supplier to assign incidents to them.",
+    "inactive": "Inactive",
+    "noContact": "No contact",
+    "jobs": "{open} open · {total} total",
+    "edit": "Edit",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "form": {
+      "name": "Name",
+      "trade": "Trade",
+      "phone": "Phone",
+      "email": "Email",
+      "notes": "Notes",
+      "create": "Add supplier",
+      "save": "Save",
+      "saved": "Saved"
+    },
+    "assignment": {
+      "none": "No supplier assigned.",
+      "noSuppliers": "No active suppliers.",
+      "addSupplier": "Add supplier",
+      "supplier": "Supplier",
+      "assign": "Assign",
+      "reassign": "Reassign",
+      "status": "Status",
+      "quote": "Quote (S/)",
+      "finalCost": "Final cost (S/)",
+      "notes": "Notes"
+    },
+    "trades": {
+      "plumbing": "Plumbing",
+      "electrical": "Electrical",
+      "appliance": "Appliances",
+      "structural": "Structural",
+      "cleaning": "Cleaning",
+      "locksmith": "Locksmith",
+      "painting": "Painting",
+      "general": "General"
+    },
+    "statuses": {
+      "assigned": "Assigned",
+      "quoted": "Quoted",
+      "approved": "Approved",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    }
+  },
   "accountStatements": {
     "title": "Account Statements",
     "subtitle": "{count} statements · {sent} sent · Total due S/ {total}",
@@ -1839,6 +1892,7 @@
   "incidentDetail": {
     "cardDescription": "Description",
     "cardTimeline": "Timeline",
+    "cardSupplier": "Supplier",
     "cardManage": "Manage",
     "noComments": "No comments yet",
     "reportedBy": "Reported by",

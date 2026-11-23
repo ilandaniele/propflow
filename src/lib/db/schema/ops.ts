@@ -1,6 +1,6 @@
 import { sqliteTable, text, integer, uniqueIndex, index, check } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
-import { id, json, ts, money, dateStr, bool } from './columns';
+import { id, json, ts, money, dateStr, bool, createdAt, updatedAt } from './columns';
 import { contracts, organizations, profiles, properties, tenants, units, whatsappMessages } from './core';
 
 export const incidents = sqliteTable('incidents', {
@@ -547,4 +547,40 @@ export const absences = sqliteTable('absences', {
 }, (t) => [
   index('idx_absences_org').on(t.orgId),
   uniqueIndex('absences_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
+]);
+
+
+export const suppliers = sqliteTable('suppliers', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  trade:     text('trade').notNull(),
+  phone:     text('phone'),
+  email:     text('email'),
+  notes:     text('notes'),
+  active:    bool('active').notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (t) => [
+  index('idx_suppliers_org_trade').on(t.orgId, t.trade),
+  check('suppliers_trade_check', sql`trade IN ('plumbing','electrical','appliance','structural','cleaning','locksmith','painting','general')`),
+  check('suppliers_name_check', sql`length(name) > 0`),
+]);
+
+export const incidentSupplierAssignments = sqliteTable('incident_supplier_assignments', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  incidentId:  text('incident_id').notNull().references(() => incidents.id, { onDelete: 'cascade' }),
+  supplierId:  text('supplier_id').notNull().references(() => suppliers.id, { onDelete: 'restrict' }),
+  status:      text('status').notNull().default('assigned'),
+  quoteAmount: money('quote_amount'),
+  finalCost:   money('final_cost'),
+  notes:       text('notes'),
+  assignedBy:  text('assigned_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:   createdAt(),
+  updatedAt:   updatedAt(),
+}, (t) => [
+  uniqueIndex('incident_supplier_assignments_incident_uniq').on(t.incidentId),
+  index('idx_incident_supplier_assignments_org_supplier').on(t.orgId, t.supplierId),
+  check('incident_supplier_assignments_status_check', sql`status IN ('assigned','quoted','approved','done','cancelled')`),
 ]);

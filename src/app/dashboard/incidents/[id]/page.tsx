@@ -10,6 +10,8 @@ import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { UpdateIncidentForm } from './UpdateIncidentForm';
 import { CommentForm } from './CommentForm';
+import { SupplierAssignmentCard } from './SupplierAssignmentCard';
+import { activeSupplierOptions, incidentAssignment } from '@/lib/suppliers/suppliers';
 
 export const metadata: Metadata = { title: 'Incident Details' };
 
@@ -25,7 +27,7 @@ export default async function IncidentDetailPage({ params }: Props) {
   // Alias profiles twice — once for createdBy, once for assignedTo
   const createdByProfiles = profiles;
 
-  const [incidentRows, commentRows, adminRows] = await Promise.all([
+  const [incidentRows, commentRows, adminRows, supplierOptions, assignment] = await Promise.all([
     db
       .select({
         id:          incidents.id,
@@ -66,6 +68,8 @@ export default async function IncidentDetailPage({ params }: Props) {
       .select({ id: profiles.id, fullName: profiles.fullName })
       .from(profiles)
       .where(and(eq(profiles.orgId, ctx.orgId), eq(profiles.role, 'admin'))),
+    activeSupplierOptions(ctx.orgId),
+    incidentAssignment(ctx.orgId, id),
   ]);
 
   if (!incidentRows.length) notFound();
@@ -149,6 +153,10 @@ export default async function IncidentDetailPage({ params }: Props) {
           <Card>
             <CardHeader><CardTitle>{t('cardManage')}</CardTitle></CardHeader>
             <UpdateIncidentForm incident={incidentForForm as never} admins={adminsForForm} />
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>{t('cardSupplier')}</CardTitle></CardHeader>
+            <SupplierAssignmentCard incidentId={incident.id} options={supplierOptions} assignment={assignment} />
           </Card>
         </div>
       </div>

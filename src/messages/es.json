@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "suppliers": "Proveedores",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -1735,6 +1736,58 @@
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
   },
+  "suppliers": {
+    "title": "Proveedores",
+    "subtitle": "Gasfiteros, electricistas y técnicos a los que asignas incidencias.",
+    "newTitle": "Nuevo proveedor",
+    "emptyTitle": "Sin proveedores",
+    "emptyDesc": "Agrega tu primer proveedor para asignarle incidencias.",
+    "inactive": "Inactivo",
+    "noContact": "Sin contacto",
+    "jobs": "{open} abiertas · {total} en total",
+    "edit": "Editar",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "form": {
+      "name": "Nombre",
+      "trade": "Rubro",
+      "phone": "Teléfono",
+      "email": "Correo",
+      "notes": "Notas",
+      "create": "Agregar proveedor",
+      "save": "Guardar",
+      "saved": "Guardado"
+    },
+    "assignment": {
+      "none": "Sin proveedor asignado.",
+      "noSuppliers": "No hay proveedores activos.",
+      "addSupplier": "Agregar proveedor",
+      "supplier": "Proveedor",
+      "assign": "Asignar",
+      "reassign": "Reasignar",
+      "status": "Estado",
+      "quote": "Presupuesto (S/)",
+      "finalCost": "Costo final (S/)",
+      "notes": "Notas"
+    },
+    "trades": {
+      "plumbing": "Gasfitería",
+      "electrical": "Electricidad",
+      "appliance": "Electrodomésticos",
+      "structural": "Estructura y albañilería",
+      "cleaning": "Limpieza",
+      "locksmith": "Cerrajería",
+      "painting": "Pintura",
+      "general": "General"
+    },
+    "statuses": {
+      "assigned": "Asignado",
+      "quoted": "Presupuestado",
+      "approved": "Aprobado",
+      "done": "Terminado",
+      "cancelled": "Cancelado"
+    }
+  },
   "accountStatements": {
     "title": "Estados de Cuenta",
     "subtitle": "{count} estados · {sent} enviados · Total pendiente S/ {total}",
@@ -1839,6 +1892,7 @@
   "incidentDetail": {
     "cardDescription": "Descripción",
     "cardTimeline": "Línea de Tiempo",
+    "cardSupplier": "Proveedor",
     "cardManage": "Gestionar",
     "noComments": "Sin comentarios aún",
     "reportedBy": "Reportado por",
