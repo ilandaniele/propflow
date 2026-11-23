@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer, uniqueIndex, index, check } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { id, json, ts, money, dateStr, bool } from './columns';
+import type { HandoverItem } from '@/lib/contracts/handover-types';
 import { contracts, organizations, profiles, properties, tenants, units, whatsappMessages } from './core';
 
 export const incidents = sqliteTable('incidents', {
@@ -183,12 +184,46 @@ export const signatureRequests = sqliteTable('signature_requests', {
   signedUserAgent:    text('signed_user_agent'),
   documentSha256:     text('document_sha256'),
   signatureSha256:    text('signature_sha256'),
+  handoverActId:      text('handover_act_id').references(() => handoverActs.id, { onDelete: 'cascade' }),
   createdAt:          ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:          ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_signature_requests_org').on(t.orgId),
   index('idx_signature_requests_contract').on(t.contractId),
   check('signature_requests_status_check', sql`status IN ('sent','viewed','signed','declined','expired')`),
+]);
+
+export const unitInventoryItems = sqliteTable('unit_inventory_items', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  unitId:    text('unit_id').notNull().references(() => units.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  quantity:  integer('quantity').notNull().default(1),
+  condition: text('condition').notNull().default('good'),
+  notes:     text('notes'),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_unit_inventory_items_unit').on(t.orgId, t.unitId),
+  check('unit_inventory_items_condition_check', sql`condition IN ('new','good','fair','poor','broken')`),
+]);
+
+export const handoverActs = sqliteTable('handover_acts', {
+  id:           id(),
+  orgId:        text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  contractId:   text('contract_id').notNull().references(() => contracts.id, { onDelete: 'cascade' }),
+  kind:         text('kind').notNull(),
+  items:        json<HandoverItem[]>('items').notNull(),
+  notes:        text('notes'),
+  documentPath: text('document_path'),
+  status:       text('status').notNull().default('draft'),
+  signedAt:     ts('signed_at'),
+  createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:    ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_handover_acts_contract').on(t.orgId, t.contractId),
+  check('handover_acts_kind_check', sql`kind IN ('check_in','check_out')`),
+  check('handover_acts_status_check', sql`status IN ('draft','pending_signature','signed')`),
 ]);
 
 export const reminders = sqliteTable('reminders', {

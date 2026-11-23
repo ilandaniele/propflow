@@ -2423,5 +2423,73 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "handover": {
+    "inventory": {
+      "title": "Inventario de la unidad",
+      "empty": "Sin ítems. Agrega muebles, electrodomésticos y llaves.",
+      "name": "Ítem",
+      "quantity": "Cant.",
+      "condition": "Estado",
+      "notes": "Notas",
+      "add": "Agregar",
+      "saving": "Guardando…",
+      "delete": "Quitar",
+      "error": "No pudimos guardar el inventario."
+    },
+    "conditions": {
+      "new": "Nuevo",
+      "good": "Bueno",
+      "fair": "Regular",
+      "poor": "Malo",
+      "broken": "Roto"
+    },
+    "kinds": {
+      "check_in": "Acta de entrega (check-in)",
+      "check_out": "Acta de devolución (check-out)"
+    },
+    "statuses": {
+      "draft": "Borrador",
+      "pending_signature": "Pendiente de firma",
+      "signed": "Firmada"
+    },
+    "act": {
+      "title": "Actas de entrega y devolución",
+      "empty": "Todavía no hay actas.",
+      "needsInventory": "Carga el inventario de la unidad para crear un acta.",
+      "kind": "Tipo de acta",
+      "notes": "Observaciones generales",
+      "create": "Crear acta",
+      "creating": "Creando…",
+      "created": "Acta creada.",
+      "error": "No pudimos crear el acta.",
+      "itemCount": "{count} ítems",
+      "generate": "Generar PDF",
+      "regenerate": "Regenerar PDF",
+      "generating": "Generando…",
+      "generateError": "No pudimos generar el PDF del acta.",
+      "send": "Enviar a firmar",
+      "sending": "Enviando…",
+      "sendError": "No pudimos enviar el acta a firmar."
+    },
+    "pdf": {
+      "title": {
+        "check_in": "Acta de entrega e inventario",
+        "check_out": "Acta de devolución e inventario"
+      },
+      "contract": "Contrato",
+      "organization": "Arrendador",
+      "tenant": "Inquilino",
+      "property": "Inmueble",
+      "date": "Fecha",
+      "item": "Ítem",
+      "quantity": "Cant.",
+      "condition": "Estado",
+      "notes": "Notas",
+      "generalNotes": "Observaciones",
+      "landlordSignature": "Arrendador",
+      "tenantSignature": "Inquilino",
+      "missing": "—"
+    }
   }
 }

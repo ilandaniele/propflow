@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { signatureRequests } from '@/lib/db/schema';
 import type { SignatureEvidence } from './signature-evidence';
@@ -32,7 +32,11 @@ export async function listContractSignatureRequests(orgId: string, contractId: s
   const rows = await db
     .select({ id: signatureRequests.id, status: signatureRequests.status, ...evidenceColumns })
     .from(signatureRequests)
-    .where(and(eq(signatureRequests.orgId, orgId), eq(signatureRequests.contractId, contractId)))
+    .where(and(
+      eq(signatureRequests.orgId, orgId),
+      eq(signatureRequests.contractId, contractId),
+      isNull(signatureRequests.handoverActId),
+    ))
     .orderBy(desc(signatureRequests.createdAt))
     .limit(20);
   return rows.map(({ id, status, ...rest }) => ({ id, status, ...toEvidence(rest) }));

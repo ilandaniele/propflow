@@ -26,6 +26,14 @@ interface ContractPreview {
   tenantName: string;
 }
 
+type DocumentKind = 'contract' | 'check_in' | 'check_out';
+
+const DOCUMENT_TITLES: Record<DocumentKind, string> = {
+  contract:  'Sign Your Contract',
+  check_in:  'Sign the Check-in Inventory',
+  check_out: 'Sign the Check-out Inventory',
+};
+
 type PageState = 'loading' | 'ready' | 'signing' | 'signed' | 'expired' | 'already_signed' | 'error';
 
 interface Props {
@@ -36,6 +44,7 @@ export default function SignPageClient({ token }: Props) {
   const [state, setState] = useState<PageState>('loading');
   const [contract, setContract] = useState<ContractPreview | null>(null);
   const [documentLink, setDocumentLink] = useState<string | null>(null);
+  const [documentKind, setDocumentKind] = useState<DocumentKind>('contract');
   const [receipt, setReceipt] = useState<{ signedAt: string; documentSha256: string | null } | null>(null);
   const [typedName, setTypedName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -52,6 +61,7 @@ export default function SignPageClient({ token }: Props) {
       const data = await res.json();
       setContract(data.contract);
       setDocumentLink(data.documentLink ?? null);
+      if (data.documentKind in DOCUMENT_TITLES) setDocumentKind(data.documentKind);
       setState('ready');
     })();
   }, [token]);
@@ -152,7 +162,7 @@ export default function SignPageClient({ token }: Props) {
           )}
           {documentLink && (
             <a href={documentLink} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-brand-700 underline">
-              Download the contract (PDF)
+              Download the signed document (PDF)
             </a>
           )}
         </div>
@@ -179,7 +189,7 @@ export default function SignPageClient({ token }: Props) {
           <div className="h-8 w-8 rounded-lg bg-brand-600 flex items-center justify-center mx-auto mb-3">
             <span className="text-white text-xs font-bold" aria-hidden="true">P</span>
           </div>
-          <h1 className="text-xl font-semibold text-slate-900">Sign Your Contract</h1>
+          <h1 className="text-xl font-semibold text-slate-900">{DOCUMENT_TITLES[documentKind]}</h1>
           <p className="text-sm text-slate-500 mt-1">Review the details below and provide your signature.</p>
         </div>
 
@@ -197,7 +207,7 @@ export default function SignPageClient({ token }: Props) {
             </div>
             {documentLink && (
               <a href={documentLink} target="_blank" rel="noopener noreferrer" className="inline-block pt-2 text-brand-700 underline">
-                Read the full contract (PDF) before signing
+                Read the full document (PDF) before signing
               </a>
             )}
           </div>

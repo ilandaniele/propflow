@@ -2423,5 +2423,73 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "handover": {
+    "inventory": {
+      "title": "Inventário da unidade",
+      "empty": "Sem itens. Adicione móveis, eletrodomésticos e chaves.",
+      "name": "Item",
+      "quantity": "Qtd.",
+      "condition": "Estado",
+      "notes": "Notas",
+      "add": "Adicionar",
+      "saving": "Salvando…",
+      "delete": "Remover",
+      "error": "Não conseguimos salvar o inventário."
+    },
+    "conditions": {
+      "new": "Novo",
+      "good": "Bom",
+      "fair": "Regular",
+      "poor": "Ruim",
+      "broken": "Quebrado"
+    },
+    "kinds": {
+      "check_in": "Termo de entrega (check-in)",
+      "check_out": "Termo de devolução (check-out)"
+    },
+    "statuses": {
+      "draft": "Rascunho",
+      "pending_signature": "Aguardando assinatura",
+      "signed": "Assinado"
+    },
+    "act": {
+      "title": "Termos de entrega e devolução",
+      "empty": "Ainda não há termos.",
+      "needsInventory": "Cadastre o inventário da unidade para criar um termo.",
+      "kind": "Tipo de termo",
+      "notes": "Observações gerais",
+      "create": "Criar termo",
+      "creating": "Criando…",
+      "created": "Termo criado.",
+      "error": "Não conseguimos criar o termo.",
+      "itemCount": "{count} itens",
+      "generate": "Gerar PDF",
+      "regenerate": "Gerar PDF de novo",
+      "generating": "Gerando…",
+      "generateError": "Não conseguimos gerar o PDF do termo.",
+      "send": "Enviar para assinatura",
+      "sending": "Enviando…",
+      "sendError": "Não conseguimos enviar o termo para assinatura."
+    },
+    "pdf": {
+      "title": {
+        "check_in": "Termo de entrega e inventário",
+        "check_out": "Termo de devolução e inventário"
+      },
+      "contract": "Contrato",
+      "organization": "Locador",
+      "tenant": "Inquilino",
+      "property": "Imóvel",
+      "date": "Data",
+      "item": "Item",
+      "quantity": "Qtd.",
+      "condition": "Estado",
+      "notes": "Notas",
+      "generalNotes": "Observações",
+      "landlordSignature": "Locador",
+      "tenantSignature": "Inquilino",
+      "missing": "—"
+    }
   }
 }

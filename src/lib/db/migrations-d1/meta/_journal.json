@@ -50,6 +50,13 @@
       "when": 1795406296468,
       "tag": "0006_signature_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795406786546,
+      "tag": "0007_handover_acts",
+      "breakpoints": true
     }
   ]
 }

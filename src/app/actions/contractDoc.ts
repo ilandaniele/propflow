@@ -9,7 +9,6 @@ import {
   units,
   properties,
   organizations,
-  signatureRequests,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { uploadFile } from '@/lib/storage';
@@ -26,16 +25,11 @@ import {
   SendSignatureSchema,
 } from '@/lib/schemas/contractDoc';
 import type { ContractPdfSource, ContractVariables } from '@/lib/contracts/pdf.tsx';
-import { sendEmail, buildSignatureRequestEmail } from '@/lib/notifications/email';
-import { env } from '@/lib/env';
+import { dispatchSignatureRequest } from '@/lib/contracts/signature-dispatch';
 import { isUniqueViolation } from '@/lib/db/errors';
 import { orgSignature } from '@/lib/contracts/org-signature';
+import { hasPdfSignature } from '@/lib/contracts/pdf-bytes';
 
-const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
-
-function hasPdfSignature(bytes: Uint8Array): boolean {
-  return PDF_SIGNATURE.every((byte, i) => bytes[i] === byte);
-}
 
 export async function createContractTemplate(
   _prev: ActionResult,
@@ -270,95 +264,26 @@ export async function sendSignatureRequest(
   const parsed = SendSignatureSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  // Load contract scoped to org
-  const contractRows = await db
-    .select({
-      id:           contracts.id,
-      documentUrl:  contracts.documentUrl,
-      tenantId:     contracts.tenantId,
-      unitId:       contracts.unitId,
-    })
+  const [contract] = await db
+    .select({ id: contracts.id })
     .from(contracts)
     .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
     .limit(1);
+  if (!contract) return Errors.NOT_FOUND();
 
-  if (!contractRows[0]) return Errors.NOT_FOUND();
-  const contract = contractRows[0];
-
-  // Load tenant
-  const tenantRows = await db
-    .select({ fullName: tenants.fullName, email: tenants.email, profileId: tenants.profileId })
-    .from(tenants)
-    .where(eq(tenants.id, contract.tenantId))
-    .limit(1);
-
-  const tenant = tenantRows[0];
-  if (!tenant?.email) {
-    return Errors.VALIDATION_ERROR({ formErrors: ['Tenant has no email address'], fieldErrors: {} });
+  const dispatched = await dispatchSignatureRequest(ctx.orgId, contract.id);
+  if ('error' in dispatched) {
+    return dispatched.error === 'no_email'
+      ? Errors.VALIDATION_ERROR({ formErrors: ['Tenant has no email address'], fieldErrors: {} })
+      : Errors.INTERNAL();
   }
+  const sigRequestId = dispatched.id;
 
-  // Load unit + property for email content
-  let propertyDisplay = 'your rental';
-  if (contract.unitId) {
-    const unitRows = await db.select({ propertyId: units.propertyId }).from(units).where(eq(units.id, contract.unitId)).limit(1);
-    if (unitRows[0]?.propertyId) {
-      const propRows = await db.select({ name: properties.name, address: properties.address }).from(properties).where(eq(properties.id, unitRows[0].propertyId)).limit(1);
-      propertyDisplay = propRows[0]?.address ?? propRows[0]?.name ?? 'your rental';
-    }
-  }
-
-  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-
-  let sigRequestId: string;
-  let sigToken: string;
-  try {
-    const rows = await db
-      .insert(signatureRequests)
-      .values({
-        orgId:           ctx.orgId,
-        contractId:      parsed.data.contract_id,
-        signerProfileId: tenant.profileId ?? null,
-        signerEmail:     tenant.email,
-        expiresAt,
-        status:          'sent',
-      })
-      .returning({ id: signatureRequests.id, token: signatureRequests.token });
-
-    if (!rows[0]) throw new Error('No row returned');
-    sigRequestId = rows[0].id;
-    sigToken = rows[0].token;
-  } catch (e) {
-    log.error('[sendSignatureRequest] insert error', { code: e instanceof Error ? e.message : String(e) });
-    return Errors.INTERNAL();
-  }
-
-  // Set contract.signature_status = 'pending_signature'
   await db
     .update(contracts)
     .set({ signatureStatus: 'pending_signature', updatedAt: new Date() })
     .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
     .catch(() => undefined);
-
-  // Send email with tokenized link (non-blocking)
-  const siteUrl = env.NEXT_PUBLIC_SITE_URL;
-  const signUrl = `${siteUrl}/sign/${sigToken}`;
-
-  const emailContent = buildSignatureRequestEmail({
-    signerName:      tenant.fullName ?? 'Tenant',
-    propertyAddress: propertyDisplay,
-    signUrl,
-    expiresAt,
-  });
-
-  const emailResult = await sendEmail({
-    to: tenant.email,
-    ...emailContent,
-    context: 'signature_request',
-  });
-
-  if (!emailResult.success) {
-    log.warn('[sendSignatureRequest] email send failed', { sigRequestId });
-  }
 
   log.adminAction(ctx.userId, 'send_signature_request', 'signature_request', sigRequestId);
   revalidatePath(`/dashboard/contracts/${parsed.data.contract_id}`);

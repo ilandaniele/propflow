@@ -8,10 +8,12 @@ import { db } from '@/lib/db';
 import { contracts, contractTemplates, properties, tenants, units } from '@/lib/db/schema';
 import { getSignedUrl } from '@/lib/storage';
 import { listContractSignatureRequests } from '@/lib/contracts/signature-requests';
+import { listHandoverActs, listUnitInventory } from '@/lib/contracts/handover';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
 import { ContractDocumentPanel } from './ContractDocumentPanel';
 import { SignatureEvidenceList } from './SignatureEvidenceList';
+import { HandoverCards } from './HandoverCards';
 
 export const metadata: Metadata = { title: 'Contract' };
 
@@ -24,11 +26,12 @@ export default async function ContractDetailPage({ params }: Props) {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
-  const [[contract], templates, requests, t] = await Promise.all([
+  const [[contract], templates, requests, acts, t] = await Promise.all([
     db
       .select({
         id:              contracts.id,
         status:          contracts.status,
+        unitId:          contracts.unitId,
         contractCode:    contracts.contractCode,
         startDate:       contracts.startDate,
         endDate:         contracts.endDate,
@@ -52,14 +55,16 @@ export default async function ContractDetailPage({ params }: Props) {
       .where(eq(contractTemplates.orgId, ctx.orgId))
       .orderBy(asc(contractTemplates.name)),
     listContractSignatureRequests(ctx.orgId, id),
+    listHandoverActs(ctx.orgId, id),
     getTranslations('contractDetail'),
   ]);
 
   if (!contract) notFound();
 
-  const documentLink = contract.documentUrl
-    ? await getSignedUrl('contracts', contract.documentUrl, 900).catch(() => null)
-    : null;
+  const [documentLink, inventory] = await Promise.all([
+    contract.documentUrl ? getSignedUrl('contracts', contract.documentUrl, 900).catch(() => null) : null,
+    listUnitInventory(ctx.orgId, contract.unitId),
+  ]);
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -91,6 +96,14 @@ export default async function ContractDetailPage({ params }: Props) {
         <CardHeader><CardTitle>{t('signaturesTitle')}</CardTitle></CardHeader>
         <SignatureEvidenceList requests={requests} />
       </Card>
+
+      <HandoverCards
+        contractId={contract.id}
+        unitId={contract.unitId}
+        tenantEmail={contract.tenantEmail}
+        inventory={inventory}
+        acts={acts}
+      />
     </div>
   );
 }
