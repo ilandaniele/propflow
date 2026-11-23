@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "rentAdjustments": "Reajustes de alquiler",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -1734,6 +1735,25 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "rentAdjustments": {
+    "title": "Reajustes de alquiler",
+    "subtitle": "Contratos activos ordenados por aniversario. Se marcan los que cumplen año en los próximos {days} días sin reajuste.",
+    "dueAlert": "{count, plural, one {# contrato necesita reajuste} other {# contratos necesitan reajuste}}",
+    "emptyTitle": "Sin contratos activos",
+    "emptyDesc": "Los contratos activos aparecerán acá.",
+    "colTenant": "Inquilino",
+    "colRent": "Alquiler",
+    "colAnniversary": "Aniversario",
+    "colLast": "Último reajuste",
+    "colApply": "Aplicar %",
+    "percent": "Porcentaje",
+    "effectiveOn": "Vigente desde",
+    "submit": "Aplicar",
+    "preview": "Nuevo: {rent}",
+    "done": "Nuevo alquiler {rent}",
+    "notActive": "Solo se reajustan contratos activos.",
+    "historyTitle": "Historial de reajustes"
   },
   "accountStatements": {
     "title": "Estados de Cuenta",

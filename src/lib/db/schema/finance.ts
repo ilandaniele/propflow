@@ -343,3 +343,19 @@ export const aiTokenBudget = sqliteTable('ai_token_budget', {
   check('ai_token_budget_tokens_used_check', sql`tokens_used >= 0`),
   check('ai_token_budget_cost_usd_check', sql`CAST(cost_usd AS REAL) >= 0`),
 ]);
+
+export const rentAdjustments = sqliteTable('rent_adjustments', {
+  id:           id(),
+  orgId:        text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  contractId:   text('contract_id').notNull().references(() => contracts.id, { onDelete: 'cascade' }),
+  previousRent: money('previous_rent').notNull(),
+  newRent:      money('new_rent').notNull(),
+  percent:      money('percent').notNull(),
+  effectiveOn:  dateStr('effective_on').notNull(),
+  createdBy:    text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:    ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_rent_adjustments_org_contract').on(t.orgId, t.contractId),
+  check('rent_adjustments_new_rent_check', sql`CAST(new_rent AS REAL) > 0`),
+]);
