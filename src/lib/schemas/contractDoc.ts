@@ -56,3 +56,7 @@ export const OrgSignatureSchema = z.object({
   signature_image: SignatureDataUrlSchema,
 });
 export type OrgSignatureInput = z.infer<typeof OrgSignatureSchema>;
+
+export const SignatureCertificateSchema = z.object({
+  signature_request_id: z.string().guid(),
+});

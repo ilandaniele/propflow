@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { contracts, tenants, units, properties } from '@/lib/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
+import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill } from '@/components/ui/Badge';
@@ -199,7 +200,7 @@ export default async function ContractsPage() {
                 const isExpiringSoon = expiringSoon.some((c) => c.id === contract.id);
                 return (
                   <tr key={contract.id} className={`transition-colors ${isExpiringSoon ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}`}>
-                    <td className="px-5 py-4 text-sm font-medium text-slate-900">{contract.tenantName ?? '—'}</td>
+                    <td className="px-5 py-4 text-sm font-medium text-slate-900"><Link href={`/dashboard/contracts/${contract.id}`} className="hover:text-brand-700 hover:underline">{contract.tenantName ?? "—"}</Link></td>
                     <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">
                       {contract.propertyName || contract.unitLabel ? `${contract.propertyName ?? ''} — ${contract.unitLabel ?? ''}` : '—'}
                     </td>

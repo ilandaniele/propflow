@@ -43,6 +43,13 @@
       "when": 1795405929567,
       "tag": "0005_org_signatures",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795406296468,
+      "tag": "0006_signature_evidence",
+      "breakpoints": true
     }
   ]
 }

@@ -181,6 +181,8 @@ export const signatureRequests = sqliteTable('signature_requests', {
   signatureImagePath: text('signature_image_path'),
   signedIp:           text('signed_ip'),
   signedUserAgent:    text('signed_user_agent'),
+  documentSha256:     text('document_sha256'),
+  signatureSha256:    text('signature_sha256'),
   createdAt:          ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:          ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
