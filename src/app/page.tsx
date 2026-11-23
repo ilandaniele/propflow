@@ -178,6 +178,9 @@ export default async function LandingPage() {
             >
               {t('footer.contact')}
             </a>
+            <Link href="/calculadoras" className="hover:text-slate-900 transition-colors">
+              {t('footer.calculators')}
+            </Link>
             <Link href="/login" className="hover:text-slate-900 transition-colors">
               {t('nav.signIn')}
             </Link>
