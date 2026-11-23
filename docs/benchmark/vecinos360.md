@@ -101,6 +101,7 @@ Leyenda como en `homming-habitamax.md`. Se omiten filas ya cubiertas allí (esta
 | V17 | Mensajes internos inquilino a admin con tipo y bandeja | parcial | WhatsApp y comunidad; sin bandeja en portal | P2 |
 | V18 | Cuentas por pagar a proveedores con vencimiento, pagos parciales y saldo | falta | `expenses` registra solo gasto pagado, sin vencimiento ni saldo | P1 |
 | V19 | Preferencias de notificaciones por correo en el perfil | falta | — | P2 |
+| V20 | Inquilino registra constancia de pago con archivo y periodo | parcial | `RecordPaymentForm` sin archivo ni periodo y sin montar en el portal | P1 |
 
 ## PRs de implementación
 
@@ -123,10 +124,11 @@ Leyenda como en `homming-habitamax.md`. Se omiten filas ya cubiertas allí (esta
 | V17 | #159 |
 | V18 | #184 |
 | V19 | #183 |
+| V20 | #185 |
 
 ## Cobertura por página de la consola
 
-Lectura solo con GET de cada página enlazada desde el menú del residente y desde Reportes. Las páginas `adm_*`, `pnl_admin`, `constancia_pago` y `recibo_mantenimiento` devuelven la misma página vacía para esta cuenta (requieren rol administrador o un id de registro).
+Lectura solo con GET de cada página enlazada desde el menú del residente y desde Reportes. Las páginas `adm_*` y `pnl_admin` redirigen a la portada pública también al navegar, porque esta cuenta no tiene rol administrador. `constancia_pago` y `recibo_mantenimiento` no se abren sueltas; se leyeron desde `estcta_depa`. La pestaña "Recibos y Constancias" lista por mes: recibos emitidos, mis constancias de pago y mis confirmaciones de pago. El modal "Registrar Constancias de Pago" pide fecha de pago, monto, mes al que corresponde, mensaje y archivo (se abrió y se canceló sin guardar).
 
 | Página | Función | Fila / PR |
 |---|---|---|
@@ -139,7 +141,7 @@ Lectura solo con GET de cada página enlazada desde el menú del residente y des
 | `blog_votaciones` | Encuestas y votaciones | V12 / #158 |
 | `agenda`, `agenda_lista`, `agrega_post_ae` | Reservas: instalación, franjas, cantidad de personas, comentario | V8 / #133 |
 | `reg_invitados` | Visitantes y palabra clave | V9 / #163 |
-| `estcta_depa`, `constancia_pago`, `recibo_mantenimiento` | Estado de cuenta y constancias | ya existe (portal de pagos y recibos) |
+| `estcta_depa`, `constancia_pago`, `recibo_mantenimiento` | Estado de cuenta, recibos emitidos, constancias y confirmaciones de pago | estado de cuenta #125, recibo PDF #126, aviso al admin #142, constancia con archivo y periodo V20 / #185 |
 | `cobroOnlineController` | Cobro online | fila 9 / #181 |
 | `cierre_mes` | Cierre del mes | V6 / #161 |
 | `cajasbancos` | Cajas y bancos | V1 / #130 |
