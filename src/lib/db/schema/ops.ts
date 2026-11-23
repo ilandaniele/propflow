@@ -34,6 +34,18 @@ export const incidents = sqliteTable('incidents', {
   check('incidents_status_check', sql`status IN ('pending','in_progress','solved')`),
 ]);
 
+export const incidentSchedules = sqliteTable('incident_schedules', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  incidentId:  text('incident_id').notNull().references(() => incidents.id, { onDelete: 'cascade' }),
+  estimatedOn: dateStr('estimated_on'),
+  createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('incident_schedules_incident_uniq').on(t.incidentId),
+  index('idx_incident_schedules_org_estimated').on(t.orgId, t.estimatedOn),
+]);
+
 export const incidentComments = sqliteTable('incident_comments', {
   id:         id(),
   orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
