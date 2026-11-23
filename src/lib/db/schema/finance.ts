@@ -317,6 +317,7 @@ export const expenses = sqliteTable('expenses', {
   unitId:      text('unit_id').references(() => units.id, { onDelete: 'set null' }),
   categoryId:  text('category_id').references(() => expenseCategories.id, { onDelete: 'set null' }),
   amount:      money('amount').notNull(),
+  currency:    text('currency').notNull().default('PEN'),
   description: text('description').notNull(),
   incurredOn:  dateStr('incurred_on').notNull(),
   receiptPath: text('receipt_path'),

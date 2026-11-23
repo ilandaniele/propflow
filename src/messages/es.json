@@ -1289,6 +1289,8 @@
   "finance": {
     "title": "Finanzas",
     "kpiTitle": "KPIs del Período Actual",
+    "currencySection": "Resultados en {currency}",
+    "baseCurrencyNote": "KPIs y tendencia en {currency}. Los montos en otras monedas se muestran aparte, sin convertir.",
     "roomProfitability": "Rentabilidad por habitación",
     "ocrReceipts": "Recibos OCR",
     "categories": "Categorías",

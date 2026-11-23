@@ -1257,6 +1257,8 @@
   "finance": {
     "title": "Financeiro",
     "kpiTitle": "KPIs do Período Atual",
+    "currencySection": "Resultados em {currency}",
+    "baseCurrencyNote": "KPIs e tendência em {currency}. Valores em outras moedas aparecem separados, sem conversão.",
     "roomProfitability": "Rentabilidade por Quarto",
     "ocrReceipts": "Recibos OCR",
     "categories": "Categorias",

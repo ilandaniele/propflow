@@ -6,16 +6,20 @@
  * without a database.
  */
 
+import { BASE_CURRENCY } from './currency';
+
 export interface IncomeRow {
   amount: number;
   paid_at: string; // ISO date string
   property_id?: string | null;
+  currency?: string;
 }
 
 export interface ExpenseRow {
   amount: number;
   incurred_on: string; // ISO date
   property_id?: string | null;
+  currency?: string;
 }
 
 export interface MonthlyPnL {
@@ -46,6 +50,7 @@ export interface CashFlowEntry {
   amount: number;
   label: string;
   property_id: string | null;
+  currency: string;
 }
 
 /** Extract YYYY-MM from an ISO date string */
@@ -140,6 +145,7 @@ export function buildCashFlow(
       amount: r.amount,
       label: 'Payment received',
       property_id: r.property_id ?? null,
+      currency: r.currency ?? BASE_CURRENCY,
     })),
     ...expenseRows.map((r) => ({
       date: r.incurred_on,
@@ -147,6 +153,7 @@ export function buildCashFlow(
       amount: r.amount,
       label: 'Expense',
       property_id: r.property_id ?? null,
+      currency: r.currency ?? BASE_CURRENCY,
     })),
   ];
 

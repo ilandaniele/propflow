@@ -1257,6 +1257,8 @@
   "finance": {
     "title": "Finance",
     "kpiTitle": "Current Period KPIs",
+    "currencySection": "Results in {currency}",
+    "baseCurrencyNote": "KPIs and trend in {currency}. Amounts in other currencies are shown separately, not converted.",
     "roomProfitability": "Room Profitability",
     "ocrReceipts": "OCR Receipts",
     "categories": "Categories",
