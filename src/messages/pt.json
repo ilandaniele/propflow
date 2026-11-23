@@ -88,6 +88,7 @@
     "forecasting": "Projeções",
     "portfolio": "Portfólio",
     "pricingTables": "Tabelas de preços",
+    "apiKeys": "API",
     "adminImport": "Importação",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
@@ -1183,6 +1184,28 @@
       "monthlyTrend": "Como está minha renda líquida vs média de 3 meses?",
       "riskTenants": "Quais inquilinos representam maior risco financeiro?"
     }
+  },
+  "apiKeys": {
+    "title": "API pública",
+    "subtitle": "Conecte sua contabilidade, BI ou outras ferramentas com chaves somente leitura.",
+    "createTitle": "Nova chave",
+    "nameLabel": "Nome",
+    "namePlaceholder": "Ex.: Integração contábil",
+    "create": "Criar chave",
+    "createdTitle": "Copie a chave agora: ela não será exibida novamente.",
+    "createdHint": "Guarde-a em um gerenciador de segredos. Se perdê-la, revogue-a e crie outra.",
+    "revoke": "Revogar",
+    "revoked": "Revogada",
+    "emptyTitle": "Sem chaves",
+    "emptyDesc": "Crie uma chave para usar a API.",
+    "colName": "Nome",
+    "colPrefix": "Chave",
+    "colCreated": "Criada",
+    "colLastUsed": "Último uso",
+    "colStatus": "Status",
+    "docsTitle": "Como usar",
+    "docsAuth": "Envie a chave no cabeçalho Authorization de cada requisição GET.",
+    "docsPagination": "Paginação com limit (máx. 100) e offset. A resposta inclui pagination.hasMore."
   },
   "adminImport": {
     "months": ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],

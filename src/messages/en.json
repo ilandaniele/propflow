@@ -88,6 +88,7 @@
     "forecasting": "Forecasting",
     "portfolio": "Portfolio",
     "pricingTables": "Pricing Tables",
+    "apiKeys": "API",
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
@@ -1183,6 +1184,28 @@
       "monthlyTrend": "How is my net income vs 3-month average?",
       "riskTenants": "Which tenants represent the highest financial risk?"
     }
+  },
+  "apiKeys": {
+    "title": "Public API",
+    "subtitle": "Connect your accounting, BI or other tools with read-only keys.",
+    "createTitle": "New key",
+    "nameLabel": "Name",
+    "namePlaceholder": "E.g. Accounting integration",
+    "create": "Create key",
+    "createdTitle": "Copy the key now: it will not be shown again.",
+    "createdHint": "Store it in a secrets manager. If lost, revoke it and create another.",
+    "revoke": "Revoke",
+    "revoked": "Revoked",
+    "emptyTitle": "No keys",
+    "emptyDesc": "Create a key to use the API.",
+    "colName": "Name",
+    "colPrefix": "Key",
+    "colCreated": "Created",
+    "colLastUsed": "Last used",
+    "colStatus": "Status",
+    "docsTitle": "How to use it",
+    "docsAuth": "Send the key in the Authorization header of each GET request.",
+    "docsPagination": "Paginate with limit (max 100) and offset. The response includes pagination.hasMore."
   },
   "adminImport": {
     "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
