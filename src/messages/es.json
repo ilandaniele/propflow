@@ -292,7 +292,8 @@
     "emptyTitle": "Sin propiedades aún",
     "emptyDesc": "Agrega tu primera propiedad para comenzar a gestionar unidades e inquilinos.",
     "occupied": "ocupadas",
-    "rooms": "habitaciones"
+    "rooms": "habitaciones",
+    "compare": "Comparar"
   },
   "payments": {
     "title": "Pagos",
@@ -2385,5 +2386,23 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "propertyComparison": {
+    "back": "Propiedades",
+    "title": "Comparar propiedades",
+    "subtitle": "Elige hasta {max} propiedades. Cobrado y gastos: últimos {months} meses.",
+    "pick": "Propiedades a comparar",
+    "compare": "Comparar",
+    "empty": "Elige al menos una propiedad.",
+    "metric": "Métrica",
+    "metrics": {
+      "units": "Unidades ocupadas",
+      "occupancy": "Ocupación",
+      "contractedRent": "Renta contratada / mes",
+      "collected": "Cobrado",
+      "expenses": "Gastos",
+      "net": "Neto",
+      "openIncidents": "Incidencias abiertas"
+    }
   }
 }
