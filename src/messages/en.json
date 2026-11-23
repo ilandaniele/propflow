@@ -1255,6 +1255,22 @@
     }
   },
   "finance": {
+    "agingLink": "Delinquency",
+    "aging": {
+      "title": "Delinquency aging",
+      "subtitle": "Unpaid overdue charges per tenant, oldest debt first",
+      "cardTitle": "Amount owed by days late",
+      "tenant": "Tenant",
+      "total": "Total",
+      "emptyTitle": "No overdue debt",
+      "emptyDesc": "Every overdue charge is covered by approved payments.",
+      "bucket": {
+        "0_30": "1–30 days",
+        "31_60": "31–60 days",
+        "61_90": "61–90 days",
+        "90_plus": "90+ days"
+      }
+    },
     "title": "Finance",
     "kpiTitle": "Current Period KPIs",
     "roomProfitability": "Room Profitability",
