@@ -305,7 +305,8 @@
       "colDate": "Date",
       "colMethod": "Method",
       "colStatus": "Status",
-      "colAction": "Action"
+      "colAction": "Action",
+      "receipt": "Proof"
     },
     "record": "Record Payment",
     "approve": "Approve",
@@ -1547,6 +1548,27 @@
     }
   },
   "tenantPayments": {
+    "recordForm": {
+      "title": "Submit payment proof",
+      "amount": "Amount",
+      "paidAt": "Payment date",
+      "method": "Method",
+      "methodTransfer": "Bank transfer",
+      "methodCash": "Cash",
+      "methodCard": "Card",
+      "methodOther": "Other",
+      "reference": "Reference (optional)",
+      "period": "For period (optional)",
+      "proof": "Proof (optional)",
+      "proofHint": "JPG, PNG, WebP or PDF, up to 5 MB",
+      "submit": "Record payment",
+      "submitting": "Recording...",
+      "success": "Payment recorded, pending approval",
+      "error": "Could not record the payment. Please try again.",
+      "proofEmpty": "The file is empty.",
+      "proofTooLarge": "The file is larger than 5 MB.",
+      "proofInvalidType": "File type not allowed. Use JPG, PNG, WebP or PDF."
+    },
     "title": "My Payments",
     "downloadTemplate": "Download CSV Template",
     "importCsv": "Import CSV",

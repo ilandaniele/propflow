@@ -12,6 +12,8 @@ import { StatusPill } from '@/components/ui/Badge';
 import { ApprovePaymentButton } from './ApprovePaymentButton';
 import { CreateChargeForm } from './CreateChargeForm';
 import { AdminPaymentsCsvButtons } from './AdminPaymentsCsvButtons';
+import { resolveStoredFileUrl } from '@/lib/storage/resolve';
+import { PAYMENT_PROOF_BUCKET } from '@/lib/finance/payment-proof';
 
 export const metadata: Metadata = { title: 'Payments' };
 
@@ -41,6 +43,7 @@ export default async function PaymentsPage() {
         paidAt:     paymentsTable.paidAt,
         method:     paymentsTable.method,
         status:     paymentsTable.status,
+        receiptUrl: paymentsTable.receiptUrl,
         createdAt:  paymentsTable.createdAt,
         tenantName: tenants.fullName,
       })
@@ -60,6 +63,10 @@ export default async function PaymentsPage() {
       .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
       .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
   ]);
+
+  const receiptLinks = await Promise.all(
+    paymentRows.map((p) => resolveStoredFileUrl(PAYMENT_PROOF_BUCKET, p.receiptUrl)),
+  );
 
   // Analytics — computed over ALL payments (statRows), never the capped table set.
   const { pendingCount, collectedTotal, pendingTotal, collectionRate, byMethod, byMonth } =
@@ -172,7 +179,7 @@ export default async function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paymentRows.map((payment) => (
+              {paymentRows.map((payment, i) => (
                 <tr key={payment.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4 text-sm font-medium text-slate-900">{payment.tenantName ?? '—'}</td>
                   <td className="px-5 py-4 text-sm font-semibold text-slate-900">
@@ -181,7 +188,12 @@ export default async function PaymentsPage() {
                   <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{payment.paidAt}</td>
                   <td className="px-5 py-4 text-sm text-slate-500 capitalize hidden md:table-cell">{payment.method}</td>
                   <td className="px-5 py-4"><StatusPill status={payment.status} /></td>
-                  <td className="px-5 py-4 text-right">
+                  <td className="px-5 py-4 text-right space-x-3">
+                    {receiptLinks[i] && (
+                      <a href={receiptLinks[i]} target="_blank" rel="noopener noreferrer" className="text-sm text-brand-600 hover:underline">
+                        {t('list.receipt')}
+                      </a>
+                    )}
                     {payment.status === 'pending' && (
                       <ApprovePaymentButton paymentId={payment.id} />
                     )}
