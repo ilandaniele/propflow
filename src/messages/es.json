@@ -293,7 +293,8 @@
     "emptyDesc": "Agrega tu primera propiedad para comenzar a gestionar unidades e inquilinos.",
     "occupied": "ocupadas",
     "rooms": "habitaciones",
-    "compare": "Comparar"
+    "compare": "Comparar",
+    "groups": "Grupos"
   },
   "payments": {
     "title": "Pagos",
@@ -2404,5 +2405,20 @@
       "net": "Neto",
       "openIncidents": "Incidencias abiertas"
     }
+  },
+  "propertyGroups": {
+    "back": "Propiedades",
+    "title": "Grupos de propiedades",
+    "subtitle": "Agrupa propiedades (zona, propietario, edificio) y mira el reporte consolidado de los últimos 12 meses.",
+    "newGroup": "Nuevo grupo",
+    "name": "Nombre del grupo",
+    "members": "Propiedades",
+    "create": "Crear grupo",
+    "saving": "Guardando…",
+    "remove": "Eliminar",
+    "empty": "Sin grupos aún.",
+    "viewReport": "Ver reporte",
+    "reportTitle": "Reporte: {name}",
+    "total": "Total grupo"
   }
 }
