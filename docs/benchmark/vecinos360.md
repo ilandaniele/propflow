@@ -102,6 +102,8 @@ Leyenda como en `homming-habitamax.md`. Se omiten filas ya cubiertas allí (esta
 | V18 | Cuentas por pagar a proveedores con vencimiento, pagos parciales y saldo | falta | `expenses` registra solo gasto pagado, sin vencimiento ni saldo | P1 |
 | V19 | Preferencias de notificaciones por correo en el perfil | falta | — | P2 |
 | V20 | Inquilino registra constancia de pago con archivo y periodo | parcial | `RecordPaymentForm` sin archivo ni periodo y sin montar en el portal | P1 |
+| V21 | Envío automático de constancia al aprobar el pago | parcial | recibo PDF descargable (#126), sin aviso | P1 |
+| V22 | Logo y color de la organización en panel y recibos | falta | recibo muestra solo el nombre | P2 |
 
 ## PRs de implementación
 
@@ -125,6 +127,8 @@ Leyenda como en `homming-habitamax.md`. Se omiten filas ya cubiertas allí (esta
 | V18 | #184 |
 | V19 | #183 |
 | V20 | #185 |
+| V21 | #186 |
+| V22 | #187 |
 
 ## Cobertura por página de la consola
 
@@ -155,3 +159,32 @@ Lectura solo con GET de cada página enlazada desde el menú del residente y des
 | `docs_comunidad` | Documentos de la comunidad | fila 25 / #147 |
 | `directorio` | Directorio | V14 / #165 |
 | `actividad_admin` | Actividad del administrador | V13 / #164 |
+
+## Funciones del administrador (fuente pública)
+
+La cuenta usada no tiene rol administrador: `pnl_admin` y `adm_*` redirigen a la portada. La lista sale de la página pública `console.vecinos360.com/index-administradores.php`, de la portada `vecinos360.com` (planes y preguntas frecuentes) y de `recaudos.vecinos360.com`. El manual del administrador es un archivo descargable y no se bajó.
+
+| Función publicada | Propflow |
+|---|---|
+| Envío automático de comunicaciones | V11 / #160, recordatorios por cron |
+| Programación de tareas de mantenimiento | V10 / #134 |
+| Perfiles de usuarios por roles | fila 23 / #152 |
+| Administración de áreas comunes | V8 / #133 |
+| Control de invitados | V9 / #163 |
+| Asignación de conserjes | V14 / #165 |
+| Inventario de incidentes | ya existe, más #170 y #167 |
+| Exportación de reportes a Excel | CSV en #130, #138, #139, #155 |
+| Gestión de documentos de la comunidad | fila 25 / #147 |
+| Información histórica por comunidad y vecino | ya existe (ficha del inquilino, pagos) |
+| Envío automático de constancias de pago | V21 / #186 |
+| Generación de intranet (URL personalizada) | #156 (PWA con nombre de la organización); dominio propio requiere tu permiso |
+| Reporte de vecinos morosos | ya existe (`/dashboard/account-statements`, vencidos) |
+| Generación de cuotas / diseñador de cuotas | V16 / #124, fila 6 / #123 |
+| Emisión de recibos | #125, #126 |
+| Gestión de presupuesto | V4 / #131 |
+| Gestión de ingresos y egresos | V1-V3 / #130, V18 / #184 |
+| Reportes contables y financieros | #155, #151, #138, #136 |
+| Múltiples propiedades en una sola plataforma | ya existe, más V15 / #166 |
+| Personalización de marca en plataforma y recibos | V22 / #187 |
+| Recaudos por bancos (pagar cuota como servicio) | fila 9 / #181 (links de pago), fila 7 / #135 (conciliación); convenio bancario cuesta plata |
+| Acompañamiento a las licitaciones | servicio humano, no es software |
