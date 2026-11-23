@@ -2515,7 +2515,7 @@
       "name": "Nome",
       "category": "Categoria",
       "expiresOn": "Vence em",
-      "expiresHint": "Opcional. Avisamos 30 dias antes.",
+      X,
       "file": "Arquivo",
       "fileHint": "PDF, JPG, PNG ou WEBP. Até 5 MB.",
       "visibleToTenant": "Visível para o inquilino no portal",

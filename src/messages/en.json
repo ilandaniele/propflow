@@ -2515,7 +2515,7 @@
       "name": "Name",
       "category": "Category",
       "expiresOn": "Expires on",
-      "expiresHint": "Optional. We remind you 30 days before.",
+      "expiresHint": "Optional. Shows under Expiring 30 days before.",
       "file": "File",
       "fileHint": "PDF, JPG, PNG or WEBP. Up to 5 MB.",
       "visibleToTenant": "Visible to the tenant in their portal",
