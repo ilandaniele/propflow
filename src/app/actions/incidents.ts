@@ -16,6 +16,7 @@ import {
   ALLOWED_MIME_TYPES,
 } from '@/lib/schemas/incident';
 import { log } from '@/lib/log';
+import { recordActivity } from '@/lib/activity/record';
 import type { ActionResult } from '@/lib/errors';
 import { randomUUID } from 'crypto';
 
@@ -171,6 +172,9 @@ export async function updateIncident(
   }
 
   log.adminAction(ctx.userId, 'update_incident', 'incident', id);
+  if (updateData.resolvedAt) {
+    await recordActivity({ orgId: ctx.orgId, actorId: ctx.userId, action: 'incident_resolved', resourceType: 'incident', resourceId: id });
+  }
   revalidatePath('/dashboard/incidents');
   revalidatePath(`/dashboard/incidents/${id}`);
   return ok(undefined);

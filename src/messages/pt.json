@@ -2364,5 +2364,20 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "activity": {
+    "title": "Atividade da administração",
+    "subtitle": "O que a administração fez na sua comunidade.",
+    "from": "De",
+    "to": "Até",
+    "filter": "Filtrar",
+    "clear": "Limpar",
+    "empty": "Sem atividade neste período.",
+    "action": {
+      "announcement_published": "Publicou um aviso",
+      "expense_recorded": "Registrou uma despesa",
+      "incident_resolved": "Resolveu uma ocorrência",
+      "cleaning_scheduled": "Agendou uma limpeza"
+    }
   }
 }

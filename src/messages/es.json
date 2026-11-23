@@ -2364,5 +2364,20 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "activity": {
+    "title": "Actividad de la administración",
+    "subtitle": "Lo que hizo la administración en tu comunidad.",
+    "from": "Desde",
+    "to": "Hasta",
+    "filter": "Filtrar",
+    "clear": "Limpiar",
+    "empty": "Sin actividad en este período.",
+    "action": {
+      "announcement_published": "Publicó un aviso",
+      "expense_recorded": "Registró un gasto",
+      "incident_resolved": "Resolvió una incidencia",
+      "cleaning_scheduled": "Programó una limpieza"
+    }
   }
 }

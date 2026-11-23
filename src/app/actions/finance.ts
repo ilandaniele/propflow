@@ -9,6 +9,7 @@ import { uploadFile } from '@/lib/storage';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
+import { recordActivity } from '@/lib/activity/record';
 import type { ActionResult } from '@/lib/errors';
 import {
   CreateExpenseCategorySchema,
@@ -96,6 +97,13 @@ export async function createExpense(
   }
 
   log.adminAction(ctx.userId, 'create_expense', 'expense');
+  await recordActivity({
+    orgId: ctx.orgId,
+    actorId: ctx.userId,
+    action: 'expense_recorded',
+    resourceType: 'expense',
+    summary: parsed.data.description,
+  });
   revalidatePath('/dashboard/finance');
   return ok(undefined);
 }
