@@ -53,6 +53,7 @@
     "createButton": "Crear"
   },
   "navigation": {
+    "documents": "Documentos",
     "dashboard": "Panel",
     "properties": "Propiedades",
     "units": "Unidades",
@@ -2490,6 +2491,65 @@
       "landlordSignature": "Arrendador",
       "tenantSignature": "Inquilino",
       "missing": "—"
+    }
+  },
+  "documents": {
+    "title": "Documentos",
+    "entities": {
+      "tenant": "Inquilino",
+      "contract": "Contrato",
+      "property": "Propiedad"
+    },
+    "categories": {
+      "identity": "Identidad",
+      "contract": "Contrato",
+      "insurance": "Seguro",
+      "certificate": "Certificado",
+      "invoice": "Factura",
+      "other": "Otro"
+    },
+    "form": {
+      "title": "Subir documento",
+      "entityType": "Asociar a",
+      "choose": "Elegí una opción",
+      "name": "Nombre",
+      "category": "Categoría",
+      "expiresOn": "Vence el",
+      "expiresHint": "Opcional. Te avisamos 30 días antes.",
+      "file": "Archivo",
+      "fileHint": "PDF, JPG, PNG o WEBP. Máximo 5 MB.",
+      "visibleToTenant": "Visible para el inquilino en su portal",
+      "upload": "Subir",
+      "uploading": "Subiendo…",
+      "uploaded": "Documento subido."
+    },
+    "filters": {
+      "label": "Filtrar documentos",
+      "all": "Todos",
+      "expiring": "Por vencer"
+    },
+    "list": {
+      "title": "Archivo de documentos",
+      "empty": "No hay documentos.",
+      "expires": "vence {date}",
+      "visible": "Visible al inquilino",
+      "open": "Abrir",
+      "opening": "Abriendo…",
+      "delete": "Eliminar"
+    },
+    "expiry": {
+      "expired": "Vencido",
+      "soon": "Vence pronto"
+    },
+    "errors": {
+      "upload": "No se pudo subir el documento. Revisá los datos y el archivo.",
+      "delete": "No se pudo eliminar el documento.",
+      "open": "No se pudo abrir el documento."
+    },
+    "portal": {
+      "title": "Mis documentos",
+      "noTenant": "Sin ficha de inquilino",
+      "noTenantHint": "Contactá a tu administrador."
     }
   }
 }

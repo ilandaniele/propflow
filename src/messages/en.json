@@ -53,6 +53,7 @@
     "createButton": "Create"
   },
   "navigation": {
+    "documents": "Documents",
     "dashboard": "Dashboard",
     "properties": "Properties",
     "units": "Units",
@@ -2490,6 +2491,65 @@
       "landlordSignature": "Landlord",
       "tenantSignature": "Tenant",
       "missing": "—"
+    }
+  },
+  "documents": {
+    "title": "Documents",
+    "entities": {
+      "tenant": "Tenant",
+      "contract": "Contract",
+      "property": "Property"
+    },
+    "categories": {
+      "identity": "Identity",
+      "contract": "Contract",
+      "insurance": "Insurance",
+      "certificate": "Certificate",
+      "invoice": "Invoice",
+      "other": "Other"
+    },
+    "form": {
+      "title": "Upload document",
+      "entityType": "Attach to",
+      "choose": "Choose an option",
+      "name": "Name",
+      "category": "Category",
+      "expiresOn": "Expires on",
+      "expiresHint": "Optional. We remind you 30 days before.",
+      "file": "File",
+      "fileHint": "PDF, JPG, PNG or WEBP. Up to 5 MB.",
+      "visibleToTenant": "Visible to the tenant in their portal",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "uploaded": "Document uploaded."
+    },
+    "filters": {
+      "label": "Filter documents",
+      "all": "All",
+      "expiring": "Expiring"
+    },
+    "list": {
+      "title": "Document archive",
+      "empty": "No documents yet.",
+      "expires": "expires {date}",
+      "visible": "Visible to tenant",
+      "open": "Open",
+      "opening": "Opening…",
+      "delete": "Delete"
+    },
+    "expiry": {
+      "expired": "Expired",
+      "soon": "Expiring soon"
+    },
+    "errors": {
+      "upload": "Could not upload the document. Check the fields and the file.",
+      "delete": "Could not delete the document.",
+      "open": "Could not open the document."
+    },
+    "portal": {
+      "title": "My documents",
+      "noTenant": "No tenant record",
+      "noTenantHint": "Contact your property manager."
     }
   }
 }

@@ -226,6 +226,31 @@ export const handoverActs = sqliteTable('handover_acts', {
   check('handover_acts_status_check', sql`status IN ('draft','pending_signature','signed')`),
 ]);
 
+export const documents = sqliteTable('documents', {
+  id:              id(),
+  orgId:           text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  tenantId:        text('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  contractId:      text('contract_id').references(() => contracts.id, { onDelete: 'cascade' }),
+  propertyId:      text('property_id').references(() => properties.id, { onDelete: 'cascade' }),
+  name:            text('name').notNull(),
+  category:        text('category').notNull(),
+  storagePath:     text('storage_path').notNull(),
+  mimeType:        text('mime_type').notNull(),
+  sizeBytes:       integer('size_bytes').notNull(),
+  expiresOn:       dateStr('expires_on'),
+  visibleToTenant: bool('visible_to_tenant').notNull().default(false),
+  uploadedBy:      text('uploaded_by'),
+  createdAt:       ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_documents_org_created').on(t.orgId, t.createdAt),
+  index('idx_documents_tenant').on(t.tenantId),
+  index('idx_documents_contract').on(t.contractId),
+  index('idx_documents_property').on(t.propertyId),
+  index('idx_documents_org_expires').on(t.orgId, t.expiresOn),
+  check('documents_one_entity_check', sql`(tenant_id IS NOT NULL) + (contract_id IS NOT NULL) + (property_id IS NOT NULL) = 1`),
+  check('documents_category_check', sql`category IN ('identity','contract','insurance','certificate','invoice','other')`),
+]);
+
 export const reminders = sqliteTable('reminders', {
   id:             id(),
   orgId:          text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
