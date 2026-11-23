@@ -66,6 +66,7 @@
     "cleaning": "Cleaning",
     "leads": "Leads",
     "community": "Community",
+    "polls": "Polls",
     "visitors": "Visitors",
     "aiAssistant": "AI Assistant",
     "whatsapp": "WhatsApp",
@@ -2364,5 +2365,28 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "polls": {
+    "title": "Polls",
+    "adminSubtitle": "Ask residents and see results live.",
+    "createTitle": "New poll",
+    "questionLabel": "Question",
+    "questionPlaceholder": "Should we paint the lobby this year?",
+    "optionsLabel": "Options",
+    "optionsPlaceholder": "Yes\nNo\nNo preference",
+    "optionsHint": "One option per line, 2 to 8.",
+    "closesOnLabel": "Closes on (optional)",
+    "create": "Publish poll",
+    "close": "Close",
+    "open": "Open",
+    "closed": "Closed",
+    "totalVotes": "{count, plural, one {# vote} other {# votes}}",
+    "closesOn": "closes {date}",
+    "votes": "votes",
+    "vote": "Vote",
+    "chooseOption": "Choose an option",
+    "emptyTitle": "No polls",
+    "emptyAdminDesc": "Create the first poll to hear what residents think.",
+    "emptyPortalDesc": "Management has not published any polls yet."
   }
 }
