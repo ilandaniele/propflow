@@ -91,6 +91,7 @@
     "adminImport": "Importação",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
+    "rentalApplications": "Candidaturas",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
     "taxReceipts": "Comprovantes Fiscais",
@@ -521,6 +522,7 @@
     "embedEmptyState": "Habilite o widget e salve para gerar uma chave pública."
   },
   "publicCatalog": {
+    "applyCta": "Candidatar",
     "pageTitle": "Imóveis disponíveis",
     "filterAll": "Todos",
     "filterRent": "Aluguel",
@@ -1734,6 +1736,79 @@
     "emptyTitle": "Sem leads ainda",
     "emptyDesc": "Acompanhe possíveis inquilinos no seu pipeline de CRM.",
     "source": "Origem"
+  },
+  "rentalApplication": {
+    "back": "Voltar",
+    "title": "Solicitação de aluguel",
+    "subtitle": "Envie seus dados para {org}. Eles entrarão em contato para continuar.",
+    "subtitleListing": "Candidate-se a {listing} com {org}.",
+    "submit": "Enviar solicitação",
+    "sending": "Enviando…",
+    "successTitle": "Solicitação enviada",
+    "successBody": "Obrigado. A equipe vai revisar seus dados e entrar em contato.",
+    "documentsHint": "Até {max} arquivos: documento, holerites ou comprovante de renda (JPG, PNG, WEBP ou PDF, máx. 1,9 MB cada).",
+    "privacy": "Aceito o tratamento dos meus dados conforme a <link>política de privacidade</link>.",
+    "fields": {
+      "listing_slug": "Imóvel",
+      "full_name": "Nome completo",
+      "email": "E-mail",
+      "phone": "Celular",
+      "monthly_income": "Renda mensal (S/)",
+      "employment_type": "Situação profissional",
+      "employment_months": "Meses no emprego atual",
+      "household_size": "Pessoas que vão morar",
+      "move_in_date": "Data de mudança",
+      "has_guarantor": "Tenho fiador",
+      "documents": "Documentos",
+      "message": "Mensagem",
+      "privacy_accepted": "Privacidade"
+    },
+    "employment": {
+      "employee": "Empregado",
+      "self_employed": "Autônomo",
+      "retired": "Aposentado",
+      "student": "Estudante",
+      "other": "Outro"
+    },
+    "errors": {
+      "validation": "Revise estes campos: {fields}.",
+      "rateLimited": "Muitos envios. Tente mais tarde.",
+      "generic": "Não foi possível enviar a solicitação. Tente novamente."
+    }
+  },
+  "rentalApplications": {
+    "title": "Candidaturas",
+    "subtitle": "Solicitações recebidas pelo formulário público, com pontuação de solvência.",
+    "emptyTitle": "Sem candidaturas",
+    "emptyDesc": "Compartilhe o link /p/sua-empresa/apply ou o botão Candidatar de cada anúncio.",
+    "noListing": "Sem imóvel",
+    "score": "{score}/100",
+    "band": {
+      "high": "Alta",
+      "medium": "Média",
+      "low": "Baixa"
+    },
+    "income": "Renda",
+    "rent": "Aluguel",
+    "employment": "Emprego",
+    "household": "Moradores",
+    "months": "{count, plural, one {# mês} other {# meses}}",
+    "guarantorYes": "com fiador",
+    "guarantorNo": "sem fiador",
+    "statusLabel": "Status",
+    "status": {
+      "new": "Nova",
+      "reviewing": "Em análise",
+      "approved": "Aprovada",
+      "rejected": "Rejeitada"
+    },
+    "employmentType": {
+      "employee": "Empregado",
+      "self_employed": "Autônomo",
+      "retired": "Aposentado",
+      "student": "Estudante",
+      "other": "Outro"
+    }
   },
   "accountStatements": {
     "title": "Extratos de Conta",

@@ -392,3 +392,30 @@ export const agentSessionListings = sqliteTable('agent_session_listings', {
   primaryKey({ columns: [t.sessionId, t.listingId] }),
   check('agent_session_listings_source_check', sql`source IN ('search', 'attribution', 'page')`),
 ]);
+
+export const rentalApplications = sqliteTable('rental_applications', {
+  id:               id(),
+  orgId:            text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  listingId:        text('listing_id').references(() => listings.id, { onDelete: 'set null' }),
+  fullName:         text('full_name').notNull(),
+  email:            text('email').notNull(),
+  phone:            text('phone').notNull(),
+  monthlyIncome:    money('monthly_income').notNull(),
+  monthlyRent:      money('monthly_rent'),
+  employmentType:   text('employment_type').notNull(), // 'employee'|'self_employed'|'retired'|'student'|'other'
+  employmentMonths: integer('employment_months').notNull(),
+  householdSize:    integer('household_size').notNull(),
+  hasGuarantor:     bool('has_guarantor').notNull().default(false),
+  moveInDate:       dateStr('move_in_date'),
+  message:          text('message'),
+  documents:        json<{ path: string; mime: string; name: string }[]>('documents').notNull().$defaultFn(() => []),
+  score:            integer('score').notNull(),
+  status:           text('status').notNull().default('new'), // 'new'|'reviewing'|'approved'|'rejected'
+  createdAt:        ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:        ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_rental_applications_org_created').on(t.orgId, t.createdAt),
+  check('rental_applications_employment_type_check', sql`employment_type IN ('employee', 'self_employed', 'retired', 'student', 'other')`),
+  check('rental_applications_status_check', sql`status IN ('new', 'reviewing', 'approved', 'rejected')`),
+  check('rental_applications_score_check', sql`score BETWEEN 0 AND 100`),
+]);

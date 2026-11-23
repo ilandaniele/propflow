@@ -91,6 +91,7 @@
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "rentalApplications": "Applications",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "taxReceipts": "Tax Receipts",
@@ -521,6 +522,7 @@
     "embedEmptyState": "Enable the widget and save to generate a public key."
   },
   "publicCatalog": {
+    "applyCta": "Apply",
     "pageTitle": "Available properties",
     "filterAll": "All",
     "filterRent": "Rent",
@@ -1734,6 +1736,79 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "rentalApplication": {
+    "back": "Back",
+    "title": "Rental application",
+    "subtitle": "Send your details to {org}. They will contact you to continue.",
+    "subtitleListing": "Apply for {listing} with {org}.",
+    "submit": "Send application",
+    "sending": "Sending…",
+    "successTitle": "Application sent",
+    "successBody": "Thanks. The team will review your details and contact you.",
+    "documentsHint": "Up to {max} files: ID, pay slips or proof of income (JPG, PNG, WEBP or PDF, max 1.9 MB each).",
+    "privacy": "I accept the processing of my data under the <link>privacy policy</link>.",
+    "fields": {
+      "listing_slug": "Property",
+      "full_name": "Full name",
+      "email": "Email",
+      "phone": "Mobile",
+      "monthly_income": "Monthly income (S/)",
+      "employment_type": "Employment",
+      "employment_months": "Months at current job",
+      "household_size": "People who will live there",
+      "move_in_date": "Move-in date",
+      "has_guarantor": "I have a guarantor",
+      "documents": "Documents",
+      "message": "Message",
+      "privacy_accepted": "Privacy"
+    },
+    "employment": {
+      "employee": "Employee",
+      "self_employed": "Self-employed",
+      "retired": "Retired",
+      "student": "Student",
+      "other": "Other"
+    },
+    "errors": {
+      "validation": "Check these fields: {fields}.",
+      "rateLimited": "Too many submissions. Try again later.",
+      "generic": "We could not send the application. Try again."
+    }
+  },
+  "rentalApplications": {
+    "title": "Applications",
+    "subtitle": "Applications from the public form, with a solvency score.",
+    "emptyTitle": "No applications",
+    "emptyDesc": "Share the /p/your-company/apply link or the Apply button on each listing.",
+    "noListing": "No property",
+    "score": "{score}/100",
+    "band": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "income": "Income",
+    "rent": "Rent",
+    "employment": "Employment",
+    "household": "Household",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "guarantorYes": "with guarantor",
+    "guarantorNo": "no guarantor",
+    "statusLabel": "Status",
+    "status": {
+      "new": "New",
+      "reviewing": "Reviewing",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "employmentType": {
+      "employee": "Employee",
+      "self_employed": "Self-employed",
+      "retired": "Retired",
+      "student": "Student",
+      "other": "Other"
+    }
   },
   "accountStatements": {
     "title": "Account Statements",

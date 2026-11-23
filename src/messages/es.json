@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "rentalApplications": "Postulaciones",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -521,6 +522,7 @@
     "embedEmptyState": "Habilitá el widget y guardá para generar una clave pública."
   },
   "publicCatalog": {
+    "applyCta": "Postular",
     "pageTitle": "Propiedades disponibles",
     "filterAll": "Todas",
     "filterRent": "Alquiler",
@@ -1734,6 +1736,79 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "rentalApplication": {
+    "back": "Volver",
+    "title": "Solicitud de alquiler",
+    "subtitle": "Envía tus datos a {org}. Te contactarán para seguir con el proceso.",
+    "subtitleListing": "Postula a {listing} con {org}.",
+    "submit": "Enviar solicitud",
+    "sending": "Enviando…",
+    "successTitle": "Solicitud enviada",
+    "successBody": "Gracias. El equipo revisará tus datos y te contactará.",
+    "documentsHint": "Hasta {max} archivos: DNI, boletas o constancia de ingresos (JPG, PNG, WEBP o PDF, máx. 1,9 MB cada uno).",
+    "privacy": "Acepto el tratamiento de mis datos según la <link>política de privacidad</link>.",
+    "fields": {
+      "listing_slug": "Inmueble",
+      "full_name": "Nombre completo",
+      "email": "Correo",
+      "phone": "Celular",
+      "monthly_income": "Ingreso mensual (S/)",
+      "employment_type": "Situación laboral",
+      "employment_months": "Meses en el trabajo actual",
+      "household_size": "Personas que vivirán",
+      "move_in_date": "Fecha de mudanza",
+      "has_guarantor": "Tengo aval o garante",
+      "documents": "Documentos",
+      "message": "Mensaje",
+      "privacy_accepted": "Privacidad"
+    },
+    "employment": {
+      "employee": "Dependiente",
+      "self_employed": "Independiente",
+      "retired": "Jubilado",
+      "student": "Estudiante",
+      "other": "Otro"
+    },
+    "errors": {
+      "validation": "Revisa estos campos: {fields}.",
+      "rateLimited": "Demasiados envíos. Intenta más tarde.",
+      "generic": "No pudimos enviar la solicitud. Intenta de nuevo."
+    }
+  },
+  "rentalApplications": {
+    "title": "Postulaciones",
+    "subtitle": "Solicitudes recibidas desde el formulario público, con puntaje de solvencia.",
+    "emptyTitle": "Sin postulaciones",
+    "emptyDesc": "Comparte el enlace /p/tu-empresa/apply o el botón Postular de cada aviso.",
+    "noListing": "Sin inmueble",
+    "score": "{score}/100",
+    "band": {
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
+    },
+    "income": "Ingreso",
+    "rent": "Renta",
+    "employment": "Empleo",
+    "household": "Hogar",
+    "months": "{count, plural, one {# mes} other {# meses}}",
+    "guarantorYes": "con aval",
+    "guarantorNo": "sin aval",
+    "statusLabel": "Estado",
+    "status": {
+      "new": "Nueva",
+      "reviewing": "En revisión",
+      "approved": "Aprobada",
+      "rejected": "Rechazada"
+    },
+    "employmentType": {
+      "employee": "Dependiente",
+      "self_employed": "Independiente",
+      "retired": "Jubilado",
+      "student": "Estudiante",
+      "other": "Otro"
+    }
   },
   "accountStatements": {
     "title": "Estados de Cuenta",
