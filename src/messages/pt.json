@@ -1255,6 +1255,7 @@
     }
   },
   "finance": {
+    "recurringExpensesLink": "Despesas recorrentes",
     "title": "Financeiro",
     "kpiTitle": "KPIs do Período Atual",
     "roomProfitability": "Rentabilidade por Quarto",
@@ -2364,5 +2365,31 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "recurringExpenses": {
+    "title": "Despesas recorrentes",
+    "subtitle": "Despesas que se repetem todo mês (segurança, internet, manutenção). São registradas como despesas normais ao gerar o mês.",
+    "back": "← Finanças",
+    "addTitle": "Nova despesa recorrente",
+    "description": "Descrição",
+    "amount": "Valor (S/)",
+    "day": "Dia do mês (1–28)",
+    "property": "Imóvel",
+    "category": "Categoria",
+    "none": "Nenhuma",
+    "add": "Adicionar",
+    "saving": "Salvando…",
+    "generate": "Gerar despesas de {period}",
+    "generating": "Gerando…",
+    "generated": "{count, plural, =0 {Nenhuma despesa pendente} one {# despesa criada} other {# despesas criadas}}",
+    "generateHint": "Cada modelo ativo cria no máximo uma despesa por mês; repetir não duplica.",
+    "empty": "Sem despesas recorrentes ainda.",
+    "everyMonth": "Dia {day} de cada mês",
+    "lastPeriod": "Último: {period}",
+    "neverGenerated": "Nunca gerado",
+    "paused": "Pausado",
+    "pause": "Pausar",
+    "resume": "Retomar",
+    "remove": "Excluir"
   }
 }

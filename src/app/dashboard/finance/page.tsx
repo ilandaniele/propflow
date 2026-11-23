@@ -134,6 +134,7 @@ export default async function FinancePage() {
           <Link href="/dashboard/finance/rooms" className="text-sm text-brand-600 hover:underline">{t('roomProfitability')}</Link>
           <Link href="/dashboard/finance/receipts" className="text-sm text-brand-600 hover:underline ml-4">{t('ocrReceipts')}</Link>
           <Link href="/dashboard/finance/expenses/categories" className="text-sm text-brand-600 hover:underline ml-4">{t('categories')}</Link>
+          <Link href="/dashboard/finance/expenses/recurring" className="text-sm text-brand-600 hover:underline ml-4">{t('recurringExpensesLink')}</Link>
         </div>
       </div>
 

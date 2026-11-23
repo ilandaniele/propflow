@@ -1287,6 +1287,7 @@
     "noData": "Sin datos disponibles"
   },
   "finance": {
+    "recurringExpensesLink": "Gastos recurrentes",
     "title": "Finanzas",
     "kpiTitle": "KPIs del Período Actual",
     "roomProfitability": "Rentabilidad por habitación",
@@ -2364,5 +2365,31 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "recurringExpenses": {
+    "title": "Gastos recurrentes",
+    "subtitle": "Gastos que se repiten cada mes (vigilancia, internet, mantenimiento). Se registran como gastos normales al generar el mes.",
+    "back": "← Finanzas",
+    "addTitle": "Nuevo gasto recurrente",
+    "description": "Descripción",
+    "amount": "Monto (S/)",
+    "day": "Día del mes (1–28)",
+    "property": "Propiedad",
+    "category": "Categoría",
+    "none": "Ninguna",
+    "add": "Agregar",
+    "saving": "Guardando…",
+    "generate": "Generar gastos de {period}",
+    "generating": "Generando…",
+    "generated": "{count, plural, =0 {No había gastos pendientes} one {# gasto creado} other {# gastos creados}}",
+    "generateHint": "Cada plantilla activa crea un gasto por mes como máximo; repetir no duplica.",
+    "empty": "Sin gastos recurrentes aún.",
+    "everyMonth": "Día {day} de cada mes",
+    "lastPeriod": "Último: {period}",
+    "neverGenerated": "Nunca generado",
+    "paused": "Pausado",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "remove": "Eliminar"
   }
 }
