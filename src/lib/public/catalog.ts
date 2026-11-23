@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import { organizations, listings, unitImages, listingImages, agentConfigs } from '@/lib/db/schema';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getOrgWebChannel } from '@/lib/widget/channel';
+import { notBookedOnChannels, todayIso } from '@/lib/unit-calendar/availability';
 
 /**
  * Read-only — never getOrCreateAgentConfig(), which upserts a row on first
@@ -114,6 +115,7 @@ export async function listPublicListings(
     eq(listings.orgId, orgId),
     eq(listings.published, true),
     eq(listings.status, 'available'),
+    notBookedOnChannels(todayIso()),
     ...(o.operation ? [eq(listings.operation, o.operation)] : []),
   );
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import * as schema from '@/lib/db/schema';
-import { createSmokeDb, seedOrg, seedProperty, type SmokeHandle } from './setup';
+import { createSmokeDb, seedListing, seedOrg, seedProperty, type SmokeHandle } from './setup';
 
 vi.mock('@/lib/log', () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), adminAction: vi.fn() } }));
 
@@ -9,6 +9,8 @@ let smoke: SmokeHandle;
 const queries = await import('@/lib/unit-calendar/queries');
 const { syncUnitCalendar, syncDueUnitCalendars } = await import('@/lib/unit-calendar/sync');
 const { GET } = await import('@/app/api/public/calendar/[token]/route');
+const { searchListings } = await import('@/lib/agent/listings');
+const { listPublicListings } = await import('@/lib/public/catalog');
 
 const FEED = (uid: string) =>
   `BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20991201\r\nDTEND;VALUE=DATE:20991205\r\nUID:${uid}\r\nSUMMARY:Reserved\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
@@ -127,5 +129,30 @@ describe('unit calendar', () => {
       const res = await GET(new NextRequest(`http://localhost/api/public/calendar/${token}`), { params: Promise.resolve({ token }) });
       expect(res.status).toBe(404);
     }
+  });
+  it('hides listings whose unit is booked on a channel today', async () => {
+    const { org, unit } = await seedUnit();
+    const free = await seedUnit();
+    const today = new Date().toISOString().slice(0, 10);
+    const base = { operation: 'rent', status: 'available', published: true };
+    await seedListing(smoke.db, org.id, { ...base, unitId: unit.id, propertyId: unit.propertyId, publicSlug: `booked-${unit.id}` });
+    await seedListing(smoke.db, org.id, { ...base, unitId: free.unit.id, propertyId: free.unit.propertyId, publicSlug: `free-${free.unit.id}` });
+    await queries.createUnitCalendar(org.id, unit.id);
+    const calendar = await queries.setUnitCalendarImportUrl(org.id, unit.id, 'https://www.airbnb.com/calendar/ical/9.ics');
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10).replaceAll('-', '');
+    stubFetch(`BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART;VALUE=DATE:${today.replaceAll('-', '')}
+DTEND;VALUE=DATE:${tomorrow}
+UID:now
+END:VEVENT
+END:VCALENDAR
+`);
+    await syncUnitCalendar(calendar!);
+
+    const agentIds = (await searchListings(org.id, {})).map((l) => l.id);
+    const publicSlugs = (await listPublicListings(org.id, {})).items.map((l) => l.slug);
+    expect(agentIds).toHaveLength(1);
+    expect(publicSlugs).toEqual([`free-${free.unit.id}`]);
   });
 });
