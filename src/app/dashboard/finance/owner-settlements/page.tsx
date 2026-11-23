@@ -9,17 +9,12 @@ import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { OwnerTermsForm } from './OwnerTermsForm';
 import { PrintButton } from './PrintButton';
+import { OwnerSettlementCard } from '@/components/finance/OwnerSettlementCard';
+import { shiftMonth } from '@/lib/finance/month';
+import { listOwnerPortalLinks } from '@/lib/owner-portal/queries';
+import { OwnerPortalLinks } from './OwnerPortalLinks';
 
 export const metadata: Metadata = { title: 'Owner settlements' };
-
-const formatAmount = (currency: string, value: number) =>
-  new Intl.NumberFormat('es-PE', { style: 'currency', currency }).format(value);
-
-function shiftMonth(month: string, delta: number) {
-  const [year, monthIndex] = month.split('-').map(Number);
-  const date = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
-  return date.toISOString().slice(0, 7);
-}
 
 export default async function OwnerSettlementsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   let ctx;
@@ -27,9 +22,10 @@ export default async function OwnerSettlementsPage({ searchParams }: { searchPar
 
   const parsed = SettlementQuerySchema.safeParse(await searchParams);
   const { month, owner_id: ownerId } = parsed.success ? parsed.data : SettlementQuerySchema.parse({});
-  const [settlements, overview, t] = await Promise.all([
+  const [settlements, overview, portalLinks, t] = await Promise.all([
     ownerSettlements(ctx.orgId, { month, ownerId }),
     ownerTermsOverview(ctx.orgId),
+    listOwnerPortalLinks(ctx.orgId),
     getTranslations('ownerSettlements'),
   ]);
 
@@ -71,44 +67,7 @@ export default async function OwnerSettlementsPage({ searchParams }: { searchPar
       {settlements.length === 0 ? (
         <Card><EmptyState title={t('emptyTitle')} description={t('emptyDesc')} /></Card>
       ) : (
-        settlements.map((settlement) => (
-          <Card key={settlement.ownerId}>
-            <h2 className="text-lg font-semibold text-slate-900">{settlement.ownerName ?? t('unnamedOwner')}</h2>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-500 border-b border-slate-200">
-                    <th className="py-2 pr-4 font-medium">{t('property')}</th>
-                    <th className="py-2 pr-4 font-medium text-right">{t('income')}</th>
-                    <th className="py-2 pr-4 font-medium text-right">{t('expenses')}</th>
-                    <th className="py-2 pr-4 font-medium text-right">{t('commission')}</th>
-                    <th className="py-2 font-medium text-right">{t('netToOwner')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {settlement.lines.map((line) => (
-                    <tr key={`${line.propertyId}-${line.currency}`} className="border-b border-slate-100">
-                      <td className="py-2 pr-4 text-slate-900">{line.propertyName}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{formatAmount(line.currency, line.income)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{formatAmount(line.currency, line.expenses)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{formatAmount(line.currency, line.commission)} <span className="text-slate-400">({line.commissionPct}%)</span></td>
-                      <td className={`py-2 text-right tabular-nums font-medium ${line.net < 0 ? 'text-red-600' : 'text-slate-900'}`}>{formatAmount(line.currency, line.net)}</td>
-                    </tr>
-                  ))}
-                  {Object.entries(settlement.totals).map(([currency, total]) => (
-                    <tr key={currency} className="font-semibold">
-                      <td className="py-2 pr-4">{t('total', { currency })}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{formatAmount(currency, total.income)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{formatAmount(currency, total.expenses)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{formatAmount(currency, total.commission)}</td>
-                      <td className={`py-2 text-right tabular-nums ${total.net < 0 ? 'text-red-600' : 'text-slate-900'}`}>{formatAmount(currency, total.net)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        ))
+        settlements.map((settlement) => <OwnerSettlementCard key={settlement.ownerId} settlement={settlement} />)
       )}
 
       <Card className="print:hidden">
@@ -129,6 +88,9 @@ export default async function OwnerSettlementsPage({ searchParams }: { searchPar
             ))}
           </ul>
         )}
+      </Card>
+      <Card className="print:hidden">
+        <OwnerPortalLinks owners={overview.ownerOptions} links={portalLinks} />
       </Card>
       <p className="text-xs text-slate-500">{t('expensesNote')}</p>
     </div>

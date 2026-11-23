@@ -2412,5 +2412,27 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "ownerPortal": {
+    "title": "Portal de {name}",
+    "subtitle": "Acerto de {month}",
+    "monthNav": "Mudar mês",
+    "emptyTitle": "Sem movimentos",
+    "emptyDesc": "Nenhuma receita ou despesa registrada neste mês.",
+    "readOnlyNote": "Visualização somente leitura compartilhada pelo seu administrador. Receitas aprovadas menos despesas e comissão.",
+    "rateLimited": "Muitas visitas seguidas. Aguarde um minuto e recarregue.",
+    "adminTitle": "Portal do proprietário",
+    "adminDesc": "Gere um link privado somente leitura para o proprietário ver seus acertos. Expira em 90 dias; criar um novo revoga o anterior.",
+    "noOwners": "Cadastre proprietários primeiro.",
+    "owner": "Proprietário",
+    "create": "Gerar link",
+    "creating": "Gerando…",
+    "created": "Link criado. Copie agora: ele não será mostrado de novo.",
+    "linkLabel": "Link do portal",
+    "expires": "expira {date}",
+    "lastViewed": "visto {date}",
+    "neverViewed": "nunca visto",
+    "revoke": "Revogar",
+    "revoking": "Revogando…"
   }
 }

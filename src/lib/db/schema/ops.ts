@@ -562,3 +562,18 @@ export const propertyOwnerTerms = sqliteTable('property_owner_terms', {
   index('idx_property_owner_terms_org_owner').on(t.orgId, t.ownerId),
   check('property_owner_terms_commission_check', sql`CAST(commission_pct AS REAL) >= 0 AND CAST(commission_pct AS REAL) <= 100`),
 ]);
+
+export const ownerPortalLinks = sqliteTable('owner_portal_links', {
+  id:           id(),
+  orgId:        text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  ownerId:      text('owner_id').notNull().references(() => owners.id, { onDelete: 'cascade' }),
+  tokenHash:    text('token_hash').notNull(),
+  createdBy:    text('created_by'),
+  expiresAt:    ts('expires_at').notNull(),
+  revokedAt:    ts('revoked_at'),
+  lastViewedAt: ts('last_viewed_at'),
+  createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('owner_portal_links_token_hash_uniq').on(t.tokenHash),
+  index('idx_owner_portal_links_org_owner').on(t.orgId, t.ownerId),
+]);
