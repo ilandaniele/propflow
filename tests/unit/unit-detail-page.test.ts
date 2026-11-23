@@ -88,6 +88,15 @@ vi.mock('@/app/actions/unit-images', () => ({
   reorderUnitImages: vi.fn(),
 }));
 
+vi.mock('@/lib/unit-beds/queries', () => ({
+  listUnitBeds: vi.fn(async () => []),
+  listTenantOptions: vi.fn(async () => []),
+}));
+
+vi.mock('@/components/unit-beds/UnitBedsSection', () => ({
+  UnitBedsSection: () => null,
+}));
+
 // ---------------------------------------------------------------------------
 // Mock @/lib/db — Drizzle
 // ---------------------------------------------------------------------------

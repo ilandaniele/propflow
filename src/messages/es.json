@@ -924,6 +924,7 @@
     "step3": "Paso 3: Primer inquilino"
   },
   "units": {
+    "bedsTab": "Camas",
     "toiletType": {
       "private": "Privado",
       "shared": "Compartido",
@@ -2385,5 +2386,25 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "unitBeds": {
+    "title": "Camas",
+    "subtitle": "Divide la unidad en camas con renta propia. Los totales suman hacia la unidad.",
+    "label": "Nombre de la cama",
+    "rent": "Renta mensual",
+    "add": "Agregar cama",
+    "saving": "Guardando...",
+    "tenant": "Inquilino",
+    "vacant": "Libre",
+    "assign": "Asignar",
+    "remove": "Eliminar",
+    "empty": "Esta unidad no tiene camas.",
+    "noRent": "Sin renta",
+    "stats": {
+      "beds": "Camas",
+      "occupied": "Ocupadas",
+      "potentialRent": "Renta potencial",
+      "occupiedRent": "Renta ocupada"
+    }
   }
 }

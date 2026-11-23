@@ -924,6 +924,7 @@
     "step3": "Step 3: First tenant"
   },
   "units": {
+    "bedsTab": "Beds",
     "toiletType": {
       "private": "Private",
       "shared": "Shared",
@@ -2385,5 +2386,25 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "unitBeds": {
+    "title": "Beds",
+    "subtitle": "Split the unit into beds with their own rent. Totals roll up to the unit.",
+    "label": "Bed name",
+    "rent": "Monthly rent",
+    "add": "Add bed",
+    "saving": "Saving...",
+    "tenant": "Tenant",
+    "vacant": "Vacant",
+    "assign": "Assign",
+    "remove": "Remove",
+    "empty": "This unit has no beds.",
+    "noRent": "No rent",
+    "stats": {
+      "beds": "Beds",
+      "occupied": "Occupied",
+      "potentialRent": "Potential rent",
+      "occupiedRent": "Occupied rent"
+    }
   }
 }
