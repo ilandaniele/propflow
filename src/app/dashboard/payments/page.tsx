@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
@@ -95,6 +96,7 @@ export default async function PaymentsPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/dashboard/payments/reconciliation" className="text-sm font-medium text-slate-700 hover:underline">{t('reconcileLink')}</Link>
           <AdminPaymentsCsvButtons />
           <CreateChargeForm contracts={contractsForForm as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
         </div>

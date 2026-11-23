@@ -91,6 +91,7 @@
     "adminImport": "Importação",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
+    "bankReconciliation": "Conciliação bancária",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
     "taxReceipts": "Comprovantes Fiscais",
@@ -295,6 +296,7 @@
     "rooms": "quartos"
   },
   "payments": {
+    "reconcileLink": "Conciliar com banco",
     "title": "Pagamentos",
     "list": {
       "pendingApproval": "{count} pendentes de aprovação",
@@ -1734,6 +1736,36 @@
     "emptyTitle": "Sem leads ainda",
     "emptyDesc": "Acompanhe possíveis inquilinos no seu pipeline de CRM.",
     "source": "Origem"
+  },
+  "bankReconciliation": {
+    "back": "← Pagamentos",
+    "title": "Conciliação bancária",
+    "subtitle": "Envie o extrato do banco em CSV e vincule cada crédito ao seu pagamento.",
+    "unmatchedTitle": "{count, plural, =0 {Nada a conciliar} one {# lançamento a conciliar} other {# lançamentos a conciliar}}",
+    "emptyTitle": "Tudo conciliado",
+    "emptyDesc": "Envie um extrato para ver os créditos pendentes.",
+    "matchedTitle": "Conciliados recentes",
+    "ignoredTitle": "Ignorados",
+    "colDate": "Data",
+    "colDescription": "Descrição",
+    "colAmount": "Valor",
+    "colActions": "Ações",
+    "upload": {
+      "label": "Extrato bancário (CSV)",
+      "hint": "Colunas de data, descrição e valor (ou crédito/débito). Só créditos são importados; linhas repetidas são ignoradas.",
+      "submit": "Importar",
+      "result": "{inserted} novos · {duplicates} repetidos · {skipped} ignorados"
+    },
+    "actions": {
+      "payment": "Pagamento",
+      "match": "Conciliar",
+      "noCandidates": "Sem pagamentos com esse valor",
+      "contract": "Contrato",
+      "createPayment": "Criar pagamento",
+      "newPayment": "Novo pagamento",
+      "ignore": "Ignorar",
+      "restore": "Restaurar"
+    }
   },
   "accountStatements": {
     "title": "Extratos de Conta",

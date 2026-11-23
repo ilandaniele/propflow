@@ -91,6 +91,7 @@
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "bankReconciliation": "Bank reconciliation",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "taxReceipts": "Tax Receipts",
@@ -295,6 +296,7 @@
     "rooms": "rooms"
   },
   "payments": {
+    "reconcileLink": "Reconcile with bank",
     "title": "Payments",
     "list": {
       "pendingApproval": "{count} pending approval",
@@ -1734,6 +1736,36 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "bankReconciliation": {
+    "back": "← Payments",
+    "title": "Bank reconciliation",
+    "subtitle": "Upload your bank statement as CSV and link each credit to its payment.",
+    "unmatchedTitle": "{count, plural, =0 {Nothing to reconcile} one {# line to reconcile} other {# lines to reconcile}}",
+    "emptyTitle": "All reconciled",
+    "emptyDesc": "Upload a statement to see pending credits.",
+    "matchedTitle": "Recently reconciled",
+    "ignoredTitle": "Ignored",
+    "colDate": "Date",
+    "colDescription": "Description",
+    "colAmount": "Amount",
+    "colActions": "Actions",
+    "upload": {
+      "label": "Bank statement (CSV)",
+      "hint": "Date, description and amount (or credit/debit) columns. Only credits are imported; repeated lines are skipped.",
+      "submit": "Import",
+      "result": "{inserted} new · {duplicates} repeated · {skipped} skipped"
+    },
+    "actions": {
+      "payment": "Payment",
+      "match": "Reconcile",
+      "noCandidates": "No payments with that amount",
+      "contract": "Contract",
+      "createPayment": "Create payment",
+      "newPayment": "New payment",
+      "ignore": "Ignore",
+      "restore": "Restore"
+    }
   },
   "accountStatements": {
     "title": "Account Statements",
