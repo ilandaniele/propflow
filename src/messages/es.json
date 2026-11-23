@@ -369,6 +369,15 @@
     "analytics": "Análisis"
   },
   "contracts": {
+    "renew": {
+      "open": "Renovar",
+      "months": "Meses",
+      "rent": "Nuevo alquiler mensual",
+      "hint": "Empieza el día siguiente al fin actual.",
+      "submit": "Renovar contrato",
+      "done": "Renovado",
+      "notActive": "Solo se renuevan contratos activos."
+    },
     "title": "Contratos",
     "list": {
       "emptyTitle": "Sin contratos aún",

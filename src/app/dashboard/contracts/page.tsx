@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill } from '@/components/ui/Badge';
 import { CreateContractForm } from './CreateContractForm';
+import { RenewContractButton } from './RenewContractButton';
 
 export const metadata: Metadata = { title: 'Contracts' };
 
@@ -211,7 +212,14 @@ export default async function ContractsPage() {
                         {contract.startDate} → {contract.endDate ?? '—'}
                       </span>
                     </td>
-                    <td className="px-5 py-4"><StatusPill status={contract.status} /></td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <StatusPill status={contract.status} />
+                        {contract.status === 'active' && (
+                          <RenewContractButton contractId={contract.id} monthlyRent={Number(contract.monthlyRent)} />
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
