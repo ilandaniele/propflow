@@ -62,6 +62,7 @@
     "incidents": "Incidentes",
     "finance": "Finanças",
     "reminders": "Lembretes",
+    "expirations": "Vencimentos",
     "announcements": "Avisos",
     "cleaning": "Limpeza",
     "leads": "Leads",
@@ -2364,5 +2365,36 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "documentExpirations": {
+    "title": "Vencimentos de documentos",
+    "subtitle": "Documentos de identidade, seguros e certificados. Alerta 30 dias antes do vencimento.",
+    "addTitle": "Adicionar documento",
+    "kind": "Tipo",
+    "label": "Descrição",
+    "expiresOn": "Vence em",
+    "tenant": "Inquilino",
+    "property": "Imóvel",
+    "none": "Nenhum",
+    "add": "Adicionar",
+    "saving": "Salvando…",
+    "remove": "Remover",
+    "empty": "Nenhum documento cadastrado.",
+    "expires": "Vence: {date}",
+    "kinds": {
+      "dni": "Documento (DNI)",
+      "insurance": "Seguro",
+      "certificate": "Certificado",
+      "other": "Outro"
+    },
+    "status": {
+      "expired": "Vencido",
+      "soon": "A vencer",
+      "ok": "Vigente"
+    }
+  },
+  "expiringDocumentsBanner": {
+    "summary": "Documentos: {expired} vencidos e {soon} a vencer em 30 dias.",
+    "review": "Revisar"
   }
 }
