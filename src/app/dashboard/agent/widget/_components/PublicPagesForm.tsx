@@ -59,6 +59,12 @@ export function PublicPagesForm({ enabled, orgSlug, appOrigin }: PublicPagesForm
           </Link>
         )}
       </div>
+      {orgSlug && pagesEnabled && (
+        <p className="text-xs text-slate-500">
+          {t('portalFeed')}{' '}
+          <code className="break-all text-slate-700">{`${appOrigin ?? ''}/api/public/feed/${orgSlug}`}</code>
+        </p>
+      )}
       {state.error && <p className="text-xs text-red-600">{state.error.message}</p>}
       {!state.error && state.data !== undefined && <p className="text-xs text-green-600">{t('savedOk')}</p>}
     </form>
