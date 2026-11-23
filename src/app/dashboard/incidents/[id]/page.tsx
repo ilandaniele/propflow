@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { incidents, incidentComments, profiles } from '@/lib/db/schema';
 import { eq, and, asc } from 'drizzle-orm';
@@ -18,7 +18,7 @@ interface Props { params: Promise<{ id: string }> }
 export default async function IncidentDetailPage({ params }: Props) {
   const { id } = await params;
   let ctx;
-  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+  try { ctx = await requireStaff('operations', 'read'); } catch { redirect('/login'); }
 
   const t = await getTranslations('incidentDetail');
 

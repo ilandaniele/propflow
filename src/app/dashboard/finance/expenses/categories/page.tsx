@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { expenseCategories } from '@/lib/db/schema';
 import { eq, asc } from 'drizzle-orm';
@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { CreateExpenseCategoryForm } from './CreateExpenseCategoryForm';
 
 export default async function ExpenseCategoriesPage() {
-  const ctx = await requireAdmin();
+  const ctx = await requireStaff('finance', 'read');
   const t = await getTranslations('expenseCategories');
 
   const categories = await db

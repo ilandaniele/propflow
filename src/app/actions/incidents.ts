@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { incidents, incidentComments, tenants } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { requireAdmin, requireUser } from '@/lib/auth/guards';
+import { canStaffWrite, requireStaff, requireUser } from '@/lib/auth/guards';
 import { uploadFile } from '@/lib/storage';
 import { Errors, ok } from '@/lib/errors';
 import {
@@ -25,6 +25,7 @@ export async function createIncident(
 ): Promise<ActionResult> {
   let ctx;
   try { ctx = await requireUser(); } catch { return Errors.UNAUTHORIZED(); }
+  if (!canStaffWrite(ctx, 'operations')) return Errors.FORBIDDEN();
 
   const parsed = CreateIncidentSchema.safeParse(Object.fromEntries(
     [...formData.entries()].filter(([, v]) => typeof v === 'string')
@@ -134,7 +135,7 @@ export async function updateIncident(
   formData: FormData
 ): Promise<ActionResult> {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+  try { ctx = await requireStaff('operations', 'write'); } catch { return Errors.UNAUTHORIZED(); }
 
   const parsed = UpdateIncidentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
@@ -182,6 +183,7 @@ export async function addIncidentComment(
 ): Promise<ActionResult> {
   let ctx;
   try { ctx = await requireUser(); } catch { return Errors.UNAUTHORIZED(); }
+  if (!canStaffWrite(ctx, 'operations')) return Errors.FORBIDDEN();
 
   const parsed = AddCommentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());

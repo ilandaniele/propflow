@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
-import { getCachedUser, getProfileFast, getOrgNameFast } from '@/lib/auth/guards';
+import { getCachedUser, getProfileFast, getOrgNameFast, staffRoleOf } from '@/lib/auth/guards';
+import { navHrefsFor } from '@/lib/auth/permissions';
 import { AdminSidebar } from '@/components/shell/AdminSidebar';
 import { AdminTopbar } from '@/components/shell/AdminTopbar';
 import type { Locale } from '@/i18n/config';
@@ -28,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      <AdminSidebar orgName={orgName ?? undefined} />
+      <AdminSidebar orgName={orgName ?? undefined} allowedHrefs={navHrefsFor(staffRoleOf(profile))} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <AdminTopbar userName={profile.full_name} currentLocale={currentLocale} />
         <main className="flex-1 overflow-y-auto p-6" id="main-content">

@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import {
   payments as paymentsTable,
@@ -29,7 +29,7 @@ import type { IncomeRow, ExpenseRow } from '@/lib/finance/reports';
 import type { ExpenseWithCategory } from '@/lib/finance/kpis';
 
 export default async function FinancePage() {
-  const ctx = await requireAdmin();
+  const ctx = await requireStaff('finance', 'read');
   const t = await getTranslations('finance');
 
   const now = new Date();

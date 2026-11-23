@@ -16,6 +16,8 @@ vi.mock('@/lib/auth/guards', () => ({
   requireAdmin: vi.fn(async () => ({ ...auth.ctx, role: 'admin' })),
   requireTenant: vi.fn(async () => ({ ...auth.ctx, role: 'tenant' })),
   requireUser: vi.fn(async () => auth.ctx),
+  requireStaff: vi.fn(async () => ({ ...auth.ctx, role: 'admin', staffRole: null })),
+  canStaffWrite: vi.fn(() => true),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/ratelimit', () => ({ mutationRateLimit: vi.fn(() => ({ success: true })) }));

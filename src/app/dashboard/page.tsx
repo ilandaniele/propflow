@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { requireAdmin } from '@/lib/auth/guards';
+import { getProfile, requireAdmin, staffRoleOf } from '@/lib/auth/guards';
+import { homePathFor } from '@/lib/auth/permissions';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
@@ -17,6 +18,9 @@ import { getDashboardKpis } from '@/lib/dashboard/queries';
 export const metadata: Metadata = { title: 'Dashboard' };
 
 export default async function DashboardPage() {
+  const staffRole = staffRoleOf(await getProfile());
+  if (staffRole) redirect(homePathFor(staffRole));
+
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 

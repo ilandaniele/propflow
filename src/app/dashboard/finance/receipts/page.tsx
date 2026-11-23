@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { receiptUploads, payments as paymentsTable } from '@/lib/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -8,7 +8,7 @@ import { OcrReceiptsClient } from './OcrReceiptsClient';
 import type { ReceiptUpload } from '@/types';
 
 export default async function OcrReceiptsPage() {
-  const ctx = await requireAdmin();
+  const ctx = await requireStaff('finance', 'read');
   const t = await getTranslations('ocrReceipts');
 
   const [receipts, pendingPayments] = await Promise.all([
