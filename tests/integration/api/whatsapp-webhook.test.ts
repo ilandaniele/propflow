@@ -48,6 +48,7 @@ const {
   dispatchButtonReply,
   getSessionByConversation,
   touchInbound,
+  handleOwnerAssistantMessage,
 } = vi.hoisted(() => ({
   findOrgIdByWhatsAppPhoneNumberId: vi.fn(async () => null as string | null),
   updateMessageStatusByProviderId: vi.fn(async () => {}),
@@ -65,6 +66,7 @@ const {
   dispatchButtonReply: vi.fn(async () => false),
   getSessionByConversation: vi.fn(async () => null as { id: string } | null),
   touchInbound: vi.fn(async () => {}),
+  handleOwnerAssistantMessage: vi.fn(async () => false),
 }));
 
 vi.mock('@/lib/whatsapp/db', () => ({
@@ -88,6 +90,8 @@ vi.mock('@/lib/agent/whatsapp-dispatch', () => ({ queueAgentInbound, scheduleAge
 vi.mock('@/lib/agent/job-handlers', () => ({ registerAgentJobHandlers: vi.fn() }));
 
 vi.mock('@/lib/agent/button-replies', () => ({ dispatchButtonReply }));
+
+vi.mock('@/lib/owner-assistant/handle', () => ({ handleOwnerAssistantMessage }));
 
 vi.mock('@/lib/agent/session', () => ({
   getSessionByConversation,
@@ -311,6 +315,18 @@ describe('POST /api/whatsapp/webhook (real Meta payload)', () => {
     expect(response.status).toBe(200);
     expect(queueAgentInbound).toHaveBeenCalledWith(expect.objectContaining({ orgId: 'org-1', conversationId: 'conv-1' }));
     expect(scheduleAgentDrain).toHaveBeenCalled();
+  });
+
+  it('hands a linked admin message to the owner assistant and skips the tenant/lead flow', async () => {
+    findOrgIdByWhatsAppPhoneNumberId.mockResolvedValue('org-1');
+    getOrCreateAgentConfig.mockResolvedValue({ channelsEnabled: { whatsapp: true, web: false, voice: false } });
+    handleOwnerAssistantMessage.mockResolvedValueOnce(true);
+    const body = metaBody();
+    const response = await callMetaWebhook(body, metaSignature(body));
+    expect(response.status).toBe(200);
+    expect(handleOwnerAssistantMessage).toHaveBeenCalledWith('org-1', expect.objectContaining({ type: 'text' }), mockProvider);
+    expect(insertMessage).not.toHaveBeenCalled();
+    expect(queueAgentInbound).not.toHaveBeenCalled();
   });
 
   it('does not queue an agent turn for a tenant, even with WhatsApp enabled', async () => {
