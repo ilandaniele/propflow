@@ -1,4 +1,16 @@
 {
+  "chargeConcepts": {
+    "title": "Conceitos de cobrança",
+    "subtitle": "Conceitos reutilizáveis com valor padrão para cobranças manuais",
+    "add": "Adicionar conceito",
+    "description": "Descrição",
+    "code": "Código",
+    "baseAmount": "Valor padrão (S/)",
+    "save": "Salvar",
+    "saved": "Salvo",
+    "emptyTitle": "Nenhum conceito ainda",
+    "emptyDesc": "Crie conceitos como manutenção, água ou estacionamento para lançar cobranças mais rápido."
+  },
   "common": {
     "save": "Salvar",
     "cancel": "Cancelar",
@@ -93,6 +105,7 @@
     "importHistory": "Histórico de importações",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
+    "chargeConcepts": "Conceitos de cobrança",
     "taxReceipts": "Comprovantes Fiscais",
     "tenantFeedback": "Avaliações dos Inquilinos",
     "sectionFinance": "Finanças",
@@ -1972,6 +1985,8 @@
   },
   "forms": {
     "createCharge": {
+      "conceptLabel": "Conceito",
+      "selectConcept": "— Escolha um conceito (opcional) —",
       "openButton": "Adicionar Cobrança",
       "modalTitle": "Nova Cobrança",
       "selectContract": "Selecionar contrato",

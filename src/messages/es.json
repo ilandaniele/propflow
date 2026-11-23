@@ -1,4 +1,16 @@
 {
+  "chargeConcepts": {
+    "title": "Conceptos de cobro",
+    "subtitle": "Conceptos reutilizables con monto por defecto para cargos manuales",
+    "add": "Agregar concepto",
+    "description": "Descripción",
+    "code": "Código",
+    "baseAmount": "Monto por defecto (S/)",
+    "save": "Guardar",
+    "saved": "Guardado",
+    "emptyTitle": "Sin conceptos todavía",
+    "emptyDesc": "Creá conceptos como mantenimiento, agua o estacionamiento para cargar cargos más rápido."
+  },
   "common": {
     "save": "Guardar",
     "cancel": "Cancelar",
@@ -93,6 +105,7 @@
     "importHistory": "Historial de importaciones",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
+    "chargeConcepts": "Conceptos de cobro",
     "taxReceipts": "Comprobantes",
     "tenantFeedback": "Feedback de Inquilinos",
     "sectionFinance": "Finanzas",
@@ -1972,6 +1985,8 @@
   },
   "forms": {
     "createCharge": {
+      "conceptLabel": "Concepto",
+      "selectConcept": "— Elegí un concepto (opcional) —",
       "openButton": "Agregar Cargo",
       "modalTitle": "Nuevo Cargo",
       "selectContract": "Seleccionar contrato",

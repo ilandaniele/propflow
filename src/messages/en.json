@@ -1,4 +1,16 @@
 {
+  "chargeConcepts": {
+    "title": "Charge concepts",
+    "subtitle": "Reusable concepts with a default amount for manual charges",
+    "add": "Add concept",
+    "description": "Description",
+    "code": "Code",
+    "baseAmount": "Default amount (S/)",
+    "save": "Save",
+    "saved": "Saved",
+    "emptyTitle": "No concepts yet",
+    "emptyDesc": "Create concepts like maintenance, water or parking to fill charges faster."
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -93,6 +105,7 @@
     "importHistory": "Import History",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
+    "chargeConcepts": "Charge Concepts",
     "taxReceipts": "Tax Receipts",
     "tenantFeedback": "Tenant Feedback",
     "sectionFinance": "Finance",
@@ -1972,6 +1985,8 @@
   },
   "forms": {
     "createCharge": {
+      "conceptLabel": "Concept",
+      "selectConcept": "— Pick a concept (optional) —",
       "openButton": "Add Charge",
       "modalTitle": "New Charge",
       "selectContract": "Select contract",
