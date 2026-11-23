@@ -53,6 +53,7 @@
     "createButton": "Criar"
   },
   "navigation": {
+    "calendar": "Calendário",
     "dashboard": "Painel",
     "properties": "Propriedades",
     "units": "Unidades",
@@ -2385,5 +2386,20 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "opsCalendar": {
+    "title": "Calendário operacional",
+    "subtitle": "Contratos, cobranças, limpezas e visitas em um só lugar.",
+    "download": "Baixar .ics",
+    "previous": "Anterior",
+    "next": "Próximo",
+    "empty": "Sem eventos neste mês.",
+    "kinds": {
+      "contract_start": "Início de contrato",
+      "contract_end": "Fim de contrato",
+      "charge_due": "{count, plural, one {# cobrança vence} other {# cobranças vencem}}",
+      "cleaning": "Limpeza",
+      "visit": "Visita"
+    }
   }
 }

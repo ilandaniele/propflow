@@ -53,6 +53,7 @@
     "createButton": "Create"
   },
   "navigation": {
+    "calendar": "Calendar",
     "dashboard": "Dashboard",
     "properties": "Properties",
     "units": "Units",
@@ -2385,5 +2386,20 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "opsCalendar": {
+    "title": "Operational calendar",
+    "subtitle": "Contracts, charges, cleaning and visits in one place.",
+    "download": "Download .ics",
+    "previous": "Previous",
+    "next": "Next",
+    "empty": "No events this month.",
+    "kinds": {
+      "contract_start": "Contract start",
+      "contract_end": "Contract end",
+      "charge_due": "{count, plural, one {# charge due} other {# charges due}}",
+      "cleaning": "Cleaning",
+      "visit": "Visit"
+    }
   }
 }
