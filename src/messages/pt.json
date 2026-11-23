@@ -91,6 +91,7 @@
     "adminImport": "Importação",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
+    "rentalTax": "Imposto sobre aluguel",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
     "taxReceipts": "Comprovantes Fiscais",
@@ -1734,6 +1735,34 @@
     "emptyTitle": "Sem leads ainda",
     "emptyDesc": "Acompanhe possíveis inquilinos no seu pipeline de CRM.",
     "source": "Origem"
+  },
+  "rentalTax": {
+    "title": "Imposto sobre aluguel {year}",
+    "subtitle": "Aluguéis recebidos (pagamentos aprovados) por imóvel e mês, com o imposto mensal estimado de 5%.",
+    "yearNav": "Mudar ano",
+    "emptyTitle": "Sem pagamentos aprovados neste ano",
+    "emptyDesc": "Pagamentos de aluguel aprovados aparecerão aqui agrupados por mês.",
+    "grossLabel": "Aluguel bruto {currency}",
+    "taxLabel": "Imposto 5%",
+    "colProperty": "Imóvel",
+    "colTotal": "Total",
+    "colTax": "5%",
+    "monthlyTax": "5% mensal {currency}",
+    "disclaimer": "Estimativa de referência para o Formulário 1683 da SUNAT (5% do aluguel bruto recebido). Confirme com seu contador antes de declarar.",
+    "months": {
+      "0": "Jan",
+      "1": "Fev",
+      "2": "Mar",
+      "3": "Abr",
+      "4": "Mai",
+      "5": "Jun",
+      "6": "Jul",
+      "7": "Ago",
+      "8": "Set",
+      "9": "Out",
+      "10": "Nov",
+      "11": "Dez"
+    }
   },
   "accountStatements": {
     "title": "Extratos de Conta",

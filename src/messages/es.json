@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "rentalTax": "Renta 1ra categoría",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -1734,6 +1735,34 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "rentalTax": {
+    "title": "Renta de primera categoría {year}",
+    "subtitle": "Alquileres cobrados (pagos aprobados) por propiedad y mes, con el 5 % estimado a declarar mensualmente.",
+    "yearNav": "Cambiar año",
+    "emptyTitle": "Sin cobros aprobados este año",
+    "emptyDesc": "Cuando apruebes pagos de alquiler aparecerán aquí agrupados por mes.",
+    "grossLabel": "Renta bruta {currency}",
+    "taxLabel": "Impuesto 5 %",
+    "colProperty": "Propiedad",
+    "colTotal": "Total",
+    "colTax": "5 %",
+    "monthlyTax": "5 % mensual {currency}",
+    "disclaimer": "Estimación referencial para el Formulario Virtual 1683 (5 % sobre la renta bruta cobrada). Verifica con tu contador antes de declarar.",
+    "months": {
+      "0": "Ene",
+      "1": "Feb",
+      "2": "Mar",
+      "3": "Abr",
+      "4": "May",
+      "5": "Jun",
+      "6": "Jul",
+      "7": "Ago",
+      "8": "Set",
+      "9": "Oct",
+      "10": "Nov",
+      "11": "Dic"
+    }
   },
   "accountStatements": {
     "title": "Estados de Cuenta",
