@@ -1736,6 +1736,14 @@
     "source": "Origem"
   },
   "accountStatements": {
+    "generate": {
+      "title": "Gerar extratos de conta",
+      "hint": "Cria rascunhos para cada contrato ativo com cobranças e pagamentos do mês. Nada é enviado.",
+      "month": "Mês",
+      "dueDate": "Vencimento",
+      "submit": "Gerar",
+      "done": "{created} criados, {skipped} já existiam"
+    },
     "title": "Extratos de Conta",
     "subtitle": "{count} extratos · {sent} enviados · Total a pagar S/ {total}",
     "emptyTitle": "Sem extratos de conta",

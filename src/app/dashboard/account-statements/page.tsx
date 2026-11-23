@@ -8,6 +8,7 @@ import { computeStatementKpis } from '@/lib/finance/statement-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { GenerateStatementsForm } from './GenerateStatementsForm';
 
 export const metadata: Metadata = { title: 'Account Statements' };
 
@@ -64,6 +65,8 @@ export default async function AccountStatementsPage() {
           {t('subtitle', { count: rows.length, sent: sentCount, total: totalDue.toLocaleString('es-PE', { minimumFractionDigits: 2 }) })}
         </p>
       </div>
+
+      <GenerateStatementsForm defaultMonth={today.slice(0, 7)} />
 
       {rows.length > 0 && (
         <>

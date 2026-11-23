@@ -1736,6 +1736,14 @@
     "source": "Fuente"
   },
   "accountStatements": {
+    "generate": {
+      "title": "Generar estados de cuenta",
+      "hint": "Crea borradores para cada contrato activo con cargos y pagos del mes. No envía nada.",
+      "month": "Mes",
+      "dueDate": "Vencimiento",
+      "submit": "Generar",
+      "done": "{created} creados, {skipped} ya existían"
+    },
     "title": "Estados de Cuenta",
     "subtitle": "{count} estados · {sent} enviados · Total pendiente S/ {total}",
     "emptyTitle": "Sin estados de cuenta",
