@@ -319,3 +319,57 @@ Cada rebanada se puede desplegar sola, con su migración, server action, pantall
 22. **Moneda en reportes**: separar PEN y USD en KPIs y P&L.
 23. **Reporte de renta de primera categoría**: renta anual por propiedad y 5 % estimado para el Formulario 1683.
 24. P2 después: cama como subunidad, etiquetas y grupos, buscador global, calendario operativo con iCal, feed a Urbania y Adondevivir, MCP o API, calculadoras públicas, exportación contable (PLE) y app con marca propia.
+
+## PRs de implementación
+
+Las filas 44, 45, 46, 51 y 52 ya existían en Propflow.
+
+| Fila | PR |
+|---|---|
+| 1 | #121 |
+| 2 | #122 |
+| 3 | #126 |
+| 4 | #125 |
+| 5 | #124 |
+| 6 | #123 |
+| 7 | #135 |
+| 8 | #180 |
+| 9 | #181 |
+| 10 | #127 |
+| 11 | #129 |
+| 12 | #128 |
+| 13 | #144 |
+| 14 | #145 |
+| 15 | #146 |
+| 16 | #176 |
+| 17 | #150 |
+| 18 | #139 |
+| 19 | #137 |
+| 20 | #170 |
+| 21 | #169 |
+| 22 | #167 |
+| 23 | #152 |
+| 24 | #166 |
+| 25 | #147 |
+| 26 | #171 |
+| 27 | #138 |
+| 28 | #140 |
+| 29 | #172 |
+| 30 | #136 |
+| 31 | #168 |
+| 32 | #173 |
+| 33 | #174 |
+| 34 | #175 |
+| 35 | #159 |
+| 36 | #142 |
+| 37 | #177 |
+| 38 | #143 |
+| 39 | #141 |
+| 40 | #178, #179 |
+| 41 | #151 |
+| 42 | #153 |
+| 43 | #157, #182 |
+| 47 | #155 |
+| 48 | #156 |
+| 49 | #154 |
+| 50 | #149 |

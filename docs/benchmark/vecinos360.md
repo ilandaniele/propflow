@@ -99,3 +99,27 @@ Leyenda como en `homming-habitamax.md`. Se omiten filas ya cubiertas allí (esta
 | V15 | Usuario en varias comunidades con selector | falta | igual a fila 24 de homming-habitamax | P2 |
 | V16 | Diseñador de cuotas / reparto de conceptos por unidad | parcial | igual a fila 5 (reparto de servicios) | P0 |
 | V17 | Mensajes internos inquilino a admin con tipo y bandeja | parcial | WhatsApp y comunidad; sin bandeja en portal | P2 |
+| V18 | Cuentas por pagar a proveedores con vencimiento, pagos parciales y saldo | falta | `expenses` registra solo gasto pagado, sin vencimiento ni saldo | P1 |
+| V19 | Preferencias de notificaciones por correo en el perfil | falta | — | P2 |
+
+## PRs de implementación
+
+| Fila | PR |
+|---|---|
+| V1, V2, V3 | #130 |
+| V4 | #131 |
+| V5 | #162 |
+| V6 | #161 |
+| V7 | #132 |
+| V8 | #133 |
+| V9 | #163 |
+| V10 | #134 |
+| V11 | #160 |
+| V12 | #158 |
+| V13 | #164 |
+| V14 | #165 |
+| V15 | #166 |
+| V16 | #124 |
+| V17 | #159 |
+| V18 | #184 |
+| V19 | #183 |
