@@ -6,7 +6,7 @@ import { expenseCategories, expenses, receiptUploads, payments, properties, unit
 import { eq, and } from 'drizzle-orm';
 import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { uploadFile } from '@/lib/storage';
-import { Errors, ok } from '@/lib/errors';
+import { Errors, err, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 import type { ActionResult } from '@/lib/errors';
@@ -17,6 +17,7 @@ import {
   MatchReceiptSchema,
 } from '@/lib/schemas/finance';
 import { isUniqueViolation } from '@/lib/db/errors';
+import { findExpenseCategory } from '@/lib/expenses/queries';
 
 export async function createExpenseCategory(
   _prev: ActionResult,
@@ -31,11 +32,18 @@ export async function createExpenseCategory(
   const parsed = CreateExpenseCategorySchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
+  if (parsed.data.parent_id) {
+    const parent = await findExpenseCategory(ctx.orgId, parsed.data.parent_id);
+    if (!parent) return Errors.NOT_FOUND();
+    if (parent.parentId) return err('VALIDATION_ERROR', 'Sub-categories can only be one level deep');
+  }
+
   try {
     await db.insert(expenseCategories).values({
       orgId: ctx.orgId,
       name: parsed.data.name,
       color: parsed.data.color ?? null,
+      parentId: parsed.data.parent_id ?? null,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -86,6 +94,7 @@ export async function createExpense(
       propertyId: parsed.data.property_id ?? null,
       unitId: parsed.data.unit_id ?? null,
       categoryId: parsed.data.category_id ?? null,
+      kind: parsed.data.kind,
       amount: String(parsed.data.amount),
       description: parsed.data.description,
       incurredOn: parsed.data.incurred_on,
@@ -96,6 +105,7 @@ export async function createExpense(
   }
 
   log.adminAction(ctx.userId, 'create_expense', 'expense');
+  revalidatePath('/dashboard/finance/expenses');
   revalidatePath('/dashboard/finance');
   return ok(undefined);
 }
@@ -126,6 +136,7 @@ export async function updateExpense(
         propertyId: updates.property_id ?? undefined,
         unitId: updates.unit_id ?? undefined,
         categoryId: updates.category_id ?? undefined,
+        kind: updates.kind,
         amount: updates.amount != null ? String(updates.amount) : undefined,
         description: updates.description,
         incurredOn: updates.incurred_on,

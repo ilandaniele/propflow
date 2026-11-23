@@ -1255,6 +1255,7 @@
     }
   },
   "finance": {
+    "expensesLink": "Despesas",
     "title": "Financeiro",
     "kpiTitle": "KPIs do Período Atual",
     "roomProfitability": "Rentabilidade por Quarto",
@@ -2092,6 +2093,8 @@
       "purposePlaceholder": "Entrega, visita, manutenção…"
     },
     "createExpenseCategory": {
+      "parentLabel": "Categoria pai",
+      "noParent": "Nenhuma (principal)",
       "saving": "Salvando…",
       "submit": "Adicionar categoria",
       "nameLabel": "Nome da categoria",
@@ -2364,5 +2367,29 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "expenses": {
+    "title": "Despesas",
+    "addExpense": "Registrar despesa",
+    "manageCategories": "Gerenciar categorias",
+    "descriptionLabel": "Descrição",
+    "amountLabel": "Valor",
+    "dateLabel": "Data",
+    "kindLabel": "Tipo",
+    "categoryLabel": "Categoria",
+    "propertyLabel": "Imóvel",
+    "none": "Não atribuído",
+    "monthLabel": "Mês",
+    "allKinds": "Todos",
+    "filter": "Filtrar",
+    "total": "Total",
+    "saving": "Salvando…",
+    "submit": "Salvar despesa",
+    "emptyTitle": "Sem despesas",
+    "emptyDesc": "Não há despesas registradas neste mês.",
+    "kind": {
+      "ordinary": "Ordinária",
+      "extraordinary": "Extraordinária"
+    }
   }
 }

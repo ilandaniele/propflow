@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index, check } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, index, check, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { id, json, ts, money, dateStr, bool } from './columns';
 import { contracts, organizations, profiles, properties, tenants, units, whatsappMessages } from './core';
@@ -303,10 +303,12 @@ export const expenseCategories = sqliteTable('expense_categories', {
   orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   name:      text('name').notNull(),
   color:     text('color'),
+  parentId:  text('parent_id').references((): AnySQLiteColumn => expenseCategories.id, { onDelete: 'set null' }),
   createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_expense_categories_org').on(t.orgId),
+  index('idx_expense_categories_parent').on(t.parentId),
   uniqueIndex('expense_categories_org_name_uniq').on(t.orgId, t.name),
 ]);
 
@@ -320,6 +322,7 @@ export const expenses = sqliteTable('expenses', {
   description: text('description').notNull(),
   incurredOn:  dateStr('incurred_on').notNull(),
   receiptPath: text('receipt_path'),
+  kind:        text('kind').notNull().default('ordinary'),  // 'ordinary' | 'extraordinary'
   createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [

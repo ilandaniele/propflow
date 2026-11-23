@@ -1287,6 +1287,7 @@
     "noData": "Sin datos disponibles"
   },
   "finance": {
+    "expensesLink": "Gastos",
     "title": "Finanzas",
     "kpiTitle": "KPIs del Período Actual",
     "roomProfitability": "Rentabilidad por habitación",
@@ -2092,6 +2093,8 @@
       "purposePlaceholder": "Entrega, visita, mantenimiento…"
     },
     "createExpenseCategory": {
+      "parentLabel": "Categoría padre",
+      "noParent": "Ninguna (principal)",
       "saving": "Guardando…",
       "submit": "Agregar categoría",
       "nameLabel": "Nombre de categoría",
@@ -2364,5 +2367,29 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "expenses": {
+    "title": "Gastos",
+    "addExpense": "Registrar gasto",
+    "manageCategories": "Administrar categorías",
+    "descriptionLabel": "Descripción",
+    "amountLabel": "Monto",
+    "dateLabel": "Fecha",
+    "kindLabel": "Tipo",
+    "categoryLabel": "Categoría",
+    "propertyLabel": "Propiedad",
+    "none": "Sin asignar",
+    "monthLabel": "Mes",
+    "allKinds": "Todos",
+    "filter": "Filtrar",
+    "total": "Total",
+    "saving": "Guardando…",
+    "submit": "Guardar gasto",
+    "emptyTitle": "Sin gastos",
+    "emptyDesc": "No hay gastos registrados para este mes.",
+    "kind": {
+      "ordinary": "Ordinario",
+      "extraordinary": "Extraordinario"
+    }
   }
 }

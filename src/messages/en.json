@@ -1255,6 +1255,7 @@
     }
   },
   "finance": {
+    "expensesLink": "Expenses",
     "title": "Finance",
     "kpiTitle": "Current Period KPIs",
     "roomProfitability": "Room Profitability",
@@ -2092,6 +2093,8 @@
       "purposePlaceholder": "Delivery, guest, maintenance…"
     },
     "createExpenseCategory": {
+      "parentLabel": "Parent category",
+      "noParent": "None (top level)",
       "saving": "Saving…",
       "submit": "Add Category",
       "nameLabel": "Category name",
@@ -2364,5 +2367,29 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "expenses": {
+    "title": "Expenses",
+    "addExpense": "Record expense",
+    "manageCategories": "Manage categories",
+    "descriptionLabel": "Description",
+    "amountLabel": "Amount",
+    "dateLabel": "Date",
+    "kindLabel": "Type",
+    "categoryLabel": "Category",
+    "propertyLabel": "Property",
+    "none": "Unassigned",
+    "monthLabel": "Month",
+    "allKinds": "All",
+    "filter": "Filter",
+    "total": "Total",
+    "saving": "Saving…",
+    "submit": "Save expense",
+    "emptyTitle": "No expenses",
+    "emptyDesc": "No expenses recorded for this month.",
+    "kind": {
+      "ordinary": "Ordinary",
+      "extraordinary": "Extraordinary"
+    }
   }
 }
