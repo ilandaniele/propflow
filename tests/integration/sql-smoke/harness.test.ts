@@ -27,7 +27,7 @@ describe('sql-smoke harness (local D1)', () => {
       'trigger:property_visits_no_overlap_insert',
       'view:tenant_statement',
     ]);
-    expect(readMigrations().map((m) => m.tag)).toEqual(['0000_init', '0001_triggers', '0002_dashboard_kpi_indexes', '0003_listings_published_at_keep_value', '0004_pg_legacy_columns']);
+    expect(readMigrations().map((m) => m.tag)).toEqual(['0000_init', '0001_triggers', '0002_dashboard_kpi_indexes', '0003_listings_published_at_keep_value', '0004_pg_legacy_columns', '0005_deposit_movements']);
   });
 
   it('enforces foreign keys', async () => {

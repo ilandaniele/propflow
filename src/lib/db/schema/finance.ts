@@ -343,3 +343,22 @@ export const aiTokenBudget = sqliteTable('ai_token_budget', {
   check('ai_token_budget_tokens_used_check', sql`tokens_used >= 0`),
   check('ai_token_budget_cost_usd_check', sql`CAST(cost_usd AS REAL) >= 0`),
 ]);
+
+export const DEPOSIT_MOVEMENT_KINDS = ['collected', 'deduction', 'refund'] as const;
+
+export const depositMovements = sqliteTable('deposit_movements', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  contractId:  text('contract_id').notNull().references(() => contracts.id, { onDelete: 'cascade' }),
+  kind:        text('kind').notNull(),
+  amount:      money('amount').notNull(),
+  movedOn:     dateStr('moved_on').notNull(),
+  description: text('description'),
+  createdBy:   text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_deposit_movements_org_contract').on(t.orgId, t.contractId),
+  check('deposit_movements_kind_check', sql`kind IN ('collected','deduction','refund')`),
+  check('deposit_movements_amount_check', sql`CAST(amount AS REAL) > 0`),
+]);

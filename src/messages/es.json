@@ -91,6 +91,7 @@
     "adminImport": "Importación",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "deposits": "Garantías",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "taxReceipts": "Comprobantes",
@@ -1734,6 +1735,34 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "deposits": {
+    "title": "Garantías",
+    "subtitle": "Total retenido: {total}",
+    "emptyTitle": "Sin garantías",
+    "emptyDesc": "Los contratos con garantía aparecerán acá.",
+    "colTenant": "Inquilino",
+    "colAgreed": "Pactada",
+    "colCollected": "Cobrada",
+    "colDeducted": "Descontada",
+    "colRefunded": "Devuelta",
+    "colHeld": "Retenida",
+    "colDate": "Fecha",
+    "colKind": "Tipo",
+    "colDescription": "Detalle",
+    "colAmount": "Monto",
+    "kindCollected": "Cobro",
+    "kindDeduction": "Descuento",
+    "kindRefund": "Devolución",
+    "back": "Volver a garantías",
+    "historyTitle": "Movimientos",
+    "historyEmpty": "Sin movimientos todavía.",
+    "form": {
+      "title": "Registrar movimiento",
+      "submit": "Guardar",
+      "saved": "Movimiento guardado.",
+      "exceeds": "El monto supera la garantía retenida ({held})."
+    }
   },
   "accountStatements": {
     "title": "Estados de Cuenta",
