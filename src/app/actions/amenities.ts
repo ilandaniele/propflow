@@ -97,6 +97,9 @@ export async function bookAmenity(
 
   const today = new Date().toISOString().slice(0, 10);
   const result = await saveBooking(ctx.orgId, ctx.userId, parsed.data, today, scope);
+  if (result.status === 'over_capacity') {
+    return Errors.VALIDATION_ERROR({ formErrors: [], fieldErrors: { guest_count: [`This common area allows up to ${result.capacity} people`] } });
+  }
   if (result.status !== 'done') return BOOKING_ERRORS[result.status]();
 
   if (ctx.role === 'admin') log.adminAction(ctx.userId, 'book_amenity', 'amenity_booking', result.bookingId);

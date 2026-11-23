@@ -11,6 +11,7 @@ export type BookAmenityResult =
   | { status: 'inactive' }
   | { status: 'invalid_slot' }
   | { status: 'past' }
+  | { status: 'over_capacity'; capacity: number }
   | { status: 'taken' }
   | { status: 'done'; bookingId: string };
 
@@ -33,6 +34,7 @@ export async function createAmenity(orgId: string, input: AmenityInput): Promise
       openTime: input.open_time,
       closeTime: input.close_time,
       slotMinutes: input.slot_minutes,
+      capacity: input.capacity ?? null,
       createdAt: now,
       updatedAt: now,
     }).returning({ id: amenities.id });
@@ -64,6 +66,7 @@ export function listAmenities(orgId: string, propertyId?: string) {
       openTime: amenities.openTime,
       closeTime: amenities.closeTime,
       slotMinutes: amenities.slotMinutes,
+      capacity: amenities.capacity,
       active: amenities.active,
     })
     .from(amenities)
@@ -80,6 +83,8 @@ export function bookingsForDay(orgId: string, amenityId: string, bookedOn: strin
       startTime: amenityBookings.startTime,
       tenantId: amenityBookings.tenantId,
       tenantName: tenants.fullName,
+      guestCount: amenityBookings.guestCount,
+      comment: amenityBookings.comment,
     })
     .from(amenityBookings)
     .leftJoin(tenants, eq(tenants.id, amenityBookings.tenantId))
@@ -99,6 +104,8 @@ export function upcomingTenantBookings(orgId: string, tenantId: string, today: s
       bookedOn: amenityBookings.bookedOn,
       startTime: amenityBookings.startTime,
       endTime: amenityBookings.endTime,
+      guestCount: amenityBookings.guestCount,
+      comment: amenityBookings.comment,
     })
     .from(amenityBookings)
     .innerJoin(amenities, eq(amenities.id, amenityBookings.amenityId))
@@ -140,12 +147,15 @@ export async function bookAmenity(
   scope?: TenantScope,
 ): Promise<BookAmenityResult> {
   const [amenity] = await db
-    .select({ propertyId: amenities.propertyId, active: amenities.active, openTime: amenities.openTime, closeTime: amenities.closeTime, slotMinutes: amenities.slotMinutes })
+    .select({ propertyId: amenities.propertyId, active: amenities.active, openTime: amenities.openTime, closeTime: amenities.closeTime, slotMinutes: amenities.slotMinutes, capacity: amenities.capacity })
     .from(amenities)
     .where(and(eq(amenities.id, input.amenity_id), eq(amenities.orgId, orgId)))
     .limit(1);
   if (!amenity || (scope && amenity.propertyId !== scope.propertyId)) return { status: 'not_found' };
   if (!amenity.active) return { status: 'inactive' };
+  if (amenity.capacity !== null && input.guest_count !== undefined && input.guest_count > amenity.capacity) {
+    return { status: 'over_capacity', capacity: amenity.capacity };
+  }
 
   const slot = findSlot(daySlots(amenity.openTime, amenity.closeTime, amenity.slotMinutes), input.start_time);
   if (!slot) return { status: 'invalid_slot' };
@@ -163,6 +173,8 @@ export async function bookAmenity(
       bookedOn: input.booked_on,
       startTime: slot.start,
       endTime: slot.end,
+      guestCount: input.guest_count ?? null,
+      comment: input.comment ?? null,
       createdBy,
       createdAt: now,
       updatedAt: now,
@@ -219,6 +231,7 @@ export async function getAmenity(orgId: string, amenityId: string) {
       openTime: amenities.openTime,
       closeTime: amenities.closeTime,
       slotMinutes: amenities.slotMinutes,
+      capacity: amenities.capacity,
       active: amenities.active,
     })
     .from(amenities)

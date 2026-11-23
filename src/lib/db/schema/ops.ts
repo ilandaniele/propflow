@@ -557,6 +557,7 @@ export const amenities = sqliteTable('amenities', {
   openTime:    text('open_time').notNull(),
   closeTime:   text('close_time').notNull(),
   slotMinutes: integer('slot_minutes').notNull().default(60),
+  capacity:    integer('capacity'),
   active:      bool('active').notNull().default(true),
   createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
@@ -565,6 +566,7 @@ export const amenities = sqliteTable('amenities', {
   uniqueIndex('amenities_property_name_uniq').on(t.propertyId, t.name),
   check('amenities_slot_minutes_check', sql`slot_minutes BETWEEN 15 AND 720`),
   check('amenities_hours_check', sql`open_time < close_time`),
+  check('amenities_capacity_check', sql`capacity IS NULL OR capacity > 0`),
 ]);
 
 export const amenityBookings = sqliteTable('amenity_bookings', {
@@ -576,6 +578,8 @@ export const amenityBookings = sqliteTable('amenity_bookings', {
   startTime: text('start_time').notNull(),
   endTime:   text('end_time').notNull(),
   status:    text('status').notNull().default('confirmed'),
+  guestCount: integer('guest_count'),
+  comment:   text('comment'),
   createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
   createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
@@ -584,4 +588,5 @@ export const amenityBookings = sqliteTable('amenity_bookings', {
   index('idx_amenity_bookings_org_date').on(t.orgId, t.bookedOn),
   index('idx_amenity_bookings_tenant').on(t.tenantId),
   check('amenity_bookings_status_check', sql`status IN ('confirmed','cancelled')`),
+  check('amenity_bookings_guest_count_check', sql`guest_count IS NULL OR guest_count BETWEEN 1 AND 500`),
 ]);

@@ -120,6 +120,39 @@ describe('common-area bookings (real SQL)', () => {
     expect(await db.select().from(schema.amenityBookings).where(eq(schema.amenityBookings.amenityId, amenityId))).toHaveLength(0);
   });
 
+  it('stores guest count and comment, enforces amenity capacity and the guest_count check', async () => {
+    const { org, property } = await seedBuilding();
+    const created = await createAmenity(null, form({ property_id: property.id, name: 'SUM', open_time: '10:00', close_time: '14:00', slot_minutes: '120', capacity: '20' }));
+    expect(created.error).toBeUndefined();
+    const amenityId = created.data!.amenityId;
+    const [amenity] = await db.select().from(schema.amenities).where(eq(schema.amenities.id, amenityId));
+    expect(amenity.capacity).toBe(20);
+
+    const tenant = await seedTenant(org.id, property.id, 'G1');
+    asTenant(org.id, tenant.profileId);
+    expect((await book(amenityId, '10:00', { guest_count: '21' })).error?.code).toBe('VALIDATION_ERROR');
+    expect((await book(amenityId, '10:00', { guest_count: '0' })).error?.code).toBe('VALIDATION_ERROR');
+
+    const booked = await book(amenityId, '10:00', { guest_count: '20', comment: '  Cumpleaños  ' });
+    expect(booked.error).toBeUndefined();
+    const [row] = await db.select().from(schema.amenityBookings).where(eq(schema.amenityBookings.id, booked.data!.bookingId));
+    expect(row).toMatchObject({ guestCount: 20, comment: 'Cumpleaños' });
+
+    await expect(db.update(schema.amenityBookings).set({ guestCount: 501 }).where(eq(schema.amenityBookings.id, row.id))).rejects.toThrow();
+    await expect(db.update(schema.amenityBookings).set({ guestCount: 0 }).where(eq(schema.amenityBookings.id, row.id))).rejects.toThrow();
+    await expect(db.update(schema.amenities).set({ capacity: 0 }).where(eq(schema.amenities.id, amenityId))).rejects.toThrow();
+  });
+
+  it('accepts any guest count up to 500 when the amenity has no capacity', async () => {
+    const { org, property, amenityId } = await seedBuilding();
+    const tenant = await seedTenant(org.id, property.id, 'H1');
+    asTenant(org.id, tenant.profileId);
+    const booked = await book(amenityId, '10:00', { guest_count: '500' });
+    expect(booked.error).toBeUndefined();
+    const [row] = await db.select().from(schema.amenityBookings).where(eq(schema.amenityBookings.id, booked.data!.bookingId));
+    expect(row).toMatchObject({ guestCount: 500, comment: null });
+  });
+
   it('lets admins book for a tenant of their org and cancel any booking, never across orgs', async () => {
     const { org, property, amenityId } = await seedBuilding();
     const tenant = await seedTenant(org.id, property.id, 'D1');

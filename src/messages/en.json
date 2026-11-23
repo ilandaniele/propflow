@@ -1762,6 +1762,12 @@
     "dayNav": "Change day",
     "previousDay": "← Previous day",
     "nextDay": "Next day →",
+    "guestCountPlaceholder": "Guests",
+    "guestCountLabel": "People for {time}",
+    "commentPlaceholder": "Comment",
+    "commentLabel": "Comment for {time}",
+    "guests": "{count, plural, one {# person} other {# people}}",
+    "capacity": "Capacity {count}",
     "form": {
       "open": "New common area",
       "name": "Name",
@@ -1769,6 +1775,7 @@
       "openTime": "Opens",
       "closeTime": "Closes",
       "slotMinutes": "Slot length (min)",
+      "capacity": "Capacity (people, optional)",
       "submit": "Create",
       "saved": "Common area created"
     },

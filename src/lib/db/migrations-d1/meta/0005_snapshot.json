@@ -5759,6 +5759,13 @@
           "autoincrement": false,
           "default": 60
         },
+        "capacity": {
+          "name": "capacity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "active": {
           "name": "active",
           "type": "integer",
@@ -5837,6 +5844,10 @@
         "amenities_hours_check": {
           "name": "amenities_hours_check",
           "value": "open_time < close_time"
+        },
+        "amenities_capacity_check": {
+          "name": "amenities_capacity_check",
+          "value": "capacity IS NULL OR capacity > 0"
         }
       }
     },
@@ -5899,6 +5910,20 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'confirmed'"
+        },
+        "guest_count": {
+          "name": "guest_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "comment": {
+          "name": "comment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "created_by": {
           "name": "created_by",
@@ -6009,6 +6034,10 @@
         "amenity_bookings_status_check": {
           "name": "amenity_bookings_status_check",
           "value": "status IN ('confirmed','cancelled')"
+        },
+        "amenity_bookings_guest_count_check": {
+          "name": "amenity_bookings_guest_count_check",
+          "value": "guest_count IS NULL OR guest_count BETWEEN 1 AND 500"
         }
       }
     },

@@ -8,6 +8,7 @@ import { daySlots, slotGrid } from '@/lib/amenities/slot-math';
 import { BookSlotForm } from '@/components/amenities/BookSlotForm';
 import { CancelBookingButton } from '@/components/amenities/CancelBookingButton';
 import { DayNav } from '@/components/amenities/DayNav';
+import { BookingSummary } from '@/components/amenities/BookingSummary';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 
@@ -47,7 +48,11 @@ export default async function PortalAmenitiesPage({ searchParams }: { searchPara
           <ul className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
             {mine.map((booking) => (
               <li key={booking.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-                <span><span className="font-medium text-slate-900">{booking.amenityName}</span> · <span className="tabular-nums">{booking.bookedOn} {booking.startTime}–{booking.endTime}</span></span>
+                <BookingSummary
+                  label={<><span className="font-medium text-slate-900">{booking.amenityName}</span> · <span className="tabular-nums">{booking.bookedOn} {booking.startTime}–{booking.endTime}</span></>}
+                  guestCount={booking.guestCount}
+                  comment={booking.comment}
+                />
                 <CancelBookingButton bookingId={booking.id} />
               </li>
             ))}
@@ -79,7 +84,7 @@ export default async function PortalAmenitiesPage({ searchParams }: { searchPara
               <li key={slot.start} className="flex items-center justify-between gap-3 px-4 py-3">
                 <span className="text-sm font-medium tabular-nums text-slate-900">{slot.start}–{slot.end}</span>
                 {!slot.booking ? (
-                  <BookSlotForm amenityId={selected.id} bookedOn={date} startTime={slot.start} />
+                  <BookSlotForm amenityId={selected.id} bookedOn={date} startTime={slot.start} capacity={selected.capacity} />
                 ) : slot.booking.tenantId === scope.tenantId ? (
                   <span className="flex items-center gap-3 text-sm text-green-700">{t('portal.yours')}<CancelBookingButton bookingId={slot.booking.id} /></span>
                 ) : (

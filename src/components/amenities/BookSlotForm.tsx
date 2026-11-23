@@ -6,10 +6,11 @@ import { bookAmenity } from '@/app/actions/amenities';
 import { actionErrorMessage, type ActionResult } from '@/lib/errors';
 import { Button } from '@/components/ui/Button';
 
-export function BookSlotForm({ amenityId, bookedOn, startTime, tenants }: {
+export function BookSlotForm({ amenityId, bookedOn, startTime, capacity, tenants }: {
   amenityId: string;
   bookedOn: string;
   startTime: string;
+  capacity: number | null;
   tenants?: { id: string; name: string }[];
 }) {
   const t = useTranslations('amenities');
@@ -31,6 +32,23 @@ export function BookSlotForm({ amenityId, bookedOn, startTime, tenants }: {
           {tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name}</option>)}
         </select>
       )}
+      <input
+        type="number"
+        name="guest_count"
+        min={1}
+        max={capacity ?? 500}
+        placeholder={t('guestCountPlaceholder')}
+        aria-label={t('guestCountLabel', { time: startTime })}
+        className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+      />
+      <input
+        type="text"
+        name="comment"
+        maxLength={500}
+        placeholder={t('commentPlaceholder')}
+        aria-label={t('commentLabel', { time: startTime })}
+        className="w-40 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+      />
       <Button type="submit" size="sm" loading={pending}>{t('book')}</Button>
       {state?.error && <span role="alert" className="text-xs text-red-600">{actionErrorMessage(state.error)}</span>}
     </form>

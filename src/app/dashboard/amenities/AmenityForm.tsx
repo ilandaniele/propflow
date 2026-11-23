@@ -23,6 +23,7 @@ export function AmenityForm({ properties }: { properties: { id: string; name: st
         <Input id={`${id}-open`} name="open_time" type="time" defaultValue="08:00" label={t('form.openTime')} required />
         <Input id={`${id}-close`} name="close_time" type="time" defaultValue="22:00" label={t('form.closeTime')} required />
         <Input id={`${id}-slot`} name="slot_minutes" type="number" min={15} max={720} step={15} defaultValue="60" label={t('form.slotMinutes')} required />
+        <Input id={`${id}-capacity`} name="capacity" type="number" min={1} max={500} label={t('form.capacity')} />
         <div className="sm:col-span-2 flex items-center gap-3">
           <Button type="submit" loading={pending}>{t('form.submit')}</Button>
           {state?.error && <p role="alert" className="text-sm text-red-600">{actionErrorMessage(state.error)}</p>}

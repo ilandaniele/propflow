@@ -1762,6 +1762,12 @@
     "dayNav": "Mudar dia",
     "previousDay": "← Dia anterior",
     "nextDay": "Próximo dia →",
+    "guestCountPlaceholder": "Pessoas",
+    "guestCountLabel": "Qtd. de pessoas para {time}",
+    "commentPlaceholder": "Comentário",
+    "commentLabel": "Comentário para {time}",
+    "guests": "{count, plural, one {# pessoa} other {# pessoas}}",
+    "capacity": "Capacidade {count}",
     "form": {
       "open": "Nova área comum",
       "name": "Nome",
@@ -1769,6 +1775,7 @@
       "openTime": "Abre",
       "closeTime": "Fecha",
       "slotMinutes": "Duração da faixa (min)",
+      "capacity": "Capacidade (pessoas, opcional)",
       "submit": "Criar",
       "saved": "Área criada"
     },

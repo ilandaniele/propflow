@@ -8,6 +8,7 @@ import { daySlots, slotGrid } from '@/lib/amenities/slot-math';
 import { BookSlotForm } from '@/components/amenities/BookSlotForm';
 import { CancelBookingButton } from '@/components/amenities/CancelBookingButton';
 import { DayNav } from '@/components/amenities/DayNav';
+import { BookingSummary } from '@/components/amenities/BookingSummary';
 
 export const metadata: Metadata = { title: 'Common area schedule' };
 
@@ -39,7 +40,10 @@ export default async function AmenitySchedulePage({ params, searchParams }: {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{amenity.name}</h1>
-          <p className="text-sm text-slate-500 mt-1">{amenity.propertyName} · {amenity.openTime}–{amenity.closeTime}</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {amenity.propertyName} · {amenity.openTime}–{amenity.closeTime}
+            {amenity.capacity !== null && <> · {t('capacity', { count: amenity.capacity })}</>}
+          </p>
         </div>
         <DayNav date={date} basePath={`/dashboard/amenities/${amenity.id}`} />
       </div>
@@ -50,11 +54,11 @@ export default async function AmenitySchedulePage({ params, searchParams }: {
             <span className="text-sm font-medium tabular-nums text-slate-900">{slot.start}–{slot.end}</span>
             {slot.booking ? (
               <span className="flex items-center gap-3 text-sm text-slate-700">
-                {slot.booking.tenantName ?? t('bookedByAdmin')}
+                <BookingSummary label={slot.booking.tenantName ?? t('bookedByAdmin')} guestCount={slot.booking.guestCount} comment={slot.booking.comment} />
                 <CancelBookingButton bookingId={slot.booking.id} />
               </span>
             ) : bookable ? (
-              <BookSlotForm amenityId={amenity.id} bookedOn={date} startTime={slot.start} tenants={tenantOptions} />
+              <BookSlotForm amenityId={amenity.id} bookedOn={date} startTime={slot.start} capacity={amenity.capacity} tenants={tenantOptions} />
             ) : (
               <span className="text-sm text-slate-400">{t('free')}</span>
             )}
