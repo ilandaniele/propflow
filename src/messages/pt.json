@@ -2385,5 +2385,17 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "notificationPreferences": {
+    "title": "Configurações de e-mail",
+    "description": "Escolha quais e-mails você deseja receber.",
+    "leaseRenewal": "Renovação de contrato",
+    "leaseRenewalHint": "Aviso quando seu contrato estiver perto do fim (30 dias antes).",
+    "paymentDue": "Pagamentos a vencer",
+    "paymentDueHint": "Aviso quando um pagamento vencer nos próximos 3 dias.",
+    "alwaysSent": "E-mails essenciais são sempre enviados: convites para o portal e solicitações de assinatura de contrato. Você continuará vendo os avisos nas notificações do portal.",
+    "save": "Salvar",
+    "saved": "Preferências salvas",
+    "error": "Não foi possível salvar suas preferências. Tente novamente."
   }
 }

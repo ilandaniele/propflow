@@ -2385,5 +2385,17 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "notificationPreferences": {
+    "title": "Email settings",
+    "description": "Choose which emails you want to receive.",
+    "leaseRenewal": "Lease renewal",
+    "leaseRenewalHint": "Notice when your lease is about to end (30 days before).",
+    "paymentDue": "Upcoming payments",
+    "paymentDueHint": "Notice when a payment is due within the next 3 days.",
+    "alwaysSent": "Essential emails are always sent: portal invitations and contract signature requests. You will still see notices in your portal notifications.",
+    "save": "Save",
+    "saved": "Preferences saved",
+    "error": "Your preferences could not be saved. Please try again."
   }
 }

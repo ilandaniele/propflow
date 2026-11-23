@@ -9,6 +9,8 @@ import { eq, and } from 'drizzle-orm';
 import { getSignedUrl } from '@/lib/storage';
 import { Card } from '@/components/ui/Card';
 import { AvatarUploader } from '@/components/images/AvatarUploader';
+import { getEmailPreferences } from '@/lib/notifications/preferences';
+import { EmailPreferencesForm } from './EmailPreferencesForm';
 
 export const metadata: Metadata = { title: 'My Profile' };
 
@@ -30,17 +32,20 @@ export default async function PortalProfilePage() {
   const locale = await getLocale();
   const t = await getTranslations({ locale, namespace: 'tenants' });
 
-  const tenantRows = await db
-    .select({
-      id:       tenants.id,
-      fullName: tenants.fullName,
-      email:    tenants.email,
-      phone:    tenants.phone,
-      photoUrl: tenants.photoUrl,
-    })
-    .from(tenants)
-    .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
-    .limit(1);
+  const [tenantRows, emailPreferences] = await Promise.all([
+    db
+      .select({
+        id:       tenants.id,
+        fullName: tenants.fullName,
+        email:    tenants.email,
+        phone:    tenants.phone,
+        photoUrl: tenants.photoUrl,
+      })
+      .from(tenants)
+      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
+      .limit(1),
+    getEmailPreferences(ctx.orgId, ctx.userId),
+  ]);
 
   if (!tenantRows.length) {
     redirect('/portal');
@@ -105,6 +110,10 @@ export default async function PortalProfilePage() {
             </div>
           )}
         </dl>
+      </Card>
+
+      <Card>
+        <EmailPreferencesForm initial={emailPreferences} />
       </Card>
     </div>
   );
