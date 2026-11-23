@@ -63,6 +63,7 @@
     "finance": "Finance",
     "reminders": "Reminders",
     "announcements": "Announcements",
+    "staff": "Staff",
     "cleaning": "Cleaning",
     "leads": "Leads",
     "community": "Community",
@@ -2364,5 +2365,24 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "staff": {
+    "title": "Building staff",
+    "adminSubtitle": "Managers, doormen, security and cleaning. Phone and document are visible to admins only.",
+    "portalSubtitle": "Who works in your building and on which shift.",
+    "addTitle": "Add staff member",
+    "propertyLabel": "Property",
+    "allProperties": "All properties",
+    "fullNameLabel": "Full name",
+    "positionLabel": "Position",
+    "positionPlaceholder": "Doorman, concierge, security…",
+    "shiftLabel": "Shift",
+    "shiftPlaceholder": "Mon–Fri 8–16",
+    "phoneLabel": "Phone",
+    "documentLabel": "Document",
+    "add": "Add",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "empty": "No staff yet."
   }
 }

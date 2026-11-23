@@ -63,6 +63,7 @@
     "finance": "Finanzas",
     "reminders": "Recordatorios",
     "announcements": "Anuncios",
+    "staff": "Personal",
     "cleaning": "Limpieza",
     "leads": "Prospectos",
     "community": "Comunidad",
@@ -2364,5 +2365,24 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "staff": {
+    "title": "Personal del edificio",
+    "adminSubtitle": "Encargados, porteros, seguridad y limpieza. Teléfono y documento solo visibles para administración.",
+    "portalSubtitle": "Quién trabaja en tu edificio y en qué turno.",
+    "addTitle": "Agregar persona",
+    "propertyLabel": "Propiedad",
+    "allProperties": "Todas las propiedades",
+    "fullNameLabel": "Nombre completo",
+    "positionLabel": "Cargo",
+    "positionPlaceholder": "Portero, conserje, seguridad…",
+    "shiftLabel": "Turno",
+    "shiftPlaceholder": "Lun–Vie 8–16",
+    "phoneLabel": "Teléfono",
+    "documentLabel": "Documento",
+    "add": "Agregar",
+    "saving": "Guardando…",
+    "remove": "Quitar",
+    "empty": "Todavía no hay personal cargado."
   }
 }
