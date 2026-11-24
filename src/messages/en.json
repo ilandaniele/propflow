@@ -103,6 +103,7 @@
     "adminImport": "Import",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "deposits": "Deposits",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -1780,6 +1781,34 @@
       "reference": "Reference",
       "amount": "Amount received",
       "footer": "Internal payment receipt. Not a SUNAT electronic invoice."
+    }
+  },
+  "deposits": {
+    "title": "Deposits",
+    "subtitle": "Total held: {total}",
+    "emptyTitle": "No deposits",
+    "emptyDesc": "Contracts with a deposit will show up here.",
+    "colTenant": "Tenant",
+    "colAgreed": "Agreed",
+    "colCollected": "Collected",
+    "colDeducted": "Deducted",
+    "colRefunded": "Refunded",
+    "colHeld": "Held",
+    "colDate": "Date",
+    "colKind": "Type",
+    "colDescription": "Details",
+    "colAmount": "Amount",
+    "kindCollected": "Collection",
+    "kindDeduction": "Deduction",
+    "kindRefund": "Refund",
+    "back": "Back to deposits",
+    "historyTitle": "Movements",
+    "historyEmpty": "No movements yet.",
+    "form": {
+      "title": "Record movement",
+      "submit": "Save",
+      "saved": "Movement saved.",
+      "exceeds": "Amount exceeds the deposit held ({held})."
     }
   },
   "accountStatements": {

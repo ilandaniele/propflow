@@ -103,6 +103,7 @@
     "adminImport": "Importação",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
+    "deposits": "Cauções",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
     "chargeConcepts": "Conceitos de cobrança",
@@ -1780,6 +1781,34 @@
       "reference": "Referência",
       "amount": "Valor recebido",
       "footer": "Recibo interno de pagamento. Não é nota fiscal eletrônica SUNAT."
+    }
+  },
+  "deposits": {
+    "title": "Cauções",
+    "subtitle": "Total retido: {total}",
+    "emptyTitle": "Sem cauções",
+    "emptyDesc": "Contratos com caução aparecerão aqui.",
+    "colTenant": "Inquilino",
+    "colAgreed": "Acordada",
+    "colCollected": "Recebida",
+    "colDeducted": "Descontada",
+    "colRefunded": "Devolvida",
+    "colHeld": "Retida",
+    "colDate": "Data",
+    "colKind": "Tipo",
+    "colDescription": "Detalhe",
+    "colAmount": "Valor",
+    "kindCollected": "Recebimento",
+    "kindDeduction": "Desconto",
+    "kindRefund": "Devolução",
+    "back": "Voltar para cauções",
+    "historyTitle": "Movimentos",
+    "historyEmpty": "Sem movimentos ainda.",
+    "form": {
+      "title": "Registrar movimento",
+      "submit": "Salvar",
+      "saved": "Movimento salvo.",
+      "exceeds": "O valor excede a caução retida ({held})."
     }
   },
   "accountStatements": {
