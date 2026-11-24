@@ -67,7 +67,8 @@ export async function proxy(request: NextRequest) {
   // via the 'none' below XFO/frame-ancestors is still forced on THIS route;
   // only the widget iframe route above is exempt from those headers),
   // /privacidad and /terminos (required by Meta app review and Google OAuth
-  // verification — plain static legal pages, no auth needed).
+  // verification — plain static legal pages, no auth needed),
+  // /calculadoras (public SEO calculators, client-side only).
   const isFullyPublicRoute =
     path === '/' ||
     path === '/login' ||
@@ -79,7 +80,8 @@ export async function proxy(request: NextRequest) {
     path === '/p' ||
     path.startsWith('/p/') ||
     path === '/privacidad' ||
-    path === '/terminos';
+    path === '/terminos' ||
+    path === '/calculadoras';
 
   if (isFullyPublicRoute) {
     const publicResponse = NextResponse.next({ request });

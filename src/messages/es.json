@@ -1185,7 +1185,8 @@
     },
     "footer": {
       "copyright": "Todos los derechos reservados.",
-      "contact": "Contacto"
+      "contact": "Contacto",
+      "calculators": "Calculadoras"
     }
   },
   "executiveBrief": {
@@ -3325,6 +3326,44 @@
       "image": "Foto",
       "audio": "Audio",
       "document": "Documento"
+    }
+  },
+  "calculators": {
+    "title": "Calculadoras para propietarios",
+    "intro": "Herramientas gratis para calcular la rentabilidad de un alquiler, reajustar la renta y repartir gastos comunes entre unidades.",
+    "cta": "Probar PropFlow",
+    "disclaimer": "Resultados orientativos. No constituyen asesoría financiera ni tributaria.",
+    "yield": {
+      "title": "Rentabilidad de un alquiler",
+      "desc": "Rentabilidad bruta y neta anual considerando gastos y meses vacíos.",
+      "price": "Precio de la propiedad",
+      "rent": "Renta mensual",
+      "expenses": "Gastos mensuales (mantenimiento, arbitrios, seguro)",
+      "vacancy": "Meses vacíos al año",
+      "gross": "Rentabilidad bruta",
+      "net": "Rentabilidad neta",
+      "annualNet": "Ingreso neto anual",
+      "payback": "Recupero de la inversión",
+      "years": "{years} años"
+    },
+    "adjustment": {
+      "title": "Reajuste de renta",
+      "desc": "Nueva renta tras aplicar un porcentaje (por ejemplo, inflación anual).",
+      "rent": "Renta actual",
+      "percent": "Reajuste (%)",
+      "newRent": "Nueva renta",
+      "difference": "Diferencia mensual"
+    },
+    "split": {
+      "title": "Reparto de gastos comunes",
+      "desc": "Dividí un gasto entre unidades en partes iguales o según m².",
+      "total": "Monto total",
+      "byArea": "Repartir por m²",
+      "unit": "Unidad",
+      "area": "m²",
+      "share": "Le toca",
+      "remove": "Quitar unidad",
+      "add": "+ Agregar unidad"
     }
   }
 }

@@ -1185,7 +1185,8 @@
     },
     "footer": {
       "copyright": "Todos os direitos reservados.",
-      "contact": "Contato"
+      "contact": "Contato",
+      "calculators": "Calculadoras"
     }
   },
   "executiveBrief": {
@@ -3325,6 +3326,44 @@
       "image": "Foto",
       "audio": "Áudio",
       "document": "Documento"
+    }
+  },
+  "calculators": {
+    "title": "Calculadoras para proprietários",
+    "intro": "Ferramentas grátis para calcular a rentabilidade de um aluguel, reajustar o valor e dividir despesas comuns entre unidades.",
+    "cta": "Experimentar PropFlow",
+    "disclaimer": "Resultados estimados. Não constituem consultoria financeira ou tributária.",
+    "yield": {
+      "title": "Rentabilidade de um aluguel",
+      "desc": "Rentabilidade bruta e líquida anual considerando despesas e meses vagos.",
+      "price": "Preço do imóvel",
+      "rent": "Aluguel mensal",
+      "expenses": "Despesas mensais (manutenção, impostos, seguro)",
+      "vacancy": "Meses vagos por ano",
+      "gross": "Rentabilidade bruta",
+      "net": "Rentabilidade líquida",
+      "annualNet": "Receita líquida anual",
+      "payback": "Retorno do investimento",
+      "years": "{years} anos"
+    },
+    "adjustment": {
+      "title": "Reajuste do aluguel",
+      "desc": "Novo aluguel após aplicar um percentual (por exemplo, inflação anual).",
+      "rent": "Aluguel atual",
+      "percent": "Reajuste (%)",
+      "newRent": "Novo aluguel",
+      "difference": "Diferença mensal"
+    },
+    "split": {
+      "title": "Divisão de despesas comuns",
+      "desc": "Divida uma despesa entre unidades em partes iguais ou por m².",
+      "total": "Valor total",
+      "byArea": "Dividir por m²",
+      "unit": "Unidade",
+      "area": "m²",
+      "share": "Cota",
+      "remove": "Remover unidade",
+      "add": "+ Adicionar unidade"
     }
   }
 }

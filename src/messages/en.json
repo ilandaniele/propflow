@@ -1185,7 +1185,8 @@
     },
     "footer": {
       "copyright": "All rights reserved.",
-      "contact": "Contact"
+      "contact": "Contact",
+      "calculators": "Calculators"
     }
   },
   "executiveBrief": {
@@ -3325,6 +3326,44 @@
       "image": "Photo",
       "audio": "Voice",
       "document": "Document"
+    }
+  },
+  "calculators": {
+    "title": "Landlord calculators",
+    "intro": "Free tools to calculate rental yield, adjust rent and split shared expenses between units.",
+    "cta": "Try PropFlow",
+    "disclaimer": "Results are estimates. Not financial or tax advice.",
+    "yield": {
+      "title": "Rental yield",
+      "desc": "Annual gross and net yield including expenses and vacant months.",
+      "price": "Property price",
+      "rent": "Monthly rent",
+      "expenses": "Monthly expenses (maintenance, taxes, insurance)",
+      "vacancy": "Vacant months per year",
+      "gross": "Gross yield",
+      "net": "Net yield",
+      "annualNet": "Annual net income",
+      "payback": "Payback period",
+      "years": "{years} years"
+    },
+    "adjustment": {
+      "title": "Rent adjustment",
+      "desc": "New rent after applying a percentage (for example, yearly inflation).",
+      "rent": "Current rent",
+      "percent": "Adjustment (%)",
+      "newRent": "New rent",
+      "difference": "Monthly difference"
+    },
+    "split": {
+      "title": "Shared expense split",
+      "desc": "Split an expense between units equally or by m².",
+      "total": "Total amount",
+      "byArea": "Split by m²",
+      "unit": "Unit",
+      "area": "m²",
+      "share": "Share",
+      "remove": "Remove unit",
+      "add": "+ Add unit"
     }
   }
 }
