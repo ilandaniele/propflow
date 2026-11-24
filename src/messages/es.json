@@ -112,6 +112,7 @@
     "adminImport": "Importación",
     "team": "Equipo",
     "ownerAssistant": "Asistente WhatsApp",
+    "branding": "Marca",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
     "deposits": "Garantías",
@@ -1925,6 +1926,24 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "branding": {
+    "title": "Marca",
+    "subtitle": "Logo y color de acento que se muestran en el panel, el portal de inquilinos y los recibos.",
+    "logoTitle": "Logo",
+    "logoHint": "PNG, JPG o WebP. Máximo 1 MB.",
+    "currentLogo": "Logo actual",
+    "removeLogo": "Quitar logo",
+    "logoWillBeRemoved": "El logo se quitará al guardar.",
+    "accentTitle": "Color de acento",
+    "accentHint": "Se usa en el nombre de la organización y el total de los recibos.",
+    "useAccent": "Usar color de acento",
+    "save": "Guardar",
+    "saved": "Cambios guardados.",
+    "errorTooLarge": "El logo supera 1 MB.",
+    "errorInvalidFile": "El archivo no es una imagen PNG, JPG o WebP válida.",
+    "errorInvalidColor": "El color debe tener el formato #RRGGBB.",
+    "errorGeneric": "No se pudo guardar. Inténtalo de nuevo."
   },
   "paymentReceipt": {
     "download": "Recibo",

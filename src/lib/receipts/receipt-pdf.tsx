@@ -1,5 +1,5 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer';
+import { Document, Image, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer';
 import type { PaymentReceipt } from './payment-receipt';
 import { formatReceiptAmount } from './format';
 
@@ -19,6 +19,8 @@ export interface ReceiptLabels {
 
 const styles = StyleSheet.create({
   page: { fontFamily: 'Helvetica', fontSize: 11, padding: 50, color: '#1e293b' },
+  header: { flexDirection: 'row', alignItems: 'center' },
+  logo: { maxHeight: 40, maxWidth: 120, marginRight: 12, objectFit: 'contain' },
   org: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
   title: { fontSize: 13, fontFamily: 'Helvetica-Bold', marginTop: 4 },
   number: { fontSize: 10, color: '#64748b', marginTop: 2 },
@@ -41,12 +43,23 @@ function Row({ label, value }: { label: string; value: string | null }) {
   );
 }
 
-function ReceiptDocument({ receipt, labels }: { receipt: PaymentReceipt; labels: ReceiptLabels }) {
+interface ReceiptDocumentProps {
+  receipt: PaymentReceipt;
+  labels: ReceiptLabels;
+  logoDataUrl: string | null;
+}
+
+function ReceiptDocument({ receipt, labels, logoDataUrl }: ReceiptDocumentProps) {
   const amount = formatReceiptAmount(receipt);
+  const accent = receipt.accentColor ? { color: receipt.accentColor } : {};
   return (
     <Document title={receipt.number}>
       <Page size="A5" style={styles.page}>
-        <Text style={styles.org}>{receipt.orgName}</Text>
+        <View style={styles.header}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf Image renders into a PDF and has no alt prop */}
+          {logoDataUrl && <Image src={logoDataUrl} style={styles.logo} />}
+          <Text style={[styles.org, accent]}>{receipt.orgName}</Text>
+        </View>
         <Text style={styles.title}>{labels.title}</Text>
         <Text style={styles.number}>{labels.number} {receipt.number}</Text>
         <View style={styles.divider} />
@@ -59,7 +72,7 @@ function ReceiptDocument({ receipt, labels }: { receipt: PaymentReceipt; labels:
         <Row label={labels.reference} value={receipt.reference} />
         <View style={styles.total}>
           <Text>{labels.amount}</Text>
-          <Text style={styles.totalValue}>{amount}</Text>
+          <Text style={[styles.totalValue, accent]}>{amount}</Text>
         </View>
         <Text style={styles.footer} fixed>{labels.footer}</Text>
       </Page>
@@ -67,6 +80,6 @@ function ReceiptDocument({ receipt, labels }: { receipt: PaymentReceipt; labels:
   );
 }
 
-export function renderReceiptPdfBlob(receipt: PaymentReceipt, labels: ReceiptLabels): Promise<Blob> {
-  return pdf(<ReceiptDocument receipt={receipt} labels={labels} />).toBlob();
+export function renderReceiptPdfBlob(receipt: PaymentReceipt, labels: ReceiptLabels, logoDataUrl: string | null): Promise<Blob> {
+  return pdf(<ReceiptDocument receipt={receipt} labels={labels} logoDataUrl={logoDataUrl} />).toBlob();
 }

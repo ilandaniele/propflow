@@ -1,6 +1,7 @@
 import { and, eq, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { contracts, organizations, payments, properties, tenants, units } from '@/lib/db/schema';
+import { toBrandingDto } from '@/lib/branding/org-branding';
+import { contracts, organizations, orgBranding, payments, properties, tenants, units } from '@/lib/db/schema';
 
 export interface PaymentReceipt {
   number: string;
@@ -14,6 +15,8 @@ export interface PaymentReceipt {
   method: string;
   concept: string | null;
   reference: string | null;
+  logoUrl: string | null;
+  accentColor: string | null;
 }
 
 export function receiptNumber(paymentId: string): string {
@@ -38,9 +41,13 @@ export async function loadPaymentReceipt(orgId: string, paymentId: string, tenan
       concept: payments.concept,
       periodMonth: payments.periodMonth,
       reference: payments.reference,
+      logoKey: orgBranding.logoKey,
+      accentColor: orgBranding.accentColor,
+      brandingUpdatedAt: orgBranding.updatedAt,
     })
     .from(payments)
     .innerJoin(organizations, eq(organizations.id, payments.orgId))
+    .leftJoin(orgBranding, eq(orgBranding.orgId, payments.orgId))
     .innerJoin(tenants, and(eq(tenants.id, payments.tenantId), eq(tenants.orgId, orgId)))
     .leftJoin(contracts, and(eq(contracts.id, payments.contractId), eq(contracts.orgId, orgId)))
     .leftJoin(units, and(eq(units.id, contracts.unitId), eq(units.orgId, orgId)))
@@ -49,6 +56,7 @@ export async function loadPaymentReceipt(orgId: string, paymentId: string, tenan
     .limit(1);
 
   if (!row) return null;
-  const { id, periodMonth, ...rest } = row;
-  return { ...rest, number: receiptNumber(id), concept: row.concept ?? periodMonth };
+  const { id, periodMonth, logoKey, accentColor, brandingUpdatedAt, ...rest } = row;
+  const branding = toBrandingDto(brandingUpdatedAt ? { logoKey, accentColor, updatedAt: brandingUpdatedAt } : null);
+  return { ...rest, ...branding, number: receiptNumber(id), concept: row.concept ?? periodMonth };
 }

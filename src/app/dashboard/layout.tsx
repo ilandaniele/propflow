@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
 import { getCachedUser, getProfileFast, getOrgNameFast, staffRoleOf } from '@/lib/auth/guards';
 import { navHrefsFor } from '@/lib/auth/permissions';
+import { getOrgBranding } from '@/lib/branding/org-branding';
 import { AdminSidebar } from '@/components/shell/AdminSidebar';
 import { AdminTopbar } from '@/components/shell/AdminTopbar';
 import { CommunitySwitcher } from '@/components/communities/CommunitySwitcher';
@@ -23,7 +24,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // getOrgNameFast is backed by unstable_cache (300 s TTL) — the org name rarely
   // changes; tagging with 'org-{orgId}' allows targeted invalidation when needed.
-  const [orgName, communities] = await Promise.all([getOrgNameFast(profile.org_id), listUserCommunities(user.id)]);
+  const [orgName, communities, branding] = await Promise.all([
+    getOrgNameFast(profile.org_id),
+    listUserCommunities(user.id),
+    getOrgBranding(profile.org_id),
+  ]);
 
   // getLocale() reads the locale from the next-intl cookie/config — no DB round-trip.
   // This is the single source of truth for the active locale in server components.
@@ -33,6 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex h-screen overflow-hidden bg-slate-50">
       <AdminSidebar
         orgName={orgName ?? undefined}
+        logoUrl={branding.logoUrl}
         allowedHrefs={navHrefsFor(staffRoleOf(profile))}
         communitySwitcher={<CommunitySwitcher communities={communities} activeOrgId={profile.org_id} />}
       />

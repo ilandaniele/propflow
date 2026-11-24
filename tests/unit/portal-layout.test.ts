@@ -95,6 +95,10 @@ vi.mock('@/components/communities/CommunitySwitcher', () => ({
   CommunitySwitcher: vi.fn(() => null),
 }));
 
+vi.mock('@/lib/branding/org-branding', () => ({
+  getOrgBranding: vi.fn().mockResolvedValue({ accentColor: null, logoUrl: null }),
+}));
+
 vi.mock('@/components/shell/TenantNav', () => ({
   TenantNav: vi.fn(() => null),
 }));
