@@ -329,7 +329,8 @@
     "emptyTitle": "No properties yet",
     "emptyDesc": "Add your first property to start managing units and tenants.",
     "occupied": "occupied",
-    "rooms": "rooms"
+    "rooms": "rooms",
+    "compare": "Compare"
   },
   "payments": {
     "reconcileLink": "Reconcile with bank",
@@ -3687,5 +3688,23 @@
   "expiringDocumentsBanner": {
     "summary": "Documents: {expired} expired and {soon} expiring within 30 days.",
     "review": "Review"
+  },
+  "propertyComparison": {
+    "back": "Properties",
+    "title": "Compare properties",
+    "subtitle": "Pick up to {max} properties. Collected and expenses: last {months} months.",
+    "pick": "Properties to compare",
+    "compare": "Compare",
+    "empty": "Pick at least one property.",
+    "metric": "Metric",
+    "metrics": {
+      "units": "Occupied units",
+      "occupancy": "Occupancy",
+      "contractedRent": "Contracted rent / month",
+      "collected": "Collected",
+      "expenses": "Expenses",
+      "net": "Net",
+      "openIncidents": "Open incidents"
+    }
   }
 }

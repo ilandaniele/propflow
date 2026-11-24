@@ -329,7 +329,8 @@
     "emptyTitle": "Nenhuma propriedade ainda",
     "emptyDesc": "Adicione sua primeira propriedade para começar a gerenciar unidades e inquilinos.",
     "occupied": "ocupadas",
-    "rooms": "quartos"
+    "rooms": "quartos",
+    "compare": "Comparar"
   },
   "payments": {
     "reconcileLink": "Conciliar com banco",
@@ -3687,5 +3688,23 @@
   "expiringDocumentsBanner": {
     "summary": "Documentos: {expired} vencidos e {soon} a vencer em 30 dias.",
     "review": "Revisar"
+  },
+  "propertyComparison": {
+    "back": "Imóveis",
+    "title": "Comparar imóveis",
+    "subtitle": "Escolha até {max} imóveis. Recebido e despesas: últimos {months} meses.",
+    "pick": "Imóveis para comparar",
+    "compare": "Comparar",
+    "empty": "Escolha pelo menos um imóvel.",
+    "metric": "Métrica",
+    "metrics": {
+      "units": "Unidades ocupadas",
+      "occupancy": "Ocupação",
+      "contractedRent": "Aluguel contratado / mês",
+      "collected": "Recebido",
+      "expenses": "Despesas",
+      "net": "Líquido",
+      "openIncidents": "Incidências abertas"
+    }
   }
 }
