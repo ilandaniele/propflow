@@ -20,6 +20,7 @@ export const UpdateIncidentSchema = z.object({
   assigned_to: z.string().guid().optional().or(z.literal('')),
   title: z.string().min(1).max(300).optional(),
   description: z.string().min(1).max(10_000).optional(),
+  estimated_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
 });
 
 export const AddCommentSchema = z.object({

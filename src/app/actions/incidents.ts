@@ -16,6 +16,7 @@ import {
   ALLOWED_MIME_TYPES,
 } from '@/lib/schemas/incident';
 import { log } from '@/lib/log';
+import { saveIncidentSchedule } from '@/lib/incidents/schedule';
 import type { ActionResult } from '@/lib/errors';
 import { randomUUID } from 'crypto';
 
@@ -139,7 +140,7 @@ export async function updateIncident(
   const parsed = UpdateIncidentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const { id, ...updates } = parsed.data;
+  const { id, estimated_on: estimatedOn, ...updates } = parsed.data;
 
   // Verify incident belongs to this org
   const existing = await db
@@ -165,6 +166,7 @@ export async function updateIncident(
       .update(incidents)
       .set(updateData)
       .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)));
+    if (estimatedOn !== undefined) await saveIncidentSchedule(ctx.orgId, id, estimatedOn || null);
   } catch (e) {
     log.error('[updateIncident] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();

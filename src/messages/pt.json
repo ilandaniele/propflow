@@ -427,6 +427,16 @@
     }
   },
   "incidents": {
+    "schedule": {
+      "overdue": "Vencida",
+      "scheduled": "Programada",
+      "overdueCount": "vencidas",
+      "showOverdue": "Ver vencidas",
+      "showAll": "Ver todas",
+      "estimated": "Estimada",
+      "responsible": "Responsável:",
+      "unassigned": "sem responsável"
+    },
     "title": "Incidentes",
     "list": {
       "emptyTitle": "Nenhum incidente ainda",
@@ -2188,6 +2198,7 @@
       "bodyLabel": "(Markdown, use {{nome_variável}} para substituição)"
     },
     "updateIncident": {
+      "estimatedLabel": "Data estimada",
       "submit": "Salvar alterações",
       "saved": "Salvo",
       "statusLabel": "Status",
