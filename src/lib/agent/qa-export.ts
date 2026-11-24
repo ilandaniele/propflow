@@ -26,6 +26,7 @@ import { sendEmail } from '@/lib/notifications/email';
 import { log } from '@/lib/log';
 import { escapeCsvCell } from '@/lib/csv/cell';
 import { escapeCsvCell } from '@/lib/csv/write';
+import { escapeCsvCell } from '@/lib/csv/escape';
 
 export interface QaRow {
   occurredAt: Date;

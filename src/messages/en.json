@@ -1366,6 +1366,9 @@
         "90_plus": "90+ days"
       }
     },
+    "accountingExportTitle": "Export journal (CSV)",
+    "accountingExportButton": "Download",
+    "accountingExportHint": "Entries for approved payments and expenses of the month with suggested PCGE accounts (1011/1041, 7542, 639), ready to import into Contasis or Siscont. Check the accounts with your accountant.",
     "title": "Finance",
     "kpiTitle": "Current Period KPIs",
     "currencySection": "Results in {currency}",

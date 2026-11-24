@@ -1398,6 +1398,9 @@
         "90_plus": "90+ días"
       }
     },
+    "accountingExportTitle": "Exportar libro diario (CSV)",
+    "accountingExportButton": "Descargar",
+    "accountingExportHint": "Asientos de cobros aprobados y gastos del mes con cuentas PCGE sugeridas (1011/1041, 7542, 639), listo para importar en Contasis o Siscont. Revisá las cuentas con tu contador.",
     "title": "Finanzas",
     "kpiTitle": "KPIs del Período Actual",
     "currencySection": "Resultados en {currency}",
