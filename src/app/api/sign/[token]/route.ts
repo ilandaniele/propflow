@@ -6,7 +6,8 @@ import { db } from '@/lib/db';
 import { signatureRequests, contracts, tenants, units, properties } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { Errors } from '@/lib/errors';
-import { uploadFile } from '@/lib/storage';
+import { uploadFile, getSignedUrl } from '@/lib/storage';
+import { storedDocumentSha256, sha256Hex } from '@/lib/contracts/signature-evidence';
 import { SignSubmitSchema } from '@/lib/schemas/contractDoc';
 import { getClientIp, signatureRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
@@ -73,6 +74,7 @@ export async function GET(
       propertyName:    properties.name,
       propertyAddress: properties.address,
       tenantFullName:  tenants.fullName,
+      documentUrl:     contracts.documentUrl,
     })
     .from(contracts)
     .leftJoin(units, eq(contracts.unitId, units.id))
@@ -82,8 +84,12 @@ export async function GET(
     .limit(1);
 
   const contract = contractRows[0];
+  const documentLink = contract?.documentUrl
+    ? await getSignedUrl('contracts', contract.documentUrl, 900).catch(() => null)
+    : null;
 
   return NextResponse.json({
+    documentLink,
     sigRequestId: sigReq.id,
     expiresAt: sigReq.expiresAt,
     contract: {
@@ -174,6 +180,14 @@ export async function POST(
     return NextResponse.json(Errors.INTERNAL(), { status: 500 });
   }
 
+  const [contractRow] = await db
+    .select({ documentUrl: contracts.documentUrl })
+    .from(contracts)
+    .where(and(eq(contracts.id, sigReq.contractId), eq(contracts.orgId, sigReq.orgId)))
+    .limit(1);
+  const documentSha256 = await storedDocumentSha256(contractRow?.documentUrl ?? null);
+  const signatureSha256 = sha256Hex(imageBytes);
+
   const now = new Date();
   const userAgent = request.headers.get('user-agent') ?? '';
 
@@ -186,6 +200,8 @@ export async function POST(
       signedIp: ip,
       signedUserAgent: userAgent.slice(0, 512),
       signatureImagePath: signaturePath,
+      documentSha256,
+      signatureSha256,
       updatedAt: now,
     })
     .where(eq(signatureRequests.id, sigReq.id));
@@ -203,5 +219,5 @@ export async function POST(
     .where(and(eq(contracts.id, sigReq.contractId), eq(contracts.orgId, sigReq.orgId)));
 
   log.info('[sign] contract signed', { sigRequestId: sigReq.id, contractId: sigReq.contractId });
-  return NextResponse.json({ status: 'signed' });
+  return NextResponse.json({ status: 'signed', signedAt: now.toISOString(), documentSha256 });
 }

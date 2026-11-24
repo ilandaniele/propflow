@@ -364,6 +364,17 @@ export async function getSignedUrl(
 }
 
 /**
+ * Downloads a private storage object through a short-lived presigned URL.
+ * The caller is responsible for the same IDOR checks as getSignedUrl.
+ */
+export async function downloadFile(bucket: string, path: string): Promise<Buffer> {
+  const url = await getSignedUrl(bucket, path, 60);
+  const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) throw new Error(`[storage.downloadFile] bucket=${bucket} path=${path} status=${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/**
  * Deletes an object from R2.
  *
  * The calling Server Action is responsible for verifying ownership before

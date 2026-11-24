@@ -6,7 +6,9 @@
  */
 
 import { getContractPdfSource, saveContractPdf } from '@/app/actions/contractDoc';
+import { getSignatureCertificateSource } from '@/app/actions/signature-certificate';
 import { actionErrorMessage, type ActionResult } from '@/lib/errors';
+import type { CertificateLabels } from './certificate-document.tsx';
 
 function unwrap<T>(result: ActionResult<T>): T {
   if (result.error || result.data === undefined) {
@@ -29,4 +31,12 @@ export async function generateAndSaveContractPdf(contractId: string, templateId:
   saveForm.set('file', new File([blob], 'contract.pdf', { type: 'application/pdf' }));
   const saved = await saveContractPdf({}, saveForm);
   if (saved.error) throw new Error(actionErrorMessage(saved.error));
+}
+
+export async function renderSignatureCertificate(signatureRequestId: string, labels: CertificateLabels): Promise<Blob> {
+  const form = new FormData();
+  form.set('signature_request_id', signatureRequestId);
+  const source = unwrap(await getSignatureCertificateSource({}, form));
+  const { renderCertificatePdfBlob } = await import('./certificate-document.tsx');
+  return renderCertificatePdfBlob(source, labels);
 }
