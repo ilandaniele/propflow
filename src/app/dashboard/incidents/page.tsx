@@ -88,6 +88,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
         >
           {showOverdue ? t('schedule.showAll') : t('schedule.showOverdue')}
         </Link>
+        <Link href="/dashboard/incidents/stats" className="text-sm text-brand-600 hover:underline">{t('statsLink')}</Link>
       </div>
 
       {/* Cost KPI tiles */}
