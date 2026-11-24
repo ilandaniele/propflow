@@ -112,6 +112,7 @@
     "bankReconciliation": "Conciliación bancaria",
     "rentalTax": "Renta 1ra categoría",
     "suppliers": "Proveedores",
+    "profitability": "Rentabilidad",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "chargeConcepts": "Conceptos de cobro",
@@ -2181,6 +2182,25 @@
       "done": "Terminado",
       "cancelled": "Cancelado"
     }
+  },
+  "profitability": {
+    "title": "Rentabilidad por propiedad",
+    "subtitle": "Ingresos cobrados menos gastos del año, separados por moneda.",
+    "exportCsv": "Descargar CSV",
+    "yearNav": "Cambiar año",
+    "property": "Propiedad",
+    "allProperties": "Todas las propiedades",
+    "apply": "Filtrar",
+    "currency": "Moneda",
+    "income": "Ingresos",
+    "expenses": "Gastos",
+    "net": "Neto",
+    "noProperty": "Sin propiedad",
+    "netIn": "Neto en {currency}",
+    "incomeVsExpenses": "{income} ingresos · {expenses} gastos",
+    "emptyTitle": "Sin movimientos",
+    "emptyDesc": "No hay pagos aprobados ni gastos en este año.",
+    "expensesNote": "Los gastos se registran en soles (PEN). Los ingresos en dólares se muestran aparte, sin convertir."
   },
   "accountStatements": {
     "generate": {

@@ -112,6 +112,7 @@
     "bankReconciliation": "Bank reconciliation",
     "rentalTax": "Rental income tax",
     "suppliers": "Suppliers",
+    "profitability": "Profitability",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -2181,6 +2182,25 @@
       "done": "Done",
       "cancelled": "Cancelled"
     }
+  },
+  "profitability": {
+    "title": "Profitability by property",
+    "subtitle": "Collected income minus expenses for the year, split by currency.",
+    "exportCsv": "Download CSV",
+    "yearNav": "Change year",
+    "property": "Property",
+    "allProperties": "All properties",
+    "apply": "Filter",
+    "currency": "Currency",
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "noProperty": "No property",
+    "netIn": "Net in {currency}",
+    "incomeVsExpenses": "{income} income · {expenses} expenses",
+    "emptyTitle": "No activity",
+    "emptyDesc": "No approved payments or expenses this year.",
+    "expensesNote": "Expenses are recorded in soles (PEN). Dollar income is shown separately, without conversion."
   },
   "accountStatements": {
     "generate": {
