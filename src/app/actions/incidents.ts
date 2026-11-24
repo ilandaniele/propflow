@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { incidents, incidentComments, tenants, notificationInbox } from '@/lib/db/schema';
+import { incidents, incidentComments, incidentStatusEvents, tenants, notificationInbox } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { canStaffWrite, requireStaff, requireUser } from '@/lib/auth/guards';
 import { uploadFile } from '@/lib/storage';
@@ -18,7 +18,7 @@ import {
 import { log } from '@/lib/log';
 import { saveIncidentSchedule } from '@/lib/incidents/schedule';
 import { recordActivity } from '@/lib/activity/record';
-import { buildStatusNotification, statusChanged } from '@/lib/incidents/status-notification';
+import { buildStatusNotification, statusChanged, type IncidentStatus } from '@/lib/incidents/status-notification';
 import type { ActionResult } from '@/lib/errors';
 import { randomUUID } from 'crypto';
 
@@ -165,10 +165,11 @@ export async function updateIncident(
     updateData.resolvedAt = new Date();
   }
 
-  const notification = statusChanged(existing[0].status, updates.status)
+  const changed = statusChanged(existing[0].status, updates.status);
+  const notification = changed
     ? await buildStatusNotification(
         { orgId: ctx.orgId, incidentId: id, incidentTitle: updates.title ?? existing[0].title, tenantProfileId: existing[0].tenantProfileId },
-        updates.status,
+        updates.status as IncidentStatus,
       )
     : null;
 
@@ -178,8 +179,15 @@ export async function updateIncident(
       .set(updateData)
       .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)));
     if (estimatedOn !== undefined) await saveIncidentSchedule(ctx.orgId, id, estimatedOn || null);
-    if (notification) await db.batch([update, db.insert(notificationInbox).values(notification)]);
-    else await update;
+    if (changed) {
+      const event = db.insert(incidentStatusEvents).values({
+        orgId: ctx.orgId, incidentId: id, fromStatus: existing[0].status, toStatus: updates.status as IncidentStatus, changedBy: ctx.userId,
+      });
+      if (notification) await db.batch([update, event, db.insert(notificationInbox).values(notification)]);
+      else await db.batch([update, event]);
+    } else {
+      await update;
+    }
   } catch (e) {
     log.error('[updateIncident] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();

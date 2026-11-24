@@ -14,4 +14,5 @@ export * from './activity';
 export * from './staff';
 export * from './memberships';
 export * from './recurring';
+export * from './incident-history';
 export * from './relations';

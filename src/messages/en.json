@@ -3644,5 +3644,16 @@
       "in_progress": "In progress",
       "solved": "Solved"
     }
+  },
+  "incidentSla": {
+    "breached": "SLA breached",
+    "due": "SLA: {date}",
+    "met": "SLA met",
+    "metLate": "Solved after SLA"
+  },
+  "incidentHistory": {
+    "title": "Status history",
+    "empty": "No status changes yet.",
+    "unknown": "Unknown"
   }
 }

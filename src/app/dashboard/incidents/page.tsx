@@ -13,6 +13,7 @@ import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import { PriorityLegend } from '@/components/incidents/PriorityLegend';
 import { ScheduleBadge } from '@/components/incidents/ScheduleBadge';
 import { scheduleState } from '@/lib/incidents/schedule-math';
+import { SlaBadge } from '@/components/incidents/SlaBadge';
 
 export const metadata: Metadata = { title: 'Incidents' };
 
@@ -33,6 +34,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
       status:     incidents.status,
       cost:       incidents.cost,
       createdAt:  incidents.createdAt,
+      resolvedAt: incidents.resolvedAt,
       creatorName: profiles.fullName,
       assigneeName: assignees.fullName,
       estimatedOn: incidentSchedules.estimatedOn,
@@ -194,6 +196,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams: Pr
                 <div className="flex items-center gap-2 shrink-0">
                   <ScheduleBadge state={incident.schedule} />
                   <StatusPill status={incident.status} />
+                  <SlaBadge incident={incident} onlyBreached />
                 </div>
               </div>
             </Link>
