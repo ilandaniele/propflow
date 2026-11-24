@@ -2385,5 +2385,12 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "rentSchedule": {
+    "title": "Generate monthly rent charges",
+    "offHelp": "Off. When on, each month creates the rent charge for every active contract and tenants get the payment reminder.",
+    "onHelp": "On. Each month creates the rent charge for every active contract and sends payment reminders.",
+    "enable": "Turn on",
+    "disable": "Turn off"
   }
 }

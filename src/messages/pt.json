@@ -2385,5 +2385,12 @@
     "linkSettings": "Ir para configurações do agente",
     "linkAvailability": "Ir para disponibilidade de consultores",
     "linkInbox": "Ir para caixa de entrada do agente"
+  },
+  "rentSchedule": {
+    "title": "Gerar cobranças mensais de aluguel",
+    "offHelp": "Desligado. Ao ativar, todo mês é criada a cobrança de aluguel de cada contrato ativo e os inquilinos recebem o lembrete de pagamento.",
+    "onHelp": "Ativo. Todo mês é criada a cobrança de aluguel de cada contrato ativo e são enviados lembretes de pagamento.",
+    "enable": "Ativar",
+    "disable": "Desativar"
   }
 }

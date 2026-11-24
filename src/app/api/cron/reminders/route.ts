@@ -3,7 +3,8 @@ export const runtime = 'nodejs';
 
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { runReminderEngine } from '@/lib/notifications/reminder-engine';
+import { runReminderEngine, todayStr } from '@/lib/notifications/reminder-engine';
+import { generateRentCharges } from '@/lib/finance/generate-rent-charges';
 import { assertServerEnv, env } from '@/lib/env';
 import { log } from '@/lib/log';
 
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    const rentChargesCreated = await generateRentCharges(todayStr());
     const siteUrl = env.NEXT_PUBLIC_SITE_URL;
     const results = await runReminderEngine(siteUrl);
 
@@ -35,11 +37,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     log.info('[cron/reminders] run complete', {
       orgs: results.length,
+      rentChargesCreated,
       totalSent,
       totalFailed,
     });
 
-    return NextResponse.json({ status: 'ok', orgs: results.length, totalSent, totalFailed });
+    return NextResponse.json({ status: 'ok', orgs: results.length, rentChargesCreated, totalSent, totalFailed });
 
   } catch (e) {
     // A10: fail-closed; no stack trace to response

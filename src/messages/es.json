@@ -2385,5 +2385,12 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "rentSchedule": {
+    "title": "Generar cargos de alquiler mensuales",
+    "offHelp": "Apagado. Al activarlo, cada mes se crea el cargo de alquiler de cada contrato activo y los inquilinos reciben el recordatorio de pago.",
+    "onHelp": "Activo. Cada mes se crea el cargo de alquiler de cada contrato activo y se envían recordatorios de pago.",
+    "enable": "Activar",
+    "disable": "Desactivar"
   }
 }

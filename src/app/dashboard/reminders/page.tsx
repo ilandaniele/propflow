@@ -6,11 +6,14 @@ import { getTranslations } from 'next-intl/server';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
 import { StatusPill } from '@/components/ui/Badge';
+import { RentScheduleToggle } from '@/components/rent-schedule/RentScheduleToggle';
+import { isRentScheduleEnabled } from '@/lib/finance/rent-schedule-settings';
 
 export default async function RemindersPage() {
   const ctx = await requireAdmin();
   const t = await getTranslations('reminders');
 
+  const rentScheduleEnabled = await isRentScheduleEnabled(ctx.orgId);
   const rows = await db
     .select({
       id:             reminders.id,
@@ -33,6 +36,8 @@ export default async function RemindersPage() {
         <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
         <p className="text-sm text-slate-500">{t('subtitle')}</p>
       </div>
+
+      <RentScheduleToggle enabled={rentScheduleEnabled} />
 
       {rows.length === 0 ? (
         <EmptyState title={t('emptyTitle')} description={t('emptyDesc')} />
