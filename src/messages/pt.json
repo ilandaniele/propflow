@@ -1029,6 +1029,7 @@
     "step3": "Etapa 3: Primeiro inquilino"
   },
   "units": {
+    "bedsTab": "Camas",
     "toiletType": {
       "private": "Privativo",
       "shared": "Compartilhado",
@@ -3755,6 +3756,26 @@
       "charge_due": "{count, plural, one {# cobrança vence} other {# cobranças vencem}}",
       "cleaning": "Limpeza",
       "visit": "Visita"
+    }
+  },
+  "unitBeds": {
+    "title": "Camas",
+    "subtitle": "Divida a unidade em camas com aluguel próprio. Os totais somam na unidade.",
+    "label": "Nome da cama",
+    "rent": "Aluguel mensal",
+    "add": "Adicionar cama",
+    "saving": "Salvando...",
+    "tenant": "Inquilino",
+    "vacant": "Livre",
+    "assign": "Atribuir",
+    "remove": "Remover",
+    "empty": "Esta unidade não tem camas.",
+    "noRent": "Sem aluguel",
+    "stats": {
+      "beds": "Camas",
+      "occupied": "Ocupadas",
+      "potentialRent": "Aluguel potencial",
+      "occupiedRent": "Aluguel ocupado"
     }
   }
 }
