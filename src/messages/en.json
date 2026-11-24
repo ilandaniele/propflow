@@ -1765,6 +1765,14 @@
     "source": "Source"
   },
   "accountStatements": {
+    "generate": {
+      "title": "Generate account statements",
+      "hint": "Creates drafts for every active contract from the month's charges and payments. Nothing is sent.",
+      "month": "Month",
+      "dueDate": "Due date",
+      "submit": "Generate",
+      "done": "{created} created, {skipped} already existed"
+    },
     "title": "Account Statements",
     "subtitle": "{count} statements · {sent} sent · Total due S/ {total}",
     "emptyTitle": "No account statements",
