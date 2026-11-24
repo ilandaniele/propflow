@@ -101,6 +101,7 @@
     "forecasting": "Proyecciones",
     "portfolio": "Portafolio",
     "pricingTables": "Tablas de precios",
+    "apiKeys": "API",
     "adminImport": "Importación",
     "team": "Equipo",
     "ownerAssistant": "Asistente WhatsApp",
@@ -1278,6 +1279,28 @@
       "monthlyTrend": "¿Cómo está mi ingreso vs el promedio de 3 meses?",
       "riskTenants": "¿Qué inquilinos representan mayor riesgo financiero?"
     }
+  },
+  "apiKeys": {
+    "title": "API pública",
+    "subtitle": "Conecta tu contabilidad, BI u otras herramientas con claves de solo lectura.",
+    "createTitle": "Nueva clave",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "Ej: Integración contable",
+    "create": "Crear clave",
+    "createdTitle": "Copia la clave ahora: no se volverá a mostrar.",
+    "createdHint": "Guárdala en un gestor de secretos. Si se pierde, revócala y crea otra.",
+    "revoke": "Revocar",
+    "revoked": "Revocada",
+    "emptyTitle": "Sin claves",
+    "emptyDesc": "Crea una clave para usar la API.",
+    "colName": "Nombre",
+    "colPrefix": "Clave",
+    "colCreated": "Creada",
+    "colLastUsed": "Último uso",
+    "colStatus": "Estado",
+    "docsTitle": "Cómo usarla",
+    "docsAuth": "Envía la clave en el encabezado Authorization de cada petición GET.",
+    "docsPagination": "Paginación con limit (máx. 100) y offset. La respuesta incluye pagination.hasMore."
   },
   "adminImport": {
     "months": ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],

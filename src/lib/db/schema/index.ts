@@ -5,4 +5,5 @@ export * from './agent';
 export * from './agent-ext';
 export * from './rent-schedule';
 export * from './owner-assistant';
+export * from './api';
 export * from './relations';
