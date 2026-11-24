@@ -119,6 +119,11 @@ export function signatureRateLimit(token: string, ip: string) {
   return actionRateLimit(`sign:${token}:${ip}`, 5, ONE_MINUTE_MS);
 }
 
+/** Public owner portal views — 30 / min / IP */
+export function ownerPortalRateLimit(ip: string) {
+  return actionRateLimit(`owner-portal:${ip}`, 30, ONE_MINUTE_MS);
+}
+
 /** Send signature request — 10 / min / admin */
 export function sendSignatureRateLimit(adminId: string) {
   return actionRateLimit(`send-sig:${adminId}`, 10, ONE_MINUTE_MS);

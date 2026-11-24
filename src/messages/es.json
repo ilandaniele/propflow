@@ -3229,5 +3229,27 @@
       "preview": "No se pudo leer el archivo. Revisá que sea un CSV de hasta 5 MB.",
       "commit": "No se pudo importar. Probá de nuevo."
     }
+  },
+  "ownerPortal": {
+    "title": "Portal de {name}",
+    "subtitle": "Liquidación de {month}",
+    "monthNav": "Cambiar mes",
+    "emptyTitle": "Sin movimientos",
+    "emptyDesc": "No hay ingresos ni gastos registrados en este mes.",
+    "readOnlyNote": "Vista de solo lectura compartida por tu administrador. Ingresos aprobados menos gastos y comisión.",
+    "rateLimited": "Demasiadas visitas seguidas. Esperá un minuto y recargá.",
+    "adminTitle": "Portal del propietario",
+    "adminDesc": "Generá un link privado de solo lectura para que el propietario vea sus liquidaciones. Vence a los 90 días; crear uno nuevo revoca el anterior.",
+    "noOwners": "Primero cargá propietarios.",
+    "owner": "Propietario",
+    "create": "Generar link",
+    "creating": "Generando…",
+    "created": "Link creado. Copialo ahora: no se vuelve a mostrar.",
+    "linkLabel": "Link del portal",
+    "expires": "vence {date}",
+    "lastViewed": "visto {date}",
+    "neverViewed": "nunca visto",
+    "revoke": "Revocar",
+    "revoking": "Revocando…"
   }
 }

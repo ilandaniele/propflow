@@ -140,6 +140,7 @@ export async function proxy(request: NextRequest) {
   const isPublicRoute =
     path.startsWith('/sign/') ||
     path.startsWith('/api/sign/') ||
+    path.startsWith('/owner/') ||   // owner portal — authenticated by its hashed link token
     path.startsWith('/auth/') ||    // /auth/callback — must not be blocked before code exchange
     path === '/onboarding' ||        // guard is in the page itself (may have session but no profile)
     // Agent Phase 8: Vapi's server webhook authenticates itself (x-vapi-secret /

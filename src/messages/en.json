@@ -3229,5 +3229,27 @@
       "preview": "Could not read the file. Check it is a CSV up to 5 MB.",
       "commit": "Could not import. Try again."
     }
+  },
+  "ownerPortal": {
+    "title": "Portal for {name}",
+    "subtitle": "Settlement for {month}",
+    "monthNav": "Change month",
+    "emptyTitle": "No activity",
+    "emptyDesc": "No income or expenses recorded this month.",
+    "readOnlyNote": "Read-only view shared by your property manager. Approved income minus expenses and commission.",
+    "rateLimited": "Too many visits in a row. Wait a minute and reload.",
+    "adminTitle": "Owner portal",
+    "adminDesc": "Create a private read-only link so the owner can see their settlements. It expires after 90 days; creating a new one revokes the previous one.",
+    "noOwners": "Add owners first.",
+    "owner": "Owner",
+    "create": "Create link",
+    "creating": "Creating…",
+    "created": "Link created. Copy it now: it will not be shown again.",
+    "linkLabel": "Portal link",
+    "expires": "expires {date}",
+    "lastViewed": "viewed {date}",
+    "neverViewed": "never viewed",
+    "revoke": "Revoke",
+    "revoking": "Revoking…"
   }
 }

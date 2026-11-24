@@ -19,3 +19,7 @@ export const PropertyOwnerTermsSchema = z.object({
   owner_id: z.string().min(1).max(64),
   commission_pct: z.coerce.number().min(0).max(100).transform((value) => value.toFixed(2)),
 });
+
+export const OwnerPortalLinkSchema = z.object({ owner_id: z.string().min(1).max(64) });
+
+export const RevokeOwnerPortalLinkSchema = z.object({ link_id: z.string().min(1).max(64) });
