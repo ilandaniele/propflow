@@ -150,7 +150,8 @@
     "agentQa": "QA del agente",
     "payables": "Cuentas por pagar",
     "averageRent": "Renta media",
-    "managerPerformance": "Rendimiento de gestores"
+    "managerPerformance": "Rendimiento de gestores",
+    "customFields": "Campos personalizados"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -4126,5 +4127,45 @@
     "emptyTitle": "Sin miembros del equipo",
     "emptyDesc": "Invita a tu equipo para asignarle incidencias.",
     "note": "Cuenta las incidencias creadas en el periodo. La resolución media usa las incidencias resueltas con fecha de resolución."
+  },
+  "customFields": {
+    "title": "Campos personalizados",
+    "subtitle": "Define campos extra para propiedades, unidades, inquilinos y contratos.",
+    "newField": "Nuevo campo",
+    "entityType": "Entidad",
+    "fieldType": "Tipo",
+    "key": "Clave",
+    "keyHint": "Minúsculas, números y guion bajo. No se puede cambiar.",
+    "label": "Etiqueta",
+    "required": "Obligatorio",
+    "sortOrder": "Orden",
+    "options": "Opciones",
+    "optionsHint": "Una opción por línea.",
+    "create": "Crear campo",
+    "save": "Guardar",
+    "saved": "Guardado",
+    "edit": "Editar",
+    "remove": "Eliminar",
+    "emptyEntity": "Sin campos definidos.",
+    "cardTitle": "Campos personalizados",
+    "cardEmpty": "No hay campos personalizados para esta entidad.",
+    "manageLink": "Configurar campos",
+    "selectPlaceholder": "Selecciona…",
+    "errorRequired": "Campo obligatorio.",
+    "errorInvalid": "Valor no válido.",
+    "errorSave": "Revisa los campos marcados.",
+    "entity": {
+      "property": "Propiedades",
+      "unit": "Unidades",
+      "tenant": "Inquilinos",
+      "contract": "Contratos"
+    },
+    "type": {
+      "text": "Texto",
+      "number": "Número",
+      "date": "Fecha",
+      "boolean": "Sí/No",
+      "select": "Lista de opciones"
+    }
   }
 }

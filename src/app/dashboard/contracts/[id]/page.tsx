@@ -14,6 +14,7 @@ import { StatusPill } from '@/components/ui/Badge';
 import { ContractDocumentPanel } from './ContractDocumentPanel';
 import { SignatureEvidenceList } from './SignatureEvidenceList';
 import { HandoverCards } from './HandoverCards';
+import { CustomFieldsCard } from '@/components/custom-fields/CustomFieldsCard';
 
 export const metadata: Metadata = { title: 'Contract' };
 
@@ -104,6 +105,8 @@ export default async function ContractDetailPage({ params }: Props) {
         inventory={inventory}
         acts={acts}
       />
+
+      <CustomFieldsCard orgId={ctx.orgId} entityType="contract" entityId={contract.id} />
     </div>
   );
 }

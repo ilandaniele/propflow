@@ -150,7 +150,8 @@
     "agentQa": "Agent QA",
     "payables": "Accounts payable",
     "averageRent": "Average rent",
-    "managerPerformance": "Manager performance"
+    "managerPerformance": "Manager performance",
+    "customFields": "Custom fields"
   },
   "tenants": {
     "title": "Tenants",
@@ -4126,5 +4127,45 @@
     "emptyTitle": "No team members",
     "emptyDesc": "Invite your team to assign them incidents.",
     "note": "Counts incidents created in the period. Average resolution uses resolved incidents with a resolution date."
+  },
+  "customFields": {
+    "title": "Custom fields",
+    "subtitle": "Define extra fields for properties, units, tenants and contracts.",
+    "newField": "New field",
+    "entityType": "Entity",
+    "fieldType": "Type",
+    "key": "Key",
+    "keyHint": "Lowercase letters, numbers and underscore. Cannot be changed.",
+    "label": "Label",
+    "required": "Required",
+    "sortOrder": "Order",
+    "options": "Options",
+    "optionsHint": "One option per line.",
+    "create": "Create field",
+    "save": "Save",
+    "saved": "Saved",
+    "edit": "Edit",
+    "remove": "Delete",
+    "emptyEntity": "No fields defined.",
+    "cardTitle": "Custom fields",
+    "cardEmpty": "No custom fields for this entity.",
+    "manageLink": "Configure fields",
+    "selectPlaceholder": "Select…",
+    "errorRequired": "Required field.",
+    "errorInvalid": "Invalid value.",
+    "errorSave": "Check the highlighted fields.",
+    "entity": {
+      "property": "Properties",
+      "unit": "Units",
+      "tenant": "Tenants",
+      "contract": "Contracts"
+    },
+    "type": {
+      "text": "Text",
+      "number": "Number",
+      "date": "Date",
+      "boolean": "Yes/No",
+      "select": "Option list"
+    }
   }
 }

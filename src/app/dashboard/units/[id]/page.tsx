@@ -16,6 +16,7 @@ import { ImagesTab } from './_tabs/ImagesTab';
 import { getUnitImagesAdmin } from '@/app/actions/unit-images';
 import { UnitBedsSection } from '@/components/unit-beds/UnitBedsSection';
 import { listTenantOptions, listUnitBeds } from '@/lib/unit-beds/queries';
+import { CustomFieldsCard } from '@/components/custom-fields/CustomFieldsCard';
 
 export const metadata: Metadata = { title: 'Unit Details' };
 
@@ -162,6 +163,7 @@ export default async function UnitDetailPage({ params }: Props) {
               </div>
             </dl>
           </Card>
+          <CustomFieldsCard orgId={ctx.orgId} entityType="unit" entityId={id} />
         </div>
       ),
     },

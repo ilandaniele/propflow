@@ -7,6 +7,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
 import { UtilityContractsSection } from '@/components/utility-contracts/UtilityContractsSection';
+import { CustomFieldsCard } from '@/components/custom-fields/CustomFieldsCard';
 import { loadPropertyUtilities } from '@/lib/utility-contracts/queries';
 
 export const metadata: Metadata = { title: 'Property Details' };
@@ -39,7 +40,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Props
       id: 'details',
       label: t('detailTab'),
       content: (
-        <div className="p-4">
+        <div className="p-4 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>{property.name}</CardTitle>
@@ -51,6 +52,7 @@ export default async function PropertyDetailPage({ params, searchParams }: Props
               {t('viewUnits')} ({data.units.length})
             </Link>
           </Card>
+          <CustomFieldsCard orgId={ctx.orgId} entityType="property" entityId={property.id} />
         </div>
       ),
     },
