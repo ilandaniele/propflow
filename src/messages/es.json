@@ -109,6 +109,7 @@
     "budget": "Presupuesto",
     "amenities": "Áreas comunes",
     "assets": "Activos",
+    "bankReconciliation": "Conciliación bancaria",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "chargeConcepts": "Conceptos de cobro",
@@ -314,6 +315,7 @@
     "rooms": "habitaciones"
   },
   "payments": {
+    "reconcileLink": "Conciliar con banco",
     "title": "Pagos",
     "list": {
       "pendingApproval": "{count} pendientes de aprobación",
@@ -2066,6 +2068,36 @@
         "10": "NOV",
         "11": "DIC"
       }
+    }
+  },
+  "bankReconciliation": {
+    "back": "← Pagos",
+    "title": "Conciliación bancaria",
+    "subtitle": "Sube el extracto del banco en CSV y vincula cada abono con su pago.",
+    "unmatchedTitle": "{count, plural, =0 {Sin movimientos por conciliar} one {# movimiento por conciliar} other {# movimientos por conciliar}}",
+    "emptyTitle": "Todo conciliado",
+    "emptyDesc": "Sube un extracto para ver los abonos pendientes.",
+    "matchedTitle": "Conciliados recientes",
+    "ignoredTitle": "Ignorados",
+    "colDate": "Fecha",
+    "colDescription": "Descripción",
+    "colAmount": "Monto",
+    "colActions": "Acciones",
+    "upload": {
+      "label": "Extracto bancario (CSV)",
+      "hint": "Columnas de fecha, descripción y monto (o abono/cargo). Solo se importan abonos; las líneas repetidas se omiten.",
+      "submit": "Importar",
+      "result": "{inserted} nuevos · {duplicates} repetidos · {skipped} omitidos"
+    },
+    "actions": {
+      "payment": "Pago",
+      "match": "Conciliar",
+      "noCandidates": "Sin pagos con ese monto",
+      "contract": "Contrato",
+      "createPayment": "Crear pago",
+      "newPayment": "Nuevo pago",
+      "ignore": "Ignorar",
+      "restore": "Restaurar"
     }
   },
   "accountStatements": {

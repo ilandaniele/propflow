@@ -429,3 +429,34 @@ export const expenseBudgets = sqliteTable('expense_budgets', {
   index('idx_expense_budgets_org_year').on(t.orgId, t.year),
   check('expense_budgets_amount_check', sql`CAST(amount AS REAL) >= 0`),
 ]);
+
+export const bankImports = sqliteTable('bank_imports', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  fileName:  text('file_name').notNull(),
+  lineCount: integer('line_count').notNull(),
+  createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_bank_imports_org').on(t.orgId, t.createdAt),
+]);
+
+export const bankLines = sqliteTable('bank_lines', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  importId:    text('import_id').notNull().references(() => bankImports.id, { onDelete: 'cascade' }),
+  fingerprint: text('fingerprint').notNull(),
+  postedOn:    dateStr('posted_on').notNull(),
+  description: text('description').notNull(),
+  reference:   text('reference'),
+  amount:      money('amount').notNull(),
+  status:      text('status').notNull().default('unmatched'),
+  paymentId:   text('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+  resolvedBy:  text('resolved_by').references(() => profiles.id, { onDelete: 'set null' }),
+  resolvedAt:  ts('resolved_at'),
+}, (t) => [
+  uniqueIndex('bank_lines_org_fingerprint_uniq').on(t.orgId, t.fingerprint),
+  uniqueIndex('bank_lines_payment_uniq').on(t.paymentId).where(sql`${t.paymentId} is not null`),
+  index('idx_bank_lines_org_status').on(t.orgId, t.status, t.postedOn),
+  check('bank_lines_status_check', sql`${t.status} in ('unmatched', 'matched', 'ignored')`),
+]);
