@@ -3631,5 +3631,18 @@
     "pause": "Pausar",
     "resume": "Retomar",
     "remove": "Excluir"
+  },
+  "incidentNotification": {
+    "title": {
+      "pending": "Seu chamado está pendente",
+      "in_progress": "Seu chamado está em andamento",
+      "solved": "Seu chamado foi resolvido"
+    },
+    "body": "\"{title}\" agora está: {status}.",
+    "status": {
+      "pending": "Pendente",
+      "in_progress": "Em andamento",
+      "solved": "Resolvido"
+    }
   }
 }

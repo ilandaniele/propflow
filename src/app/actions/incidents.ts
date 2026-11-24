@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { incidents, incidentComments, tenants } from '@/lib/db/schema';
+import { incidents, incidentComments, tenants, notificationInbox } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { canStaffWrite, requireStaff, requireUser } from '@/lib/auth/guards';
 import { uploadFile } from '@/lib/storage';
@@ -18,6 +18,7 @@ import {
 import { log } from '@/lib/log';
 import { saveIncidentSchedule } from '@/lib/incidents/schedule';
 import { recordActivity } from '@/lib/activity/record';
+import { buildStatusNotification, statusChanged } from '@/lib/incidents/status-notification';
 import type { ActionResult } from '@/lib/errors';
 import { randomUUID } from 'crypto';
 
@@ -146,8 +147,9 @@ export async function updateIncident(
 
   // Verify incident belongs to this org
   const existing = await db
-    .select({ id: incidents.id, status: incidents.status })
+    .select({ id: incidents.id, status: incidents.status, title: incidents.title, tenantProfileId: tenants.profileId })
     .from(incidents)
+    .leftJoin(tenants, eq(tenants.id, incidents.tenantId))
     .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)))
     .limit(1);
 
@@ -163,12 +165,21 @@ export async function updateIncident(
     updateData.resolvedAt = new Date();
   }
 
+  const notification = statusChanged(existing[0].status, updates.status)
+    ? await buildStatusNotification(
+        { orgId: ctx.orgId, incidentId: id, incidentTitle: updates.title ?? existing[0].title, tenantProfileId: existing[0].tenantProfileId },
+        updates.status,
+      )
+    : null;
+
   try {
-    await db
+    const update = db
       .update(incidents)
       .set(updateData)
       .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)));
     if (estimatedOn !== undefined) await saveIncidentSchedule(ctx.orgId, id, estimatedOn || null);
+    if (notification) await db.batch([update, db.insert(notificationInbox).values(notification)]);
+    else await update;
   } catch (e) {
     log.error('[updateIncident] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();

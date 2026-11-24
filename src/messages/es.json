@@ -3631,5 +3631,18 @@
     "pause": "Pausar",
     "resume": "Reanudar",
     "remove": "Eliminar"
+  },
+  "incidentNotification": {
+    "title": {
+      "pending": "Tu incidencia está pendiente",
+      "in_progress": "Tu incidencia está en progreso",
+      "solved": "Tu incidencia fue resuelta"
+    },
+    "body": "\"{title}\" ahora está: {status}.",
+    "status": {
+      "pending": "Pendiente",
+      "in_progress": "En progreso",
+      "solved": "Resuelta"
+    }
   }
 }
