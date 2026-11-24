@@ -602,3 +602,49 @@ export const amenityBookings = sqliteTable('amenity_bookings', {
   check('amenity_bookings_status_check', sql`status IN ('confirmed','cancelled')`),
   check('amenity_bookings_guest_count_check', sql`guest_count IS NULL OR guest_count BETWEEN 1 AND 500`),
 ]);
+
+export const assets = sqliteTable('assets', {
+  id:         id(),
+  orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  propertyId: text('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  name:       text('name').notNull(),
+  category:   text('category').notNull(),
+  location:   text('location'),
+  createdAt:  ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:  ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_assets_org').on(t.orgId),
+  uniqueIndex('assets_property_name_uniq').on(t.propertyId, t.name),
+]);
+
+export const assetTasks = sqliteTable('asset_tasks', {
+  id:              id(),
+  orgId:           text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  assetId:         text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  title:           text('title').notNull(),
+  frequencyMonths: integer('frequency_months').notNull(),
+  startsOn:        dateStr('starts_on').notNull(),
+  responsible:     text('responsible'),
+  supplier:        text('supplier'),
+  estimatedCost:   money('estimated_cost'),
+  createdAt:       ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:       ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_asset_tasks_org').on(t.orgId),
+  index('idx_asset_tasks_asset').on(t.assetId),
+  check('asset_tasks_frequency_check', sql`${t.frequencyMonths} between 1 and 120`),
+]);
+
+export const assetTaskLogs = sqliteTable('asset_task_logs', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  taskId:    text('task_id').notNull().references(() => assetTasks.id, { onDelete: 'cascade' }),
+  doneOn:    dateStr('done_on').notNull(),
+  cost:      money('cost'),
+  notes:     text('notes'),
+  createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_asset_task_logs_task').on(t.taskId, t.doneOn),
+  index('idx_asset_task_logs_org').on(t.orgId, t.doneOn),
+]);
