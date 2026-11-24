@@ -6,6 +6,7 @@ import { DEFAULT_EMAIL_PREFERENCES, type EmailCategory, type EmailPreferences } 
 const COLUMN_BY_CATEGORY = {
   lease_renewal: notificationPreferences.leaseRenewalEmail,
   payment_due:   notificationPreferences.paymentDueEmail,
+  announcements: notificationPreferences.announcementsEmail,
 } as const;
 
 /** Profile ids in the org that opted out of `category`. One query per org and category, no IN list. */
@@ -24,7 +25,11 @@ export function acceptsEmail(optOuts: ReadonlySet<string>, profileId: string | n
 
 export async function getEmailPreferences(orgId: string, profileId: string): Promise<EmailPreferences> {
   const [row] = await db
-    .select({ lease_renewal: notificationPreferences.leaseRenewalEmail, payment_due: notificationPreferences.paymentDueEmail })
+    .select({
+      lease_renewal: notificationPreferences.leaseRenewalEmail,
+      payment_due:   notificationPreferences.paymentDueEmail,
+      announcements: notificationPreferences.announcementsEmail,
+    })
     .from(notificationPreferences)
     .where(and(eq(notificationPreferences.profileId, profileId), eq(notificationPreferences.orgId, orgId)))
     .limit(1);
@@ -46,6 +51,7 @@ export async function saveEmailPreferences(orgId: string, profileId: string, pre
           orgId:             profiles.orgId,
           leaseRenewalEmail: sql<boolean>`${prefs.lease_renewal ? 1 : 0}`.as('lease_renewal_email'),
           paymentDueEmail:   sql<boolean>`${prefs.payment_due ? 1 : 0}`.as('payment_due_email'),
+          announcementsEmail: sql<boolean>`${prefs.announcements ? 1 : 0}`.as('announcements_email'),
           updatedAt:         sql<Date>`${now.getTime()}`.as('updated_at'),
         })
         .from(profiles)
@@ -53,7 +59,12 @@ export async function saveEmailPreferences(orgId: string, profileId: string, pre
     )
     .onConflictDoUpdate({
       target: notificationPreferences.profileId,
-      set: { leaseRenewalEmail: prefs.lease_renewal, paymentDueEmail: prefs.payment_due, updatedAt: now },
+      set: {
+        leaseRenewalEmail: prefs.lease_renewal,
+        paymentDueEmail: prefs.payment_due,
+        announcementsEmail: prefs.announcements,
+        updatedAt: now,
+      },
       setWhere: eq(notificationPreferences.orgId, orgId),
     });
 }

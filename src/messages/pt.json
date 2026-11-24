@@ -113,6 +113,8 @@
     "team": "Equipe",
     "ownerAssistant": "Assistente WhatsApp",
     "branding": "Marca",
+    "customFields": "Campos personalizados",
+    "dataExport": "Exportar dados",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
     "deposits": "Cauções",
@@ -147,8 +149,7 @@
     "utilities": "Serviços",
     "responsables": "Responsáveis",
     "agentQa": "QA do agente",
-    "payables": "Contas a pagar",
-    "customFields": "Campos personalizados"
+    "payables": "Contas a pagar"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -337,7 +338,10 @@
     "occupied": "ocupadas",
     "rooms": "quartos",
     "compare": "Comparar",
-    "groups": "Grupos"
+    "groups": "Grupos",
+    "detailTab": "Resumo",
+    "utilitiesTab": "Serviços",
+    "backToProperties": "Voltar às propriedades"
   },
   "payments": {
     "reconcileLink": "Conciliar com banco",
@@ -1325,20 +1329,7 @@
     "mcpConfigHint": "Exemplo de configuração para clientes que aceitam cabeçalhos (Claude Code, Cursor, VS Code). Substitua a chave pela sua."
   },
   "adminImport": {
-    "months": [
-      "Janeiro",
-      "Fevereiro",
-      "Março",
-      "Abril",
-      "Maio",
-      "Junho",
-      "Julho",
-      "Agosto",
-      "Setembro",
-      "Outubro",
-      "Novembro",
-      "Dezembro"
-    ],
+    "months": ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],
     "accountMapping": {
       "addTitle": "Adicionar mapeamento de conta",
       "addSubtitle": "Vincule um codigo de conta externo a uma categoria interna do plano de contas.",
@@ -1900,7 +1891,19 @@
     "pinned": "Fixado",
     "important": "Importante",
     "pin": "Fixar",
-    "unpin": "Desafixar"
+    "unpin": "Desafixar",
+    "sendEmail": "Enviar também por e-mail",
+    "sendWhatsapp": "Enviar também por WhatsApp",
+    "deliveryHint": "Chega aos inquilinos com contrato ativo do público escolhido, respeitando suas preferências de e-mail e o consentimento do WhatsApp.",
+    "deliveryEmail": "E-mail",
+    "deliveryWhatsapp": "WhatsApp",
+    "deliveryCounts": "{sent} enviados · {failed} com falha · {pending} pendentes",
+    "continueSending": "Continuar envio",
+    "email": {
+      "subject": "Comunicado: {title}",
+      "greeting": "Olá {name},",
+      "cta": "Ver no portal"
+    }
   },
   "cleaning": {
     "title": "Cronograma de Limpeza",
@@ -1940,6 +1943,13 @@
     "emptyTitle": "Sem leads ainda",
     "emptyDesc": "Acompanhe possíveis inquilinos no seu pipeline de CRM.",
     "source": "Origem"
+  },
+  "dataExport": {
+    "title": "Exportar todos os meus dados",
+    "subtitle": "Baixe um arquivo ZIP com um CSV por entidade da sua organização: imóveis, unidades, proprietários, inquilinos, contratos, cobranças, pagamentos, despesas, ocorrências e documentos (somente metadados, sem os arquivos).",
+    "privacy": "Senhas, sessões, chaves de API e tokens nunca são incluídos. Cada tabela é limitada a 50.000 linhas; resumen.csv indica se alguma foi truncada.",
+    "limit": "Você pode baixá-lo até 3 vezes por hora.",
+    "button": "Baixar ZIP"
   },
   "branding": {
     "title": "Marca",
@@ -3975,6 +3985,8 @@
     "leaseRenewalHint": "Aviso quando seu contrato estiver perto do fim (30 dias antes).",
     "paymentDue": "Pagamentos a vencer",
     "paymentDueHint": "Aviso quando um pagamento vencer nos próximos 3 dias.",
+    "announcements": "Comunicados",
+    "announcementsHint": "Comunicados em massa que seu administrador envia por e-mail.",
     "alwaysSent": "E-mails essenciais são sempre enviados: convites para o portal e solicitações de assinatura de contrato. Você continuará vendo os avisos nas notificações do portal.",
     "save": "Salvar",
     "saved": "Preferências salvas",
@@ -4037,6 +4049,51 @@
       "note": "Nota"
     }
   },
+  "utilityContracts": {
+    "title": "Contratos de serviços",
+    "subtitle": "Controle os serviços do imóvel, o titular e as trocas de titular quando um inquilino entra ou sai.",
+    "splitLink": "Ver rateio de contas",
+    "empty": "Este imóvel não tem contratos de serviços.",
+    "type": "Tipo",
+    "provider": "Fornecedor",
+    "supplyNumber": "N.º de fornecimento / conta",
+    "supplyShort": "N.º",
+    "unit": "Unidade",
+    "wholeProperty": "Imóvel inteiro",
+    "monthlyEstimate": "Estimativa mensal (S/)",
+    "perMonth": "/mês",
+    "startDate": "Data de início",
+    "since": "desde",
+    "notes": "Notas",
+    "holder": "Titular",
+    "holderKind": "Tipo de titular",
+    "holderName": "Nome do titular",
+    "changeHolder": "Troca de titular",
+    "changedOn": "Data da troca",
+    "reason": "Motivo",
+    "reasonPlaceholder": "Entrada ou saída de inquilino",
+    "saveChange": "Registrar troca",
+    "edit": "Editar",
+    "save": "Salvar",
+    "add": "Adicionar contrato",
+    "remove": "Excluir",
+    "saving": "Salvando...",
+    "pagination": "Paginação de contratos",
+    "previous": "← Anteriores",
+    "next": "Próximos →",
+    "types": {
+      "luz": "Luz",
+      "agua": "Água",
+      "gas": "Gás",
+      "internet": "Internet",
+      "otro": "Outro"
+    },
+    "holderKinds": {
+      "owner": "Proprietário",
+      "tenant": "Inquilino",
+      "other": "Outro"
+    }
+  },
   "customFields": {
     "title": "Campos personalizados",
     "subtitle": "Defina campos extras para imóveis, unidades, inquilinos e contratos.",
@@ -4063,7 +4120,6 @@
     "errorRequired": "Campo obrigatório.",
     "errorInvalid": "Valor inválido.",
     "errorSave": "Verifique os campos destacados.",
-    "back": "Voltar para imóveis",
     "entity": {
       "property": "Imóveis",
       "unit": "Unidades",

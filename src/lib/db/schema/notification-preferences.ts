@@ -8,6 +8,7 @@ export const notificationPreferences = sqliteTable('notification_preferences', {
   orgId:             text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   leaseRenewalEmail: bool('lease_renewal_email').notNull().default(true),
   paymentDueEmail:   bool('payment_due_email').notNull().default(true),
+  announcementsEmail: bool('announcements_email').notNull().default(true),
   updatedAt:         updatedAt(),
 }, (t) => [
   index('idx_notification_preferences_org').on(t.orgId),

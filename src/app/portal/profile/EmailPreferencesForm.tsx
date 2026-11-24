@@ -11,6 +11,7 @@ import type { ActionResult } from '@/lib/errors';
 const LABEL_KEYS: Record<EmailCategory, { label: string; hint: string }> = {
   lease_renewal: { label: 'leaseRenewal', hint: 'leaseRenewalHint' },
   payment_due:   { label: 'paymentDue',   hint: 'paymentDueHint' },
+  announcements: { label: 'announcements', hint: 'announcementsHint' },
 };
 
 function SaveButton({ label }: { label: string }) {
