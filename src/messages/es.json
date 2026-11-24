@@ -81,6 +81,7 @@
     "community": "Comunidad",
     "polls": "Encuestas",
     "tenantMessages": "Mensajes",
+    "periodClose": "Cierre de mes",
     "visitors": "Visitantes",
     "aiAssistant": "Asistente IA",
     "whatsapp": "WhatsApp",
@@ -3463,5 +3464,18 @@
       "answered": "Respondido",
       "closed": "Cerrado"
     }
+  },
+  "periodClose": {
+    "title": "Cierre de mes",
+    "subtitle": "Un mes cerrado bloquea cargar o editar gastos, pagos y cargos con fecha en ese mes.",
+    "closeTitle": "Cerrar un mes",
+    "periodLabel": "Mes",
+    "noteLabel": "Nota (opcional)",
+    "notePlaceholder": "Conciliado con el banco",
+    "close": "Cerrar mes",
+    "reopen": "Reabrir",
+    "closedOn": "Cerrado el {date} por {name}",
+    "emptyTitle": "Sin meses cerrados",
+    "emptyDesc": "Cerrá un mes cuando termines de conciliarlo."
   }
 }

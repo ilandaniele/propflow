@@ -17,6 +17,7 @@ import {
   MatchReceiptSchema,
 } from '@/lib/schemas/finance';
 import { isUniqueViolation } from '@/lib/db/errors';
+import { closedPeriodError } from '@/lib/period-close/guard';
 
 export async function createExpenseCategory(
   _prev: ActionResult,
@@ -62,6 +63,9 @@ export async function createExpense(
 
   const parsed = CreateExpenseSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
+
+  const closed = await closedPeriodError(ctx.orgId, [parsed.data.incurred_on]);
+  if (closed) return closed;
 
   // Validate property/unit/category belong to org (if provided)
   if (parsed.data.property_id) {
@@ -115,9 +119,12 @@ export async function updateExpense(
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
   // Verify expense belongs to org
-  const existing = await db.select({ id: expenses.id }).from(expenses)
+  const existing = await db.select({ id: expenses.id, incurredOn: expenses.incurredOn }).from(expenses)
     .where(and(eq(expenses.id, parsed.data.id), eq(expenses.orgId, ctx.orgId))).limit(1);
   if (!existing[0]) return Errors.NOT_FOUND();
+
+  const closed = await closedPeriodError(ctx.orgId, [existing[0].incurredOn, parsed.data.incurred_on]);
+  if (closed) return closed;
 
   const { id, ...updates } = parsed.data;
   try {

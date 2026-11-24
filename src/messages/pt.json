@@ -81,6 +81,7 @@
     "community": "Comunidade",
     "polls": "Enquetes",
     "tenantMessages": "Mensagens",
+    "periodClose": "Fechamento do mês",
     "visitors": "Visitantes",
     "aiAssistant": "Assistente IA",
     "whatsapp": "WhatsApp",
@@ -3463,5 +3464,18 @@
       "answered": "Respondida",
       "closed": "Encerrada"
     }
+  },
+  "periodClose": {
+    "title": "Fechamento do mês",
+    "subtitle": "Um mês fechado bloqueia incluir ou editar despesas, pagamentos e cobranças com data nesse mês.",
+    "closeTitle": "Fechar um mês",
+    "periodLabel": "Mês",
+    "noteLabel": "Nota (opcional)",
+    "notePlaceholder": "Conciliado com o banco",
+    "close": "Fechar mês",
+    "reopen": "Reabrir",
+    "closedOn": "Fechado em {date} por {name}",
+    "emptyTitle": "Sem meses fechados",
+    "emptyDesc": "Feche um mês quando terminar de conciliá-lo."
   }
 }

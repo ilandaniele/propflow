@@ -8,4 +8,5 @@ export * from './owner-assistant';
 export * from './api';
 export * from './polls';
 export * from './messages';
+export * from './period-closes';
 export * from './relations';

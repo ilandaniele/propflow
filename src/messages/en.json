@@ -81,6 +81,7 @@
     "community": "Community",
     "polls": "Polls",
     "tenantMessages": "Messages",
+    "periodClose": "Month close",
     "visitors": "Visitors",
     "aiAssistant": "AI Assistant",
     "whatsapp": "WhatsApp",
@@ -3463,5 +3464,18 @@
       "answered": "Answered",
       "closed": "Closed"
     }
+  },
+  "periodClose": {
+    "title": "Month close",
+    "subtitle": "A closed month blocks adding or editing expenses, payments and charges dated in that month.",
+    "closeTitle": "Close a month",
+    "periodLabel": "Month",
+    "noteLabel": "Note (optional)",
+    "notePlaceholder": "Reconciled with the bank",
+    "close": "Close month",
+    "reopen": "Reopen",
+    "closedOn": "Closed on {date} by {name}",
+    "emptyTitle": "No closed months",
+    "emptyDesc": "Close a month once you finish reconciling it."
   }
 }
