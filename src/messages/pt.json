@@ -113,7 +113,6 @@
     "team": "Equipe",
     "ownerAssistant": "Assistente WhatsApp",
     "branding": "Marca",
-    "customFields": "Campos personalizados",
     "dataExport": "Exportar dados",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
@@ -149,7 +148,10 @@
     "utilities": "Serviços",
     "responsables": "Responsáveis",
     "agentQa": "QA do agente",
-    "payables": "Contas a pagar"
+    "payables": "Contas a pagar",
+    "averageRent": "Aluguel médio",
+    "managerPerformance": "Desempenho dos gestores",
+    "customFields": "Campos personalizados"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -4093,6 +4095,38 @@
       "tenant": "Inquilino",
       "other": "Outro"
     }
+  },
+  "averageRent": {
+    "title": "Aluguel médio",
+    "subtitle": "Aluguel mensal médio dos contratos ativos, por moeda.",
+    "overall": "Aluguel médio geral ({currency})",
+    "contractCount": "{count, plural, one {# contrato ativo} other {# contratos ativos}}",
+    "byProperty": "Por imóvel",
+    "byUnitType": "Por tipo de unidade",
+    "byBedrooms": "Por quartos",
+    "bedrooms": "{count, plural, =0 {Sem quartos} one {# quarto} other {# quartos}}",
+    "group": "Grupo",
+    "contracts": "Contratos",
+    "average": "Aluguel médio",
+    "unspecified": "Não especificado",
+    "emptyTitle": "Sem contratos ativos",
+    "emptyDesc": "Quando houver contratos ativos, o aluguel médio aparecerá aqui."
+  },
+  "managerPerformance": {
+    "title": "Desempenho dos gestores",
+    "subtitle": "Ocorrências atribuídas a cada membro da equipe e o tempo de resolução.",
+    "periodNav": "Alterar período",
+    "lastDays": "Últimos {count} dias",
+    "manager": "Gestor",
+    "assigned": "Atribuídas",
+    "resolved": "Resolvidas",
+    "open": "Abertas",
+    "avgResolution": "Resolução média",
+    "days": "{count} dias",
+    "unnamed": "Sem nome",
+    "emptyTitle": "Sem membros da equipe",
+    "emptyDesc": "Convide sua equipe para atribuir ocorrências.",
+    "note": "Conta as ocorrências criadas no período. A resolução média usa ocorrências resolvidas com data de resolução."
   },
   "customFields": {
     "title": "Campos personalizados",

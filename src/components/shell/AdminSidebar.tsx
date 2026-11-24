@@ -243,6 +243,24 @@ const financeNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'averageRent',
+    href: '/dashboard/reports/average-rent',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 3v18h18"/><path d="M7 14h4v4H7z"/><path d="M13 10h4v8h-4z"/><path d="M6 9h14" strokeDasharray="2 2"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'managerPerformance',
+    href: '/dashboard/reports/manager-performance',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4"/><path d="m15 18 2 2 4-4"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'adminNotifications',
     href: '/dashboard/notifications',
     icon: (

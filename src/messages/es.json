@@ -113,7 +113,6 @@
     "team": "Equipo",
     "ownerAssistant": "Asistente WhatsApp",
     "branding": "Marca",
-    "customFields": "Campos personalizados",
     "dataExport": "Exportar datos",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
@@ -149,7 +148,10 @@
     "utilities": "Servicios",
     "responsables": "Responsables",
     "agentQa": "QA del agente",
-    "payables": "Cuentas por pagar"
+    "payables": "Cuentas por pagar",
+    "averageRent": "Renta media",
+    "managerPerformance": "Rendimiento de gestores",
+    "customFields": "Campos personalizados"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -4093,6 +4095,38 @@
       "tenant": "Inquilino",
       "other": "Otro"
     }
+  },
+  "averageRent": {
+    "title": "Renta media",
+    "subtitle": "Renta mensual promedio de los contratos activos, por moneda.",
+    "overall": "Renta media general ({currency})",
+    "contractCount": "{count, plural, one {# contrato activo} other {# contratos activos}}",
+    "byProperty": "Por propiedad",
+    "byUnitType": "Por tipo de unidad",
+    "byBedrooms": "Por dormitorios",
+    "bedrooms": "{count, plural, =0 {Sin dormitorios} one {# dormitorio} other {# dormitorios}}",
+    "group": "Grupo",
+    "contracts": "Contratos",
+    "average": "Renta media",
+    "unspecified": "Sin especificar",
+    "emptyTitle": "Sin contratos activos",
+    "emptyDesc": "Cuando tengas contratos activos verás aquí su renta media."
+  },
+  "managerPerformance": {
+    "title": "Rendimiento de gestores",
+    "subtitle": "Incidencias asignadas a cada miembro del equipo y su tiempo de resolución.",
+    "periodNav": "Cambiar periodo",
+    "lastDays": "Últimos {count} días",
+    "manager": "Gestor",
+    "assigned": "Asignadas",
+    "resolved": "Resueltas",
+    "open": "Abiertas",
+    "avgResolution": "Resolución media",
+    "days": "{count} días",
+    "unnamed": "Sin nombre",
+    "emptyTitle": "Sin miembros del equipo",
+    "emptyDesc": "Invita a tu equipo para asignarle incidencias.",
+    "note": "Cuenta las incidencias creadas en el periodo. La resolución media usa las incidencias resueltas con fecha de resolución."
   },
   "customFields": {
     "title": "Campos personalizados",
