@@ -3196,5 +3196,38 @@
       "noTenant": "Sem ficha de inquilino",
       "noTenantHint": "Fale com seu administrador."
     }
+  },
+  "dataImport": {
+    "title": "Importar de outro software",
+    "description": "Envie um CSV exportado do seu sistema anterior. Confira a prévia primeiro: só as linhas novas são criadas, registros existentes nunca são alterados nem excluídos.",
+    "kind": "O que importar",
+    "file": "Arquivo CSV",
+    "columns": "Colunas:",
+    "kinds": {
+      "properties": "Imóveis",
+      "units": "Unidades",
+      "owners": "Proprietários"
+    },
+    "hints": {
+      "properties": "Só name é obrigatório. Nomes que já existem são ignorados.",
+      "units": "property_name deve coincidir com um imóvel existente. toilet_type: shared, private ou none.",
+      "owners": "Só name é obrigatório. DNIs ou nomes existentes são ignorados."
+    },
+    "preview": "Prévia",
+    "commit": "Importar {count} linhas novas",
+    "done": "Pronto: {inserted} criadas, {skipped} ignoradas.",
+    "row": "Linha",
+    "record": "Registro",
+    "result": "Resultado",
+    "status": {
+      "new": "Nova",
+      "duplicate": "Já existe",
+      "invalid": "Inválida",
+      "unknown_property": "Imóvel não encontrado"
+    },
+    "errors": {
+      "preview": "Não foi possível ler o arquivo. Verifique se é um CSV de até 5 MB.",
+      "commit": "Não foi possível importar. Tente de novo."
+    }
   }
 }

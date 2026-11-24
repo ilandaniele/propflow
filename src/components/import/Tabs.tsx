@@ -3,7 +3,7 @@
 /**
  * src/components/import/Tabs.tsx
  *
- * Client component — renders the 7-tab navigation for the admin import section.
+ * Client component — renders the 8-tab navigation for the admin import section.
  * Uses usePathname() to highlight the active tab.
  */
 
@@ -23,6 +23,7 @@ const TABS: Tab[] = [
   { label: 'Mapeo propiedades', href: '/dashboard/admin/import/property-mapping' },
   { label: 'Mapeo cuentas',     href: '/dashboard/admin/import/account-mapping' },
   { label: 'Verificar archivo', href: '/dashboard/admin/import/check-files' },
+  { label: 'Otro software',     href: '/dashboard/admin/import/data' },
 ];
 
 export function ImportTabs() {

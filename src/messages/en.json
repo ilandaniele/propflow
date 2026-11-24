@@ -3196,5 +3196,38 @@
       "noTenant": "No tenant record",
       "noTenantHint": "Contact your property manager."
     }
+  },
+  "dataImport": {
+    "title": "Import from other software",
+    "description": "Upload a CSV exported from your previous system. Check the preview first: only new rows are created, existing records are never changed or deleted.",
+    "kind": "What to import",
+    "file": "CSV file",
+    "columns": "Columns:",
+    "kinds": {
+      "properties": "Properties",
+      "units": "Units",
+      "owners": "Owners"
+    },
+    "hints": {
+      "properties": "Only name is required. Names that already exist are skipped.",
+      "units": "property_name must match an existing property. toilet_type: shared, private or none.",
+      "owners": "Only name is required. Existing DNIs or names are skipped."
+    },
+    "preview": "Preview",
+    "commit": "Import {count} new rows",
+    "done": "Done: {inserted} created, {skipped} skipped.",
+    "row": "Row",
+    "record": "Record",
+    "result": "Result",
+    "status": {
+      "new": "New",
+      "duplicate": "Already exists",
+      "invalid": "Invalid",
+      "unknown_property": "Property not found"
+    },
+    "errors": {
+      "preview": "Could not read the file. Check it is a CSV up to 5 MB.",
+      "commit": "Could not import. Try again."
+    }
   }
 }
