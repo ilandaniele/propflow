@@ -1255,6 +1255,22 @@
     }
   },
   "finance": {
+    "agingLink": "Inadimplência",
+    "aging": {
+      "title": "Idade da dívida",
+      "subtitle": "Cobranças vencidas não pagas por inquilino, dívida mais antiga primeiro",
+      "cardTitle": "Valor devido por dias de atraso",
+      "tenant": "Inquilino",
+      "total": "Total",
+      "emptyTitle": "Sem dívida vencida",
+      "emptyDesc": "Todas as cobranças vencidas estão cobertas por pagamentos aprovados.",
+      "bucket": {
+        "0_30": "1–30 dias",
+        "31_60": "31–60 dias",
+        "61_90": "61–90 dias",
+        "90_plus": "90+ dias"
+      }
+    },
     "title": "Financeiro",
     "kpiTitle": "KPIs do Período Atual",
     "roomProfitability": "Rentabilidade por Quarto",

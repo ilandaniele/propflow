@@ -133,6 +133,7 @@ export default async function FinancePage() {
         <div className="flex gap-2 flex-wrap">
           <Link href="/dashboard/finance/rooms" className="text-sm text-brand-600 hover:underline">{t('roomProfitability')}</Link>
           <Link href="/dashboard/finance/receipts" className="text-sm text-brand-600 hover:underline ml-4">{t('ocrReceipts')}</Link>
+          <Link href="/dashboard/finance/aging" className="text-sm text-brand-600 hover:underline ml-4">{t('agingLink')}</Link>
           <Link href="/dashboard/finance/expenses/categories" className="text-sm text-brand-600 hover:underline ml-4">{t('categories')}</Link>
         </div>
       </div>
