@@ -147,7 +147,8 @@
     "utilities": "Servicios",
     "responsables": "Responsables",
     "agentQa": "QA del agente",
-    "payables": "Cuentas por pagar"
+    "payables": "Cuentas por pagar",
+    "customFields": "Campos personalizados"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -1324,7 +1325,20 @@
     "mcpConfigHint": "Ejemplo de configuración para clientes que aceptan encabezados (Claude Code, Cursor, VS Code). Reemplaza la clave por la tuya."
   },
   "adminImport": {
-    "months": ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
+    "months": [
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre"
+    ],
     "accountMapping": {
       "addTitle": "Agregar mapeo de cuenta",
       "addSubtitle": "Vincula un codigo de cuenta externo con una categoria interna del plan de cuentas.",
@@ -4021,6 +4035,47 @@
       "amount": "Monto",
       "paidOn": "Fecha de pago",
       "note": "Nota"
+    }
+  },
+  "customFields": {
+    "title": "Campos personalizados",
+    "subtitle": "Define campos extra para propiedades, unidades, inquilinos y contratos.",
+    "newField": "Nuevo campo",
+    "entityType": "Entidad",
+    "fieldType": "Tipo",
+    "key": "Clave",
+    "keyHint": "Minúsculas, números y guion bajo. No se puede cambiar.",
+    "label": "Etiqueta",
+    "required": "Obligatorio",
+    "sortOrder": "Orden",
+    "options": "Opciones",
+    "optionsHint": "Una opción por línea.",
+    "create": "Crear campo",
+    "save": "Guardar",
+    "saved": "Guardado",
+    "edit": "Editar",
+    "remove": "Eliminar",
+    "emptyEntity": "Sin campos definidos.",
+    "cardTitle": "Campos personalizados",
+    "cardEmpty": "No hay campos personalizados para esta entidad.",
+    "manageLink": "Configurar campos",
+    "selectPlaceholder": "Selecciona…",
+    "errorRequired": "Campo obligatorio.",
+    "errorInvalid": "Valor no válido.",
+    "errorSave": "Revisa los campos marcados.",
+    "back": "Volver a propiedades",
+    "entity": {
+      "property": "Propiedades",
+      "unit": "Unidades",
+      "tenant": "Inquilinos",
+      "contract": "Contratos"
+    },
+    "type": {
+      "text": "Texto",
+      "number": "Número",
+      "date": "Fecha",
+      "boolean": "Sí/No",
+      "select": "Lista de opciones"
     }
   }
 }

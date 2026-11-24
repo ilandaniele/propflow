@@ -147,7 +147,8 @@
     "utilities": "Serviços",
     "responsables": "Responsáveis",
     "agentQa": "QA do agente",
-    "payables": "Contas a pagar"
+    "payables": "Contas a pagar",
+    "customFields": "Campos personalizados"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -1324,7 +1325,20 @@
     "mcpConfigHint": "Exemplo de configuração para clientes que aceitam cabeçalhos (Claude Code, Cursor, VS Code). Substitua a chave pela sua."
   },
   "adminImport": {
-    "months": ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],
+    "months": [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro"
+    ],
     "accountMapping": {
       "addTitle": "Adicionar mapeamento de conta",
       "addSubtitle": "Vincule um codigo de conta externo a uma categoria interna do plano de contas.",
@@ -4021,6 +4035,47 @@
       "amount": "Valor",
       "paidOn": "Data do pagamento",
       "note": "Nota"
+    }
+  },
+  "customFields": {
+    "title": "Campos personalizados",
+    "subtitle": "Defina campos extras para imóveis, unidades, inquilinos e contratos.",
+    "newField": "Novo campo",
+    "entityType": "Entidade",
+    "fieldType": "Tipo",
+    "key": "Chave",
+    "keyHint": "Letras minúsculas, números e sublinhado. Não pode ser alterada.",
+    "label": "Rótulo",
+    "required": "Obrigatório",
+    "sortOrder": "Ordem",
+    "options": "Opções",
+    "optionsHint": "Uma opção por linha.",
+    "create": "Criar campo",
+    "save": "Salvar",
+    "saved": "Salvo",
+    "edit": "Editar",
+    "remove": "Excluir",
+    "emptyEntity": "Nenhum campo definido.",
+    "cardTitle": "Campos personalizados",
+    "cardEmpty": "Não há campos personalizados para esta entidade.",
+    "manageLink": "Configurar campos",
+    "selectPlaceholder": "Selecione…",
+    "errorRequired": "Campo obrigatório.",
+    "errorInvalid": "Valor inválido.",
+    "errorSave": "Verifique os campos destacados.",
+    "back": "Voltar para imóveis",
+    "entity": {
+      "property": "Imóveis",
+      "unit": "Unidades",
+      "tenant": "Inquilinos",
+      "contract": "Contratos"
+    },
+    "type": {
+      "text": "Texto",
+      "number": "Número",
+      "date": "Data",
+      "boolean": "Sim/Não",
+      "select": "Lista de opções"
     }
   }
 }

@@ -147,7 +147,8 @@
     "utilities": "Utilities",
     "responsables": "Responsables",
     "agentQa": "Agent QA",
-    "payables": "Accounts payable"
+    "payables": "Accounts payable",
+    "customFields": "Custom fields"
   },
   "tenants": {
     "title": "Tenants",
@@ -1324,7 +1325,20 @@
     "mcpConfigHint": "Example config for clients that accept headers (Claude Code, Cursor, VS Code). Replace the key with yours."
   },
   "adminImport": {
-    "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
     "accountMapping": {
       "addTitle": "Add account mapping",
       "addSubtitle": "Link an external account code to an internal category.",
@@ -4021,6 +4035,47 @@
       "amount": "Amount",
       "paidOn": "Payment date",
       "note": "Note"
+    }
+  },
+  "customFields": {
+    "title": "Custom fields",
+    "subtitle": "Define extra fields for properties, units, tenants and contracts.",
+    "newField": "New field",
+    "entityType": "Entity",
+    "fieldType": "Type",
+    "key": "Key",
+    "keyHint": "Lowercase letters, numbers and underscore. Cannot be changed.",
+    "label": "Label",
+    "required": "Required",
+    "sortOrder": "Order",
+    "options": "Options",
+    "optionsHint": "One option per line.",
+    "create": "Create field",
+    "save": "Save",
+    "saved": "Saved",
+    "edit": "Edit",
+    "remove": "Delete",
+    "emptyEntity": "No fields defined.",
+    "cardTitle": "Custom fields",
+    "cardEmpty": "No custom fields for this entity.",
+    "manageLink": "Configure fields",
+    "selectPlaceholder": "Select…",
+    "errorRequired": "Required field.",
+    "errorInvalid": "Invalid value.",
+    "errorSave": "Check the highlighted fields.",
+    "back": "Back to properties",
+    "entity": {
+      "property": "Properties",
+      "unit": "Units",
+      "tenant": "Tenants",
+      "contract": "Contracts"
+    },
+    "type": {
+      "text": "Text",
+      "number": "Number",
+      "date": "Date",
+      "boolean": "Yes/No",
+      "select": "Option list"
     }
   }
 }

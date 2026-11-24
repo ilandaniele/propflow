@@ -24,4 +24,5 @@ export * from './payment-intents';
 export * from './notification-preferences';
 export * from './payables';
 export * from './branding';
+export * from './custom-fields';
 export * from './relations';

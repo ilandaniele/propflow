@@ -584,6 +584,15 @@ const adminNavItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    labelKey: 'customFields',
+    href: '/dashboard/admin/custom-fields',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 7H3"/><path d="M21 12H3"/><path d="M13 17H3"/><path d="M18 15v6"/><path d="M15 18h6"/>
+      </svg>
+    ),
+  },
 ];
 
 const intelligenceNavItems: NavItem[] = [

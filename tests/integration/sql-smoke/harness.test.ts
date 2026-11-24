@@ -76,6 +76,7 @@ describe('sql-smoke harness (local D1)', () => {
       '0045_unit_beds',
       '0046_unit_calendars',
       '0047_documents',
+      '0050_custom_fields',
     ]);
   });
 
