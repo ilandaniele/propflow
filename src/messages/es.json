@@ -3213,7 +3213,7 @@
     "saving": "Guardando...",
     "savedOk": "Guardado",
     "templatesTitle": "Plantillas de WhatsApp",
-    "templatesHint": "Creá las 7 plantillas en WhatsApp Manager con los textos exactos de handoffs/meta-templates.md, y después sincronizalas acá.",
+    "templatesHint": "Tocá «Enviar plantillas a Meta» y la app crea en tu cuenta las que falten. Meta las revisa (de minutos a 24 h) y el estado se ve acá.",
     "templatesDisabledHint": "Configurá WhatsApp (arriba) antes de sincronizar las plantillas.",
     "templatesSyncButton": "Enviar plantillas a Meta",
     "templatesSyncing": "Enviando...",

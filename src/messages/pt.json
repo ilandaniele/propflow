@@ -3213,7 +3213,7 @@
     "saving": "Salvando...",
     "savedOk": "Salvo",
     "templatesTitle": "Modelos de WhatsApp",
-    "templatesHint": "Crie os 7 modelos no WhatsApp Manager com os textos exatos de handoffs/meta-templates.md e depois sincronize-os aqui.",
+    "templatesHint": "Toque em “Enviar modelos para a Meta” e o app cria na sua conta os que faltarem. A Meta os revisa (de minutos a 24 h) e o status aparece aqui.",
     "templatesDisabledHint": "Configure o WhatsApp (acima) antes de sincronizar os modelos.",
     "templatesSyncButton": "Enviar modelos para a Meta",
     "templatesSyncing": "Enviando...",

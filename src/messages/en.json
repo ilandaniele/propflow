@@ -3213,7 +3213,7 @@
     "saving": "Saving...",
     "savedOk": "Saved",
     "templatesTitle": "WhatsApp templates",
-    "templatesHint": "Create the 7 templates in WhatsApp Manager with the exact texts from handoffs/meta-templates.md, then sync them here.",
+    "templatesHint": "Press “Send templates to Meta” and the app creates any missing ones in your account. Meta reviews them (minutes to 24 h) and the status shows here.",
     "templatesDisabledHint": "Configure WhatsApp (above) before syncing templates.",
     "templatesSyncButton": "Send templates to Meta",
     "templatesSyncing": "Sending...",
