@@ -14,7 +14,7 @@ function SubmitButton() {
   return <Button type="submit" disabled={pending}>{pending ? t('saving') : t('submit')}</Button>;
 }
 
-export function CreateExpenseCategoryForm() {
+export function CreateExpenseCategoryForm({ parents }: { parents: Array<{ id: string; name: string }> }) {
   const t = useTranslations('forms.createExpenseCategory');
   const [state, action] = useActionState<ActionResult, FormData>(createExpenseCategory, {});
 
@@ -27,6 +27,13 @@ export function CreateExpenseCategoryForm() {
         placeholder={t('namePlaceholder')}
         className="flex-1 min-w-48"
       />
+      <div className="flex flex-col gap-1">
+        <label htmlFor="parent_id" className="text-sm font-medium text-slate-700">{t('parentLabel')}</label>
+        <select id="parent_id" name="parent_id" defaultValue="" className="h-9 rounded border border-slate-300 px-2 text-sm">
+          <option value="">{t('noParent')}</option>
+          {parents.map((parent) => <option key={parent.id} value={parent.id}>{parent.name}</option>)}
+        </select>
+      </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="color" className="text-sm font-medium text-slate-700">{t('colorLabel')}</label>
         <input

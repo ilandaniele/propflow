@@ -1427,6 +1427,7 @@
     "accountingExportTitle": "Exportar libro diario (CSV)",
     "accountingExportButton": "Descargar",
     "accountingExportHint": "Asientos de cobros aprobados y gastos del mes con cuentas PCGE sugeridas (1011/1041, 7542, 639), listo para importar en Contasis o Siscont. Revisá las cuentas con tu contador.",
+    "expensesLink": "Gastos",
     "title": "Finanzas",
     "kpiTitle": "KPIs del Período Actual",
     "currencySection": "Resultados en {currency}",
@@ -2800,6 +2801,8 @@
       "purposePlaceholder": "Entrega, visita, mantenimiento…"
     },
     "createExpenseCategory": {
+      "parentLabel": "Categoría padre",
+      "noParent": "Ninguna (principal)",
       "saving": "Guardando…",
       "submit": "Agregar categoría",
       "nameLabel": "Nombre de categoría",
@@ -3477,5 +3480,29 @@
     "closedOn": "Cerrado el {date} por {name}",
     "emptyTitle": "Sin meses cerrados",
     "emptyDesc": "Cerrá un mes cuando termines de conciliarlo."
+  },
+  "expenses": {
+    "title": "Gastos",
+    "addExpense": "Registrar gasto",
+    "manageCategories": "Administrar categorías",
+    "descriptionLabel": "Descripción",
+    "amountLabel": "Monto",
+    "dateLabel": "Fecha",
+    "kindLabel": "Tipo",
+    "categoryLabel": "Categoría",
+    "propertyLabel": "Propiedad",
+    "none": "Sin asignar",
+    "monthLabel": "Mes",
+    "allKinds": "Todos",
+    "filter": "Filtrar",
+    "total": "Total",
+    "saving": "Guardando…",
+    "submit": "Guardar gasto",
+    "emptyTitle": "Sin gastos",
+    "emptyDesc": "No hay gastos registrados para este mes.",
+    "kind": {
+      "ordinary": "Ordinario",
+      "extraordinary": "Extraordinario"
+    }
   }
 }

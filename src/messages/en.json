@@ -1395,6 +1395,7 @@
     "accountingExportTitle": "Export journal (CSV)",
     "accountingExportButton": "Download",
     "accountingExportHint": "Entries for approved payments and expenses of the month with suggested PCGE accounts (1011/1041, 7542, 639), ready to import into Contasis or Siscont. Check the accounts with your accountant.",
+    "expensesLink": "Expenses",
     "title": "Finance",
     "kpiTitle": "Current Period KPIs",
     "currencySection": "Results in {currency}",
@@ -2800,6 +2801,8 @@
       "purposePlaceholder": "Delivery, guest, maintenance…"
     },
     "createExpenseCategory": {
+      "parentLabel": "Parent category",
+      "noParent": "None (top level)",
       "saving": "Saving…",
       "submit": "Add Category",
       "nameLabel": "Category name",
@@ -3477,5 +3480,29 @@
     "closedOn": "Closed on {date} by {name}",
     "emptyTitle": "No closed months",
     "emptyDesc": "Close a month once you finish reconciling it."
+  },
+  "expenses": {
+    "title": "Expenses",
+    "addExpense": "Record expense",
+    "manageCategories": "Manage categories",
+    "descriptionLabel": "Description",
+    "amountLabel": "Amount",
+    "dateLabel": "Date",
+    "kindLabel": "Type",
+    "categoryLabel": "Category",
+    "propertyLabel": "Property",
+    "none": "Unassigned",
+    "monthLabel": "Month",
+    "allKinds": "All",
+    "filter": "Filter",
+    "total": "Total",
+    "saving": "Saving…",
+    "submit": "Save expense",
+    "emptyTitle": "No expenses",
+    "emptyDesc": "No expenses recorded for this month.",
+    "kind": {
+      "ordinary": "Ordinary",
+      "extraordinary": "Extraordinary"
+    }
   }
 }

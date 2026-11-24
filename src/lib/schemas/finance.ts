@@ -1,16 +1,23 @@
 import { z } from 'zod';
 import { CURRENCIES } from '@/lib/finance/currency';
 
+export const EXPENSE_KINDS = ['ordinary', 'extraordinary'] as const;
+export type ExpenseKind = (typeof EXPENSE_KINDS)[number];
+
+const optionalGuid = z.preprocess((value) => (value === '' ? undefined : value), z.string().guid().optional());
+
 export const CreateExpenseCategorySchema = z.object({
   name: z.string().min(1).max(100),
   color: z.string().max(50).optional(),
+  parent_id: optionalGuid,
 });
 export type CreateExpenseCategoryInput = z.infer<typeof CreateExpenseCategorySchema>;
 
 export const CreateExpenseSchema = z.object({
-  property_id: z.string().guid().optional(),
-  unit_id: z.string().guid().optional(),
-  category_id: z.string().guid().optional(),
+  property_id: optionalGuid,
+  unit_id: optionalGuid,
+  category_id: optionalGuid,
+  kind: z.enum(EXPENSE_KINDS).default('ordinary'),
   amount: z.coerce.number().positive().max(999_999_99),
   currency: z.enum(CURRENCIES).optional(),
   description: z.string().min(1).max(500),
@@ -20,9 +27,10 @@ export type CreateExpenseInput = z.infer<typeof CreateExpenseSchema>;
 
 export const UpdateExpenseSchema = z.object({
   id: z.string().guid(),
-  property_id: z.string().guid().optional(),
-  unit_id: z.string().guid().optional(),
-  category_id: z.string().guid().optional(),
+  property_id: optionalGuid,
+  unit_id: optionalGuid,
+  category_id: optionalGuid,
+  kind: z.enum(EXPENSE_KINDS).optional(),
   amount: z.coerce.number().positive().max(999_999_99).optional(),
   currency: z.enum(CURRENCIES).optional(),
   description: z.string().min(1).max(500).optional(),
