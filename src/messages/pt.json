@@ -65,6 +65,7 @@
     "createButton": "Criar"
   },
   "navigation": {
+    "documents": "Documentos",
     "dashboard": "Painel",
     "properties": "Propriedades",
     "units": "Unidades",
@@ -3135,6 +3136,65 @@
       "landlordSignature": "Locador",
       "tenantSignature": "Inquilino",
       "missing": "—"
+    }
+  },
+  "documents": {
+    "title": "Documentos",
+    "entities": {
+      "tenant": "Inquilino",
+      "contract": "Contrato",
+      "property": "Imóvel"
+    },
+    "categories": {
+      "identity": "Identidade",
+      "contract": "Contrato",
+      "insurance": "Seguro",
+      "certificate": "Certificado",
+      "invoice": "Fatura",
+      "other": "Outro"
+    },
+    "form": {
+      "title": "Enviar documento",
+      "entityType": "Associar a",
+      "choose": "Escolha uma opção",
+      "name": "Nome",
+      "category": "Categoria",
+      "expiresOn": "Vence em",
+      "expiresHint": "Opcional. Aparece em A vencer 30 dias antes.",
+      "file": "Arquivo",
+      "fileHint": "PDF, JPG, PNG ou WEBP. Até 5 MB.",
+      "visibleToTenant": "Visível para o inquilino no portal",
+      "upload": "Enviar",
+      "uploading": "Enviando…",
+      "uploaded": "Documento enviado."
+    },
+    "filters": {
+      "label": "Filtrar documentos",
+      "all": "Todos",
+      "expiring": "A vencer"
+    },
+    "list": {
+      "title": "Arquivo de documentos",
+      "empty": "Nenhum documento.",
+      "expires": "vence {date}",
+      "visible": "Visível ao inquilino",
+      "open": "Abrir",
+      "opening": "Abrindo…",
+      "delete": "Excluir"
+    },
+    "expiry": {
+      "expired": "Vencido",
+      "soon": "Vence em breve"
+    },
+    "errors": {
+      "upload": "Não foi possível enviar o documento. Verifique os dados e o arquivo.",
+      "delete": "Não foi possível excluir o documento.",
+      "open": "Não foi possível abrir o documento."
+    },
+    "portal": {
+      "title": "Meus documentos",
+      "noTenant": "Sem ficha de inquilino",
+      "noTenantHint": "Fale com seu administrador."
     }
   }
 }
