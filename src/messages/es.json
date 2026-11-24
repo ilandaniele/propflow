@@ -349,7 +349,8 @@
       "colDate": "Fecha",
       "colMethod": "Método",
       "colStatus": "Estado",
-      "colAction": "Acción"
+      "colAction": "Acción",
+      "receipt": "Constancia"
     },
     "record": "Registrar Pago",
     "approve": "Aprobar",
@@ -1708,6 +1709,27 @@
     }
   },
   "tenantPayments": {
+    "recordForm": {
+      "title": "Registrar constancia de pago",
+      "amount": "Monto",
+      "paidAt": "Fecha de pago",
+      "method": "Método",
+      "methodTransfer": "Transferencia",
+      "methodCash": "Efectivo",
+      "methodCard": "Tarjeta",
+      "methodOther": "Otro",
+      "reference": "Referencia (opcional)",
+      "period": "Correspondiente a (opcional)",
+      "proof": "Constancia (opcional)",
+      "proofHint": "JPG, PNG, WebP o PDF, máximo 5 MB",
+      "submit": "Registrar pago",
+      "submitting": "Registrando...",
+      "success": "Pago registrado, pendiente de aprobación",
+      "error": "No se pudo registrar el pago. Inténtalo de nuevo.",
+      "proofEmpty": "El archivo está vacío.",
+      "proofTooLarge": "El archivo supera los 5 MB.",
+      "proofInvalidType": "Formato no permitido. Usa JPG, PNG, WebP o PDF."
+    },
     "title": "Mis Pagos",
     "downloadTemplate": "Descargar Plantilla CSV",
     "importCsv": "Importar CSV",

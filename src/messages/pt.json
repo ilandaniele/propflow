@@ -349,7 +349,8 @@
       "colDate": "Data",
       "colMethod": "Método",
       "colStatus": "Status",
-      "colAction": "Ação"
+      "colAction": "Ação",
+      "receipt": "Comprovante"
     },
     "record": "Registrar Pagamento",
     "approve": "Aprovar",
@@ -1708,6 +1709,27 @@
     }
   },
   "tenantPayments": {
+    "recordForm": {
+      "title": "Registrar comprovante de pagamento",
+      "amount": "Valor",
+      "paidAt": "Data do pagamento",
+      "method": "Método",
+      "methodTransfer": "Transferência",
+      "methodCash": "Dinheiro",
+      "methodCard": "Cartão",
+      "methodOther": "Outro",
+      "reference": "Referência (opcional)",
+      "period": "Referente a (opcional)",
+      "proof": "Comprovante (opcional)",
+      "proofHint": "JPG, PNG, WebP ou PDF, até 5 MB",
+      "submit": "Registrar pagamento",
+      "submitting": "Registrando...",
+      "success": "Pagamento registrado, aguardando aprovação",
+      "error": "Não foi possível registrar o pagamento. Tente novamente.",
+      "proofEmpty": "O arquivo está vazio.",
+      "proofTooLarge": "O arquivo excede 5 MB.",
+      "proofInvalidType": "Formato não permitido. Use JPG, PNG, WebP ou PDF."
+    },
     "title": "Meus Pagamentos",
     "downloadTemplate": "Baixar Modelo CSV",
     "importCsv": "Importar CSV",
