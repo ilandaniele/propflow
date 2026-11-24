@@ -373,3 +373,21 @@ Las filas 44, 45, 46, 51 y 52 ya existían en Propflow.
 | 48 | #156 |
 | 49 | #154 |
 | 50 | #149 |
+
+## Segunda ronda (2026-11-24)
+
+Brechas que no estaban en la tabla de la sección 4.
+
+| Funcionalidad | H | X | Estado | PR |
+|---|---|---|---|---|
+| Exportación completa de datos de la organización (ZIP de CSV) | ✔ | ✔ | hecho | #196 |
+| Contratos de suministros por propiedad (proveedor, número de cliente, titular) | ✔ | ✔ | hecho | #197 |
+| Comunicados masivos a inquilinos (panel, email y WhatsApp) | ✔ | ✔ | hecho | #198 |
+| Carga masiva de documentos (hasta 10 archivos por lote) | ✔ | ✔ | hecho | #199 |
+| Informe de renta media por propiedad y tipo de unidad (solo PEN) | ✔ | — | hecho | #200 |
+| Informe de rendimiento por gestor (30, 90 o 365 días) | ✔ | — | hecho | #200 |
+| Campos personalizados en propiedad, unidad, inquilino y contrato | — | ✔ | hecho | #201 |
+| Registro con Apple | ✔ | — | pendiente: cuenta Apple Developer (USD 99/año) | — |
+| Notificaciones push web | ✔ | — | pendiente: requiere Workers Paid | — |
+| Bot de Telegram | — | ✔ | descartado: ya hay WhatsApp | — |
+| Chat en tiempo real | ✔ | — | descartado: sin margen de tamaño en el Worker | — |
