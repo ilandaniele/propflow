@@ -90,23 +90,25 @@ async function seedOrgWithTenant(name: string) {
   return { org, property, profile, tenant, contract };
 }
 
-function form(fields: Record<string, string | Blob>) {
+function form(fields: Record<string, string | Blob | Blob[]>) {
   const data = new FormData();
-  for (const [key, value] of Object.entries(fields)) data.set(key, value);
+  for (const [key, value] of Object.entries(fields)) {
+    for (const item of Array.isArray(value) ? value : [value]) data.append(key, item);
+  }
   return data;
 }
 
 const actions = () => import('@/app/actions/documents');
 const queries = () => import('@/lib/documents/queries');
 
-async function upload(entityType: string, entityId: string, extra: Record<string, string | Blob> = {}) {
-  const { uploadDocument } = await actions();
-  return uploadDocument({}, form({
+async function upload(entityType: string, entityId: string, extra: Record<string, string | Blob | Blob[]> = {}) {
+  const { uploadDocuments } = await actions();
+  return uploadDocuments({}, form({
     entity_type: entityType,
     entity_id: entityId,
     name: 'DNI',
     category: 'identity',
-    file: new File([PDF], 'dni.pdf', { type: 'application/pdf' }),
+    files: new File([PDF], 'dni.pdf', { type: 'application/pdf' }),
     ...extra,
   }));
 }
@@ -119,13 +121,13 @@ describe('document manager (real SQL)', () => {
   it('uploads a PDF and a PNG with content-detected MIME types under the org prefix', async () => {
     const { org, tenant, property } = await seedOrgWithTenant('Upload Org');
 
-    expect((await upload('tenant', tenant.id, { expires_on: '2026-06-20', visible_to_tenant: 'on' })).error).toBeUndefined();
+    expect((await upload('tenant', tenant.id, { expires_on: '2026-06-20', visible_to_tenant: 'on' })).data?.results).toEqual([{ file: 'dni.pdf' }]);
     expect((await upload('property', property.id, {
       name: 'Plano',
       category: 'other',
       visible_to_tenant: 'on',
-      file: new File([PNG], 'plano.png', { type: 'image/png' }),
-    })).error).toBeUndefined();
+      files: new File([PNG], 'plano.png', { type: 'image/png' }),
+    })).data?.results).toEqual([{ file: 'plano.png' }]);
 
     const rows = await documentsOf(org.id);
     const pdf = rows.find((row) => row.tenantId === tenant.id)!;
@@ -139,9 +141,40 @@ describe('document manager (real SQL)', () => {
   it('rejects a file whose content is not an allowed type', async () => {
     const { org, tenant } = await seedOrgWithTenant('Bad Type Org');
 
-    const result = await upload('tenant', tenant.id, { file: new File([Buffer.from('MZ not a document')], 'x.pdf', { type: 'application/pdf' }) });
+    const result = await upload('tenant', tenant.id, { files: new File([Buffer.from('MZ not a document')], 'x.pdf', { type: 'application/pdf' }) });
 
-    expect(result.error?.code).toBe('VALIDATION_ERROR');
+    expect(result.data?.results).toEqual([{ file: 'x.pdf', error: 'type' }]);
+    expect(await documentsOf(org.id)).toHaveLength(0);
+  });
+
+  it('uploads several files named after each file and reports per-file failures', async () => {
+    const { org, contract } = await seedOrgWithTenant('Bulk Org');
+
+    const result = await upload('contract', contract.id, {
+      name: 'Ignored',
+      files: [
+        new File([PDF], 'Contrato firmado.pdf', { type: 'application/pdf' }),
+        new File([Buffer.from('MZ not a document')], 'virus.pdf'),
+        new File([PNG], 'Inventario.png', { type: 'image/png' }),
+      ],
+    });
+
+    expect(result.data?.results).toEqual([
+      { file: 'Contrato firmado.pdf' },
+      { file: 'virus.pdf', error: 'type' },
+      { file: 'Inventario.png' },
+    ]);
+    const rows = await documentsOf(org.id);
+    expect(rows.map((row) => row.name).sort()).toEqual(['Contrato firmado', 'Inventario']);
+    expect(rows.every((row) => row.contractId === contract.id && row.category === 'identity')).toBe(true);
+  });
+
+  it('rejects more than 10 files and a single file without a name', async () => {
+    const { org, tenant } = await seedOrgWithTenant('Limits Org');
+    const files = Array.from({ length: 11 }, (_, i) => new File([PDF], `${i}.pdf`));
+
+    expect((await upload('tenant', tenant.id, { files })).error?.code).toBe('VALIDATION_ERROR');
+    expect((await upload('tenant', tenant.id, { name: '' })).error?.code).toBe('VALIDATION_ERROR');
     expect(await documentsOf(org.id)).toHaveLength(0);
   });
 

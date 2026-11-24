@@ -3325,12 +3325,13 @@
       "category": "Categoria",
       "expiresOn": "Vence em",
       "expiresHint": "Opcional. Aparece em A vencer 30 dias antes.",
-      "file": "Arquivo",
-      "fileHint": "PDF, JPG, PNG ou WEBP. Até 5 MB.",
+      "file": "Arquivos",
+      "fileHint": "PDF, JPG, PNG ou WEBP. Até 5 MB cada, {max} arquivos e 20 MB no total.",
       "visibleToTenant": "Visível para o inquilino no portal",
       "upload": "Enviar",
       "uploading": "Enviando…",
-      "uploaded": "Documento enviado."
+      "uploaded": "{count, plural, one {# documento enviado.} other {# documentos enviados.}}",
+      "nameFromFiles": "Vários arquivos selecionados: cada documento recebe o nome do seu arquivo."
     },
     "filters": {
       "label": "Filtrar documentos",
@@ -3353,7 +3354,13 @@
     "errors": {
       "upload": "Não foi possível enviar o documento. Verifique os dados e o arquivo.",
       "delete": "Não foi possível excluir o documento.",
-      "open": "Não foi possível abrir o documento."
+      "open": "Não foi possível abrir o documento.",
+      "tooMany": "Selecione até {max} arquivos que somem 20 MB ou menos.",
+      "file": {
+        "size": "{file}: deve ter entre 1 byte e 5 MB.",
+        "type": "{file}: tipo de arquivo não suportado.",
+        "storage": "{file}: não foi possível salvar. Tente novamente."
+      }
     },
     "portal": {
       "title": "Meus documentos",

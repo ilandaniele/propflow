@@ -8,69 +8,66 @@ import { requireAdmin, requireTenant } from '@/lib/auth/guards';
 import { Errors, ok, type ActionResult } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
-import { deleteImage, getSignedUrl, uploadFile } from '@/lib/storage';
-import { DocumentIdSchema, UploadDocumentSchema } from '@/lib/schemas/documents';
-import { detectDocumentMime } from '@/lib/documents/mime';
-import { DOCUMENT_MIME_EXTENSIONS } from '@/lib/documents/types';
+import { deleteImage, getSignedUrl } from '@/lib/storage';
+import { asBatch, chunk, rowsPerInsert } from '@/lib/db/batch';
+import { DocumentIdSchema, UploadDocumentsSchema } from '@/lib/schemas/documents';
 import {
-  documentStoragePath,
+  DOCUMENTS_BUCKET as BUCKET,
+  documentNameFor,
+  storeDocumentFile,
+  uploadResults,
+  type DocumentUploadResult,
+} from '@/lib/documents/upload';
+import {
   findDocument,
   findOwnedEntity,
   findPortalDocument,
   findTenantIdForUser,
 } from '@/lib/documents/queries';
 
-const BUCKET = 'documents';
 const URL_TTL_S = 300;
+const DOCUMENT_ROWS_PER_INSERT = rowsPerInsert(documents);
 
 function revalidateDocuments() {
   revalidatePath('/dashboard/documents');
   revalidatePath('/portal/documents');
 }
 
-export async function uploadDocument(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
+export async function uploadDocuments(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult<{ results: DocumentUploadResult[] }>> {
   let ctx;
   try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
   if (!mutationRateLimit(ctx.userId, 'documents').success) return Errors.RATE_LIMITED();
 
-  const parsed = UploadDocumentSchema.safeParse(Object.fromEntries(formData));
+  const parsed = UploadDocumentsSchema.safeParse({ ...Object.fromEntries(formData), files: formData.getAll('files') });
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
-  const { entity_type: entity, entity_id: entityId, file, ...fields } = parsed.data;
+  const { entity_type: entity, entity_id: entityId, files, name, ...fields } = parsed.data;
 
   if (!(await findOwnedEntity(ctx.orgId, entity, entityId))) return Errors.NOT_FOUND();
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const mimeType = detectDocumentMime(bytes);
-  if (!mimeType) return Errors.VALIDATION_ERROR({ formErrors: ['Unsupported file type'], fieldErrors: {} });
-
-  const id = crypto.randomUUID();
-  const storagePath = documentStoragePath(ctx.orgId, id, DOCUMENT_MIME_EXTENSIONS[mimeType]);
-  try {
-    await uploadFile(BUCKET, storagePath, bytes, mimeType);
-  } catch (error) {
-    log.error('document upload failed', { error: String(error) });
-    return Errors.INTERNAL();
-  }
-
-  await db.insert(documents).values({
-    id,
+  const target = {
     orgId:           ctx.orgId,
-    tenantId:        entity === 'tenant' ? entityId : null,
-    contractId:      entity === 'contract' ? entityId : null,
-    propertyId:      entity === 'property' ? entityId : null,
-    name:            fields.name,
+    userId:          ctx.userId,
+    entity,
+    entityId,
     category:        fields.category,
-    storagePath,
-    mimeType,
-    sizeBytes:       bytes.length,
     expiresOn:       fields.expires_on || null,
-    visibleToTenant: fields.visible_to_tenant === 'on' && entity !== 'property',
-    uploadedBy:      ctx.userId,
-  });
+    visibleToTenant: fields.visible_to_tenant === 'on',
+  };
+  const stored = await Promise.all(
+    files.map((file) => storeDocumentFile(target, file, documentNameFor(file.name, name, files.length))),
+  );
 
-  log.adminAction(ctx.userId, 'upload_document', entity, entityId);
-  revalidateDocuments();
-  return ok(undefined);
+  const rows = stored.flatMap((outcome) => ('row' in outcome ? [outcome.row] : []));
+  const batch = asBatch(chunk(rows, DOCUMENT_ROWS_PER_INSERT).map((part) => db.insert(documents).values(part)));
+  if (batch) {
+    await db.batch(batch);
+    log.adminAction(ctx.userId, 'upload_document', entity, entityId);
+    revalidateDocuments();
+  }
+  return ok({ results: uploadResults(files, stored) });
 }
 
 export async function deleteDocument(_prev: ActionResult, formData: FormData): Promise<ActionResult> {
