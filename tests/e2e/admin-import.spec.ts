@@ -54,7 +54,7 @@ test.describe('Admin Import — navigation', () => {
 
     // Check specific tab labels (Spanish)
     await expect(page.getByRole('link', { name: 'CSV Mensual' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Rendimiento' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Rendimiento', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Historial', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Cuartos fantasma' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Mapeo propiedades' })).toBeVisible();
