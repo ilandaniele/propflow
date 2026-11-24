@@ -105,6 +105,7 @@
     "importHistory": "Historial de importaciones",
     "deposits": "Garantías",
     "rentAdjustments": "Reajustes de alquiler",
+    "cashAccounts": "Cajas y bancos",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "chargeConcepts": "Conceptos de cobro",
@@ -1839,6 +1840,50 @@
     "done": "Nuevo alquiler {rent}",
     "notActive": "Solo se reajustan contratos activos.",
     "historyTitle": "Historial de reajustes"
+  },
+  "cashAccounts": {
+    "title": "Cajas y bancos",
+    "subtitle": "Cuentas de caja y banco con sus movimientos y la liquidación del mes.",
+    "previous": "← Anterior",
+    "next": "Siguiente →",
+    "exportAnnual": "Liquidación anual {year} (CSV)",
+    "exportMonth": "Exportar mes (CSV)",
+    "monthlyTitle": "Liquidación {month}",
+    "emptyTitle": "Sin cuentas",
+    "emptyDesc": "Creá una cuenta de caja o banco para registrar movimientos.",
+    "colAccount": "Cuenta",
+    "colOpening": "Saldo inicial",
+    "colIncome": "Ingresos",
+    "colOutflow": "Egresos",
+    "colClosing": "Saldo final",
+    "colBalance": "Saldo actual",
+    "colDate": "Fecha",
+    "colConcept": "Concepto",
+    "colDocument": "Documento",
+    "total": "Total",
+    "kindBank": "Banco",
+    "kindCash": "Caja",
+    "back": "← Cajas y bancos",
+    "form": {
+      "open": "Nueva cuenta",
+      "name": "Nombre",
+      "kind": "Tipo",
+      "bankName": "Banco",
+      "accountNumber": "Número de cuenta",
+      "openingBalance": "Saldo inicial",
+      "submit": "Crear cuenta",
+      "saved": "Cuenta creada"
+    },
+    "movement": {
+      "title": "Registrar movimiento",
+      "direction": "Tipo",
+      "amount": "Monto",
+      "submit": "Registrar",
+      "saved": "Movimiento registrado",
+      "inactive": "La cuenta está inactiva.",
+      "emptyTitle": "Sin movimientos este mes",
+      "emptyDesc": "Los movimientos registrados aparecerán acá."
+    }
   },
   "accountStatements": {
     "generate": {

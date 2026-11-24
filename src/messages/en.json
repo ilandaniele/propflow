@@ -105,6 +105,7 @@
     "importHistory": "Import History",
     "deposits": "Deposits",
     "rentAdjustments": "Rent adjustments",
+    "cashAccounts": "Cash and banks",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -1839,6 +1840,50 @@
     "done": "New rent {rent}",
     "notActive": "Only active contracts can be adjusted.",
     "historyTitle": "Adjustment history"
+  },
+  "cashAccounts": {
+    "title": "Cash and bank accounts",
+    "subtitle": "Cash and bank accounts with their movements and the monthly liquidation.",
+    "previous": "← Previous",
+    "next": "Next →",
+    "exportAnnual": "Annual liquidation {year} (CSV)",
+    "exportMonth": "Export month (CSV)",
+    "monthlyTitle": "Liquidation {month}",
+    "emptyTitle": "No accounts",
+    "emptyDesc": "Create a cash or bank account to record movements.",
+    "colAccount": "Account",
+    "colOpening": "Opening balance",
+    "colIncome": "Income",
+    "colOutflow": "Outflow",
+    "colClosing": "Closing balance",
+    "colBalance": "Current balance",
+    "colDate": "Date",
+    "colConcept": "Concept",
+    "colDocument": "Document",
+    "total": "Total",
+    "kindBank": "Bank",
+    "kindCash": "Cash",
+    "back": "← Cash and banks",
+    "form": {
+      "open": "New account",
+      "name": "Name",
+      "kind": "Type",
+      "bankName": "Bank",
+      "accountNumber": "Account number",
+      "openingBalance": "Opening balance",
+      "submit": "Create account",
+      "saved": "Account created"
+    },
+    "movement": {
+      "title": "Record movement",
+      "direction": "Type",
+      "amount": "Amount",
+      "submit": "Record",
+      "saved": "Movement recorded",
+      "inactive": "This account is inactive.",
+      "emptyTitle": "No movements this month",
+      "emptyDesc": "Recorded movements will show up here."
+    }
   },
   "accountStatements": {
     "generate": {
