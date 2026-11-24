@@ -88,6 +88,7 @@ vi.mock('@/lib/auth/guards', () => ({
   getCachedUser: () => mockGetSessionFast().then((s) => s ? { id: s.user.id } : null),
   getProfileFast: (userId: string) => mockGetProfileFast(userId),
   getOrgNameFast: (orgId: string) => mockGetOrgNameFast(orgId),
+  staffRoleOf: () => null,
   // Keep other exports present so no import errors in transitively loaded modules
   getProfile: vi.fn(),
   requireUser: vi.fn(),

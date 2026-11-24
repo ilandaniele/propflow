@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { expenseCategories, expenses, receiptUploads, payments, properties, units } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { requireAdmin, requireUser } from '@/lib/auth/guards';
+import { canStaffWrite, requireStaff, requireUser } from '@/lib/auth/guards';
 import { uploadFile } from '@/lib/storage';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
@@ -23,7 +23,7 @@ export async function createExpenseCategory(
   formData: FormData
 ): Promise<ActionResult> {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+  try { ctx = await requireStaff('finance', 'write'); } catch { return Errors.UNAUTHORIZED(); }
 
   const rl = mutationRateLimit(ctx.userId, 'create-expense-category');
   if (!rl.success) return Errors.RATE_LIMITED();
@@ -55,7 +55,7 @@ export async function createExpense(
   formData: FormData
 ): Promise<ActionResult> {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+  try { ctx = await requireStaff('finance', 'write'); } catch { return Errors.UNAUTHORIZED(); }
 
   const rl = mutationRateLimit(ctx.userId, 'create-expense');
   if (!rl.success) return Errors.RATE_LIMITED();
@@ -106,7 +106,7 @@ export async function updateExpense(
   formData: FormData
 ): Promise<ActionResult> {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+  try { ctx = await requireStaff('finance', 'write'); } catch { return Errors.UNAUTHORIZED(); }
 
   const rl = mutationRateLimit(ctx.userId, 'update-expense');
   if (!rl.success) return Errors.RATE_LIMITED();
@@ -149,6 +149,7 @@ export async function uploadReceipt(
 ): Promise<ActionResult<{ receiptId: string; filePath: string }>> {
   let ctx;
   try { ctx = await requireUser(); } catch { return Errors.UNAUTHORIZED(); }
+  if (!canStaffWrite(ctx, 'finance')) return Errors.FORBIDDEN();
 
   const rl = mutationRateLimit(ctx.userId, 'upload-receipt');
   if (!rl.success) return Errors.RATE_LIMITED();
@@ -213,7 +214,7 @@ export async function matchReceiptToPayment(
   formData: FormData
 ): Promise<ActionResult> {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+  try { ctx = await requireStaff('finance', 'write'); } catch { return Errors.UNAUTHORIZED(); }
 
   const rl = mutationRateLimit(ctx.userId, 'match-receipt');
   if (!rl.success) return Errors.RATE_LIMITED();

@@ -81,6 +81,20 @@ export const profiles = sqliteTable('profiles', {
   check('profiles_preferred_language_check', sql`preferred_language IN ('es', 'en', 'pt')`),
 ]);
 
+export const staffRoles = sqliteTable('staff_roles', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  profileId: text('profile_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
+  role:      text('role').notNull(),
+  createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('staff_roles_profile_uniq').on(t.profileId),
+  index('idx_staff_roles_org').on(t.orgId),
+  check('staff_roles_role_check', sql`role IN ('finance', 'operations', 'viewer')`),
+]);
+
 export const properties = sqliteTable('properties', {
   id:                 id(),
   orgId:              text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),

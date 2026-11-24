@@ -102,6 +102,7 @@
     "portfolio": "Portfólio",
     "pricingTables": "Tabelas de preços",
     "adminImport": "Importação",
+    "team": "Equipe",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
     "deposits": "Cauções",
@@ -3253,5 +3254,28 @@
     "neverViewed": "nunca visto",
     "revoke": "Revogar",
     "revoking": "Revogando…"
+  },
+  "team": {
+    "title": "Equipe e permissões",
+    "description": "Limite o que cada administrador da sua organização pode ver e editar.",
+    "roleLabel": "Função",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "saved": "Salvo",
+    "error": "Não foi possível salvar.",
+    "you": "Você (administrador)",
+    "onlyYou": "Por enquanto você é o único administrador da organização.",
+    "roles": {
+      "admin": "Administrador",
+      "finance": "Finanças",
+      "operations": "Operações",
+      "viewer": "Somente leitura"
+    },
+    "roleHelp": {
+      "admin": "acesso total, incluindo esta página.",
+      "finance": "vê e edita apenas Finanças.",
+      "operations": "vê e edita apenas Incidentes.",
+      "viewer": "vê Finanças e Incidentes sem editar."
+    }
   }
 }

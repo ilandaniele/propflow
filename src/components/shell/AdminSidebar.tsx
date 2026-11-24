@@ -467,6 +467,15 @@ const adminNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'team',
+    href: '/dashboard/admin/team',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'adminImport',
     href: '/dashboard/admin/import',
     icon: (
@@ -541,6 +550,8 @@ export interface AdminSidebarProps {
   orgName?:  string;
   open?:     boolean;
   onClose?:  () => void;
+  /** When set, only these links are shown (restricted staff roles). */
+  allowedHrefs?: string[] | null;
 }
 
 function NavSection({
@@ -554,6 +565,7 @@ function NavSection({
   pathname: string;
   t: ReturnType<typeof useTranslations<'navigation'>>;
 }) {
+  if (items.length === 0) return null;
   return (
     <>
       {titleKey && (
@@ -591,9 +603,10 @@ function NavSection({
   );
 }
 
-export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
+export function AdminSidebar({ orgName, open, onClose, allowedHrefs }: AdminSidebarProps) {
   const pathname = usePathname();
   const t = useTranslations('navigation');
+  const visible = (items: NavItem[]) => (allowedHrefs ? items.filter((item) => allowedHrefs.includes(item.href)) : items);
 
   return (
     <>
@@ -640,13 +653,13 @@ export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label={t('mainNav')}>
         <ul className="space-y-0.5" role="list">
-          <NavSection items={coreNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionFinance" items={financeNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionOps" items={opsNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionIntelligence" items={intelligenceNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionCommunity" items={communityNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionPhase4" items={phase4NavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionAdmin" items={adminNavItems} pathname={pathname} t={t} />
+          <NavSection items={visible(coreNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionFinance" items={visible(financeNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionOps" items={visible(opsNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionIntelligence" items={visible(intelligenceNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionCommunity" items={visible(communityNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionPhase4" items={visible(phase4NavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionAdmin" items={visible(adminNavItems)} pathname={pathname} t={t} />
         </ul>
       </nav>
       </aside>

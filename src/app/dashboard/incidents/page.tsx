@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { incidents, incidentSchedules, profiles } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -20,7 +20,7 @@ const assignees = alias(profiles, 'assignees');
 
 export default async function IncidentsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+  try { ctx = await requireStaff('operations', 'read'); } catch { redirect('/login'); }
 
   const t = await getTranslations('incidents');
 

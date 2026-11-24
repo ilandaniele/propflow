@@ -102,6 +102,7 @@
     "portfolio": "Portfolio",
     "pricingTables": "Pricing Tables",
     "adminImport": "Import",
+    "team": "Team",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
     "deposits": "Deposits",
@@ -3253,5 +3254,28 @@
     "neverViewed": "never viewed",
     "revoke": "Revoke",
     "revoking": "Revoking…"
+  },
+  "team": {
+    "title": "Team and permissions",
+    "description": "Limit what each admin in your organization can see and edit.",
+    "roleLabel": "Role",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "error": "Could not save.",
+    "you": "You (admin)",
+    "onlyYou": "You are the only admin in the organization for now.",
+    "roles": {
+      "admin": "Admin",
+      "finance": "Finance",
+      "operations": "Operations",
+      "viewer": "Read only"
+    },
+    "roleHelp": {
+      "admin": "full access, including this page.",
+      "finance": "sees and edits Finance only.",
+      "operations": "sees and edits Incidents only.",
+      "viewer": "sees Finance and Incidents without editing."
+    }
   }
 }
