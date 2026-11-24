@@ -75,6 +75,7 @@
     "incidents": "Incidentes",
     "finance": "Finanzas",
     "reminders": "Recordatorios",
+    "expirations": "Vencimientos",
     "announcements": "Anuncios",
     "staff": "Personal",
     "communities": "Comunidades",
@@ -3655,5 +3656,36 @@
     "title": "Historial de estados",
     "empty": "Sin cambios de estado todavía.",
     "unknown": "Desconocido"
+  },
+  "documentExpirations": {
+    "title": "Vencimientos de documentos",
+    "subtitle": "DNI, seguros y certificados. Alerta 30 días antes de vencer.",
+    "addTitle": "Agregar documento",
+    "kind": "Tipo",
+    "label": "Descripción",
+    "expiresOn": "Vence el",
+    "tenant": "Inquilino",
+    "property": "Propiedad",
+    "none": "Ninguno",
+    "add": "Agregar",
+    "saving": "Guardando…",
+    "remove": "Eliminar",
+    "empty": "Sin documentos registrados.",
+    "expires": "Vence: {date}",
+    "kinds": {
+      "dni": "DNI",
+      "insurance": "Seguro",
+      "certificate": "Certificado",
+      "other": "Otro"
+    },
+    "status": {
+      "expired": "Vencido",
+      "soon": "Por vencer",
+      "ok": "Vigente"
+    }
+  },
+  "expiringDocumentsBanner": {
+    "summary": "Documentos: {expired} vencidos y {soon} por vencer en 30 días.",
+    "review": "Revisar"
   }
 }

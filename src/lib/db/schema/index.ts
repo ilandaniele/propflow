@@ -15,4 +15,5 @@ export * from './staff';
 export * from './memberships';
 export * from './recurring';
 export * from './incident-history';
+export * from './document-expiry';
 export * from './relations';

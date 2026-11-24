@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
 import { entityLabel } from '@/lib/dashboard/health';
 import { getDashboardKpis } from '@/lib/dashboard/queries';
+import { ExpiringDocumentsBanner } from '@/components/document-expirations/ExpiringDocumentsBanner';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -76,6 +77,8 @@ export default async function DashboardPage() {
           <p className="text-amber-800">{t('diagnosticCause')}</p>
         </div>
       )}
+
+      <ExpiringDocumentsBanner orgId={ctx.orgId} />
 
       {!hasData ? (
         <Card>

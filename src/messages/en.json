@@ -75,6 +75,7 @@
     "incidents": "Incidents",
     "finance": "Finance",
     "reminders": "Reminders",
+    "expirations": "Expirations",
     "announcements": "Announcements",
     "staff": "Staff",
     "communities": "Communities",
@@ -3655,5 +3656,36 @@
     "title": "Status history",
     "empty": "No status changes yet.",
     "unknown": "Unknown"
+  },
+  "documentExpirations": {
+    "title": "Document expirations",
+    "subtitle": "IDs, insurance and certificates. Alert 30 days before expiry.",
+    "addTitle": "Add document",
+    "kind": "Type",
+    "label": "Description",
+    "expiresOn": "Expires on",
+    "tenant": "Tenant",
+    "property": "Property",
+    "none": "None",
+    "add": "Add",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "empty": "No documents yet.",
+    "expires": "Expires: {date}",
+    "kinds": {
+      "dni": "ID (DNI)",
+      "insurance": "Insurance",
+      "certificate": "Certificate",
+      "other": "Other"
+    },
+    "status": {
+      "expired": "Expired",
+      "soon": "Expiring soon",
+      "ok": "Valid"
+    }
+  },
+  "expiringDocumentsBanner": {
+    "summary": "Documents: {expired} expired and {soon} expiring within 30 days.",
+    "review": "Review"
   }
 }
