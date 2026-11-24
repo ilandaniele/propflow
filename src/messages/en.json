@@ -110,6 +110,7 @@
     "amenities": "Common areas",
     "assets": "Assets",
     "bankReconciliation": "Bank reconciliation",
+    "rentalTax": "Rental income tax",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -2098,6 +2099,34 @@
       "newPayment": "New payment",
       "ignore": "Ignore",
       "restore": "Restore"
+    }
+  },
+  "rentalTax": {
+    "title": "Rental income tax {year}",
+    "subtitle": "Collected rent (approved payments) by property and month, with the estimated 5% monthly tax.",
+    "yearNav": "Change year",
+    "emptyTitle": "No approved payments this year",
+    "emptyDesc": "Approved rent payments will show here grouped by month.",
+    "grossLabel": "Gross rent {currency}",
+    "taxLabel": "5% tax",
+    "colProperty": "Property",
+    "colTotal": "Total",
+    "colTax": "5%",
+    "monthlyTax": "Monthly 5% {currency}",
+    "disclaimer": "Reference estimate for SUNAT Form 1683 (5% of gross rent collected). Check with your accountant before filing.",
+    "months": {
+      "0": "Jan",
+      "1": "Feb",
+      "2": "Mar",
+      "3": "Apr",
+      "4": "May",
+      "5": "Jun",
+      "6": "Jul",
+      "7": "Aug",
+      "8": "Sep",
+      "9": "Oct",
+      "10": "Nov",
+      "11": "Dec"
     }
   },
   "accountStatements": {
