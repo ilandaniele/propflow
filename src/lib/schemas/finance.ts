@@ -31,8 +31,8 @@ export const UpdateExpenseSchema = z.object({
 export type UpdateExpenseInput = z.infer<typeof UpdateExpenseSchema>;
 
 // 5 MB in bytes
-const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
-const ALLOWED_RECEIPT_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'application/pdf'] as const;
+export const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
+export const ALLOWED_RECEIPT_MIMES =['image/png', 'image/jpeg', 'image/webp', 'application/pdf'] as const;
 
 export const UploadReceiptSchema = z.object({
   file_name: z.string().min(1).max(255),

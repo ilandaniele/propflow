@@ -80,6 +80,7 @@
     "leads": "Leads",
     "community": "Comunidade",
     "polls": "Enquetes",
+    "tenantMessages": "Mensagens",
     "visitors": "Visitantes",
     "aiAssistant": "Assistente IA",
     "whatsapp": "WhatsApp",
@@ -3415,5 +3416,43 @@
     "emptyTitle": "Sem enquetes",
     "emptyAdminDesc": "Crie a primeira enquete para saber a opinião dos moradores.",
     "emptyPortalDesc": "A administração ainda não publicou enquetes."
+  },
+  "tenantMessages": {
+    "inboxTitle": "Mensagens de inquilinos",
+    "inboxSubtitle": "Dúvidas, pedidos e reclamações enviados pelo portal.",
+    "portalTitle": "Mensagens para a administração",
+    "newMessage": "Nova mensagem",
+    "filterLabel": "Filtrar por status",
+    "all": "Todas",
+    "kindLabel": "Tipo",
+    "subjectLabel": "Assunto",
+    "bodyLabel": "Mensagem",
+    "send": "Enviar",
+    "replyLabel": "Resposta",
+    "replyPlaceholder": "Escreva a resposta para o inquilino",
+    "sendReply": "Responder",
+    "updateReply": "Atualizar resposta",
+    "replyHeading": "Resposta da administração",
+    "close": "Encerrar",
+    "unknownSender": "Inquilino",
+    "emptyTitle": "Sem mensagens",
+    "emptyInboxDesc": "As mensagens enviadas pelos inquilinos aparecerão aqui.",
+    "emptyPortalDesc": "Você ainda não enviou mensagens.",
+    "attachmentLabel": "Anexo (opcional)",
+    "attachmentHint": "Uma imagem (JPEG, PNG, WebP) ou um PDF, até 5 MB.",
+    "attachmentInvalid": "O anexo deve ser um arquivo JPEG, PNG, WebP ou PDF de até 5 MB.",
+    "attachmentOpen": "Abrir anexo {name}",
+    "attachmentSize": "{kb} KB",
+    "kind": {
+      "question": "Dúvida",
+      "request": "Pedido",
+      "complaint": "Reclamação",
+      "suggestion": "Sugestão"
+    },
+    "status": {
+      "open": "Aberta",
+      "answered": "Respondida",
+      "closed": "Encerrada"
+    }
   }
 }

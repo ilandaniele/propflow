@@ -80,6 +80,7 @@
     "leads": "Leads",
     "community": "Community",
     "polls": "Polls",
+    "tenantMessages": "Messages",
     "visitors": "Visitors",
     "aiAssistant": "AI Assistant",
     "whatsapp": "WhatsApp",
@@ -3415,5 +3416,43 @@
     "emptyTitle": "No polls",
     "emptyAdminDesc": "Create the first poll to hear what residents think.",
     "emptyPortalDesc": "Management has not published any polls yet."
+  },
+  "tenantMessages": {
+    "inboxTitle": "Tenant messages",
+    "inboxSubtitle": "Questions, requests and complaints sent from the portal.",
+    "portalTitle": "Messages to management",
+    "newMessage": "New message",
+    "filterLabel": "Filter by status",
+    "all": "All",
+    "kindLabel": "Type",
+    "subjectLabel": "Subject",
+    "bodyLabel": "Message",
+    "send": "Send",
+    "replyLabel": "Reply",
+    "replyPlaceholder": "Write the reply for the tenant",
+    "sendReply": "Reply",
+    "updateReply": "Update reply",
+    "replyHeading": "Reply from management",
+    "close": "Close",
+    "unknownSender": "Tenant",
+    "emptyTitle": "No messages",
+    "emptyInboxDesc": "Messages sent by tenants will show up here.",
+    "emptyPortalDesc": "You have not sent any messages yet.",
+    "attachmentLabel": "Attachment (optional)",
+    "attachmentHint": "One image (JPEG, PNG, WebP) or PDF, up to 5 MB.",
+    "attachmentInvalid": "The attachment must be a JPEG, PNG, WebP or PDF file up to 5 MB.",
+    "attachmentOpen": "Open attachment {name}",
+    "attachmentSize": "{kb} KB",
+    "kind": {
+      "question": "Question",
+      "request": "Request",
+      "complaint": "Complaint",
+      "suggestion": "Suggestion"
+    },
+    "status": {
+      "open": "Open",
+      "answered": "Answered",
+      "closed": "Closed"
+    }
   }
 }
