@@ -66,6 +66,7 @@
   },
   "navigation": {
     "documents": "Documentos",
+    "calendar": "Calendario",
     "dashboard": "Panel",
     "properties": "Propiedades",
     "units": "Unidades",
@@ -3739,6 +3740,21 @@
       "unit": "Unidades",
       "incident": "Incidencias",
       "lead": "Leads"
+    }
+  },
+  "opsCalendar": {
+    "title": "Calendario operativo",
+    "subtitle": "Contratos, cobros, limpiezas y visitas en un solo lugar.",
+    "download": "Descargar .ics",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "empty": "Sin eventos este mes.",
+    "kinds": {
+      "contract_start": "Inicio de contrato",
+      "contract_end": "Fin de contrato",
+      "charge_due": "{count, plural, one {# cobro vence} other {# cobros vencen}}",
+      "cleaning": "Limpieza",
+      "visit": "Visita"
     }
   }
 }
