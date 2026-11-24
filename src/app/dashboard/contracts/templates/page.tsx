@@ -7,13 +7,15 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ContractTemplateForm } from './ContractTemplateForm';
 import { ALLOWED_VARIABLES } from '@/lib/contracts/pdf.tsx';
+import { orgSignature } from '@/lib/contracts/org-signature';
+import { OrgSignatureForm } from './OrgSignatureForm';
 
 export default async function ContractTemplatesPage() {
   const ctx = await requireAdmin();
   const t = await getTranslations('contractTemplates');
 
-  const templates = await db
-    .select({
+  const [templates, signature] = await Promise.all([
+    db.select({
       id:           contractTemplates.id,
       name:         contractTemplates.name,
       bodyMarkdown: contractTemplates.bodyMarkdown,
@@ -22,7 +24,9 @@ export default async function ContractTemplatesPage() {
     })
     .from(contractTemplates)
     .where(eq(contractTemplates.orgId, ctx.orgId))
-    .orderBy(asc(contractTemplates.name));
+    .orderBy(asc(contractTemplates.name)),
+    orgSignature(ctx.orgId),
+  ]);
 
   return (
     <div className="p-6 space-y-6">
@@ -36,6 +40,12 @@ export default async function ContractTemplatesPage() {
             <code key={v} className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">{`{{${v}}}`}</code>
           ))}
         </div>
+      </Card>
+
+      <Card padding="md">
+        <CardHeader><CardTitle>{t('cardSignature')}</CardTitle></CardHeader>
+        <p className="text-xs text-slate-500 mb-3">{t('signatureNote')}</p>
+        <OrgSignatureForm current={signature} />
       </Card>
 
       <Card padding="md">

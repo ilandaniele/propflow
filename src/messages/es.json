@@ -2461,7 +2461,21 @@
     "emptyTitle": "Sin comprobantes aún",
     "emptyDesc": "Los comprobantes subidos por inquilinos o administradores aparecerán aquí para procesamiento OCR."
   },
+  "orgSignature": {
+    "current": "Firma guardada de {name}",
+    "currentAlt": "Firma guardada",
+    "signerName": "Nombre del firmante",
+    "signerDocument": "DNI o RUC",
+    "draw": "Dibuja la firma",
+    "clear": "Borrar trazo",
+    "save": "Guardar firma",
+    "saving": "Guardando…",
+    "saved": "Firma guardada.",
+    "error": "No se pudo guardar la firma. Revisa los datos e intenta de nuevo."
+  },
   "contractTemplates": {
+    "cardSignature": "Firma del arrendador",
+    "signatureNote": "Se inserta al final de cada contrato generado. También llena las variables landlord_name y landlord_document.",
     "title": "Plantillas de Contratos",
     "cardVariables": "Variables Disponibles",
     "variablesNote": "Úsalas en el cuerpo de tu plantilla como {{variable_name}}",
@@ -2603,6 +2617,8 @@
       "submit": "Crear"
     },
     "contractTemplate": {
+      "previewLabel": "Vista previa con datos de ejemplo",
+      "previewEmpty": "Escribe el cuerpo para ver la vista previa.",
       "saving": "Guardando…",
       "submit": "Crear plantilla",
       "nameLabel": "Nombre de la plantilla",

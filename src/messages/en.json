@@ -2461,7 +2461,21 @@
     "emptyTitle": "No receipts yet",
     "emptyDesc": "Receipts uploaded by tenants or admins will appear here for OCR processing."
   },
+  "orgSignature": {
+    "current": "Saved signature of {name}",
+    "currentAlt": "Saved signature",
+    "signerName": "Signer name",
+    "signerDocument": "ID or tax number",
+    "draw": "Draw the signature",
+    "clear": "Clear drawing",
+    "save": "Save signature",
+    "saving": "Saving…",
+    "saved": "Signature saved.",
+    "error": "Could not save the signature. Check the data and try again."
+  },
   "contractTemplates": {
+    "cardSignature": "Landlord signature",
+    "signatureNote": "Added at the end of every generated contract. Also fills the landlord_name and landlord_document variables.",
     "title": "Contract Templates",
     "cardVariables": "Available Variables",
     "variablesNote": "Use these in your template body as {{variable_name}}",
@@ -2603,6 +2617,8 @@
       "submit": "Create"
     },
     "contractTemplate": {
+      "previewLabel": "Preview with sample data",
+      "previewEmpty": "Type the body to see the preview.",
       "saving": "Saving…",
       "submit": "Create Template",
       "nameLabel": "Template name",

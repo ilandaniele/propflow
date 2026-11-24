@@ -85,6 +85,14 @@ export const contractTemplates = sqliteTable('contract_templates', {
   uniqueIndex('contract_templates_org_name_uniq').on(t.orgId, t.name),
 ]);
 
+export const orgSignatures = sqliteTable('org_signatures', {
+  orgId:          text('org_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  signerName:     text('signer_name').notNull(),
+  signerDocument: text('signer_document'),
+  imageDataUrl:   text('image_data_url').notNull(),
+  updatedAt:      ts('updated_at').notNull().$defaultFn(() => new Date()),
+});
+
 export const pricingTables = sqliteTable('pricing_tables', {
   id:           id(),
   orgId:        text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
