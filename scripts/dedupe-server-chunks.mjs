@@ -12,7 +12,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 
 const CHUNK_DIRS = ['.next/server/chunks', '.next/standalone/.next/server/chunks'];
 const SHARED_NAME = '__shared-modules.js';
-const MIDDLEWARE_TRACE = 'middleware.js.nft.json';
+const MIDDLEWARE_TRACE = '.next/server/middleware.js.nft.json';
 const CHUNK_PREFIX = 'module.exports=[';
 const UNSAFE_SOURCE = /__dirname|__filename|import\.meta|require\(\s*["'`]\.{1,2}\//;
 const JSON_MODULE = /^\((\w+),(\w+),(\w+)\)=>\{\2\.exports=(JSON\.parse\([\s\S]*\))\}$/;
@@ -88,17 +88,18 @@ function traceSharedFile(serverDir, sharedPath, rewritten) {
 
 // The middleware is bundled on its own; pointing its chunks at the shared file
 // would add every shared module to that bundle.
-function middlewareChunks(serverDir) {
-  const tracePath = join(serverDir, MIDDLEWARE_TRACE);
+// The standalone copy has no middleware trace yet, so both dirs use this one.
+function middlewareChunks() {
+  const tracePath = resolve(MIDDLEWARE_TRACE);
   if (!existsSync(tracePath)) return new Set();
   const { files } = JSON.parse(readFileSync(tracePath, 'utf8'));
-  return new Set(files.map((file) => resolve(serverDir, file)));
+  return new Set(files.map((file) => relative(resolve(CHUNK_DIRS[0]), resolve(dirname(tracePath), file))));
 }
 
 function dedupe(chunksDir) {
-  const skipped = middlewareChunks(dirname(chunksDir));
+  const skipped = middlewareChunks();
   const chunks = listChunks(chunksDir)
-    .filter((path) => !skipped.has(path))
+    .filter((path) => !skipped.has(relative(chunksDir, path)))
     .map((path) => ({ path, entries: loadChunk(path) }));
   const counts = countFactories(chunks);
   const sharedIds = new Map();
