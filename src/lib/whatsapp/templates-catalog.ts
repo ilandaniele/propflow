@@ -1,5 +1,5 @@
 /**
- * The 7 WhatsApp message templates the agent needs Meta to approve
+ * The WhatsApp message templates the app needs Meta to approve
  * (blueprint §8 / handoffs/meta-templates.md) — defined once here so the
  * owner never has to retype them into WhatsApp Manager. `meta-templates-api.ts`
  * submits these to the Graph API; the names/variable order must stay in sync
@@ -84,6 +84,14 @@ export const WHATSAPP_TEMPLATE_CATALOG: TemplateDefinition[] = [
     bodyExamples: ['María', 'Depto 2 dorm. Miraflores', 'jueves 10 de octubre, 10:00', 'VOZ-7K3P9Q'],
     quickReplies: ['Confirmar visita'],
     usedBy: "src/lib/agent/voice/visit-confirmation.ts ('confirmar_visita_voz')",
+  },
+  {
+    name: 'comunicado_inquilinos',
+    category: 'UTILITY',
+    language: 'es',
+    body: 'Hola {{1}}, tu administración publicó un comunicado: *{{2}}*. {{3}} Puedes verlo completo en tu portal de inquilino.',
+    bodyExamples: ['María', 'Corte de agua programado', 'El jueves 10 no habrá agua de 9:00 a 13:00.'],
+    usedBy: 'src/lib/announcements/delivery.ts (ANNOUNCEMENT_TEMPLATE)',
   },
 ];
 

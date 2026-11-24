@@ -10,7 +10,12 @@ export function escapeCsvCell(raw: string): string {
   return cell;
 }
 
+export const CSV_BOM = '﻿';
+
+export function toCsvLine(cells: Array<string | number | null>): string {
+  return cells.map((cell) => escapeCsvCell(cell == null ? '' : String(cell))).join(',') + '\r\n';
+}
+
 export function toCsvDocument(header: string[], rows: Array<Array<string | number | null>>): string {
-  const lines = [header, ...rows].map((cells) => cells.map((cell) => escapeCsvCell(cell == null ? '' : String(cell))).join(','));
-  return '﻿' + lines.join('\r\n') + '\r\n';
+  return CSV_BOM + [header, ...rows].map(toCsvLine).join('');
 }

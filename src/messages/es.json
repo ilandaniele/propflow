@@ -113,6 +113,7 @@
     "team": "Equipo",
     "ownerAssistant": "Asistente WhatsApp",
     "branding": "Marca",
+    "dataExport": "Exportar datos",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
     "deposits": "Garantías",
@@ -127,8 +128,6 @@
     "profitability": "Rentabilidad",
     "ownerSettlements": "Liquidaciones",
     "occupancyHistory": "Ocupación histórica",
-    "averageRent": "Renta media",
-    "managerPerformance": "Rendimiento de gestores",
     "adminNotifications": "Notificaciones",
     "rentalApplications": "Postulaciones",
     "accountStatements": "Estados de Cuenta",
@@ -149,7 +148,9 @@
     "utilities": "Servicios",
     "responsables": "Responsables",
     "agentQa": "QA del agente",
-    "payables": "Cuentas por pagar"
+    "payables": "Cuentas por pagar",
+    "averageRent": "Renta media",
+    "managerPerformance": "Rendimiento de gestores"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -338,7 +339,10 @@
     "occupied": "ocupadas",
     "rooms": "habitaciones",
     "compare": "Comparar",
-    "groups": "Grupos"
+    "groups": "Grupos",
+    "detailTab": "Resumen",
+    "utilitiesTab": "Suministros",
+    "backToProperties": "Volver a propiedades"
   },
   "payments": {
     "reconcileLink": "Conciliar con banco",
@@ -1888,7 +1892,19 @@
     "pinned": "Fijado",
     "important": "Importante",
     "pin": "Fijar",
-    "unpin": "Desfijar"
+    "unpin": "Desfijar",
+    "sendEmail": "Enviar también por correo",
+    "sendWhatsapp": "Enviar también por WhatsApp",
+    "deliveryHint": "Llega a los inquilinos con contrato activo de la audiencia elegida, respetando sus preferencias de correo y su consentimiento de WhatsApp.",
+    "deliveryEmail": "Correo",
+    "deliveryWhatsapp": "WhatsApp",
+    "deliveryCounts": "{sent} enviados · {failed} fallidos · {pending} pendientes",
+    "continueSending": "Continuar envío",
+    "email": {
+      "subject": "Comunicado: {title}",
+      "greeting": "Hola {name},",
+      "cta": "Ver en el portal"
+    }
   },
   "cleaning": {
     "title": "Limpieza",
@@ -1928,6 +1944,13 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "dataExport": {
+    "title": "Exportar todos mis datos",
+    "subtitle": "Descarga un archivo ZIP con un CSV por cada entidad de tu organización: propiedades, unidades, propietarios, inquilinos, contratos, cargos, pagos, gastos, incidencias y documentos (solo datos, sin los archivos).",
+    "privacy": "No incluye contraseñas, sesiones, claves API ni tokens. Cada tabla se limita a 50 000 filas; resumen.csv indica si alguna quedó truncada.",
+    "limit": "Puedes descargarlo hasta 3 veces por hora.",
+    "button": "Descargar ZIP"
   },
   "branding": {
     "title": "Marca",
@@ -3963,6 +3986,8 @@
     "leaseRenewalHint": "Aviso cuando tu contrato está por vencer (30 días antes).",
     "paymentDue": "Pagos por vencer",
     "paymentDueHint": "Aviso cuando un pago vence en los próximos 3 días.",
+    "announcements": "Comunicados",
+    "announcementsHint": "Comunicados masivos que tu administrador envía por correo.",
     "alwaysSent": "Los correos esenciales siempre se envían: invitaciones al portal y solicitudes de firma de contrato. Seguirás viendo los avisos en tus notificaciones del portal.",
     "save": "Guardar",
     "saved": "Preferencias guardadas",
@@ -4023,6 +4048,51 @@
       "amount": "Monto",
       "paidOn": "Fecha de pago",
       "note": "Nota"
+    }
+  },
+  "utilityContracts": {
+    "title": "Contratos de suministros",
+    "subtitle": "Controla los servicios de la propiedad, su titular y los cambios de titular cuando entra o sale un inquilino.",
+    "splitLink": "Ver reparto de recibos",
+    "empty": "Esta propiedad no tiene contratos de suministros.",
+    "type": "Tipo",
+    "provider": "Empresa proveedora",
+    "supplyNumber": "N.º de suministro / cuenta",
+    "supplyShort": "N.º",
+    "unit": "Unidad",
+    "wholeProperty": "Toda la propiedad",
+    "monthlyEstimate": "Estimado mensual (S/)",
+    "perMonth": "/mes",
+    "startDate": "Fecha de inicio",
+    "since": "desde",
+    "notes": "Notas",
+    "holder": "Titular",
+    "holderKind": "Tipo de titular",
+    "holderName": "Nombre del titular",
+    "changeHolder": "Cambio de titular",
+    "changedOn": "Fecha del cambio",
+    "reason": "Motivo",
+    "reasonPlaceholder": "Ingreso o salida de inquilino",
+    "saveChange": "Registrar cambio",
+    "edit": "Editar",
+    "save": "Guardar",
+    "add": "Agregar contrato",
+    "remove": "Eliminar",
+    "saving": "Guardando...",
+    "pagination": "Paginación de contratos",
+    "previous": "← Anteriores",
+    "next": "Siguientes →",
+    "types": {
+      "luz": "Luz",
+      "agua": "Agua",
+      "gas": "Gas",
+      "internet": "Internet",
+      "otro": "Otro"
+    },
+    "holderKinds": {
+      "owner": "Propietario",
+      "tenant": "Inquilino",
+      "other": "Otro"
     }
   },
   "averageRent": {

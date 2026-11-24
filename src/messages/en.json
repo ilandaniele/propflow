@@ -113,6 +113,7 @@
     "team": "Team",
     "ownerAssistant": "WhatsApp assistant",
     "branding": "Branding",
+    "dataExport": "Export data",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
     "deposits": "Deposits",
@@ -127,8 +128,6 @@
     "profitability": "Profitability",
     "ownerSettlements": "Settlements",
     "occupancyHistory": "Occupancy history",
-    "averageRent": "Average rent",
-    "managerPerformance": "Manager performance",
     "adminNotifications": "Notifications",
     "rentalApplications": "Applications",
     "accountStatements": "Account Statements",
@@ -149,7 +148,9 @@
     "utilities": "Utilities",
     "responsables": "Responsables",
     "agentQa": "Agent QA",
-    "payables": "Accounts payable"
+    "payables": "Accounts payable",
+    "averageRent": "Average rent",
+    "managerPerformance": "Manager performance"
   },
   "tenants": {
     "title": "Tenants",
@@ -338,7 +339,10 @@
     "occupied": "occupied",
     "rooms": "rooms",
     "compare": "Compare",
-    "groups": "Groups"
+    "groups": "Groups",
+    "detailTab": "Overview",
+    "utilitiesTab": "Utilities",
+    "backToProperties": "Back to properties"
   },
   "payments": {
     "reconcileLink": "Reconcile with bank",
@@ -1888,7 +1892,19 @@
     "pinned": "Pinned",
     "important": "Important",
     "pin": "Pin",
-    "unpin": "Unpin"
+    "unpin": "Unpin",
+    "sendEmail": "Also send by email",
+    "sendWhatsapp": "Also send by WhatsApp",
+    "deliveryHint": "Reaches tenants with an active contract in the chosen audience, respecting their email preferences and WhatsApp consent.",
+    "deliveryEmail": "Email",
+    "deliveryWhatsapp": "WhatsApp",
+    "deliveryCounts": "{sent} sent · {failed} failed · {pending} pending",
+    "continueSending": "Continue sending",
+    "email": {
+      "subject": "Announcement: {title}",
+      "greeting": "Hello {name},",
+      "cta": "View in the portal"
+    }
   },
   "cleaning": {
     "title": "Cleaning Schedule",
@@ -1928,6 +1944,13 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "dataExport": {
+    "title": "Export all my data",
+    "subtitle": "Download a ZIP file with one CSV per entity in your organization: properties, units, owners, tenants, contracts, charges, payments, expenses, incidents and documents (metadata only, no files).",
+    "privacy": "Passwords, sessions, API keys and tokens are never included. Each table is capped at 50,000 rows; resumen.csv shows whether any was truncated.",
+    "limit": "You can download it up to 3 times per hour.",
+    "button": "Download ZIP"
   },
   "branding": {
     "title": "Branding",
@@ -3963,6 +3986,8 @@
     "leaseRenewalHint": "Notice when your lease is about to end (30 days before).",
     "paymentDue": "Upcoming payments",
     "paymentDueHint": "Notice when a payment is due within the next 3 days.",
+    "announcements": "Announcements",
+    "announcementsHint": "Bulk announcements your property manager sends by email.",
     "alwaysSent": "Essential emails are always sent: portal invitations and contract signature requests. You will still see notices in your portal notifications.",
     "save": "Save",
     "saved": "Preferences saved",
@@ -4023,6 +4048,51 @@
       "amount": "Amount",
       "paidOn": "Payment date",
       "note": "Note"
+    }
+  },
+  "utilityContracts": {
+    "title": "Utility contracts",
+    "subtitle": "Track the property's utilities, their account holder and holder changes when a tenant moves in or out.",
+    "splitLink": "View bill split",
+    "empty": "This property has no utility contracts.",
+    "type": "Type",
+    "provider": "Provider",
+    "supplyNumber": "Supply / account number",
+    "supplyShort": "No.",
+    "unit": "Unit",
+    "wholeProperty": "Whole property",
+    "monthlyEstimate": "Monthly estimate (S/)",
+    "perMonth": "/mo",
+    "startDate": "Start date",
+    "since": "since",
+    "notes": "Notes",
+    "holder": "Holder",
+    "holderKind": "Holder type",
+    "holderName": "Holder name",
+    "changeHolder": "Change holder",
+    "changedOn": "Change date",
+    "reason": "Reason",
+    "reasonPlaceholder": "Tenant moved in or out",
+    "saveChange": "Record change",
+    "edit": "Edit",
+    "save": "Save",
+    "add": "Add contract",
+    "remove": "Delete",
+    "saving": "Saving...",
+    "pagination": "Contracts pagination",
+    "previous": "← Previous",
+    "next": "Next →",
+    "types": {
+      "luz": "Electricity",
+      "agua": "Water",
+      "gas": "Gas",
+      "internet": "Internet",
+      "otro": "Other"
+    },
+    "holderKinds": {
+      "owner": "Owner",
+      "tenant": "Tenant",
+      "other": "Other"
     }
   },
   "averageRent": {
