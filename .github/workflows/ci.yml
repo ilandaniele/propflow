@@ -253,6 +253,7 @@ jobs:
       BASE_URL: http://localhost:8787
       NEXT_PUBLIC_SITE_URL: http://localhost:8787
       WRANGLER_SEND_METRICS: 'false'
+      DEBUG: pw:webserver
     permissions:
       contents: read
 
