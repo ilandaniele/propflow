@@ -22,4 +22,5 @@ export * from './unit-calendars';
 export * from './einvoices';
 export * from './payment-intents';
 export * from './notification-preferences';
+export * from './payables';
 export * from './relations';

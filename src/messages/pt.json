@@ -145,7 +145,8 @@
     "mainNav": "Navegação principal",
     "utilities": "Serviços",
     "responsables": "Responsáveis",
-    "agentQa": "QA do agente"
+    "agentQa": "QA do agente",
+    "payables": "Contas a pagar"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -1412,6 +1413,7 @@
     "accountingExportHint": "Lançamentos de recebimentos aprovados e despesas do mês com contas PCGE sugeridas (1011/1041, 7542, 639), prontos para importar no Contasis ou Siscont. Confira as contas com seu contador.",
     "expensesLink": "Despesas",
     "recurringExpensesLink": "Despesas recorrentes",
+    "payablesLink": "Contas a pagar: {amount}",
     "title": "Financeiro",
     "kpiTitle": "KPIs do Período Atual",
     "currencySection": "Resultados em {currency}",
@@ -3914,5 +3916,62 @@
     "save": "Salvar",
     "saved": "Preferências salvas",
     "error": "Não foi possível salvar suas preferências. Tente novamente."
+  },
+  "payables": {
+    "title": "Contas a pagar",
+    "back": "← Finanças",
+    "totals": {
+      "pending": "Total pendente",
+      "overdue": "Total vencido"
+    },
+    "form": {
+      "title": "Nova obrigação de pagamento",
+      "supplier": "Fornecedor",
+      "description": "Detalhe",
+      "documentRef": "Doc. referência",
+      "amount": "Valor (S/)",
+      "issuedOn": "Data",
+      "dueOn": "Data de vencimento",
+      "property": "Imóvel",
+      "category": "Categoria",
+      "none": "Nenhuma",
+      "create": "Registrar obrigação",
+      "saving": "Salvando…",
+      "created": "Obrigação registrada"
+    },
+    "filters": {
+      "status": "Status",
+      "all": "Todos",
+      "dueFrom": "Vence a partir de",
+      "dueTo": "Vence até",
+      "apply": "Filtrar"
+    },
+    "status": {
+      "pending": "Pendente",
+      "partial": "Pagamento parcial",
+      "paid": "Paga",
+      "overdue": "Vencida"
+    },
+    "columns": {
+      "issuedOn": "Data",
+      "supplier": "Fornecedor",
+      "description": "Detalhe",
+      "documentRef": "Doc. referência",
+      "amount": "Valor",
+      "saldo": "Saldo",
+      "dueOn": "Vencimento",
+      "status": "Status"
+    },
+    "empty": {
+      "title": "Sem obrigações de pagamento",
+      "description": "Registre faturas de fornecedores para controlar saldos e vencimentos."
+    },
+    "payment": {
+      "open": "Registrar pagamento",
+      "submit": "Salvar pagamento",
+      "amount": "Valor",
+      "paidOn": "Data do pagamento",
+      "note": "Nota"
+    }
   }
 }
