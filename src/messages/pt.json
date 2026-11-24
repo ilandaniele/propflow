@@ -79,6 +79,7 @@
     "cleaning": "Limpeza",
     "leads": "Leads",
     "community": "Comunidade",
+    "polls": "Enquetes",
     "visitors": "Visitantes",
     "aiAssistant": "Assistente IA",
     "whatsapp": "WhatsApp",
@@ -3391,5 +3392,28 @@
       "remove": "Remover unidade",
       "add": "+ Adicionar unidade"
     }
+  },
+  "polls": {
+    "title": "Enquetes",
+    "adminSubtitle": "Consulte os moradores e veja os resultados ao vivo.",
+    "createTitle": "Nova enquete",
+    "questionLabel": "Pergunta",
+    "questionPlaceholder": "Vamos pintar o hall de entrada este ano?",
+    "optionsLabel": "Opções",
+    "optionsPlaceholder": "Sim\nNão\nTanto faz",
+    "optionsHint": "Uma opção por linha, de 2 a 8.",
+    "closesOnLabel": "Encerra em (opcional)",
+    "create": "Publicar enquete",
+    "close": "Encerrar",
+    "open": "Aberta",
+    "closed": "Encerrada",
+    "totalVotes": "{count, plural, one {# voto} other {# votos}}",
+    "closesOn": "encerra em {date}",
+    "votes": "votos",
+    "vote": "Votar",
+    "chooseOption": "Escolha uma opção",
+    "emptyTitle": "Sem enquetes",
+    "emptyAdminDesc": "Crie a primeira enquete para saber a opinião dos moradores.",
+    "emptyPortalDesc": "A administração ainda não publicou enquetes."
   }
 }

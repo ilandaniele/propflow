@@ -79,6 +79,7 @@
     "cleaning": "Limpieza",
     "leads": "Prospectos",
     "community": "Comunidad",
+    "polls": "Encuestas",
     "visitors": "Visitantes",
     "aiAssistant": "Asistente IA",
     "whatsapp": "WhatsApp",
@@ -3391,5 +3392,28 @@
       "remove": "Quitar unidad",
       "add": "+ Agregar unidad"
     }
+  },
+  "polls": {
+    "title": "Encuestas",
+    "adminSubtitle": "Consultá a los residentes y mirá los resultados en vivo.",
+    "createTitle": "Nueva encuesta",
+    "questionLabel": "Pregunta",
+    "questionPlaceholder": "¿Pintamos el hall de entrada este año?",
+    "optionsLabel": "Opciones",
+    "optionsPlaceholder": "Sí\nNo\nMe da igual",
+    "optionsHint": "Una opción por línea, entre 2 y 8.",
+    "closesOnLabel": "Cierra el (opcional)",
+    "create": "Publicar encuesta",
+    "close": "Cerrar",
+    "open": "Abierta",
+    "closed": "Cerrada",
+    "totalVotes": "{count, plural, one {# voto} other {# votos}}",
+    "closesOn": "cierra el {date}",
+    "votes": "votos",
+    "vote": "Votar",
+    "chooseOption": "Elegí una opción",
+    "emptyTitle": "Sin encuestas",
+    "emptyAdminDesc": "Creá la primera encuesta para conocer la opinión de los residentes.",
+    "emptyPortalDesc": "La administración todavía no publicó encuestas."
   }
 }
