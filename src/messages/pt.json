@@ -114,6 +114,7 @@
     "suppliers": "Fornecedores",
     "profitability": "Rentabilidade",
     "ownerSettlements": "Repasses",
+    "occupancyHistory": "Ocupação histórica",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
     "chargeConcepts": "Conceitos de cobrança",
@@ -2229,6 +2230,18 @@
     "saving": "Salvando…",
     "saved": "Salvo.",
     "expensesNote": "A comissão é calculada sobre as receitas recebidas. As despesas estão em soles (PEN)."
+  },
+  "occupancyHistory": {
+    "title": "Ocupação histórica",
+    "subtitle": "Porcentagem de dias ocupados por mês, segundo as datas dos contratos.",
+    "yearNav": "Mudar ano",
+    "byMonth": "Ocupação por mês",
+    "property": "Imóvel",
+    "units": "Unidades",
+    "average": "Média",
+    "emptyTitle": "Sem unidades",
+    "emptyDesc": "Cadastre imóveis e unidades para ver a ocupação.",
+    "note": "Uma unidade conta como ocupada do início do contrato até a saída real ou o fim do contrato. Meses futuros não são calculados."
   },
   "accountStatements": {
     "generate": {

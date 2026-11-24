@@ -114,6 +114,7 @@
     "suppliers": "Suppliers",
     "profitability": "Profitability",
     "ownerSettlements": "Settlements",
+    "occupancyHistory": "Occupancy history",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -2229,6 +2230,18 @@
     "saving": "Saving…",
     "saved": "Saved.",
     "expensesNote": "Commission is calculated on collected income. Expenses are in soles (PEN)."
+  },
+  "occupancyHistory": {
+    "title": "Occupancy history",
+    "subtitle": "Share of occupied days per month, based on contract dates.",
+    "yearNav": "Change year",
+    "byMonth": "Occupancy by month",
+    "property": "Property",
+    "units": "Units",
+    "average": "Average",
+    "emptyTitle": "No units",
+    "emptyDesc": "Add properties and units to see their occupancy.",
+    "note": "A unit counts as occupied from contract start until the actual exit or contract end. Future months are not calculated."
   },
   "accountStatements": {
     "generate": {
