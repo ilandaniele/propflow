@@ -113,6 +113,7 @@
     "team": "Equipe",
     "ownerAssistant": "Assistente WhatsApp",
     "branding": "Marca",
+    "dataExport": "Exportar dados",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
     "deposits": "Cauções",
@@ -1926,6 +1927,13 @@
     "emptyTitle": "Sem leads ainda",
     "emptyDesc": "Acompanhe possíveis inquilinos no seu pipeline de CRM.",
     "source": "Origem"
+  },
+  "dataExport": {
+    "title": "Exportar todos os meus dados",
+    "subtitle": "Baixe um arquivo ZIP com um CSV por entidade da sua organização: imóveis, unidades, proprietários, inquilinos, contratos, cobranças, pagamentos, despesas, ocorrências e documentos (somente metadados, sem os arquivos).",
+    "privacy": "Senhas, sessões, chaves de API e tokens nunca são incluídos. Cada tabela é limitada a 50.000 linhas; resumen.csv indica se alguma foi truncada.",
+    "limit": "Você pode baixá-lo até 3 vezes por hora.",
+    "button": "Baixar ZIP"
   },
   "branding": {
     "title": "Marca",

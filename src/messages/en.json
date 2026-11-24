@@ -113,6 +113,7 @@
     "team": "Team",
     "ownerAssistant": "WhatsApp assistant",
     "branding": "Branding",
+    "dataExport": "Export data",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
     "deposits": "Deposits",
@@ -1926,6 +1927,13 @@
     "emptyTitle": "No leads yet",
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
+  },
+  "dataExport": {
+    "title": "Export all my data",
+    "subtitle": "Download a ZIP file with one CSV per entity in your organization: properties, units, owners, tenants, contracts, charges, payments, expenses, incidents and documents (metadata only, no files).",
+    "privacy": "Passwords, sessions, API keys and tokens are never included. Each table is capped at 50,000 rows; resumen.csv shows whether any was truncated.",
+    "limit": "You can download it up to 3 times per hour.",
+    "button": "Download ZIP"
   },
   "branding": {
     "title": "Branding",

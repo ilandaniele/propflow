@@ -170,3 +170,8 @@ export function webMessageRateLimit(ip: string, webSessionId: string): { success
 export function publicAssetRateLimit(ip: string): { success: boolean; retryAfterMs: number } {
   return checkRateLimit(`public-asset:${ip}`, 120, ONE_MINUTE_MS);
 }
+
+/** Full org data export — 3 / hour / org (heavy: reads every main table). */
+export function dataExportRateLimit(orgId: string): { success: boolean; retryAfterMs: number } {
+  return checkRateLimit(`data-export:${orgId}`, 3, 60 * ONE_MINUTE_MS);
+}
