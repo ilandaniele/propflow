@@ -383,6 +383,15 @@
     "analytics": "Analytics"
   },
   "contracts": {
+    "renew": {
+      "open": "Renew",
+      "months": "Months",
+      "rent": "New monthly rent",
+      "hint": "Starts the day after the current end date.",
+      "submit": "Renew contract",
+      "done": "Renewed",
+      "notActive": "Only active contracts can be renewed."
+    },
     "title": "Contracts",
     "list": {
       "emptyTitle": "No contracts yet",

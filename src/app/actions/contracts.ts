@@ -5,8 +5,10 @@ import { db } from '@/lib/db';
 import { contracts, tenants, units } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth/guards';
-import { Errors, ok } from '@/lib/errors';
-import { CreateContractSchema, UpdateContractStatusSchema } from '@/lib/schemas/contract';
+import { Errors, err, ok } from '@/lib/errors';
+import { CreateContractSchema, RenewContractSchema, UpdateContractStatusSchema } from '@/lib/schemas/contract';
+import { renewContract as renewContractRecord } from '@/lib/contracts/renewal';
+import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
 import type { ActionResult } from '@/lib/errors';
 
@@ -81,4 +83,32 @@ export async function updateContractStatus(
   log.adminAction(ctx.userId, 'update_contract_status', 'contract', parsed.data.id);
   revalidatePath('/dashboard/contracts');
   return ok(undefined);
+}
+
+export async function renewContract(
+  _prev: ActionResult<{ contractId: string }> | null,
+  formData: FormData
+): Promise<ActionResult<{ contractId: string }>> {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+
+  const rl = mutationRateLimit(ctx.userId, 'contract-renewal');
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  const parsed = RenewContractSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
+
+  const result = await renewContractRecord({
+    orgId: ctx.orgId,
+    contractId: parsed.data.contract_id,
+    months: parsed.data.months,
+    monthlyRent: parsed.data.monthly_rent,
+    today: new Date().toISOString().slice(0, 10),
+  });
+  if (result.status === 'not_found') return Errors.NOT_FOUND();
+  if (result.status === 'not_active') return err('NOT_ACTIVE', 'Only active contracts can be renewed');
+
+  log.adminAction(ctx.userId, 'renew_contract', 'contract', result.contractId);
+  revalidatePath('/dashboard/contracts');
+  return ok({ contractId: result.contractId });
 }
