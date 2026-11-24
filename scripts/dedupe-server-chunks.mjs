@@ -6,6 +6,7 @@
 // chunks into one shared file and points the chunks at it.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
@@ -61,10 +62,34 @@ function sharedRequire(chunksDir, chunkPath) {
   return `require(${JSON.stringify(path.startsWith('.') ? path : `./${path}`)})`;
 }
 
+function listTraces(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return listTraces(path);
+    return entry.name.endsWith('.nft.json') ? [path] : [];
+  });
+}
+
+// OpenNext copies only traced files, so every trace that lists a rewritten
+// chunk must also list the shared file.
+function traceSharedFile(serverDir, sharedPath, rewritten) {
+  const hash = createHash('md5').update(readFileSync(sharedPath)).digest('hex');
+  for (const tracePath of listTraces(serverDir)) {
+    const trace = JSON.parse(readFileSync(tracePath, 'utf8'));
+    const sharedFile = relative(dirname(tracePath), sharedPath).split(sep).join('/');
+    const needsShared = trace.files.some((file) => rewritten.has(resolve(dirname(tracePath), file)));
+    if (!needsShared || trace.files.includes(sharedFile)) continue;
+    trace.files.push(sharedFile);
+    if (Array.isArray(trace.fileHashes)) trace.fileHashes.push(hash);
+    writeFileSync(tracePath, JSON.stringify(trace));
+  }
+}
+
 function dedupe(chunksDir) {
   const chunks = listChunks(chunksDir).map((path) => ({ path, entries: loadChunk(path) }));
   const counts = countFactories(chunks);
   const sharedIds = new Map();
+  const rewritten = new Set();
 
   for (const { path, entries } of chunks) {
     let changed = false;
@@ -77,11 +102,15 @@ function dedupe(chunksDir) {
       changed = true;
       return `${sharedRequire(chunksDir, path)}[${sharedIds.get(key).id}]`;
     });
-    if (changed) writeFileSync(path, `${CHUNK_PREFIX}${parts.join(',')}];\n`);
+    if (!changed) continue;
+    writeFileSync(path, `${CHUNK_PREFIX}${parts.join(',')}];\n`);
+    rewritten.add(path);
   }
 
   const shared = [...sharedIds.values()].map(({ source }) => source).join(',\n');
-  writeFileSync(join(chunksDir, SHARED_NAME), `module.exports=[\n${shared}\n];\n`);
+  const sharedPath = join(chunksDir, SHARED_NAME);
+  writeFileSync(sharedPath, `module.exports=[\n${shared}\n];\n`);
+  traceSharedFile(dirname(chunksDir), sharedPath, rewritten);
   console.log(`dedupe-server-chunks: ${chunksDir}: ${sharedIds.size} shared module factories`);
 }
 
