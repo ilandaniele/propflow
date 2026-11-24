@@ -3535,5 +3535,20 @@
     "saving": "Saving…",
     "remove": "Remove",
     "emptyAuthorized": "No authorized people."
+  },
+  "activity": {
+    "title": "Management activity",
+    "subtitle": "What management did in your community.",
+    "from": "From",
+    "to": "To",
+    "filter": "Filter",
+    "clear": "Clear",
+    "empty": "No activity in this period.",
+    "action": {
+      "announcement_published": "Published a notice",
+      "expense_recorded": "Recorded an expense",
+      "incident_resolved": "Resolved an incident",
+      "cleaning_scheduled": "Scheduled a cleaning"
+    }
   }
 }

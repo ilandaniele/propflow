@@ -17,6 +17,7 @@ import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
+import { recordActivity } from '@/lib/activity/record';
 import type { ActionResult } from '@/lib/errors';
 import {
   AnnouncementSchema,
@@ -161,6 +162,14 @@ export async function publishAnnouncement(
   }
 
   log.adminAction(ctx.userId, 'publish_announcement', 'announcement', parsed.data.id);
+  await recordActivity({
+    orgId: ctx.orgId,
+    actorId: ctx.userId,
+    action: 'announcement_published',
+    resourceType: 'announcement',
+    resourceId: parsed.data.id,
+    summary: ann.audience === 'all' ? ann.title : undefined,
+  });
   revalidatePath('/dashboard/announcements');
   revalidatePath('/portal/announcements');
   return ok(undefined);
@@ -216,6 +225,13 @@ export async function createCleaningTask(
     return Errors.INTERNAL();
   }
 
+  await recordActivity({
+    orgId: ctx.orgId,
+    actorId: ctx.userId,
+    action: 'cleaning_scheduled',
+    resourceType: 'cleaning_task',
+    summary: parsed.data.unit_id ? undefined : parsed.data.title,
+  });
   revalidatePath('/dashboard/cleaning');
   return ok(undefined);
 }
