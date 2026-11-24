@@ -4,6 +4,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # 1.20.18 pulls @opennextjs/aws 4.2.0, which crashes the middleware in workerd.
+      - dependency-name: '@opennextjs/cloudflare'
+        versions: ['1.20.18']
     groups:
       minor-and-patch:
         update-types:
