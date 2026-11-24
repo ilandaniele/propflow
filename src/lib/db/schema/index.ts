@@ -20,4 +20,5 @@ export * from './property-groups';
 export * from './unit-beds';
 export * from './unit-calendars';
 export * from './einvoices';
+export * from './payment-intents';
 export * from './relations';

@@ -68,7 +68,8 @@ export async function proxy(request: NextRequest) {
   // only the widget iframe route above is exempt from those headers),
   // /privacidad and /terminos (required by Meta app review and Google OAuth
   // verification — plain static legal pages, no auth needed),
-  // /calculadoras (public SEO calculators, client-side only).
+  // /calculadoras (public SEO calculators, client-side only),
+  // /pay (online payment links, gated by a 64-hex token in the page itself).
   const isFullyPublicRoute =
     path === '/' ||
     path === '/login' ||
@@ -79,6 +80,7 @@ export async function proxy(request: NextRequest) {
     path === '/onboarding' ||
     path === '/p' ||
     path.startsWith('/p/') ||
+    path.startsWith('/pay/') ||
     path === '/privacidad' ||
     path === '/terminos' ||
     path === '/calculadoras';

@@ -131,6 +131,7 @@
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
+    "onlinePayments": "Online Payments",
     "taxReceipts": "Tax Receipts",
     "einvoices": "E-invoices",
     "tenantFeedback": "Tenant Feedback",
@@ -3848,5 +3849,55 @@
     "noBlocks": "No upcoming blocks.",
     "range": "{from} → {to}",
     "blocked": "Blocked"
+  },
+  "payLink": {
+    "title": "Rent payment",
+    "greeting": "Hi, {name}",
+    "concept": "Concept",
+    "defaultConcept": "Rent charge",
+    "dueDate": "Due",
+    "amount": "Amount",
+    "paid": "Paid online. Thank you!",
+    "unavailable": "This payment link is no longer available. Ask your landlord for a new one.",
+    "sandboxNotice": "Test mode: no real money will be charged.",
+    "simulate": "Simulate payment",
+    "payWithMercadoPago": "Pay with Mercado Pago",
+    "methods": "Card, Yape, Plin or bank transfer via Mercado Pago",
+    "rateLimited": "Too many requests. Please try again shortly."
+  },
+  "onlinePayments": {
+    "title": "Online Payments",
+    "subtitle": "Payment links per charge: card, Yape, Plin or bank transfer via Mercado Pago. Reconciled automatically once the payment is confirmed.",
+    "createTitle": "Create payment link",
+    "emptyTitle": "No payment links yet",
+    "emptyDescription": "Create a link from a charge and share it with your tenant.",
+    "colTenant": "Tenant",
+    "colConcept": "Concept",
+    "colAmount": "Amount",
+    "colStatus": "Status",
+    "colPaid": "Paid",
+    "colLink": "Link",
+    "openLink": "Open",
+    "next": "Next",
+    "unknownTenant": "No tenant",
+    "defaultConcept": "Rent charge",
+    "status": {
+      "pending": "Pending",
+      "paid": "Paid online",
+      "expired": "Expired",
+      "failed": "Failed"
+    },
+    "provider": {
+      "sandbox": "Test",
+      "mercadopago": "Mercado Pago"
+    }
+  },
+  "onlinePaymentsForm": {
+    "chargeLabel": "Charge",
+    "selectCharge": "Select a charge",
+    "submit": "Create payment link",
+    "linkLabel": "Link to share",
+    "copy": "Copy",
+    "copied": "Copied"
   }
 }
