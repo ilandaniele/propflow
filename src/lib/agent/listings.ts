@@ -15,6 +15,7 @@ import { listings, units, properties } from '@/lib/db/schema';
 import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { containsLike } from '@/lib/db/like';
 import { buildListingSlug } from '@/lib/widget/slug';
+import { notBookedOnChannels, todayIso } from '@/lib/unit-calendar/availability';
 
 export interface SyncListingsResult {
   inserted: number;
@@ -116,6 +117,7 @@ export async function searchListings(orgId: string, filters: ListingSearchFilter
     eq(listings.orgId, orgId),
     eq(listings.published, true),
     eq(listings.status, 'available'),
+    notBookedOnChannels(todayIso()),
   ];
 
   if (filters.operation) conditions.push(eq(listings.operation, filters.operation));
