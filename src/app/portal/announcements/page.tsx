@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
 import { requireTenant } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { tenants, units, announcements } from '@/lib/db/schema';
-import { eq, and, isNotNull, lte, or, sql } from 'drizzle-orm';
+import { tenants, units } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { listTenantAnnouncements } from '@/lib/announcements/queries';
+import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
 
@@ -19,43 +21,10 @@ export default async function PortalAnnouncementsPage() {
     .limit(1);
 
   const tenantRecord = tenantRows[0] ?? null;
-  const tenantUnitId = tenantRecord?.unitId ?? null;
-  const tenantPropertyId = tenantRecord?.propertyId ?? null;
-
-  const now = new Date();
-
-  // Replicate RLS audience filter: published, not expired, audience matches tenant
-  const rows = await db
-    .select({
-      id:          announcements.id,
-      title:       announcements.title,
-      body:        announcements.body,
-      publishedAt: announcements.publishedAt,
-      expiresAt:   announcements.expiresAt,
-      audience:    announcements.audience,
-    })
-    .from(announcements)
-    .where(
-      and(
-        eq(announcements.orgId, ctx.orgId),
-        isNotNull(announcements.publishedAt),
-        lte(announcements.publishedAt, now),
-        or(
-          eq(announcements.audience, 'all'),
-          tenantPropertyId
-            ? and(eq(announcements.audience, 'property'), eq(announcements.propertyId, tenantPropertyId))
-            : sql`false`,
-          tenantUnitId
-            ? and(eq(announcements.audience, 'unit'), eq(announcements.unitId, tenantUnitId))
-            : sql`false`,
-        ),
-      ),
-    )
-    .orderBy(announcements.publishedAt)
-    .limit(25);
-
-  // Reverse to get descending order (Drizzle desc() on nullable timestamps is tricky)
-  const list = rows.slice().reverse();
+  const list = await listTenantAnnouncements(ctx.orgId, {
+    propertyId: tenantRecord?.propertyId ?? null,
+    unitId: tenantRecord?.unitId ?? null,
+  });
 
   return (
     <div className="p-4 pb-20 sm:pb-4 space-y-4">
@@ -66,8 +35,12 @@ export default async function PortalAnnouncementsPage() {
       ) : (
         <div className="space-y-3">
           {list.map((ann) => (
-            <Card key={ann.id} padding="md">
-              <h2 className="font-medium text-slate-900">{ann.title}</h2>
+            <Card key={ann.id} padding="md" className={ann.important ? 'border-amber-300 bg-amber-50' : undefined}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="font-medium text-slate-900">{ann.title}</h2>
+                {ann.pinned && <Badge variant="info">Pinned</Badge>}
+                {ann.important && <Badge variant="warning">Important</Badge>}
+              </div>
               {/* Plain text rendering — no dangerouslySetInnerHTML (IC-E2) */}
               <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{ann.body}</p>
               <p className="mt-2 text-xs text-slate-400">

@@ -1839,7 +1839,11 @@
     "emptyDesc": "Create and publish announcements to notify your tenants.",
     "publishNow": "Publish now",
     "audience": "Audience",
-    "expires": "Expires"
+    "expires": "Expires",
+    "pinned": "Pinned",
+    "important": "Important",
+    "pin": "Pin",
+    "unpin": "Unpin"
   },
   "cleaning": {
     "title": "Cleaning Schedule",
@@ -2732,7 +2736,12 @@
       "audienceLabel": "Audience",
       "audienceAll": "All tenants",
       "audienceProperty": "Specific property",
-      "audienceUnit": "Specific unit"
+      "audienceUnit": "Specific unit",
+      "propertyLabel": "Property",
+      "unitLabel": "Unit",
+      "choosePlaceholder": "Choose one",
+      "pinnedLabel": "Pin to top",
+      "importantLabel": "Mark as important"
     },
     "cleaningTask": {
       "saving": "Saving…",

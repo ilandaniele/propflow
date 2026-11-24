@@ -1839,7 +1839,11 @@
     "emptyDesc": "Crea y publica anuncios para notificar a tus inquilinos.",
     "publishNow": "Publicar ahora",
     "audience": "Audiencia",
-    "expires": "Vence"
+    "expires": "Vence",
+    "pinned": "Fijado",
+    "important": "Importante",
+    "pin": "Fijar",
+    "unpin": "Desfijar"
   },
   "cleaning": {
     "title": "Limpieza",
@@ -2732,7 +2736,12 @@
       "audienceLabel": "Audiencia",
       "audienceAll": "Todos los inquilinos",
       "audienceProperty": "Propiedad específica",
-      "audienceUnit": "Unidad específica"
+      "audienceUnit": "Unidad específica",
+      "propertyLabel": "Propiedad",
+      "unitLabel": "Unidad",
+      "choosePlaceholder": "Elegí una opción",
+      "pinnedLabel": "Fijar arriba",
+      "importantLabel": "Marcar como importante"
     },
     "cleaningTask": {
       "saving": "Guardando…",
