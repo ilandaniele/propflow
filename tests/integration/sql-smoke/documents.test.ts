@@ -145,6 +145,36 @@ describe('document manager (real SQL)', () => {
     expect(await documentsOf(org.id)).toHaveLength(0);
   });
 
+  it('bulk-uploads one file per request, names each after its file and reports per-file failures', async () => {
+    const { org, contract } = await seedOrgWithTenant('Bulk Org');
+    const { uploadDocument } = await actions();
+    const { uploadDocumentsSequentially } = await import('@/lib/documents/bulk-upload');
+    const data = form({ entity_type: 'contract', entity_id: contract.id, name: 'Ignored', category: 'certificate' });
+    data.append('file', new File([PDF], 'Contrato firmado.pdf', { type: 'application/pdf' }));
+    data.append('file', new File([Buffer.from('MZ not a document')], 'virus.pdf'));
+    data.append('file', new File([PNG], 'Inventario.png', { type: 'image/png' }));
+
+    const results = await uploadDocumentsSequentially(data, (formData) => uploadDocument({}, formData));
+
+    expect(results).toEqual([
+      { file: 'Contrato firmado.pdf' },
+      { file: 'virus.pdf', error: 'invalid' },
+      { file: 'Inventario.png' },
+    ]);
+    const rows = await documentsOf(org.id);
+    expect(rows.map((row) => row.name).sort()).toEqual(['Contrato firmado', 'Inventario']);
+    expect(rows.every((row) => row.contractId === contract.id && row.category === 'certificate')).toBe(true);
+  });
+
+  it('rejects an oversized file per request', async () => {
+    const { org, tenant } = await seedOrgWithTenant('Size Org');
+
+    const result = await upload('tenant', tenant.id, { file: new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.pdf') });
+
+    expect(result.error?.code).toBe('VALIDATION_ERROR');
+    expect(await documentsOf(org.id)).toHaveLength(0);
+  });
+
   it('returns NOT_FOUND when attaching to or touching another org', async () => {
     const victim = await seedOrgWithTenant('Docs Victim');
     await upload('tenant', victim.tenant.id);

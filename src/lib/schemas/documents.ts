@@ -4,7 +4,7 @@ import { DOCUMENT_CATEGORIES, DOCUMENT_ENTITIES, MAX_DOCUMENT_BYTES } from '@/li
 export const UploadDocumentSchema = z.object({
   entity_type:       z.enum(DOCUMENT_ENTITIES),
   entity_id:         z.string().guid(),
-  name:              z.string().trim().min(1).max(120),
+  name:              z.string().trim().max(120).optional(),
   category:          z.enum(DOCUMENT_CATEGORIES),
   expires_on:        z.union([z.literal(''), z.iso.date()]).optional(),
   visible_to_tenant: z.literal('on').optional(),

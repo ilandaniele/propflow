@@ -8,19 +8,16 @@ import { requireAdmin, requireTenant } from '@/lib/auth/guards';
 import { Errors, ok, type ActionResult } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
-import { deleteImage, getSignedUrl, uploadFile } from '@/lib/storage';
+import { deleteImage, getSignedUrl } from '@/lib/storage';
 import { DocumentIdSchema, UploadDocumentSchema } from '@/lib/schemas/documents';
-import { detectDocumentMime } from '@/lib/documents/mime';
-import { DOCUMENT_MIME_EXTENSIONS } from '@/lib/documents/types';
+import { DOCUMENTS_BUCKET as BUCKET, documentNameFor, storeDocumentFile } from '@/lib/documents/upload';
 import {
-  documentStoragePath,
   findDocument,
   findOwnedEntity,
   findPortalDocument,
   findTenantIdForUser,
 } from '@/lib/documents/queries';
 
-const BUCKET = 'documents';
 const URL_TTL_S = 300;
 
 function revalidateDocuments() {
@@ -39,34 +36,26 @@ export async function uploadDocument(_prev: ActionResult, formData: FormData): P
 
   if (!(await findOwnedEntity(ctx.orgId, entity, entityId))) return Errors.NOT_FOUND();
 
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const mimeType = detectDocumentMime(bytes);
-  if (!mimeType) return Errors.VALIDATION_ERROR({ formErrors: ['Unsupported file type'], fieldErrors: {} });
-
-  const id = crypto.randomUUID();
-  const storagePath = documentStoragePath(ctx.orgId, id, DOCUMENT_MIME_EXTENSIONS[mimeType]);
-  try {
-    await uploadFile(BUCKET, storagePath, bytes, mimeType);
-  } catch (error) {
-    log.error('document upload failed', { error: String(error) });
-    return Errors.INTERNAL();
+  const stored = await storeDocumentFile(
+    {
+      orgId:           ctx.orgId,
+      userId:          ctx.userId,
+      entity,
+      entityId,
+      category:        fields.category,
+      expiresOn:       fields.expires_on || null,
+      visibleToTenant: fields.visible_to_tenant === 'on',
+    },
+    file,
+    documentNameFor(file.name, fields.name),
+  );
+  if ('error' in stored) {
+    return stored.error === 'type'
+      ? Errors.VALIDATION_ERROR({ formErrors: ['Unsupported file type'], fieldErrors: {} })
+      : Errors.INTERNAL();
   }
 
-  await db.insert(documents).values({
-    id,
-    orgId:           ctx.orgId,
-    tenantId:        entity === 'tenant' ? entityId : null,
-    contractId:      entity === 'contract' ? entityId : null,
-    propertyId:      entity === 'property' ? entityId : null,
-    name:            fields.name,
-    category:        fields.category,
-    storagePath,
-    mimeType,
-    sizeBytes:       bytes.length,
-    expiresOn:       fields.expires_on || null,
-    visibleToTenant: fields.visible_to_tenant === 'on' && entity !== 'property',
-    uploadedBy:      ctx.userId,
-  });
+  await db.insert(documents).values(stored.row);
 
   log.adminAction(ctx.userId, 'upload_document', entity, entityId);
   revalidateDocuments();
