@@ -1,6 +1,7 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer';
 import type { PaymentReceipt } from './payment-receipt';
+import { formatReceiptAmount } from './format';
 
 export interface ReceiptLabels {
   title: string;
@@ -41,7 +42,7 @@ function Row({ label, value }: { label: string; value: string | null }) {
 }
 
 function ReceiptDocument({ receipt, labels }: { receipt: PaymentReceipt; labels: ReceiptLabels }) {
-  const amount = `${receipt.currency} ${Number(receipt.amount).toFixed(2)}`;
+  const amount = formatReceiptAmount(receipt);
   return (
     <Document title={receipt.number}>
       <Page size="A5" style={styles.page}>

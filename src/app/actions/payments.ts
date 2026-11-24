@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { contracts, tenants, payments, charges } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { requireAdmin, requireTenant } from '@/lib/auth/guards';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { uploadFile, deleteImage } from '@/lib/storage';
@@ -17,6 +17,7 @@ import {
 import { Errors, ok } from '@/lib/errors';
 import { RecordPaymentSchema, ApprovePaymentSchema, CreateChargeSchema } from '@/lib/schemas/payment';
 import { log } from '@/lib/log';
+import { scheduleReceiptNotice } from '@/lib/receipts/receipt-notice';
 import type { ActionResult } from '@/lib/errors';
 import { closedPeriodError } from '@/lib/period-close/guard';
 
@@ -121,8 +122,9 @@ export async function approvePayment(
   const closed = await closedPeriodError(ctx.orgId, [paymentRows[0].paidAt]);
   if (closed) return closed;
 
+  let approved;
   try {
-    await db
+    approved = await db
       .update(payments)
       .set({
         status: 'approved',
@@ -130,13 +132,16 @@ export async function approvePayment(
         approvedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)));
+      .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId), ne(payments.status, 'approved')))
+      .returning({ id: payments.id });
   } catch (e) {
     log.error('[approvePayment] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
+  if (approved.length === 0) return Errors.CONFLICT('Payment is already approved');
 
   log.paymentApproved(ctx.userId, parsed.data.payment_id, ctx.orgId);
+  await scheduleReceiptNotice(ctx.orgId, parsed.data.payment_id);
   revalidatePath('/dashboard/payments');
   return ok(undefined);
 }

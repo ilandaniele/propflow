@@ -6,10 +6,11 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { payments } from '@/lib/db/schema';
 import { requireAdmin } from '@/lib/auth/guards';
+import { scheduleReceiptNotice } from '@/lib/receipts/receipt-notice';
 
 export async function PATCH(
   _request: NextRequest,
@@ -36,12 +37,15 @@ export async function PATCH(
   const result = await db
     .update(payments)
     .set({ status: 'approved', approvedAt: new Date() })
-    .where(and(eq(payments.id, paymentId), eq(payments.orgId, ctx.orgId)));
+    .where(and(eq(payments.id, paymentId), eq(payments.orgId, ctx.orgId), ne(payments.status, 'approved')))
+    .returning({ id: payments.id });
 
   if (!result) {
     console.error('[api/admin/payments/approve PATCH] update returned no result');
     return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to approve payment.' } }, { status: 500 });
   }
+
+  if (result.length > 0) await scheduleReceiptNotice(ctx.orgId, paymentId);
 
   return NextResponse.json({ success: true });
 }

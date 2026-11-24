@@ -1942,6 +1942,14 @@
       "reference": "Reference",
       "amount": "Amount received",
       "footer": "Internal payment receipt. Not a SUNAT electronic invoice."
+    },
+    "email": {
+      "subject": "Your payment receipt {number}",
+      "greeting": "Hello {name},",
+      "body": "We approved your payment of {amount}. You can download receipt {number} from your portal.",
+      "cta": "View my payments",
+      "inboxTitle": "Payment approved",
+      "inboxBody": "Your receipt {number} for {amount} is ready."
     }
   },
   "deposits": {
