@@ -45,13 +45,12 @@ test.describe('Admin Import — navigation', () => {
     await expect(page).toHaveURL(/\/dashboard\/admin\/import\/csv/);
   });
 
-  test('all 7 import tabs are visible', async ({ page }) => {
+  test('all 8 import tabs are visible', async ({ page }) => {
     await page.goto('/dashboard/admin/import/csv');
     await page.waitForLoadState('networkidle');
 
-    // All 7 tabs should be rendered in the nav
     const tabs = page.locator('nav[aria-label="Import section tabs"] a');
-    await expect(tabs).toHaveCount(7);
+    await expect(tabs).toHaveCount(8);
 
     // Check specific tab labels (Spanish)
     await expect(page.getByRole('link', { name: 'CSV Mensual' })).toBeVisible();
@@ -61,6 +60,7 @@ test.describe('Admin Import — navigation', () => {
     await expect(page.getByRole('link', { name: 'Mapeo propiedades' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Mapeo cuentas' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Verificar archivo' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Otro software' })).toBeVisible();
   });
 
   test('admin sidebar contains Importacion link', async ({ page }) => {
