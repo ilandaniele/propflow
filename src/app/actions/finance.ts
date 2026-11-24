@@ -87,6 +87,7 @@ export async function createExpense(
       unitId: parsed.data.unit_id ?? null,
       categoryId: parsed.data.category_id ?? null,
       amount: String(parsed.data.amount),
+      currency: parsed.data.currency,
       description: parsed.data.description,
       incurredOn: parsed.data.incurred_on,
     });
@@ -127,6 +128,7 @@ export async function updateExpense(
         unitId: updates.unit_id ?? undefined,
         categoryId: updates.category_id ?? undefined,
         amount: updates.amount != null ? String(updates.amount) : undefined,
+        currency: updates.currency,
         description: updates.description,
         incurredOn: updates.incurred_on,
         updatedAt: new Date(),

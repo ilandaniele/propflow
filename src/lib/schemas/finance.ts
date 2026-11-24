@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CURRENCIES } from '@/lib/finance/currency';
 
 export const CreateExpenseCategorySchema = z.object({
   name: z.string().min(1).max(100),
@@ -11,6 +12,7 @@ export const CreateExpenseSchema = z.object({
   unit_id: z.string().guid().optional(),
   category_id: z.string().guid().optional(),
   amount: z.coerce.number().positive().max(999_999_99),
+  currency: z.enum(CURRENCIES).optional(),
   description: z.string().min(1).max(500),
   incurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
@@ -22,6 +24,7 @@ export const UpdateExpenseSchema = z.object({
   unit_id: z.string().guid().optional(),
   category_id: z.string().guid().optional(),
   amount: z.coerce.number().positive().max(999_999_99).optional(),
+  currency: z.enum(CURRENCIES).optional(),
   description: z.string().min(1).max(500).optional(),
   incurred_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
