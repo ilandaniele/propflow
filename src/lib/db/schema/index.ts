@@ -11,4 +11,5 @@ export * from './messages';
 export * from './period-closes';
 export * from './authorized-visitors';
 export * from './activity';
+export * from './staff';
 export * from './relations';

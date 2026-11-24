@@ -76,6 +76,7 @@
     "finance": "Finanças",
     "reminders": "Lembretes",
     "announcements": "Avisos",
+    "staff": "Equipe",
     "cleaning": "Limpeza",
     "leads": "Leads",
     "community": "Comunidade",
@@ -3550,5 +3551,24 @@
       "incident_resolved": "Resolveu uma ocorrência",
       "cleaning_scheduled": "Agendou uma limpeza"
     }
+  },
+  "staff": {
+    "title": "Equipe do prédio",
+    "adminSubtitle": "Síndicos, porteiros, segurança e limpeza. Telefone e documento visíveis só para a administração.",
+    "portalSubtitle": "Quem trabalha no seu prédio e em qual turno.",
+    "addTitle": "Adicionar pessoa",
+    "propertyLabel": "Imóvel",
+    "allProperties": "Todos os imóveis",
+    "fullNameLabel": "Nome completo",
+    "positionLabel": "Cargo",
+    "positionPlaceholder": "Porteiro, zelador, segurança…",
+    "shiftLabel": "Turno",
+    "shiftPlaceholder": "Seg–Sex 8–16",
+    "phoneLabel": "Telefone",
+    "documentLabel": "Documento",
+    "add": "Adicionar",
+    "saving": "Salvando…",
+    "remove": "Remover",
+    "empty": "Ainda não há equipe cadastrada."
   }
 }
