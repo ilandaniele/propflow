@@ -3,7 +3,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { signatureRequests, contracts, tenants, units, properties } from '@/lib/db/schema';
+import { signatureRequests, contracts, tenants, units, properties, handoverActs } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { Errors } from '@/lib/errors';
 import { uploadFile, getSignedUrl } from '@/lib/storage';
@@ -11,6 +11,17 @@ import { storedDocumentSha256, sha256Hex } from '@/lib/contracts/signature-evide
 import { SignSubmitSchema } from '@/lib/schemas/contractDoc';
 import { getClientIp, signatureRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
+import { handoverSignaturePath } from '@/lib/contracts/handover';
+
+async function signedDocumentFor(handoverActId: string | null) {
+  if (!handoverActId) return null;
+  const [act] = await db
+    .select({ kind: handoverActs.kind, documentPath: handoverActs.documentPath })
+    .from(handoverActs)
+    .where(eq(handoverActs.id, handoverActId))
+    .limit(1);
+  return act ?? null;
+}
 
 /** GET /api/sign/[token] — public, no session; validates token, marks viewed */
 export async function GET(
@@ -31,6 +42,7 @@ export async function GET(
       expiresAt:   signatureRequests.expiresAt,
       signerEmail: signatureRequests.signerEmail,
       contractId:  signatureRequests.contractId,
+      handoverActId: signatureRequests.handoverActId,
     })
     .from(signatureRequests)
     .where(eq(signatureRequests.token, token))
@@ -84,12 +96,15 @@ export async function GET(
     .limit(1);
 
   const contract = contractRows[0];
-  const documentLink = contract?.documentUrl
-    ? await getSignedUrl('contracts', contract.documentUrl, 900).catch(() => null)
+  const act = await signedDocumentFor(sigReq.handoverActId);
+  const documentPath = sigReq.handoverActId ? act?.documentPath ?? null : contract?.documentUrl ?? null;
+  const documentLink = documentPath
+    ? await getSignedUrl('contracts', documentPath, 900).catch(() => null)
     : null;
 
   return NextResponse.json({
     documentLink,
+    documentKind: act?.kind ?? 'contract',
     sigRequestId: sigReq.id,
     expiresAt: sigReq.expiresAt,
     contract: {
@@ -102,6 +117,23 @@ export async function GET(
       tenantName:      contract?.tenantFullName,
     },
   });
+}
+
+async function signedDocumentPath(sigReq: { orgId: string; contractId: string; handoverActId: string | null }) {
+  if (sigReq.handoverActId) {
+    const [act] = await db
+      .select({ documentPath: handoverActs.documentPath })
+      .from(handoverActs)
+      .where(and(eq(handoverActs.id, sigReq.handoverActId), eq(handoverActs.orgId, sigReq.orgId)))
+      .limit(1);
+    return act?.documentPath ?? null;
+  }
+  const [contract] = await db
+    .select({ documentUrl: contracts.documentUrl })
+    .from(contracts)
+    .where(and(eq(contracts.id, sigReq.contractId), eq(contracts.orgId, sigReq.orgId)))
+    .limit(1);
+  return contract?.documentUrl ?? null;
 }
 
 /** POST /api/sign/[token] — public, no session; submit signature */
@@ -139,6 +171,7 @@ export async function POST(
       expiresAt:  signatureRequests.expiresAt,
       contractId: signatureRequests.contractId,
       orgId:      signatureRequests.orgId,
+      handoverActId: signatureRequests.handoverActId,
     })
     .from(signatureRequests)
     .where(eq(signatureRequests.token, token))
@@ -171,7 +204,9 @@ export async function POST(
   // Strip the data URL header
   const base64Data = parsed.data.signature_image_base64.replace(/^data:image\/png;base64,/, '');
   const imageBytes = Buffer.from(base64Data, 'base64');
-  const signaturePath = `${sigReq.orgId}/${sigReq.contractId}/signature.png`;
+  const signaturePath = sigReq.handoverActId
+    ? handoverSignaturePath(sigReq.orgId, sigReq.contractId, sigReq.handoverActId)
+    : `${sigReq.orgId}/${sigReq.contractId}/signature.png`;
 
   try {
     await uploadFile('contracts', signaturePath, imageBytes, 'image/png', true);
@@ -180,12 +215,7 @@ export async function POST(
     return NextResponse.json(Errors.INTERNAL(), { status: 500 });
   }
 
-  const [contractRow] = await db
-    .select({ documentUrl: contracts.documentUrl })
-    .from(contracts)
-    .where(and(eq(contracts.id, sigReq.contractId), eq(contracts.orgId, sigReq.orgId)))
-    .limit(1);
-  const documentSha256 = await storedDocumentSha256(contractRow?.documentUrl ?? null);
+  const documentSha256 = await storedDocumentSha256(await signedDocumentPath(sigReq));
   const signatureSha256 = sha256Hex(imageBytes);
 
   const now = new Date();
@@ -205,6 +235,15 @@ export async function POST(
       updatedAt: now,
     })
     .where(eq(signatureRequests.id, sigReq.id));
+
+  if (sigReq.handoverActId) {
+    await db
+      .update(handoverActs)
+      .set({ status: 'signed', signedAt: now, updatedAt: now })
+      .where(and(eq(handoverActs.id, sigReq.handoverActId), eq(handoverActs.orgId, sigReq.orgId)));
+    log.info('[sign] handover act signed', { sigRequestId: sigReq.id, handoverActId: sigReq.handoverActId });
+    return NextResponse.json({ status: 'signed', signedAt: now.toISOString(), documentSha256 });
+  }
 
   // Flip contract.signature_status = 'signed' and signed_at — Drizzle (AC1).
   // Defense-in-depth: scope the update to the signature request's org so a

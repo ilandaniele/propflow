@@ -1,8 +1,9 @@
 import type { OrgSignature } from './org-signature';
 import type { SignatureEvidence } from './signature-evidence';
+import type { ContractHeader } from './contract-header';
 
 export type CertificateSource = {
-  contract: { code: string | null; orgName: string; tenant: string; property: string; term: string };
+  contract: ContractHeader;
   evidence: SignatureEvidence;
   tenantSignature: string | null;
   landlord: OrgSignature | null;

@@ -3068,5 +3068,73 @@
     "onHelp": "On. Each month creates the rent charge for every active contract and sends payment reminders.",
     "enable": "Turn on",
     "disable": "Turn off"
+  },
+  "handover": {
+    "inventory": {
+      "title": "Unit inventory",
+      "empty": "No items yet. Add furniture, appliances and keys.",
+      "name": "Item",
+      "quantity": "Qty",
+      "condition": "Condition",
+      "notes": "Notes",
+      "add": "Add",
+      "saving": "Saving…",
+      "delete": "Remove",
+      "error": "We could not save the inventory."
+    },
+    "conditions": {
+      "new": "New",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "broken": "Broken"
+    },
+    "kinds": {
+      "check_in": "Check-in act",
+      "check_out": "Check-out act"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "pending_signature": "Pending signature",
+      "signed": "Signed"
+    },
+    "act": {
+      "title": "Check-in and check-out acts",
+      "empty": "No acts yet.",
+      "needsInventory": "Add the unit inventory to create an act.",
+      "kind": "Act type",
+      "notes": "General remarks",
+      "create": "Create act",
+      "creating": "Creating…",
+      "created": "Act created.",
+      "error": "We could not create the act.",
+      "itemCount": "{count} items",
+      "generate": "Generate PDF",
+      "regenerate": "Regenerate PDF",
+      "generating": "Generating…",
+      "generateError": "We could not generate the act PDF.",
+      "send": "Send for signature",
+      "sending": "Sending…",
+      "sendError": "We could not send the act for signature."
+    },
+    "pdf": {
+      "title": {
+        "check_in": "Check-in act and inventory",
+        "check_out": "Check-out act and inventory"
+      },
+      "contract": "Contract",
+      "organization": "Landlord",
+      "tenant": "Tenant",
+      "property": "Property",
+      "date": "Date",
+      "item": "Item",
+      "quantity": "Qty",
+      "condition": "Condition",
+      "notes": "Notes",
+      "generalNotes": "Remarks",
+      "landlordSignature": "Landlord",
+      "tenantSignature": "Tenant",
+      "missing": "—"
+    }
   }
 }
