@@ -1,10 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import * as schema from '@/lib/db/schema';
-import { createSmokeDb, seedOrg, type SmokeDb } from './setup';
+import { createSmokeDb, seedOrg, seedProfile, type SmokeDb } from './setup';
 
 const auth = vi.hoisted(() => ({ ctx: { userId: 'admin-1', orgId: '', role: 'admin' } }));
-vi.mock('@/lib/auth/guards', () => ({ requireAdmin: vi.fn(async () => auth.ctx), requireUser: vi.fn(async () => auth.ctx) }));
+vi.mock('@/lib/auth/guards', () => ({
+  requireAdmin: vi.fn(async () => auth.ctx),
+  requireStaff: vi.fn(async () => auth.ctx),
+  canStaffWrite: vi.fn(() => true),
+  requireUser: vi.fn(async () => auth.ctx),
+}));
 vi.mock('@/lib/ratelimit', () => ({ mutationRateLimit: vi.fn(() => ({ success: true })) }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
@@ -24,6 +29,9 @@ afterAll(async () => {
 
 async function seedIncident() {
   const org = await seedOrg(db);
+  // Status changes are recorded in incident_status_events.changed_by (FK to profiles).
+  const admin = await seedProfile(db, org.id, { email: null });
+  auth.ctx.userId = admin.id;
   const [incident] = await db.insert(schema.incidents).values({
     orgId: org.id, category: 'plumbing', title: 'Fuga', description: 'Fuga en baño',
   }).returning();

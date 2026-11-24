@@ -16,6 +16,11 @@ vi.mock('@/lib/auth/guards', () => ({
     if (!authBox.ctx) throw new Error('unauthorized');
     return authBox.ctx;
   },
+  requireStaff: async () => {
+    if (!authBox.ctx) throw new Error('unauthorized');
+    return authBox.ctx;
+  },
+  canStaffWrite: () => true,
   requireUser: async () => {
     throw new Error('unused');
   },

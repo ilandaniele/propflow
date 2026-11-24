@@ -90,9 +90,13 @@ export async function generateRecurringExpenses(orgId: string, period: string): 
         unitId: sql<string | null>`NULL`.as('unit_id'),
         categoryId: recurringExpenses.categoryId,
         amount: recurringExpenses.amount,
+        // INSERT ... SELECT needs every column in table order; templates carry no
+        // currency or classification, so use the column defaults.
+        currency: sql<string>`'PEN'`.as('currency'),
         description: recurringExpenses.description,
         incurredOn: sql<string>`${period} || '-' || printf('%02d', ${recurringExpenses.dayOfMonth})`.as('incurred_on'),
         receiptPath: sql<string | null>`NULL`.as('receipt_path'),
+        kind: sql<string>`'ordinary'`.as('kind'),
         createdAt: sql<number>`${nowMs}`.as('created_at'),
         updatedAt: sql<number>`${nowMs}`.as('updated_at'),
       }).from(recurringExpenses).where(due),
