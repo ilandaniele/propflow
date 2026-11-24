@@ -3326,7 +3326,7 @@
       "expiresOn": "Vence el",
       "expiresHint": "Opcional. Aparece en Por vencer 30 días antes.",
       "file": "Archivos",
-      "fileHint": "PDF, JPG, PNG o WEBP. Máximo 5 MB cada uno, {max} archivos y 20 MB en total.",
+      "fileHint": "PDF, JPG, PNG o WEBP. Hasta {max} archivos de 5 MB cada uno.",
       "visibleToTenant": "Visible para el inquilino en su portal",
       "upload": "Subir",
       "uploading": "Subiendo…",
@@ -3352,14 +3352,13 @@
       "soon": "Vence pronto"
     },
     "errors": {
-      "upload": "No se pudo subir el documento. Revisá los datos y el archivo.",
       "delete": "No se pudo eliminar el documento.",
       "open": "No se pudo abrir el documento.",
-      "tooMany": "Elegí hasta {max} archivos que sumen 20 MB o menos.",
+      "tooMany": "Elegí hasta {max} archivos.",
       "file": {
-        "size": "{file}: debe pesar entre 1 byte y 5 MB.",
-        "type": "{file}: tipo de archivo no admitido.",
-        "storage": "{file}: no se pudo guardar. Intentá de nuevo."
+        "invalid": "{file}: debe ser PDF, JPG, PNG o WEBP de hasta 5 MB.",
+        "rateLimited": "{file}: demasiadas subidas. Esperá un minuto y volvé a intentar.",
+        "failed": "{file}: no se pudo subir. Intentá de nuevo."
       }
     },
     "portal": {

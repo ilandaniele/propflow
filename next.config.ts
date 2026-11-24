@@ -77,7 +77,7 @@ const nextConfig: NextConfig = {
   // Experimental: server actions size limit
   experimental: {
     serverActions: {
-      bodySizeLimit: '21mb', // bulk document upload: 20 MB total (validated server-side; single files still capped at 5 MB)
+      bodySizeLimit: '6mb', // allow up to 6mb for incident photo uploads (validated to 5mb server-side)
     },
   },
 };

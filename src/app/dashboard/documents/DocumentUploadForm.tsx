@@ -4,44 +4,28 @@ import { useActionState, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Input';
-import { uploadDocuments } from '@/app/actions/documents';
-import {
-  DOCUMENT_CATEGORIES,
-  DOCUMENT_ENTITIES,
-  MAX_DOCUMENT_UPLOAD_BYTES,
-  MAX_DOCUMENTS_PER_UPLOAD,
-  type DocumentEntity,
-} from '@/lib/documents/types';
+import { uploadDocument } from '@/app/actions/documents';
+import { DOCUMENT_CATEGORIES, DOCUMENT_ENTITIES, MAX_DOCUMENTS_PER_UPLOAD, type DocumentEntity } from '@/lib/documents/types';
+import { exceedsUploadLimit, uploadDocumentsSequentially, type DocumentUploadResult } from '@/lib/documents/bulk-upload';
 import type { EntityOptions } from '@/lib/documents/queries';
-import type { DocumentUploadResult } from '@/lib/documents/upload';
-import type { ActionResult } from '@/lib/errors';
 
 const ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp';
-
-type UploadState = ActionResult<{ results: DocumentUploadResult[] }> | null;
-
-function selectionExceedsLimits(files: FileList | null): boolean {
-  if (!files) return false;
-  const totalBytes = Array.from(files).reduce((total, file) => total + file.size, 0);
-  return files.length > MAX_DOCUMENTS_PER_UPLOAD || totalBytes > MAX_DOCUMENT_UPLOAD_BYTES;
-}
 
 export function DocumentUploadForm({ options }: { options: EntityOptions }) {
   const t = useTranslations('documents');
   const formRef = useRef<HTMLFormElement>(null);
   const [entity, setEntity] = useState<DocumentEntity>('tenant');
   const [fileCount, setFileCount] = useState(0);
-  const [overLimit, setOverLimit] = useState(false);
-  const [state, action, pending] = useActionState<UploadState, FormData>(async (_prev, formData) => {
-    const result = await uploadDocuments({}, formData);
-    if (result.data?.results.every((outcome) => !outcome.error)) {
+  const [results, action, pending] = useActionState<DocumentUploadResult[], FormData>(async (_prev, formData) => {
+    const uploaded = await uploadDocumentsSequentially(formData, (data) => uploadDocument({}, data));
+    if (uploaded.every((outcome) => !outcome.error)) {
       formRef.current?.reset();
       setFileCount(0);
     }
-    return result;
-  }, null);
+    return uploaded;
+  }, []);
 
-  const results = state?.data?.results ?? [];
+  const overLimit = exceedsUploadLimit(fileCount);
   const uploadedCount = results.filter((outcome) => !outcome.error).length;
   const failed = results.filter((outcome) => outcome.error);
 
@@ -70,7 +54,7 @@ export function DocumentUploadForm({ options }: { options: EntityOptions }) {
       </Select>
       <Input name="expires_on" id="document-expires-on" type="date" label={t('form.expiresOn')} hint={t('form.expiresHint')} />
       <Input
-        name="files"
+        name="file"
         id="document-file"
         type="file"
         accept={ACCEPT}
@@ -78,10 +62,7 @@ export function DocumentUploadForm({ options }: { options: EntityOptions }) {
         required
         label={t('form.file')}
         hint={t('form.fileHint', { max: MAX_DOCUMENTS_PER_UPLOAD })}
-        onChange={(e) => {
-          setFileCount(e.target.files?.length ?? 0);
-          setOverLimit(selectionExceedsLimits(e.target.files));
-        }}
+        onChange={(e) => setFileCount(e.target.files?.length ?? 0)}
       />
       {entity !== 'property' && (
         <label className="flex items-center gap-2 text-slate-700 sm:col-span-2">
@@ -92,7 +73,6 @@ export function DocumentUploadForm({ options }: { options: EntityOptions }) {
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
         <Button type="submit" disabled={pending || overLimit}>{pending ? t('form.uploading') : t('form.upload')}</Button>
         {overLimit && <p role="alert" className="text-red-600">{t('errors.tooMany', { max: MAX_DOCUMENTS_PER_UPLOAD })}</p>}
-        {state?.error && <p role="alert" className="text-red-600">{t('errors.upload')}</p>}
         {uploadedCount > 0 && <p role="status" className="text-green-700">{t('form.uploaded', { count: uploadedCount })}</p>}
       </div>
       {failed.length > 0 && (

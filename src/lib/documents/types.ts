@@ -14,7 +14,6 @@ export type DocumentMime = keyof typeof DOCUMENT_MIME_EXTENSIONS;
 
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
 export const MAX_DOCUMENTS_PER_UPLOAD = 10;
-export const MAX_DOCUMENT_UPLOAD_BYTES = 20 * 1024 * 1024;
 export const EXPIRING_SOON_DAYS = 30;
 
 export function addDays(date: string, days: number): string {

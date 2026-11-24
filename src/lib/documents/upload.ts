@@ -1,17 +1,14 @@
 import type { documents } from '@/lib/db/schema';
 import { log } from '@/lib/log';
 import { uploadFile } from '@/lib/storage';
-import { DocumentFileSchema } from '@/lib/schemas/documents';
 import { detectDocumentMime } from './mime';
 import { documentStoragePath } from './queries';
 import { DOCUMENT_MIME_EXTENSIONS, type DocumentCategory, type DocumentEntity } from './types';
 
 export const DOCUMENTS_BUCKET = 'documents';
 
-export type DocumentUploadFailure = 'size' | 'type' | 'storage';
-export type DocumentUploadResult = { file: string; error?: DocumentUploadFailure };
 type DocumentInsert = typeof documents.$inferInsert;
-type StoredDocument = { row: DocumentInsert } | { error: DocumentUploadFailure };
+type StoredDocument = { row: DocumentInsert } | { error: 'type' | 'storage' };
 
 export interface DocumentUploadTarget {
   orgId:           string;
@@ -27,13 +24,11 @@ export function fileBaseName(fileName: string): string {
   return (fileName.replace(/\.[^.]*$/, '').trim() || fileName).slice(0, 120);
 }
 
-export function documentNameFor(fileName: string, typedName: string | undefined, fileCount: number): string {
-  return fileCount === 1 && typedName ? typedName : fileBaseName(fileName);
+export function documentNameFor(fileName: string, typedName: string | undefined): string {
+  return typedName || fileBaseName(fileName);
 }
 
 export async function storeDocumentFile(target: DocumentUploadTarget, file: File, name: string): Promise<StoredDocument> {
-  if (!DocumentFileSchema.safeParse(file).success) return { error: 'size' };
-
   const bytes = Buffer.from(await file.arrayBuffer());
   const mimeType = detectDocumentMime(bytes);
   if (!mimeType) return { error: 'type' };
@@ -64,11 +59,4 @@ export async function storeDocumentFile(target: DocumentUploadTarget, file: File
       uploadedBy:      target.userId,
     },
   };
-}
-
-export function uploadResults(files: File[], stored: StoredDocument[]): DocumentUploadResult[] {
-  return files.map((file, index) => {
-    const outcome = stored[index];
-    return 'error' in outcome ? { file: file.name, error: outcome.error } : { file: file.name };
-  });
 }

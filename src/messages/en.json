@@ -3326,7 +3326,7 @@
       "expiresOn": "Expires on",
       "expiresHint": "Optional. Shows under Expiring 30 days before.",
       "file": "Files",
-      "fileHint": "PDF, JPG, PNG or WEBP. Up to 5 MB each, {max} files and 20 MB in total.",
+      "fileHint": "PDF, JPG, PNG or WEBP. Up to {max} files, 5 MB each.",
       "visibleToTenant": "Visible to the tenant in their portal",
       "upload": "Upload",
       "uploading": "Uploading…",
@@ -3352,14 +3352,13 @@
       "soon": "Expiring soon"
     },
     "errors": {
-      "upload": "Could not upload the document. Check the fields and the file.",
       "delete": "Could not delete the document.",
       "open": "Could not open the document.",
-      "tooMany": "Select up to {max} files totalling 20 MB or less.",
+      "tooMany": "Select up to {max} files.",
       "file": {
-        "size": "{file}: must be between 1 byte and 5 MB.",
-        "type": "{file}: unsupported file type.",
-        "storage": "{file}: could not be stored. Try again."
+        "invalid": "{file}: must be a PDF, JPG, PNG or WEBP of up to 5 MB.",
+        "rateLimited": "{file}: too many uploads. Wait a minute and try again.",
+        "failed": "{file}: could not be uploaded. Try again."
       }
     },
     "portal": {
