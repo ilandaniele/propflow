@@ -104,6 +104,7 @@
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
     "deposits": "Deposits",
+    "rentAdjustments": "Rent adjustments",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -1819,6 +1820,25 @@
       "saved": "Movement saved.",
       "exceeds": "Amount exceeds the deposit held ({held})."
     }
+  },
+  "rentAdjustments": {
+    "title": "Rent adjustments",
+    "subtitle": "Active contracts by anniversary. Contracts with an anniversary in the next {days} days and no adjustment are highlighted.",
+    "dueAlert": "{count, plural, one {# contract needs an adjustment} other {# contracts need an adjustment}}",
+    "emptyTitle": "No active contracts",
+    "emptyDesc": "Active contracts will show up here.",
+    "colTenant": "Tenant",
+    "colRent": "Rent",
+    "colAnniversary": "Anniversary",
+    "colLast": "Last adjustment",
+    "colApply": "Apply %",
+    "percent": "Percent",
+    "effectiveOn": "Effective from",
+    "submit": "Apply",
+    "preview": "New: {rent}",
+    "done": "New rent {rent}",
+    "notActive": "Only active contracts can be adjusted.",
+    "historyTitle": "Adjustment history"
   },
   "accountStatements": {
     "generate": {

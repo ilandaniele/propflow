@@ -104,6 +104,7 @@
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
     "deposits": "Garantías",
+    "rentAdjustments": "Reajustes de alquiler",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "chargeConcepts": "Conceptos de cobro",
@@ -1819,6 +1820,25 @@
       "saved": "Movimiento guardado.",
       "exceeds": "El monto supera la garantía retenida ({held})."
     }
+  },
+  "rentAdjustments": {
+    "title": "Reajustes de alquiler",
+    "subtitle": "Contratos activos ordenados por aniversario. Se marcan los que cumplen año en los próximos {days} días sin reajuste.",
+    "dueAlert": "{count, plural, one {# contrato necesita reajuste} other {# contratos necesitan reajuste}}",
+    "emptyTitle": "Sin contratos activos",
+    "emptyDesc": "Los contratos activos aparecerán acá.",
+    "colTenant": "Inquilino",
+    "colRent": "Alquiler",
+    "colAnniversary": "Aniversario",
+    "colLast": "Último reajuste",
+    "colApply": "Aplicar %",
+    "percent": "Porcentaje",
+    "effectiveOn": "Vigente desde",
+    "submit": "Aplicar",
+    "preview": "Nuevo: {rent}",
+    "done": "Nuevo alquiler {rent}",
+    "notActive": "Solo se reajustan contratos activos.",
+    "historyTitle": "Historial de reajustes"
   },
   "accountStatements": {
     "generate": {
