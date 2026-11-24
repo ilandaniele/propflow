@@ -161,6 +161,25 @@ export const announcements = sqliteTable('announcements', {
   check('announcements_audience_check', sql`audience IN ('all','property','unit')`),
 ]);
 
+/** One row per announcement, tenant and channel sent by email or WhatsApp (bulk communications). */
+export const announcementDeliveries = sqliteTable('announcement_deliveries', {
+  id:             id(),
+  orgId:          text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  announcementId: text('announcement_id').notNull().references(() => announcements.id, { onDelete: 'cascade' }),
+  tenantId:       text('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  channel:        text('channel').notNull(),                    // 'email'|'whatsapp'
+  status:         text('status').notNull().default('pending'),  // 'pending'|'sent'|'failed'
+  error:          text('error'),
+  createdAt:      createdAt(),
+  updatedAt:      updatedAt(),
+}, (t) => [
+  uniqueIndex('announcement_deliveries_uniq').on(t.announcementId, t.tenantId, t.channel),
+  index('idx_announcement_deliveries_org_ann_status').on(t.orgId, t.announcementId, t.status),
+  index('idx_announcement_deliveries_tenant').on(t.tenantId),
+  check('announcement_deliveries_channel_check', sql`channel IN ('email','whatsapp')`),
+  check('announcement_deliveries_status_check', sql`status IN ('pending','sent','failed')`),
+]);
+
 export const cleaningTasks = sqliteTable('cleaning_tasks', {
   id:            id(),
   orgId:         text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),

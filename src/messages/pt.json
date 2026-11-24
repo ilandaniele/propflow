@@ -113,6 +113,7 @@
     "team": "Equipe",
     "ownerAssistant": "Assistente WhatsApp",
     "branding": "Marca",
+    "dataExport": "Exportar dados",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Histórico de importações",
     "deposits": "Cauções",
@@ -147,7 +148,10 @@
     "utilities": "Serviços",
     "responsables": "Responsáveis",
     "agentQa": "QA do agente",
-    "payables": "Contas a pagar"
+    "payables": "Contas a pagar",
+    "averageRent": "Aluguel médio",
+    "managerPerformance": "Desempenho dos gestores",
+    "customFields": "Campos personalizados"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -336,7 +340,10 @@
     "occupied": "ocupadas",
     "rooms": "quartos",
     "compare": "Comparar",
-    "groups": "Grupos"
+    "groups": "Grupos",
+    "detailTab": "Resumo",
+    "utilitiesTab": "Serviços",
+    "backToProperties": "Voltar às propriedades"
   },
   "payments": {
     "reconcileLink": "Conciliar com banco",
@@ -1886,7 +1893,19 @@
     "pinned": "Fixado",
     "important": "Importante",
     "pin": "Fixar",
-    "unpin": "Desafixar"
+    "unpin": "Desafixar",
+    "sendEmail": "Enviar também por e-mail",
+    "sendWhatsapp": "Enviar também por WhatsApp",
+    "deliveryHint": "Chega aos inquilinos com contrato ativo do público escolhido, respeitando suas preferências de e-mail e o consentimento do WhatsApp.",
+    "deliveryEmail": "E-mail",
+    "deliveryWhatsapp": "WhatsApp",
+    "deliveryCounts": "{sent} enviados · {failed} com falha · {pending} pendentes",
+    "continueSending": "Continuar envio",
+    "email": {
+      "subject": "Comunicado: {title}",
+      "greeting": "Olá {name},",
+      "cta": "Ver no portal"
+    }
   },
   "cleaning": {
     "title": "Cronograma de Limpeza",
@@ -1926,6 +1945,13 @@
     "emptyTitle": "Sem leads ainda",
     "emptyDesc": "Acompanhe possíveis inquilinos no seu pipeline de CRM.",
     "source": "Origem"
+  },
+  "dataExport": {
+    "title": "Exportar todos os meus dados",
+    "subtitle": "Baixe um arquivo ZIP com um CSV por entidade da sua organização: imóveis, unidades, proprietários, inquilinos, contratos, cobranças, pagamentos, despesas, ocorrências e documentos (somente metadados, sem os arquivos).",
+    "privacy": "Senhas, sessões, chaves de API e tokens nunca são incluídos. Cada tabela é limitada a 50.000 linhas; resumen.csv indica se alguma foi truncada.",
+    "limit": "Você pode baixá-lo até 3 vezes por hora.",
+    "button": "Baixar ZIP"
   },
   "branding": {
     "title": "Marca",
@@ -3967,6 +3993,8 @@
     "leaseRenewalHint": "Aviso quando seu contrato estiver perto do fim (30 dias antes).",
     "paymentDue": "Pagamentos a vencer",
     "paymentDueHint": "Aviso quando um pagamento vencer nos próximos 3 dias.",
+    "announcements": "Comunicados",
+    "announcementsHint": "Comunicados em massa que seu administrador envia por e-mail.",
     "alwaysSent": "E-mails essenciais são sempre enviados: convites para o portal e solicitações de assinatura de contrato. Você continuará vendo os avisos nas notificações do portal.",
     "save": "Salvar",
     "saved": "Preferências salvas",
@@ -4027,6 +4055,123 @@
       "amount": "Valor",
       "paidOn": "Data do pagamento",
       "note": "Nota"
+    }
+  },
+  "utilityContracts": {
+    "title": "Contratos de serviços",
+    "subtitle": "Controle os serviços do imóvel, o titular e as trocas de titular quando um inquilino entra ou sai.",
+    "splitLink": "Ver rateio de contas",
+    "empty": "Este imóvel não tem contratos de serviços.",
+    "type": "Tipo",
+    "provider": "Fornecedor",
+    "supplyNumber": "N.º de fornecimento / conta",
+    "supplyShort": "N.º",
+    "unit": "Unidade",
+    "wholeProperty": "Imóvel inteiro",
+    "monthlyEstimate": "Estimativa mensal (S/)",
+    "perMonth": "/mês",
+    "startDate": "Data de início",
+    "since": "desde",
+    "notes": "Notas",
+    "holder": "Titular",
+    "holderKind": "Tipo de titular",
+    "holderName": "Nome do titular",
+    "changeHolder": "Troca de titular",
+    "changedOn": "Data da troca",
+    "reason": "Motivo",
+    "reasonPlaceholder": "Entrada ou saída de inquilino",
+    "saveChange": "Registrar troca",
+    "edit": "Editar",
+    "save": "Salvar",
+    "add": "Adicionar contrato",
+    "remove": "Excluir",
+    "saving": "Salvando...",
+    "pagination": "Paginação de contratos",
+    "previous": "← Anteriores",
+    "next": "Próximos →",
+    "types": {
+      "luz": "Luz",
+      "agua": "Água",
+      "gas": "Gás",
+      "internet": "Internet",
+      "otro": "Outro"
+    },
+    "holderKinds": {
+      "owner": "Proprietário",
+      "tenant": "Inquilino",
+      "other": "Outro"
+    }
+  },
+  "averageRent": {
+    "title": "Aluguel médio",
+    "subtitle": "Aluguel mensal médio dos contratos ativos, por moeda.",
+    "overall": "Aluguel médio geral ({currency})",
+    "contractCount": "{count, plural, one {# contrato ativo} other {# contratos ativos}}",
+    "byProperty": "Por imóvel",
+    "byUnitType": "Por tipo de unidade",
+    "byBedrooms": "Por quartos",
+    "bedrooms": "{count, plural, =0 {Sem quartos} one {# quarto} other {# quartos}}",
+    "group": "Grupo",
+    "contracts": "Contratos",
+    "average": "Aluguel médio",
+    "unspecified": "Não especificado",
+    "emptyTitle": "Sem contratos ativos",
+    "emptyDesc": "Quando houver contratos ativos, o aluguel médio aparecerá aqui."
+  },
+  "managerPerformance": {
+    "title": "Desempenho dos gestores",
+    "subtitle": "Ocorrências atribuídas a cada membro da equipe e o tempo de resolução.",
+    "periodNav": "Alterar período",
+    "lastDays": "Últimos {count} dias",
+    "manager": "Gestor",
+    "assigned": "Atribuídas",
+    "resolved": "Resolvidas",
+    "open": "Abertas",
+    "avgResolution": "Resolução média",
+    "days": "{count} dias",
+    "unnamed": "Sem nome",
+    "emptyTitle": "Sem membros da equipe",
+    "emptyDesc": "Convide sua equipe para atribuir ocorrências.",
+    "note": "Conta as ocorrências criadas no período. A resolução média usa ocorrências resolvidas com data de resolução."
+  },
+  "customFields": {
+    "title": "Campos personalizados",
+    "subtitle": "Defina campos extras para imóveis, unidades, inquilinos e contratos.",
+    "newField": "Novo campo",
+    "entityType": "Entidade",
+    "fieldType": "Tipo",
+    "key": "Chave",
+    "keyHint": "Letras minúsculas, números e sublinhado. Não pode ser alterada.",
+    "label": "Rótulo",
+    "required": "Obrigatório",
+    "sortOrder": "Ordem",
+    "options": "Opções",
+    "optionsHint": "Uma opção por linha.",
+    "create": "Criar campo",
+    "save": "Salvar",
+    "saved": "Salvo",
+    "edit": "Editar",
+    "remove": "Excluir",
+    "emptyEntity": "Nenhum campo definido.",
+    "cardTitle": "Campos personalizados",
+    "cardEmpty": "Não há campos personalizados para esta entidade.",
+    "manageLink": "Configurar campos",
+    "selectPlaceholder": "Selecione…",
+    "errorRequired": "Campo obrigatório.",
+    "errorInvalid": "Valor inválido.",
+    "errorSave": "Verifique os campos destacados.",
+    "entity": {
+      "property": "Imóveis",
+      "unit": "Unidades",
+      "tenant": "Inquilinos",
+      "contract": "Contratos"
+    },
+    "type": {
+      "text": "Texto",
+      "number": "Número",
+      "date": "Data",
+      "boolean": "Sim/Não",
+      "select": "Lista de opções"
     }
   }
 }

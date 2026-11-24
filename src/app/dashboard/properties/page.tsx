@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
@@ -61,14 +62,14 @@ export default async function PropertiesPage() {
         </div>
         <div className="flex items-center gap-2">
           {rows.length > 1 && (
-            <a href="/dashboard/properties/groups" className="text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+            <Link href="/dashboard/properties/groups" className="text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
               {t('groups')}
-            </a>
+            </Link>
           )}
           {rows.length > 1 && (
-            <a href="/dashboard/properties/compare" className="text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+            <Link href="/dashboard/properties/compare" className="text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
               {t('compare')}
-            </a>
+            </Link>
           )}
           <AddPropertyButton />
         </div>
@@ -92,7 +93,7 @@ export default async function PropertiesPage() {
               <Card key={property.id} padding="sm">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-slate-900">{property.name}</p>
+                    <Link href={`/dashboard/properties/${property.id}`} className="block font-semibold text-slate-900 hover:underline">{property.name}</Link>
                     <p className="text-sm text-slate-500">
                       {[property.address, property.city, property.country].filter(Boolean).join(', ') || t('noAddress')}
                     </p>

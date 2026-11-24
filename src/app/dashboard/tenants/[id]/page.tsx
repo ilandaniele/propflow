@@ -35,6 +35,7 @@ import { SanctionsTab } from './_tabs/SanctionsTab';
 import { NotesTab } from './_tabs/NotesTab';
 import { PortalPreviewTab } from './_tabs/PortalPreviewTab';
 import type { ActivityEvent } from '@/lib/tenants/activity-feed';
+import { CustomFieldsCard } from '@/components/custom-fields/CustomFieldsCard';
 
 export const metadata: Metadata = { title: 'Tenant Details' };
 
@@ -194,17 +195,20 @@ export default async function TenantDetailPage({ params }: Props) {
       id: 'overview',
       label: t('tabs.overview'),
       content: (
-        <OverviewTab
-          statement={statement}
-          activeContract={null}
-          activeIncidentsCount={activeIncidentsCount}
-          pendingTasksCount={pendingTasksCount}
-          lastWhatsAppMessage={lastWaMessage ? {
-            body: lastWaMessage.body,
-            created_at: String(lastWaMessage.createdAt),
-          } : null}
-          tenantId={id}
-        />
+        <div className="space-y-4">
+          <OverviewTab
+            statement={statement}
+            activeContract={null}
+            activeIncidentsCount={activeIncidentsCount}
+            pendingTasksCount={pendingTasksCount}
+            lastWhatsAppMessage={lastWaMessage ? {
+              body: lastWaMessage.body,
+              created_at: String(lastWaMessage.createdAt),
+            } : null}
+            tenantId={id}
+          />
+          <CustomFieldsCard orgId={ctx.orgId} entityType="tenant" entityId={id} />
+        </div>
       ),
     },
     { id: 'payments', label: t('tabs.payments'), content: (<Suspense fallback={<TabFallback />}><PaymentsTab tenantId={id} /></Suspense>) },

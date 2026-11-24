@@ -48,7 +48,7 @@ describe('email preferences (real SQL)', () => {
     const org = await seedOrg(smoke.db);
     const profile = await seedTenantProfile(smoke.db, org.id, 'default@example.com');
 
-    expect(await getEmailPreferences(org.id, profile.id)).toEqual({ lease_renewal: true, payment_due: true });
+    expect(await getEmailPreferences(org.id, profile.id)).toEqual({ lease_renewal: true, payment_due: true, announcements: true });
     expect((await loadEmailOptOuts(org.id, 'lease_renewal')).size).toBe(0);
   });
 
@@ -57,13 +57,13 @@ describe('email preferences (real SQL)', () => {
     const org = await seedOrg(smoke.db);
     const profile = await seedTenantProfile(smoke.db, org.id, 'optout@example.com');
 
-    await saveEmailPreferences(org.id, profile.id, { lease_renewal: false, payment_due: true });
-    expect(await getEmailPreferences(org.id, profile.id)).toEqual({ lease_renewal: false, payment_due: true });
+    await saveEmailPreferences(org.id, profile.id, { lease_renewal: false, payment_due: true, announcements: true });
+    expect(await getEmailPreferences(org.id, profile.id)).toEqual({ lease_renewal: false, payment_due: true, announcements: true });
     expect(await loadEmailOptOuts(org.id, 'lease_renewal')).toEqual(new Set([profile.id]));
     expect((await loadEmailOptOuts(org.id, 'payment_due')).size).toBe(0);
 
-    await saveEmailPreferences(org.id, profile.id, { lease_renewal: true, payment_due: false });
-    expect(await getEmailPreferences(org.id, profile.id)).toEqual({ lease_renewal: true, payment_due: false });
+    await saveEmailPreferences(org.id, profile.id, { lease_renewal: true, payment_due: false, announcements: false });
+    expect(await getEmailPreferences(org.id, profile.id)).toEqual({ lease_renewal: true, payment_due: false, announcements: false });
   });
 
   it("cannot edit or read another org's profile preferences", async () => {
@@ -72,11 +72,11 @@ describe('email preferences (real SQL)', () => {
     const orgB = await seedOrg(smoke.db);
     const victim = await seedTenantProfile(smoke.db, orgA.id, 'victim@example.com');
 
-    await saveEmailPreferences(orgA.id, victim.id, { lease_renewal: false, payment_due: false });
-    await saveEmailPreferences(orgB.id, victim.id, { lease_renewal: true, payment_due: true });
+    await saveEmailPreferences(orgA.id, victim.id, { lease_renewal: false, payment_due: false, announcements: false });
+    await saveEmailPreferences(orgB.id, victim.id, { lease_renewal: true, payment_due: true, announcements: true });
 
-    expect(await getEmailPreferences(orgA.id, victim.id)).toEqual({ lease_renewal: false, payment_due: false });
-    expect(await getEmailPreferences(orgB.id, victim.id)).toEqual({ lease_renewal: true, payment_due: true });
+    expect(await getEmailPreferences(orgA.id, victim.id)).toEqual({ lease_renewal: false, payment_due: false, announcements: false });
+    expect(await getEmailPreferences(orgB.id, victim.id)).toEqual({ lease_renewal: true, payment_due: true, announcements: true });
     expect((await loadEmailOptOuts(orgB.id, 'lease_renewal')).size).toBe(0);
   });
 
@@ -86,11 +86,11 @@ describe('email preferences (real SQL)', () => {
     const orgB = await seedOrg(smoke.db);
     const victim = await seedTenantProfile(smoke.db, orgA.id, 'fresh@example.com');
 
-    await saveEmailPreferences(orgB.id, victim.id, { lease_renewal: false, payment_due: false });
+    await saveEmailPreferences(orgB.id, victim.id, { lease_renewal: false, payment_due: false, announcements: true });
 
     const rows = await smoke.db.select().from(schema.notificationPreferences).where(eq(schema.notificationPreferences.profileId, victim.id));
     expect(rows).toEqual([]);
-    expect(await getEmailPreferences(orgA.id, victim.id)).toEqual({ lease_renewal: true, payment_due: true });
+    expect(await getEmailPreferences(orgA.id, victim.id)).toEqual({ lease_renewal: true, payment_due: true, announcements: true });
   });
 });
 
@@ -116,7 +116,7 @@ describe('runReminderEngine honours email opt-outs (real SQL)', () => {
 
     const optedOut = await seedResident('opted-out@example.com');
     await seedResident('opted-in@example.com');
-    await saveEmailPreferences(org.id, optedOut.profile.id, { lease_renewal: false, payment_due: false });
+    await saveEmailPreferences(org.id, optedOut.profile.id, { lease_renewal: false, payment_due: false, announcements: true });
 
     await runReminderEngine('https://propflow.test');
 

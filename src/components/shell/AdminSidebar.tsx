@@ -243,6 +243,24 @@ const financeNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'averageRent',
+    href: '/dashboard/reports/average-rent',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 3v18h18"/><path d="M7 14h4v4H7z"/><path d="M13 10h4v8h-4z"/><path d="M6 9h14" strokeDasharray="2 2"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'managerPerformance',
+    href: '/dashboard/reports/manager-performance',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4"/><path d="m15 18 2 2 4-4"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'adminNotifications',
     href: '/dashboard/notifications',
     icon: (
@@ -581,6 +599,24 @@ const adminNavItems: NavItem[] = [
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'dataExport',
+    href: '/dashboard/admin/data-export',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'customFields',
+    href: '/dashboard/admin/custom-fields',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 7H3"/><path d="M21 12H3"/><path d="M13 17H3"/><path d="M18 15v6"/><path d="M15 18h6"/>
       </svg>
     ),
   },

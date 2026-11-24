@@ -97,6 +97,10 @@ vi.mock('@/components/unit-beds/UnitBedsSection', () => ({
   UnitBedsSection: () => null,
 }));
 
+vi.mock('@/components/custom-fields/CustomFieldsCard', () => ({
+  CustomFieldsCard: () => null,
+}));
+
 // ---------------------------------------------------------------------------
 // Mock @/lib/db — Drizzle
 // ---------------------------------------------------------------------------
