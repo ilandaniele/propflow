@@ -330,7 +330,8 @@
     "emptyDesc": "Add your first property to start managing units and tenants.",
     "occupied": "occupied",
     "rooms": "rooms",
-    "compare": "Compare"
+    "compare": "Compare",
+    "groups": "Groups"
   },
   "payments": {
     "reconcileLink": "Reconcile with bank",
@@ -3706,5 +3707,20 @@
       "net": "Net",
       "openIncidents": "Open incidents"
     }
+  },
+  "propertyGroups": {
+    "back": "Properties",
+    "title": "Property groups",
+    "subtitle": "Group properties (area, owner, building) and see the consolidated report for the last 12 months.",
+    "newGroup": "New group",
+    "name": "Group name",
+    "members": "Properties",
+    "create": "Create group",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "empty": "No groups yet.",
+    "viewReport": "View report",
+    "reportTitle": "Report: {name}",
+    "total": "Group total"
   }
 }
