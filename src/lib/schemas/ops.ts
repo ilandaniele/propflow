@@ -25,6 +25,12 @@ export type AnnouncementInput = z.infer<typeof AnnouncementSchema>;
 
 export const PublishAnnouncementSchema = z.object({
   id: z.string().guid(),
+  send_email: checkbox,
+  send_whatsapp: checkbox,
+});
+
+export const ContinueAnnouncementDeliverySchema = z.object({
+  id: z.string().guid(),
 });
 
 export const PinAnnouncementSchema = z.object({

@@ -35,11 +35,11 @@ describe('DEFAULT_EMAIL_PREFERENCES', () => {
 
 describe('EmailPreferencesFormSchema', () => {
   it('maps checked boxes to true and missing boxes to false', () => {
-    expect(EmailPreferencesFormSchema.parse({ lease_renewal: 'on' })).toEqual({ lease_renewal: true, payment_due: false });
+    expect(EmailPreferencesFormSchema.parse({ lease_renewal: 'on', announcements: 'on' })).toEqual({ lease_renewal: true, payment_due: false, announcements: true });
   });
 
   it('ignores unrelated form fields', () => {
-    expect(EmailPreferencesFormSchema.parse({ $ACTION_ID_x: '', payment_due: 'on' })).toEqual({ lease_renewal: false, payment_due: true });
+    expect(EmailPreferencesFormSchema.parse({ $ACTION_ID_x: '', payment_due: 'on' })).toEqual({ lease_renewal: false, payment_due: true, announcements: false });
   });
 
   it('rejects an unexpected checkbox value', () => {

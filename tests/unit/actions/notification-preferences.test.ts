@@ -48,7 +48,7 @@ describe('updateEmailPreferences', () => {
     const result = await updateEmailPreferences({}, form({ lease_renewal: 'on', profile_id: 'someone-else', org_id: 'other-org' }));
 
     expect(result.error).toBeUndefined();
-    expect(mockSaveEmailPreferences).toHaveBeenCalledWith(ORG_UUID, PROFILE_UUID, { lease_renewal: true, payment_due: false });
+    expect(mockSaveEmailPreferences).toHaveBeenCalledWith(ORG_UUID, PROFILE_UUID, { lease_renewal: true, payment_due: false, announcements: false });
   });
 
   it('rejects an unauthenticated caller', async () => {
