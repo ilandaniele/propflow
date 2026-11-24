@@ -601,6 +601,7 @@
     "errorGeneric": "Something went wrong. Please try again."
   },
   "agentWidget": {
+    "portalFeed": "XML feed for listing portals (Urbania, Adondevivir, Infocasas via their integrator):",
     "title": "Web widget",
     "noDisplayPhoneWarning": "You haven't set the WhatsApp number visitors see yet. Without it, the widget can't offer the continue-on-WhatsApp button.",
     "publicPagesEnabled": "Enable public pages (/p)",

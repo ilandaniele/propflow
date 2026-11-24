@@ -601,6 +601,7 @@
     "errorGeneric": "Ocorreu um erro. Tente novamente."
   },
   "agentWidget": {
+    "portalFeed": "Feed XML para portais (Urbania, Adondevivir, Infocasas via integrador):",
     "title": "Widget web",
     "noDisplayPhoneWarning": "Você ainda não configurou o número de WhatsApp que o visitante vê. Sem ele, o widget não pode oferecer o botão de continuar pelo WhatsApp.",
     "publicPagesEnabled": "Habilitar páginas públicas (/p)",

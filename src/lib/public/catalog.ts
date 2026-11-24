@@ -102,6 +102,34 @@ const listingCardColumns = {
   areaM2: listings.areaM2,
 };
 
+type CardRow = {
+  id: string;
+  publicSlug: string | null;
+  title: string | null;
+  operation: string;
+  price: string | null;
+  currency: string;
+  zone: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  areaM2: string | null;
+};
+
+function toCard(r: CardRow, covers: Map<string, string>): PublicListingCard {
+  return {
+    slug: r.publicSlug as string,
+    title: r.title,
+    operation: r.operation as 'rent' | 'sale',
+    price: r.price,
+    currency: r.currency,
+    zone: r.zone,
+    bedrooms: r.bedrooms,
+    bathrooms: r.bathrooms,
+    areaM2: r.areaM2,
+    coverImageUrl: covers.get(r.id) ?? null,
+  };
+}
+
 /** 24/page. `total` counts all matching rows, not just the returned page. */
 export async function listPublicListings(
   orgId: string,
@@ -126,18 +154,7 @@ export async function listPublicListings(
 
   const items: PublicListingCard[] = rows
     .filter((r) => r.publicSlug)
-    .map((r) => ({
-      slug: r.publicSlug as string,
-      title: r.title,
-      operation: r.operation as 'rent' | 'sale',
-      price: r.price,
-      currency: r.currency,
-      zone: r.zone,
-      bedrooms: r.bedrooms,
-      bathrooms: r.bathrooms,
-      areaM2: r.areaM2,
-      coverImageUrl: covers.get(r.id) ?? null,
-    }));
+    .map((r) => toCard(r, covers));
 
   return { items, total: Number(totalRows[0]?.count ?? 0) };
 }
@@ -209,6 +226,35 @@ export async function getPublicListing(orgId: string, slug: string): Promise<Pub
     refCode: row.refCode,
     imageUrls,
   };
+}
+
+export interface PublicFeedListing extends PublicListingCard {
+  description: string | null;
+  refCode: string | null;
+  publishedAt: Date | null;
+}
+
+const FEED_LIMIT = 500;
+
+/** Every published + available listing for the portal XML feed, newest first, capped at 500. */
+export async function listPublicFeedListings(orgId: string): Promise<PublicFeedListing[]> {
+  const rows = await db
+    .select({ ...listingCardColumns, description: listings.description, refCode: listings.refCode, publishedAt: listings.publishedAt })
+    .from(listings)
+    .where(and(eq(listings.orgId, orgId), eq(listings.published, true), eq(listings.status, 'available')))
+    .orderBy(desc(listings.createdAt))
+    .limit(FEED_LIMIT);
+
+  const covers = await resolveCoverImageUrls(orgId, rows);
+
+  return rows
+    .filter((r) => r.publicSlug)
+    .map((r) => ({
+      ...toCard(r, covers),
+      description: r.description,
+      refCode: r.refCode,
+      publishedAt: r.publishedAt,
+    }));
 }
 
 /** Batch cover-image lookup for a page of cards — one query for unit-backed listings, one for standalone ones. Cover first, then sort_order. */
