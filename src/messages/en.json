@@ -1764,6 +1764,24 @@
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
   },
+  "paymentReceipt": {
+    "download": "Receipt",
+    "generating": "Generating…",
+    "error": "Could not generate the receipt",
+    "pdf": {
+      "title": "Payment receipt",
+      "number": "No.",
+      "receivedFrom": "Received from",
+      "property": "Property",
+      "unit": "Unit",
+      "date": "Payment date",
+      "method": "Method",
+      "concept": "Concept",
+      "reference": "Reference",
+      "amount": "Amount received",
+      "footer": "Internal payment receipt. Not a SUNAT electronic invoice."
+    }
+  },
   "accountStatements": {
     "generate": {
       "title": "Generate account statements",

@@ -24,3 +24,7 @@ export const CreateChargeSchema = z.object({
 export type RecordPaymentInput = z.infer<typeof RecordPaymentSchema>;
 export type ApprovePaymentInput = z.infer<typeof ApprovePaymentSchema>;
 export type CreateChargeInput = z.infer<typeof CreateChargeSchema>;
+
+export const PaymentReceiptSchema = z.object({
+  payment_id: z.string().guid(),
+});
