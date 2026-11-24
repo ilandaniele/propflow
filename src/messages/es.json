@@ -1031,6 +1031,7 @@
   },
   "units": {
     "bedsTab": "Camas",
+    "calendarLink": "Calendario y sincronización con Airbnb →",
     "toiletType": {
       "private": "Privado",
       "shared": "Compartido",
@@ -3778,5 +3779,27 @@
       "potentialRent": "Renta potencial",
       "occupiedRent": "Renta ocupada"
     }
+  },
+  "unitCalendar": {
+    "back": "← Volver a la unidad",
+    "title": "Calendario y sincronización",
+    "subtitle": "Sincroniza la disponibilidad de esta unidad con Airbnb, Booking o Vrbo mediante enlaces iCal.",
+    "enable": "Activar calendario",
+    "saving": "Guardando…",
+    "exportTitle": "Exportar a Airbnb / Booking",
+    "exportHelp": "Pega este enlace en \"Importar calendario\" del canal. Publica solo fechas ocupadas por contratos activos, sin datos del inquilino.",
+    "importTitle": "Importar reservas del canal",
+    "importHelp": "Pega el enlace de exportación iCal de Airbnb, Booking o Vrbo. Se sincroniza cada hora.",
+    "importUrl": "Enlace iCal del canal",
+    "save": "Guardar",
+    "syncNow": "Sincronizar ahora",
+    "syncing": "Sincronizando…",
+    "lastSynced": "Última sincronización: {date}",
+    "neverSynced": "Aún no sincronizado",
+    "syncError": "Error: {error}",
+    "blocksTitle": "Próximos bloqueos del canal",
+    "noBlocks": "Sin bloqueos próximos.",
+    "range": "{from} → {to}",
+    "blocked": "Bloqueado"
   }
 }

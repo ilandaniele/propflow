@@ -18,4 +18,5 @@ export * from './incident-history';
 export * from './document-expiry';
 export * from './property-groups';
 export * from './unit-beds';
+export * from './unit-calendars';
 export * from './relations';

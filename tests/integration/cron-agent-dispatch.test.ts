@@ -12,6 +12,7 @@ const ensureCalendarSyncJobs = vi.fn();
 const scanSpeedToLead = vi.fn();
 const scanVisitConfirmationCalls = vi.fn();
 const failStaleCalls = vi.fn();
+const syncDueUnitCalendars = vi.fn();
 
 vi.mock('@/lib/agent/jobs', () => ({ drainAgentJobs: (...a: unknown[]) => drainAgentJobs(...a) }));
 vi.mock('@/lib/agent/job-handlers', () => ({ registerAgentJobHandlers: vi.fn() }));
@@ -22,6 +23,7 @@ vi.mock('@/lib/agent/voice/scanners', () => ({
   scanVisitConfirmationCalls: () => scanVisitConfirmationCalls(),
 }));
 vi.mock('@/lib/agent/voice/usage', () => ({ failStaleCalls: () => failStaleCalls() }));
+vi.mock('@/lib/unit-calendar/sync', () => ({ syncDueUnitCalendars: () => syncDueUnitCalendars() }));
 vi.mock('@/lib/db/retry', () => ({ withDbRetry: (fn: () => Promise<unknown>) => fn() }));
 vi.mock('@/lib/log', () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
 
@@ -48,6 +50,7 @@ describe('POST /api/cron/agent-dispatch', () => {
     scanSpeedToLead.mockResolvedValue(3);
     scanVisitConfirmationCalls.mockResolvedValue(4);
     failStaleCalls.mockResolvedValue(5);
+    syncDueUnitCalendars.mockResolvedValue(6);
   });
   afterEach(() => {
     vi.clearAllMocks();
@@ -85,6 +88,7 @@ describe('POST /api/cron/agent-dispatch', () => {
       speedToLeadCalls: 3,
       visitConfirmationCalls: 4,
       staleCallsFailed: 5,
+      unitCalendarsSynced: 6,
       failed: 0,
     });
     expect(drainAgentJobs).not.toHaveBeenCalled();
