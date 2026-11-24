@@ -2244,7 +2244,19 @@
     "total": "All-time total",
     "receipt": "Receipt",
     "overLimitAlert": "{count} service(s) over limit — S/ {variance} total excess",
-    "overBy": "over by"
+    "overBy": "over by",
+    "split": {
+      "month": "Month",
+      "method": "Split by",
+      "method_equal": "Equal shares",
+      "method_area": "By m²",
+      "method_days": "By days occupied",
+      "dueDate": "Due date",
+      "submit": "Create charges",
+      "hint": "Only the amount above the cap is split among the property contracts active that month.",
+      "noAmount": "No amount recorded for that month.",
+      "done": "{created} charge(s) created, {skipped} already existed."
+    }
   },
   "responsables": {
     "title": "Responsables",

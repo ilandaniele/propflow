@@ -2244,7 +2244,19 @@
     "total": "Total histórico",
     "receipt": "Comprovante",
     "overLimitAlert": "{count} serviço(s) acima do limite — S/ {variance} de excesso total",
-    "overBy": "excede em"
+    "overBy": "excede em",
+    "split": {
+      "month": "Mês",
+      "method": "Divisão",
+      "method_equal": "Partes iguais",
+      "method_area": "Por m²",
+      "method_days": "Por dias ocupados",
+      "dueDate": "Vencimento",
+      "submit": "Gerar cobranças",
+      "hint": "Só o excedente sobre o teto é dividido entre os contratos do imóvel ativos naquele mês.",
+      "noAmount": "Esse mês não tem valor registrado.",
+      "done": "{created} cobrança(s) criadas, {skipped} já existiam."
+    }
   },
   "responsables": {
     "title": "Responsáveis",

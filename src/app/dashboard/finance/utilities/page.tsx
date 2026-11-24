@@ -7,6 +7,7 @@ import { eq, asc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SplitUtilityForm } from './SplitUtilityForm';
 
 export const metadata: Metadata = { title: 'Utility Payments' };
 
@@ -217,6 +218,8 @@ export default async function UtilitiesPage() {
                     })}
                   </div>
                 )}
+
+                {recentMonths.length > 0 && <SplitUtilityForm servicePaymentId={svc.id} months={recentMonths} />}
               </div>
             );
           })}

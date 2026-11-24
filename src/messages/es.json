@@ -2244,7 +2244,19 @@
     "total": "Total histórico",
     "receipt": "Constancia",
     "overLimitAlert": "{count} servicio(s) sobre el tope — S/ {variance} de exceso total",
-    "overBy": "excede en"
+    "overBy": "excede en",
+    "split": {
+      "month": "Mes",
+      "method": "Reparto",
+      "method_equal": "Partes iguales",
+      "method_area": "Por m²",
+      "method_days": "Por días ocupados",
+      "dueDate": "Vencimiento",
+      "submit": "Generar cargos",
+      "hint": "Se reparte solo el exceso sobre el tope entre los contratos de la propiedad que ocuparon ese mes.",
+      "noAmount": "Ese mes no tiene monto registrado.",
+      "done": "{created} cargo(s) creados, {skipped} ya existían."
+    }
   },
   "responsables": {
     "title": "Responsables",
