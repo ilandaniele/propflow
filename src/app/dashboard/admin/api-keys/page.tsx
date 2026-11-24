@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { requireAdmin } from '@/lib/auth/guards';
 import { listApiKeys } from '@/lib/api-keys/queries';
+import { getAppOrigin } from '@/lib/widget/origins';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CreateApiKeyForm, RevokeApiKeyForm } from './ApiKeyForms';
@@ -13,11 +14,21 @@ const ENDPOINTS = ['/api/v1/properties', '/api/v1/units', '/api/v1/tenants', '/a
 
 const formatDate = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : '—');
 
+const mcpConfigExample = (url: string) =>
+  JSON.stringify(
+    { mcpServers: { propflow: { type: 'http', url, headers: { Authorization: 'Bearer pf_xxxxxxxx_…' } } } },
+    null,
+    2,
+  );
+
 export default async function ApiKeysPage() {
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
   const t = await getTranslations('apiKeys');
   const keys = await listApiKeys(ctx.orgId);
+  let appOrigin = '';
+  try { appOrigin = getAppOrigin(); } catch { appOrigin = ''; }
+  const mcpUrl = `${appOrigin}/api/mcp`;
 
   return (
     <div className="p-6 space-y-6">
@@ -70,6 +81,14 @@ export default async function ApiKeysPage() {
           {ENDPOINTS.map((endpoint) => <li key={endpoint}>GET {endpoint}</li>)}
         </ul>
         <p className="text-sm text-slate-600 mt-3">{t('docsPagination')}</p>
+      </Card>
+
+      <Card padding="md">
+        <h2 className="text-base font-medium text-slate-800 mb-2">{t('mcpTitle')}</h2>
+        <p className="text-sm text-slate-600 mb-3">{t('mcpDesc')}</p>
+        <code className="block rounded bg-slate-50 px-3 py-2 text-xs text-slate-800">{mcpUrl}</code>
+        <p className="text-sm text-slate-600 mt-3 mb-2">{t('mcpConfigHint')}</p>
+        <pre className="overflow-x-auto rounded bg-slate-50 px-3 py-2 text-xs text-slate-800">{mcpConfigExample(mcpUrl)}</pre>
       </Card>
     </div>
   );
