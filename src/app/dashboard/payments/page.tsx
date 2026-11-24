@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { payments as paymentsTable, contracts, tenants } from '@/lib/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { payments as paymentsTable, contracts, tenants, chargeConcepts } from '@/lib/db/schema';
+import { eq, desc, and, asc } from 'drizzle-orm';
 import { computePaymentKpis } from '@/lib/finance/payment-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
@@ -21,7 +21,7 @@ export default async function PaymentsPage() {
 
   const t = await getTranslations('payments');
 
-  const [statRows, paymentRows, contractRows] = await Promise.all([
+  const [statRows, paymentRows, contractRows, conceptRows] = await Promise.all([
     // ALL payments (aggregation columns only) — KPI totals must cover every row,
     // not just the 200 shown in the table, or collected/pending/rate are wrong.
     db
@@ -59,6 +59,12 @@ export default async function PaymentsPage() {
       .from(contracts)
       .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
       .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
+    db
+      .select({ id: chargeConcepts.id, description: chargeConcepts.description, baseAmount: chargeConcepts.baseAmount })
+      .from(chargeConcepts)
+      .where(eq(chargeConcepts.orgId, ctx.orgId))
+      .orderBy(asc(chargeConcepts.description))
+      .limit(200),
   ]);
 
   // Analytics — computed over ALL payments (statRows), never the capped table set.
@@ -96,7 +102,7 @@ export default async function PaymentsPage() {
         </div>
         <div className="flex items-center gap-2">
           <AdminPaymentsCsvButtons />
-          <CreateChargeForm contracts={contractsForForm as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
+          <CreateChargeForm contracts={contractsForForm as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} concepts={conceptRows} />
         </div>
       </div>
 
