@@ -344,6 +344,15 @@ const opsNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'communities',
+    href: '/dashboard/communities',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'leads',
     href: '/dashboard/leads',
     icon: (
@@ -601,6 +610,7 @@ const communityNavItems: NavItem[] = [
 
 export interface AdminSidebarProps {
   orgName?:  string;
+  communitySwitcher?: ReactNode;
   open?:     boolean;
   onClose?:  () => void;
   /** When set, only these links are shown (restricted staff roles). */
@@ -656,7 +666,7 @@ function NavSection({
   );
 }
 
-export function AdminSidebar({ orgName, open, onClose, allowedHrefs }: AdminSidebarProps) {
+export function AdminSidebar({ orgName, communitySwitcher, open, onClose, allowedHrefs }: AdminSidebarProps) {
   const pathname = usePathname();
   const t = useTranslations('navigation');
   const visible = (items: NavItem[]) => (allowedHrefs ? items.filter((item) => allowedHrefs.includes(item.href)) : items);
@@ -701,6 +711,9 @@ export function AdminSidebar({ orgName, open, onClose, allowedHrefs }: AdminSide
         <div className="px-5 py-3 border-b border-slate-100">
           <p className="text-xs text-slate-500 font-medium truncate">{orgName}</p>
         </div>
+      )}
+      {communitySwitcher && (
+        <div className="px-5 py-2 border-b border-slate-100">{communitySwitcher}</div>
       )}
 
       {/* Nav */}

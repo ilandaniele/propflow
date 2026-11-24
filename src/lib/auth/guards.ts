@@ -5,6 +5,7 @@ import { profiles, staffRoles } from '@/lib/db/schema';
 import { canAccess, isStaffRole, type StaffAccess, type StaffArea, type StaffRole } from './permissions';
 import { eq } from 'drizzle-orm';
 import type { Profile } from '@/types';
+import { resolveActiveOrg } from '@/lib/memberships/active-org';
 
 export interface AuthContext {
   userId: string;
@@ -36,35 +37,7 @@ export const getCachedUser = cache(async () => {
 export const getProfile = cache(async (): Promise<Profile | null> => {
   const user = await getCachedUser();
   if (!user) return null;
-
-  const rows = await db
-    .select({
-      id:       profiles.id,
-      orgId:    profiles.orgId,
-      role:     profiles.role,
-      fullName: profiles.fullName,
-      phone:    profiles.phone,
-      email:    profiles.email,
-      staffRole: staffRoles.role,
-    })
-    .from(profiles)
-    .leftJoin(staffRoles, eq(staffRoles.profileId, profiles.id))
-    .where(eq(profiles.userId, user.id))
-    .limit(1);
-
-  const row = rows[0];
-  if (!row) return null;
-
-  // Map Drizzle camelCase to the Profile type shape (org_id, full_name)
-  return {
-    id:        row.id,
-    org_id:    row.orgId,
-    role:      row.role as 'admin' | 'tenant',
-    full_name: row.fullName ?? undefined,
-    phone:     row.phone ?? undefined,
-    email:     row.email ?? undefined,
-    staff_role: isStaffRole(row.staffRole) ? row.staffRole : null,
-  } as unknown as Profile;
+  return getProfileFast(user.id);
 });
 
 /**
@@ -154,7 +127,7 @@ export async function getProfileFast(userId: string): Promise<Profile | null> {
   const row = rows[0];
   if (!row) return null;
 
-  return {
+  return resolveActiveOrg(userId, {
     id:        row.id,
     org_id:    row.orgId,
     role:      row.role as 'admin' | 'tenant',
@@ -162,7 +135,7 @@ export async function getProfileFast(userId: string): Promise<Profile | null> {
     phone:     row.phone ?? undefined,
     email:     row.email ?? undefined,
     staff_role: isStaffRole(row.staffRole) ? row.staffRole : null,
-  } as unknown as Profile;
+  } as unknown as Profile);
 }
 
 /**

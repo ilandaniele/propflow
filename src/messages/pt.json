@@ -77,6 +77,7 @@
     "reminders": "Lembretes",
     "announcements": "Avisos",
     "staff": "Equipe",
+    "communities": "Comunidades",
     "cleaning": "Limpeza",
     "leads": "Leads",
     "community": "Comunidade",
@@ -3570,5 +3571,22 @@
     "saving": "Salvando…",
     "remove": "Remover",
     "empty": "Ainda não há equipe cadastrada."
+  },
+  "communities": {
+    "title": "Acesso multicomunidade",
+    "subtitle": "Adicione usuários que já têm conta no Propflow para acessarem esta comunidade sem perder a deles. Eles trocam de comunidade pelo seletor.",
+    "addTitle": "Dar acesso",
+    "emailLabel": "E-mail da conta",
+    "roleLabel": "Função",
+    "role": {
+      "admin": "Administrador",
+      "tenant": "Inquilino"
+    },
+    "add": "Dar acesso",
+    "saving": "Salvando…",
+    "remove": "Remover acesso",
+    "empty": "Ninguém mais tem acesso a esta comunidade.",
+    "switchLabel": "Comunidade ativa",
+    "switch": "Trocar"
   }
 }

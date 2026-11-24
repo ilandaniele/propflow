@@ -77,6 +77,7 @@
     "reminders": "Recordatorios",
     "announcements": "Anuncios",
     "staff": "Personal",
+    "communities": "Comunidades",
     "cleaning": "Limpieza",
     "leads": "Prospectos",
     "community": "Comunidad",
@@ -3570,5 +3571,22 @@
     "saving": "Guardando…",
     "remove": "Quitar",
     "empty": "Todavía no hay personal cargado."
+  },
+  "communities": {
+    "title": "Acceso multi-comunidad",
+    "subtitle": "Sumá usuarios que ya tienen cuenta en Propflow para que accedan a esta comunidad sin perder la suya. Cambian de comunidad con el selector.",
+    "addTitle": "Dar acceso",
+    "emailLabel": "Email de la cuenta",
+    "roleLabel": "Rol",
+    "role": {
+      "admin": "Administrador",
+      "tenant": "Inquilino"
+    },
+    "add": "Dar acceso",
+    "saving": "Guardando…",
+    "remove": "Quitar acceso",
+    "empty": "Nadie más tiene acceso a esta comunidad.",
+    "switchLabel": "Comunidad activa",
+    "switch": "Cambiar"
   }
 }

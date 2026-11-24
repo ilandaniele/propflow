@@ -4,6 +4,8 @@ import { getCachedUser, getProfileFast, getOrgNameFast, staffRoleOf } from '@/li
 import { navHrefsFor } from '@/lib/auth/permissions';
 import { AdminSidebar } from '@/components/shell/AdminSidebar';
 import { AdminTopbar } from '@/components/shell/AdminTopbar';
+import { CommunitySwitcher } from '@/components/communities/CommunitySwitcher';
+import { listUserCommunities } from '@/lib/memberships/queries';
 import type { Locale } from '@/i18n/config';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // getOrgNameFast is backed by unstable_cache (300 s TTL) — the org name rarely
   // changes; tagging with 'org-{orgId}' allows targeted invalidation when needed.
-  const orgName = await getOrgNameFast(profile.org_id);
+  const [orgName, communities] = await Promise.all([getOrgNameFast(profile.org_id), listUserCommunities(user.id)]);
 
   // getLocale() reads the locale from the next-intl cookie/config — no DB round-trip.
   // This is the single source of truth for the active locale in server components.
@@ -29,7 +31,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
-      <AdminSidebar orgName={orgName ?? undefined} allowedHrefs={navHrefsFor(staffRoleOf(profile))} />
+      <AdminSidebar
+        orgName={orgName ?? undefined}
+        allowedHrefs={navHrefsFor(staffRoleOf(profile))}
+        communitySwitcher={<CommunitySwitcher communities={communities} activeOrgId={profile.org_id} />}
+      />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <AdminTopbar userName={profile.full_name} currentLocale={currentLocale} />
         <main className="flex-1 overflow-y-auto p-6" id="main-content">
