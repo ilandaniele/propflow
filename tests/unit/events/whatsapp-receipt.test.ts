@@ -203,6 +203,20 @@ describe('handleWhatsAppReceipt', () => {
     expect(mockDbInsert).toHaveBeenCalledOnce();
   });
 
+  it('notifies every org admin when OCR fails', async () => {
+    selectResults['tenants']  = [{ fullName: 'Ana' }];
+    selectResults['profiles'] = [{ id: 'admin-1' }, { id: 'admin-2' }];
+
+    await handleWhatsAppReceipt(BASE_PAYLOAD);
+
+    const inboxInsert = mockDbInsert.mock.calls.find(c => c[0] === 'notification_inbox');
+    expect(inboxInsert).toBeDefined();
+    const rows = inboxInsert![1] as Array<Record<string, unknown>>;
+    expect(rows.map(r => r.profileId)).toEqual(['admin-1', 'admin-2']);
+    expect(rows[0]).toMatchObject({ orgId: 'org-1', type: 'receipt_pending' });
+    expect(String(rows[0].body)).toContain('Could not read the receipt');
+  });
+
   // ── Auto-approve path ──────────────────────────────────────────────────────
 
   it('inserts as auto_approved when confidence >= 0.92, delta <= 1%, charge found', async () => {
@@ -222,6 +236,24 @@ describe('handleWhatsAppReceipt', () => {
       c => c[0] === 'payment_receipts' && (c[1] as Record<string, unknown>)?.status === 'auto_approved'
     );
     expect(autoApproveInsert).toBeDefined();
+  });
+
+  it('notifies admins when a payment is registered automatically', async () => {
+    mockRunOcr.mockResolvedValue({
+      success: true,
+      data: { amount: 1000, date: '2026-05-15', vendor: 'Banco', confidence: 0.94 },
+    });
+    selectResults['charges']   = [{ id: 'charge-1', amount: '1000', contractId: 'contract-1' }];
+    selectResults['contracts'] = [{ id: 'contract-1' }];
+    selectResults['profiles']  = [{ id: 'admin-1' }];
+
+    await handleWhatsAppReceipt(BASE_PAYLOAD);
+
+    const inboxInsert = mockDbInsert.mock.calls.find(c => c[0] === 'notification_inbox');
+    expect(inboxInsert).toBeDefined();
+    expect((inboxInsert![1] as Array<Record<string, unknown>>)[0]).toMatchObject({
+      profileId: 'admin-1', type: 'receipt_auto_approved', relatedType: 'payment', relatedId: 'payment-1',
+    });
   });
 
   it('does NOT auto-approve when confidence is below threshold (0.91)', async () => {

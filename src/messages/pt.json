@@ -115,6 +115,7 @@
     "profitability": "Rentabilidade",
     "ownerSettlements": "Repasses",
     "occupancyHistory": "Ocupação histórica",
+    "adminNotifications": "Notificações",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
     "chargeConcepts": "Conceitos de cobrança",
@@ -2242,6 +2243,15 @@
     "emptyTitle": "Sem unidades",
     "emptyDesc": "Cadastre imóveis e unidades para ver a ocupação.",
     "note": "Uma unidade conta como ocupada do início do contrato até a saída real ou o fim do contrato. Meses futuros não são calculados."
+  },
+  "adminNotifications": {
+    "title": "Notificações",
+    "unread": "{count, plural, =0 {Nenhum aviso não lido} one {# aviso não lido} other {# avisos não lidos}}",
+    "markRead": "Marcar como lida",
+    "markAllRead": "Marcar todas como lidas",
+    "open": "Ver",
+    "emptyTitle": "Sem notificações",
+    "emptyDesc": "Aqui aparecem os comprovantes para revisar e os pagamentos registrados automaticamente."
   },
   "accountStatements": {
     "generate": {

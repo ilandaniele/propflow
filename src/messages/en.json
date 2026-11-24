@@ -115,6 +115,7 @@
     "profitability": "Profitability",
     "ownerSettlements": "Settlements",
     "occupancyHistory": "Occupancy history",
+    "adminNotifications": "Notifications",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -2242,6 +2243,15 @@
     "emptyTitle": "No units",
     "emptyDesc": "Add properties and units to see their occupancy.",
     "note": "A unit counts as occupied from contract start until the actual exit or contract end. Future months are not calculated."
+  },
+  "adminNotifications": {
+    "title": "Notifications",
+    "unread": "{count, plural, =0 {No unread notices} one {# unread notice} other {# unread notices}}",
+    "markRead": "Mark read",
+    "markAllRead": "Mark all as read",
+    "open": "View",
+    "emptyTitle": "No notifications",
+    "emptyDesc": "Receipts to review and automatically registered payments show up here."
   },
   "accountStatements": {
     "generate": {
