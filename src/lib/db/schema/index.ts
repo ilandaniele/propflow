@@ -19,6 +19,7 @@ export * from './document-expiry';
 export * from './property-groups';
 export * from './unit-beds';
 export * from './unit-calendars';
+export * from './utility-contracts';
 export * from './einvoices';
 export * from './payment-intents';
 export * from './notification-preferences';
