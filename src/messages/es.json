@@ -113,6 +113,7 @@
     "team": "Equipo",
     "ownerAssistant": "Asistente WhatsApp",
     "branding": "Marca",
+    "dataExport": "Exportar datos",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
     "deposits": "Garantías",
@@ -1889,7 +1890,19 @@
     "pinned": "Fijado",
     "important": "Importante",
     "pin": "Fijar",
-    "unpin": "Desfijar"
+    "unpin": "Desfijar",
+    "sendEmail": "Enviar también por correo",
+    "sendWhatsapp": "Enviar también por WhatsApp",
+    "deliveryHint": "Llega a los inquilinos con contrato activo de la audiencia elegida, respetando sus preferencias de correo y su consentimiento de WhatsApp.",
+    "deliveryEmail": "Correo",
+    "deliveryWhatsapp": "WhatsApp",
+    "deliveryCounts": "{sent} enviados · {failed} fallidos · {pending} pendientes",
+    "continueSending": "Continuar envío",
+    "email": {
+      "subject": "Comunicado: {title}",
+      "greeting": "Hola {name},",
+      "cta": "Ver en el portal"
+    }
   },
   "cleaning": {
     "title": "Limpieza",
@@ -1929,6 +1942,13 @@
     "emptyTitle": "Sin leads aún",
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
+  },
+  "dataExport": {
+    "title": "Exportar todos mis datos",
+    "subtitle": "Descarga un archivo ZIP con un CSV por cada entidad de tu organización: propiedades, unidades, propietarios, inquilinos, contratos, cargos, pagos, gastos, incidencias y documentos (solo datos, sin los archivos).",
+    "privacy": "No incluye contraseñas, sesiones, claves API ni tokens. Cada tabla se limita a 50 000 filas; resumen.csv indica si alguna quedó truncada.",
+    "limit": "Puedes descargarlo hasta 3 veces por hora.",
+    "button": "Descargar ZIP"
   },
   "branding": {
     "title": "Marca",
@@ -3964,6 +3984,8 @@
     "leaseRenewalHint": "Aviso cuando tu contrato está por vencer (30 días antes).",
     "paymentDue": "Pagos por vencer",
     "paymentDueHint": "Aviso cuando un pago vence en los próximos 3 días.",
+    "announcements": "Comunicados",
+    "announcementsHint": "Comunicados masivos que tu administrador envía por correo.",
     "alwaysSent": "Los correos esenciales siempre se envían: invitaciones al portal y solicitudes de firma de contrato. Seguirás viendo los avisos en tus notificaciones del portal.",
     "save": "Guardar",
     "saved": "Preferencias guardadas",

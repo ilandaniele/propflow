@@ -6,4 +6,5 @@ const checkbox = z.literal('on').optional().transform((v) => v === 'on');
 export const EmailPreferencesFormSchema = z.object({
   lease_renewal: checkbox,
   payment_due:   checkbox,
+  announcements: checkbox,
 });

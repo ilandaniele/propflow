@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge, StatusPill } from '@/components/ui/Badge';
 import { AnnouncementForm } from './AnnouncementForm';
 import { PinToggle } from './PinToggle';
+import { DeliverySummary } from './DeliverySummary';
+import { loadDeliveryCounts } from '@/lib/announcements/delivery';
 
 export default async function AnnouncementsPage() {
   const ctx = await requireAdmin();
@@ -35,6 +37,7 @@ export default async function AnnouncementsPage() {
     db.select({ id: units.id, label: units.label }).from(units)
       .where(eq(units.orgId, ctx.orgId)).orderBy(asc(units.label)).limit(1000),
   ]);
+  const deliveryCounts = await loadDeliveryCounts(ctx.orgId, rows.filter((ann) => ann.publishedAt).map((ann) => ann.id));
 
   return (
     <div className="p-6 space-y-6">
@@ -76,10 +79,24 @@ export default async function AnnouncementsPage() {
                   await publishAnnouncement({}, formData);
                 }}>
                   <input type="hidden" name="id" value={ann.id} />
-                  <button type="submit" className="text-xs text-brand-600 hover:underline font-medium">
-                    {t('publishNow')}
-                  </button>
+                  <div className="flex items-center gap-4 flex-wrap text-xs text-slate-700">
+                    <label className="flex items-center gap-1.5">
+                      <input type="checkbox" name="send_email" />
+                      {t('sendEmail')}
+                    </label>
+                    <label className="flex items-center gap-1.5">
+                      <input type="checkbox" name="send_whatsapp" />
+                      {t('sendWhatsapp')}
+                    </label>
+                    <button type="submit" className="text-brand-600 hover:underline font-medium">
+                      {t('publishNow')}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{t('deliveryHint')}</p>
                 </form>
+              )}
+              {deliveryCounts.has(ann.id) && (
+                <DeliverySummary announcementId={ann.id} counts={deliveryCounts.get(ann.id)!} />
               )}
             </Card>
           ))}
