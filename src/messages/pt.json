@@ -1857,6 +1857,10 @@
     "statusDone": "Concluído"
   },
   "visitors": {
+    "colUnit": "Unidade",
+    "colPassphrase": "Palavra-chave",
+    "noMatchTitle": "Sem resultados",
+    "noMatchDesc": "Nenhuma visita registrada usa essa palavra-chave.",
     "title": "Registro de Visitas",
     "logVisitor": "Registrar Visita",
     "emptyTitle": "Sem visitas ainda",
@@ -2792,6 +2796,7 @@
       "cancel": "Cancelar"
     },
     "createVisitor": {
+      "passphraseLabel": "Palavra-chave (opcional)",
       "logging": "Registrando…",
       "submit": "Registrar visita",
       "nameLabel": "Nome do visitante",
@@ -3504,5 +3509,31 @@
       "ordinary": "Ordinária",
       "extraordinary": "Extraordinária"
     }
+  },
+  "visitorAccess": {
+    "portalTitle": "Visitas",
+    "registerVisitor": "Registrar visita",
+    "recentVisits": "Visitas recentes",
+    "emptyVisits": "Você ainda não registrou visitas.",
+    "noActiveUnit": "Você precisa de um contrato ativo para gerenciar visitas.",
+    "passphraseLabel": "Palavra-chave",
+    "passphraseOptional": "Palavra-chave (opcional)",
+    "passphraseHint": "Mínimo de 5 caracteres. A portaria pede ao visitante para validar a entrada.",
+    "checkPassphrase": "Validar palavra-chave",
+    "check": "Validar",
+    "clear": "Limpar",
+    "authorizedTitle": "Pessoas autorizadas permanentes",
+    "authorizedAdminDesc": "Pessoas que podem entrar em uma unidade sem registrar cada visita.",
+    "authorizedPortalDesc": "Pessoas que podem entrar na sua unidade sem que você registre cada visita.",
+    "unitLabel": "Unidade",
+    "chooseUnit": "Escolha uma unidade",
+    "fullNameLabel": "Nome completo",
+    "documentLabel": "Documento (opcional)",
+    "relationshipLabel": "Relação (opcional)",
+    "relationshipPlaceholder": "Familiar, babá, motorista…",
+    "addAuthorized": "Adicionar autorizado",
+    "saving": "Salvando…",
+    "remove": "Remover",
+    "emptyAuthorized": "Não há pessoas autorizadas."
   }
 }

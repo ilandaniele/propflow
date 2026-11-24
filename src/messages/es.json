@@ -1857,6 +1857,10 @@
     "statusDone": "Hecho"
   },
   "visitors": {
+    "colUnit": "Unidad",
+    "colPassphrase": "Palabra clave",
+    "noMatchTitle": "Sin coincidencias",
+    "noMatchDesc": "Ninguna visita registrada usa esa palabra clave.",
     "title": "Registro de Visitas",
     "logVisitor": "Registrar Visita",
     "emptyTitle": "Sin visitas aún",
@@ -2792,6 +2796,7 @@
       "cancel": "Cancelar"
     },
     "createVisitor": {
+      "passphraseLabel": "Palabra clave (opcional)",
       "logging": "Registrando…",
       "submit": "Registrar visita",
       "nameLabel": "Nombre del visitante",
@@ -3504,5 +3509,31 @@
       "ordinary": "Ordinario",
       "extraordinary": "Extraordinario"
     }
+  },
+  "visitorAccess": {
+    "portalTitle": "Visitas",
+    "registerVisitor": "Registrar visita",
+    "recentVisits": "Visitas recientes",
+    "emptyVisits": "Todavía no registraste visitas.",
+    "noActiveUnit": "Necesitás un contrato activo para gestionar visitas.",
+    "passphraseLabel": "Palabra clave",
+    "passphraseOptional": "Palabra clave (opcional)",
+    "passphraseHint": "Mínimo 5 caracteres. La portería la pide al visitante para validar el ingreso.",
+    "checkPassphrase": "Validar palabra clave",
+    "check": "Validar",
+    "clear": "Limpiar",
+    "authorizedTitle": "Personas autorizadas permanentes",
+    "authorizedAdminDesc": "Personas que pueden ingresar a una unidad sin registrar cada visita.",
+    "authorizedPortalDesc": "Personas que pueden ingresar a tu unidad sin que registres cada visita.",
+    "unitLabel": "Unidad",
+    "chooseUnit": "Elegí una unidad",
+    "fullNameLabel": "Nombre completo",
+    "documentLabel": "Documento (opcional)",
+    "relationshipLabel": "Relación (opcional)",
+    "relationshipPlaceholder": "Familiar, niñera, chofer…",
+    "addAuthorized": "Agregar autorizado",
+    "saving": "Guardando…",
+    "remove": "Quitar",
+    "emptyAuthorized": "No hay personas autorizadas."
   }
 }

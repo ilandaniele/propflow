@@ -318,6 +318,7 @@ export const visitorLogs = sqliteTable('visitor_logs', {
   entryTime:    ts('entry_time'),
   exitTime:     ts('exit_time'),
   purpose:      text('purpose'),
+  passphrase:   text('passphrase'),
   createdBy:    text('created_by').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
   notes:        text('notes'),
   createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
