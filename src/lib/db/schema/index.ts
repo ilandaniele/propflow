@@ -13,4 +13,5 @@ export * from './authorized-visitors';
 export * from './activity';
 export * from './staff';
 export * from './memberships';
+export * from './recurring';
 export * from './relations';
