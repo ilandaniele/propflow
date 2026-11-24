@@ -336,7 +336,10 @@
     "occupied": "occupied",
     "rooms": "rooms",
     "compare": "Compare",
-    "groups": "Groups"
+    "groups": "Groups",
+    "detailTab": "Overview",
+    "utilitiesTab": "Utilities",
+    "backToProperties": "Back to properties"
   },
   "payments": {
     "reconcileLink": "Reconcile with bank",
@@ -4021,6 +4024,51 @@
       "amount": "Amount",
       "paidOn": "Payment date",
       "note": "Note"
+    }
+  },
+  "utilityContracts": {
+    "title": "Utility contracts",
+    "subtitle": "Track the property's utilities, their account holder and holder changes when a tenant moves in or out.",
+    "splitLink": "View bill split",
+    "empty": "This property has no utility contracts.",
+    "type": "Type",
+    "provider": "Provider",
+    "supplyNumber": "Supply / account number",
+    "supplyShort": "No.",
+    "unit": "Unit",
+    "wholeProperty": "Whole property",
+    "monthlyEstimate": "Monthly estimate (S/)",
+    "perMonth": "/mo",
+    "startDate": "Start date",
+    "since": "since",
+    "notes": "Notes",
+    "holder": "Holder",
+    "holderKind": "Holder type",
+    "holderName": "Holder name",
+    "changeHolder": "Change holder",
+    "changedOn": "Change date",
+    "reason": "Reason",
+    "reasonPlaceholder": "Tenant moved in or out",
+    "saveChange": "Record change",
+    "edit": "Edit",
+    "save": "Save",
+    "add": "Add contract",
+    "remove": "Delete",
+    "saving": "Saving...",
+    "pagination": "Contracts pagination",
+    "previous": "← Previous",
+    "next": "Next →",
+    "types": {
+      "luz": "Electricity",
+      "agua": "Water",
+      "gas": "Gas",
+      "internet": "Internet",
+      "otro": "Other"
+    },
+    "holderKinds": {
+      "owner": "Owner",
+      "tenant": "Tenant",
+      "other": "Other"
     }
   }
 }

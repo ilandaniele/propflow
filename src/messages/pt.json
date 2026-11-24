@@ -336,7 +336,10 @@
     "occupied": "ocupadas",
     "rooms": "quartos",
     "compare": "Comparar",
-    "groups": "Grupos"
+    "groups": "Grupos",
+    "detailTab": "Resumo",
+    "utilitiesTab": "Serviços",
+    "backToProperties": "Voltar às propriedades"
   },
   "payments": {
     "reconcileLink": "Conciliar com banco",
@@ -4021,6 +4024,51 @@
       "amount": "Valor",
       "paidOn": "Data do pagamento",
       "note": "Nota"
+    }
+  },
+  "utilityContracts": {
+    "title": "Contratos de serviços",
+    "subtitle": "Controle os serviços do imóvel, o titular e as trocas de titular quando um inquilino entra ou sai.",
+    "splitLink": "Ver rateio de contas",
+    "empty": "Este imóvel não tem contratos de serviços.",
+    "type": "Tipo",
+    "provider": "Fornecedor",
+    "supplyNumber": "N.º de fornecimento / conta",
+    "supplyShort": "N.º",
+    "unit": "Unidade",
+    "wholeProperty": "Imóvel inteiro",
+    "monthlyEstimate": "Estimativa mensal (S/)",
+    "perMonth": "/mês",
+    "startDate": "Data de início",
+    "since": "desde",
+    "notes": "Notas",
+    "holder": "Titular",
+    "holderKind": "Tipo de titular",
+    "holderName": "Nome do titular",
+    "changeHolder": "Troca de titular",
+    "changedOn": "Data da troca",
+    "reason": "Motivo",
+    "reasonPlaceholder": "Entrada ou saída de inquilino",
+    "saveChange": "Registrar troca",
+    "edit": "Editar",
+    "save": "Salvar",
+    "add": "Adicionar contrato",
+    "remove": "Excluir",
+    "saving": "Salvando...",
+    "pagination": "Paginação de contratos",
+    "previous": "← Anteriores",
+    "next": "Próximos →",
+    "types": {
+      "luz": "Luz",
+      "agua": "Água",
+      "gas": "Gás",
+      "internet": "Internet",
+      "otro": "Outro"
+    },
+    "holderKinds": {
+      "owner": "Proprietário",
+      "tenant": "Inquilino",
+      "other": "Outro"
     }
   }
 }

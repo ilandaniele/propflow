@@ -337,6 +337,13 @@
       "when": 1795408351570,
       "tag": "0047_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1795543057750,
+      "tag": "0048_utility_contracts",
+      "breakpoints": true
     }
   ]
 }
