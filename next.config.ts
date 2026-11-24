@@ -65,6 +65,15 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  turbopack: {
+    resolveAlias: {
+      '@react-pdf/renderer': {
+        browser: '@react-pdf/renderer',
+        default: './src/lib/pdf/react-pdf-server-stub.ts',
+      },
+    },
+  },
+
   // Experimental: server actions size limit
   experimental: {
     serverActions: {

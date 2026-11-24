@@ -2,9 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { incidents, incidentComments, tenants } from '@/lib/db/schema';
+import { incidents, incidentComments, incidentStatusEvents, tenants, notificationInbox } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { requireAdmin, requireUser } from '@/lib/auth/guards';
+import { canStaffWrite, requireStaff, requireUser } from '@/lib/auth/guards';
 import { uploadFile } from '@/lib/storage';
 import { Errors, ok } from '@/lib/errors';
 import {
@@ -16,6 +16,9 @@ import {
   ALLOWED_MIME_TYPES,
 } from '@/lib/schemas/incident';
 import { log } from '@/lib/log';
+import { saveIncidentSchedule } from '@/lib/incidents/schedule';
+import { recordActivity } from '@/lib/activity/record';
+import { buildStatusNotification, statusChanged, type IncidentStatus } from '@/lib/incidents/status-notification';
 import type { ActionResult } from '@/lib/errors';
 import { randomUUID } from 'crypto';
 
@@ -25,6 +28,7 @@ export async function createIncident(
 ): Promise<ActionResult> {
   let ctx;
   try { ctx = await requireUser(); } catch { return Errors.UNAUTHORIZED(); }
+  if (!canStaffWrite(ctx, 'operations')) return Errors.FORBIDDEN();
 
   const parsed = CreateIncidentSchema.safeParse(Object.fromEntries(
     [...formData.entries()].filter(([, v]) => typeof v === 'string')
@@ -134,17 +138,18 @@ export async function updateIncident(
   formData: FormData
 ): Promise<ActionResult> {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+  try { ctx = await requireStaff('operations', 'write'); } catch { return Errors.UNAUTHORIZED(); }
 
   const parsed = UpdateIncidentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  const { id, ...updates } = parsed.data;
+  const { id, estimated_on: estimatedOn, ...updates } = parsed.data;
 
   // Verify incident belongs to this org
   const existing = await db
-    .select({ id: incidents.id, status: incidents.status })
+    .select({ id: incidents.id, status: incidents.status, title: incidents.title, tenantProfileId: tenants.profileId })
     .from(incidents)
+    .leftJoin(tenants, eq(tenants.id, incidents.tenantId))
     .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)))
     .limit(1);
 
@@ -160,17 +165,38 @@ export async function updateIncident(
     updateData.resolvedAt = new Date();
   }
 
+  const changed = statusChanged(existing[0].status, updates.status);
+  const notification = changed
+    ? await buildStatusNotification(
+        { orgId: ctx.orgId, incidentId: id, incidentTitle: updates.title ?? existing[0].title, tenantProfileId: existing[0].tenantProfileId },
+        updates.status as IncidentStatus,
+      )
+    : null;
+
   try {
-    await db
+    const update = db
       .update(incidents)
       .set(updateData)
       .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId)));
+    if (estimatedOn !== undefined) await saveIncidentSchedule(ctx.orgId, id, estimatedOn || null);
+    if (changed) {
+      const event = db.insert(incidentStatusEvents).values({
+        orgId: ctx.orgId, incidentId: id, fromStatus: existing[0].status, toStatus: updates.status as IncidentStatus, changedBy: ctx.userId,
+      });
+      if (notification) await db.batch([update, event, db.insert(notificationInbox).values(notification)]);
+      else await db.batch([update, event]);
+    } else {
+      await update;
+    }
   } catch (e) {
     log.error('[updateIncident] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
 
   log.adminAction(ctx.userId, 'update_incident', 'incident', id);
+  if (updateData.resolvedAt) {
+    await recordActivity({ orgId: ctx.orgId, actorId: ctx.userId, action: 'incident_resolved', resourceType: 'incident', resourceId: id });
+  }
   revalidatePath('/dashboard/incidents');
   revalidatePath(`/dashboard/incidents/${id}`);
   return ok(undefined);
@@ -182,6 +208,7 @@ export async function addIncidentComment(
 ): Promise<ActionResult> {
   let ctx;
   try { ctx = await requireUser(); } catch { return Errors.UNAUTHORIZED(); }
+  if (!canStaffWrite(ctx, 'operations')) return Errors.FORBIDDEN();
 
   const parsed = AddCommentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());

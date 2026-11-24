@@ -95,14 +95,15 @@ vi.mock('@/auth', () => ({
 vi.mock('@/lib/db', () => ({
   db: {
     select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
+      from: vi.fn(() => {
+        const where = vi.fn(() => ({
           limit: vi.fn(async () => {
             if (!s.profileRow) return [];
             return [s.profileRow];
           }),
-        })),
-      })),
+        }));
+        return { where, leftJoin: vi.fn(() => ({ where })) };
+      }),
     })),
   },
 }));

@@ -1,21 +1,27 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { incidents, profiles } from '@/lib/db/schema';
+import { incidents, incidentSchedules, profiles } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import { PriorityLegend } from '@/components/incidents/PriorityLegend';
+import { ScheduleBadge } from '@/components/incidents/ScheduleBadge';
+import { scheduleState } from '@/lib/incidents/schedule-math';
+import { SlaBadge } from '@/components/incidents/SlaBadge';
 
 export const metadata: Metadata = { title: 'Incidents' };
 
-export default async function IncidentsPage() {
+const assignees = alias(profiles, 'assignees');
+
+export default async function IncidentsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+  try { ctx = await requireStaff('operations', 'read'); } catch { redirect('/login'); }
 
   const t = await getTranslations('incidents');
 
@@ -28,10 +34,15 @@ export default async function IncidentsPage() {
       status:     incidents.status,
       cost:       incidents.cost,
       createdAt:  incidents.createdAt,
+      resolvedAt: incidents.resolvedAt,
       creatorName: profiles.fullName,
+      assigneeName: assignees.fullName,
+      estimatedOn: incidentSchedules.estimatedOn,
     })
     .from(incidents)
     .leftJoin(profiles, eq(profiles.id, incidents.createdBy))
+    .leftJoin(assignees, eq(assignees.id, incidents.assignedTo))
+    .leftJoin(incidentSchedules, eq(incidentSchedules.incidentId, incidents.id))
     .where(eq(incidents.orgId, ctx.orgId))
     .orderBy(desc(incidents.createdAt));
   // No .limit(): KPI totals (cost, open/solved counts, by-month) cover all rows.
@@ -46,6 +57,11 @@ export default async function IncidentsPage() {
   }
   const openCount   = list.filter((i) => i.status !== 'solved').length;
   const solvedCount = list.filter((i) => i.status === 'solved').length;
+  const today = new Date().toISOString().slice(0, 10);
+  const withSchedule = list.map((i) => ({ ...i, schedule: scheduleState(i.status, i.estimatedOn, today) }));
+  const overdueCount = withSchedule.filter((i) => i.schedule === 'overdue').length;
+  const showOverdue = (await searchParams).view === 'overdue';
+  const visible = showOverdue ? withSchedule.filter((i) => i.schedule === 'overdue') : withSchedule;
 
   // Monthly cost trend (last 6 months)
   const incNow = new Date();
@@ -66,8 +82,15 @@ export default async function IncidentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
-          <p className="text-sm text-slate-500 mt-1">{list.length} total · {openCount} {t('list.open')} · {solvedCount} {t('list.solved')}</p>
+          <p className="text-sm text-slate-500 mt-1">{list.length} total · {openCount} {t('list.open')} · {solvedCount} {t('list.solved')} · {overdueCount} {t('schedule.overdueCount')}</p>
         </div>
+        <Link
+          href={showOverdue ? '/dashboard/incidents' : '/dashboard/incidents?view=overdue'}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+        >
+          {showOverdue ? t('schedule.showAll') : t('schedule.showOverdue')}
+        </Link>
+        <Link href="/dashboard/incidents/stats" className="text-sm text-brand-600 hover:underline">{t('statsLink')}</Link>
       </div>
 
       {/* Cost KPI tiles */}
@@ -144,13 +167,13 @@ export default async function IncidentsPage() {
 
       <PriorityLegend />
 
-      {list.length === 0 ? (
+      {visible.length === 0 ? (
         <Card>
           <EmptyState title={t('list.emptyTitle')} description={t('list.emptyDesc')} />
         </Card>
       ) : (
         <div className="space-y-2">
-          {list.slice(0, 200).map((incident) => (
+          {visible.slice(0, 200).map((incident) => (
             <Link key={incident.id} href={`/dashboard/incidents/${incident.id}`} className="block">
               <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 hover:border-brand-300 hover:shadow-md transition-all duration-150 flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -166,9 +189,15 @@ export default async function IncidentsPage() {
                   <p className="font-medium text-slate-900 text-sm truncate">{incident.title}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {incident.creatorName ?? t('list.unknown')} · {new Date(incident.createdAt).toLocaleDateString()}
+                    {incident.estimatedOn && ` · ${t('schedule.estimated')} ${incident.estimatedOn}`}
+                    {` · ${t('schedule.responsible')} ${incident.assigneeName ?? t('schedule.unassigned')}`}
                   </p>
                 </div>
-                <StatusPill status={incident.status} />
+                <div className="flex items-center gap-2 shrink-0">
+                  <ScheduleBadge state={incident.schedule} />
+                  <StatusPill status={incident.status} />
+                  <SlaBadge incident={incident} onlyBreached />
+                </div>
               </div>
             </Link>
           ))}

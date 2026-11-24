@@ -67,7 +67,9 @@ export async function proxy(request: NextRequest) {
   // via the 'none' below XFO/frame-ancestors is still forced on THIS route;
   // only the widget iframe route above is exempt from those headers),
   // /privacidad and /terminos (required by Meta app review and Google OAuth
-  // verification — plain static legal pages, no auth needed).
+  // verification — plain static legal pages, no auth needed),
+  // /calculadoras (public SEO calculators, client-side only),
+  // /pay (online payment links, gated by a 64-hex token in the page itself).
   const isFullyPublicRoute =
     path === '/' ||
     path === '/login' ||
@@ -78,8 +80,10 @@ export async function proxy(request: NextRequest) {
     path === '/onboarding' ||
     path === '/p' ||
     path.startsWith('/p/') ||
+    path.startsWith('/pay/') ||
     path === '/privacidad' ||
-    path === '/terminos';
+    path === '/terminos' ||
+    path === '/calculadoras';
 
   if (isFullyPublicRoute) {
     const publicResponse = NextResponse.next({ request });
@@ -140,6 +144,7 @@ export async function proxy(request: NextRequest) {
   const isPublicRoute =
     path.startsWith('/sign/') ||
     path.startsWith('/api/sign/') ||
+    path.startsWith('/owner/') ||   // owner portal — authenticated by its hashed link token
     path.startsWith('/auth/') ||    // /auth/callback — must not be blocked before code exchange
     path === '/onboarding' ||        // guard is in the page itself (may have session but no profile)
     // Agent Phase 8: Vapi's server webhook authenticates itself (x-vapi-secret /

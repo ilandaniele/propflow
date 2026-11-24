@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
-import type { SignatureCanvasHandle } from './SignatureCanvas';
+import type { SignatureCanvasHandle } from '@/components/ui/SignatureCanvas';
 
 // Code-split the canvas component — HTMLCanvasElement is client-side only.
 // This keeps the main JS bundle under the 200 KB gzip budget.
-const SignatureCanvas = dynamic(() => import('./SignatureCanvas'), {
+const SignatureCanvas = dynamic(() => import('@/components/ui/SignatureCanvas'), {
   ssr: false,
   loading: () => (
     <div className="w-full h-[120px] border border-slate-300 rounded-lg bg-white flex items-center justify-center">
@@ -26,6 +26,14 @@ interface ContractPreview {
   tenantName: string;
 }
 
+type DocumentKind = 'contract' | 'check_in' | 'check_out';
+
+const DOCUMENT_TITLES: Record<DocumentKind, string> = {
+  contract:  'Sign Your Contract',
+  check_in:  'Sign the Check-in Inventory',
+  check_out: 'Sign the Check-out Inventory',
+};
+
 type PageState = 'loading' | 'ready' | 'signing' | 'signed' | 'expired' | 'already_signed' | 'error';
 
 interface Props {
@@ -35,6 +43,9 @@ interface Props {
 export default function SignPageClient({ token }: Props) {
   const [state, setState] = useState<PageState>('loading');
   const [contract, setContract] = useState<ContractPreview | null>(null);
+  const [documentLink, setDocumentLink] = useState<string | null>(null);
+  const [documentKind, setDocumentKind] = useState<DocumentKind>('contract');
+  const [receipt, setReceipt] = useState<{ signedAt: string; documentSha256: string | null } | null>(null);
   const [typedName, setTypedName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -49,6 +60,8 @@ export default function SignPageClient({ token }: Props) {
       if (!res.ok) { setState('error'); return; }
       const data = await res.json();
       setContract(data.contract);
+      setDocumentLink(data.documentLink ?? null);
+      if (data.documentKind in DOCUMENT_TITLES) setDocumentKind(data.documentKind);
       setState('ready');
     })();
   }, [token]);
@@ -93,6 +106,8 @@ export default function SignPageClient({ token }: Props) {
     if (res.status === 404) { setState('expired'); return; }
     if (!res.ok) { setState('error'); setErrorMsg('Submission failed. Please try again.'); return; }
 
+    const data = await res.json();
+    setReceipt({ signedAt: data.signedAt, documentSha256: data.documentSha256 ?? null });
     setState('signed');
   }
 
@@ -137,6 +152,19 @@ export default function SignPageClient({ token }: Props) {
           </div>
           <h1 className="text-xl font-semibold text-slate-900">Contract Signed</h1>
           <p className="text-slate-500">Your signature has been recorded. Thank you!</p>
+          {receipt && (
+            <dl className="mx-auto max-w-md text-left text-xs text-slate-600 bg-white border border-slate-200 rounded-lg p-3 space-y-1">
+              <div><dt className="inline font-medium">Signed at (UTC): </dt><dd className="inline">{receipt.signedAt}</dd></div>
+              {receipt.documentSha256 && (
+                <div><dt className="font-medium">Document SHA-256:</dt><dd className="font-mono break-all">{receipt.documentSha256}</dd></div>
+              )}
+            </dl>
+          )}
+          {documentLink && (
+            <a href={documentLink} target="_blank" rel="noopener noreferrer" className="inline-block text-sm text-brand-700 underline">
+              Download the signed document (PDF)
+            </a>
+          )}
         </div>
       </div>
     );
@@ -161,7 +189,7 @@ export default function SignPageClient({ token }: Props) {
           <div className="h-8 w-8 rounded-lg bg-brand-600 flex items-center justify-center mx-auto mb-3">
             <span className="text-white text-xs font-bold" aria-hidden="true">P</span>
           </div>
-          <h1 className="text-xl font-semibold text-slate-900">Sign Your Contract</h1>
+          <h1 className="text-xl font-semibold text-slate-900">{DOCUMENT_TITLES[documentKind]}</h1>
           <p className="text-sm text-slate-500 mt-1">Review the details below and provide your signature.</p>
         </div>
 
@@ -175,8 +203,13 @@ export default function SignPageClient({ token }: Props) {
               <span className="text-slate-500">Unit:</span><span>{contract.unitLabel}</span>
               <span className="text-slate-500">Address:</span><span>{contract.propertyAddress}</span>
               <span className="text-slate-500">Period:</span><span>{contract.startDate} — {contract.endDate}</span>
-              <span className="text-slate-500">Monthly Rent:</span><span className="font-medium">${contract.monthlyRent}</span>
+              <span className="text-slate-500">Monthly Rent:</span><span className="font-medium">S/ {contract.monthlyRent}</span>
             </div>
+            {documentLink && (
+              <a href={documentLink} target="_blank" rel="noopener noreferrer" className="inline-block pt-2 text-brand-700 underline">
+                Read the full document (PDF) before signing
+              </a>
+            )}
           </div>
         )}
 

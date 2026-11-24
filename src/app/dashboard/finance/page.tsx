@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import {
   payments as paymentsTable,
@@ -21,15 +21,19 @@ import {
 } from '@/lib/finance/kpis';
 import { KpiTile } from '@/components/finance/KpiTile';
 import { TrendChart } from '@/components/finance/TrendChart';
+import { CurrencyPnL } from '@/components/finance/CurrencyPnL';
+import { BASE_CURRENCY, currenciesInUse, formatMoney, groupByCurrency } from '@/lib/finance/currency';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import type { IncomeRow, ExpenseRow } from '@/lib/finance/reports';
 import type { ExpenseWithCategory } from '@/lib/finance/kpis';
+import { payablesSummary } from '@/lib/finance/payables/queries';
+import { formatSolesCents } from '@/lib/finance/payables/format';
 
 export default async function FinancePage() {
-  const ctx = await requireAdmin();
+  const ctx = await requireStaff('finance', 'read');
   const t = await getTranslations('finance');
 
   const now = new Date();
@@ -50,9 +54,10 @@ export default async function FinancePage() {
     totalUnitsRows,
     occupiedContracts,
     overdueCharges,
+    payablesTotals,
   ] = await Promise.all([
     db
-      .select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, contractId: paymentsTable.contractId })
+      .select({ amount: paymentsTable.amount, paidAt: paymentsTable.paidAt, currency: paymentsTable.currency })
       .from(paymentsTable)
       .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved')))
       .orderBy(desc(paymentsTable.paidAt)),
@@ -60,17 +65,16 @@ export default async function FinancePage() {
     db
       .select({ amount: paymentsTable.amount })
       .from(paymentsTable)
-      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'), gte(paymentsTable.paidAt, currentMonthStart)))
+      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'), eq(paymentsTable.currency, BASE_CURRENCY), gte(paymentsTable.paidAt, currentMonthStart)))
       .limit(500),
     db
       .select({ amount: paymentsTable.amount })
       .from(paymentsTable)
-      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'), gte(paymentsTable.paidAt, priorMonthStart), lt(paymentsTable.paidAt, currentMonthStart)))
+      .where(and(eq(paymentsTable.orgId, ctx.orgId), eq(paymentsTable.status, 'approved'), eq(paymentsTable.currency, BASE_CURRENCY), gte(paymentsTable.paidAt, priorMonthStart), lt(paymentsTable.paidAt, currentMonthStart)))
       .limit(500),
     db
-      .select({ amount: expensesTable.amount, incurredOn: expensesTable.incurredOn, propertyId: expensesTable.propertyId, categoryName: expenseCategories.name })
+      .select({ amount: expensesTable.amount, incurredOn: expensesTable.incurredOn, propertyId: expensesTable.propertyId, currency: expensesTable.currency })
       .from(expensesTable)
-      .leftJoin(expenseCategories, eq(expenseCategories.id, expensesTable.categoryId))
       .where(eq(expensesTable.orgId, ctx.orgId))
       .orderBy(desc(expensesTable.incurredOn)),
       // No .limit(): feeds org-wide expense/net-profit totals over all expenses.
@@ -78,13 +82,13 @@ export default async function FinancePage() {
       .select({ amount: expensesTable.amount, categoryName: expenseCategories.name })
       .from(expensesTable)
       .leftJoin(expenseCategories, eq(expenseCategories.id, expensesTable.categoryId))
-      .where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, currentMonthStart)))
+      .where(and(eq(expensesTable.orgId, ctx.orgId), eq(expensesTable.currency, BASE_CURRENCY), gte(expensesTable.incurredOn, currentMonthStart)))
       .limit(500),
     db
       .select({ amount: expensesTable.amount, categoryName: expenseCategories.name })
       .from(expensesTable)
       .leftJoin(expenseCategories, eq(expenseCategories.id, expensesTable.categoryId))
-      .where(and(eq(expensesTable.orgId, ctx.orgId), gte(expensesTable.incurredOn, priorMonthStart), lt(expensesTable.incurredOn, currentMonthStart)))
+      .where(and(eq(expensesTable.orgId, ctx.orgId), eq(expensesTable.currency, BASE_CURRENCY), gte(expensesTable.incurredOn, priorMonthStart), lt(expensesTable.incurredOn, currentMonthStart)))
       .limit(500),
     db.select({ id: units.id }).from(units).where(eq(units.orgId, ctx.orgId)),
     db
@@ -96,10 +100,14 @@ export default async function FinancePage() {
       .from(charges)
       .where(and(eq(charges.orgId, ctx.orgId), lt(charges.dueDate, today))),
       // No .limit(): feeds the org-wide overdue-balance total.
+    payablesSummary(ctx.orgId, today),
   ]);
 
-  const incomeRows: IncomeRow[] = allPayments.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt ? String(p.paidAt) : '' }));
-  const expenseRows: ExpenseRow[] = allExpenses.map((e) => ({ amount: Number(e.amount), incurred_on: e.incurredOn ? String(e.incurredOn) : '', property_id: e.propertyId ?? null }));
+  const incomeRows: IncomeRow[] = allPayments.map((p) => ({ amount: Number(p.amount), paid_at: p.paidAt ? String(p.paidAt) : '', currency: p.currency }));
+  const expenseRows: ExpenseRow[] = allExpenses.map((e) => ({ amount: Number(e.amount), incurred_on: e.incurredOn ? String(e.incurredOn) : '', property_id: e.propertyId ?? null, currency: e.currency }));
+  const incomeByCurrency = groupByCurrency(incomeRows);
+  const expensesByCurrency = groupByCurrency(expenseRows);
+  const currencies = currenciesInUse(incomeByCurrency, expensesByCurrency);
 
   type RawExp = { amount: unknown; categoryName: string | null };
   const toExpenseWithCat = (rows: RawExp[]): ExpenseWithCategory[] =>
@@ -122,8 +130,11 @@ export default async function FinancePage() {
   const occupancy = computeOccupancy(occupiedContracts.length, totalUnitsRows.length);
   const pastDue   = computePastDueBalance(overdueAmounts);
 
-  const trendData = computePnLByMonth(incomeRows, expenseRows, 12);
-  const pnl       = computePnL(incomeRows, expenseRows);
+  const trendData = computePnLByMonth(incomeByCurrency.get(BASE_CURRENCY) ?? [], expensesByCurrency.get(BASE_CURRENCY) ?? [], 12);
+  const pnlByCurrency = currencies.map((currency) => ({
+    currency,
+    pnl: computePnL(incomeByCurrency.get(currency) ?? [], expensesByCurrency.get(currency) ?? []),
+  }));
   const cashFlow  = buildCashFlow(incomeRows, expenseRows).slice(-20).reverse();
 
   return (
@@ -133,12 +144,26 @@ export default async function FinancePage() {
         <div className="flex gap-2 flex-wrap">
           <Link href="/dashboard/finance/rooms" className="text-sm text-brand-600 hover:underline">{t('roomProfitability')}</Link>
           <Link href="/dashboard/finance/receipts" className="text-sm text-brand-600 hover:underline ml-4">{t('ocrReceipts')}</Link>
+          <Link href="/dashboard/finance/aging" className="text-sm text-brand-600 hover:underline ml-4">{t('agingLink')}</Link>
+          <Link href="/dashboard/finance/expenses" className="text-sm text-brand-600 hover:underline ml-4">{t('expensesLink')}</Link>
           <Link href="/dashboard/finance/expenses/categories" className="text-sm text-brand-600 hover:underline ml-4">{t('categories')}</Link>
+          <Link href="/dashboard/finance/expenses/recurring" className="text-sm text-brand-600 hover:underline ml-4">{t('recurringExpensesLink')}</Link>
+          <Link href="/dashboard/finance/payables" className="text-sm text-brand-600 hover:underline ml-4" data-testid="finance-payables-link">{t('payablesLink', { amount: formatSolesCents(payablesTotals.pendingCents) })}</Link>
         </div>
       </div>
 
+      <form action="/api/admin/accounting/export" method="get" className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="space-y-1">
+          <label htmlFor="accounting-month" className="block text-sm font-medium text-slate-700">{t('accountingExportTitle')}</label>
+          <input id="accounting-month" type="month" name="month" required defaultValue={priorMonthStart.slice(0, 7)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+        </div>
+        <button type="submit" className="px-4 py-2 text-sm font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50">{t('accountingExportButton')}</button>
+        <p className="basis-full text-xs text-slate-500">{t('accountingExportHint')}</p>
+      </form>
+
       <div data-testid="finance-kpi-tiles">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{t('kpiTitle')}</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{t('kpiTitle')}</p>
+        <p className="text-xs text-slate-500 mb-3">{t('baseCurrencyNote', { currency: BASE_CURRENCY })}</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           <KpiTile label={t('kpis.trueNetProfit')} value={trueNetProfit.formatted} rawValue={trueNetProfit.value} delta={trueNetProfit.delta} positiveIsGood={true} testId="kpi-true-net-profit" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
           <KpiTile label={t('kpis.turnCost')} value={turnCost.formatted} rawValue={turnCost.value} delta={turnCost.delta} positiveIsGood={false} testId="kpi-turn-cost" deltaSuffix={t('kpis.deltaSuffix')} noPriorData={t('kpis.noPriorData')} />
@@ -155,50 +180,11 @@ export default async function FinancePage() {
         <TrendChart data={trendData} labels={{ revenue: t('trend.revenue'), expenses: t('trend.expenses'), netProfit: t('trend.netProfit'), title: t('trend.title'), noData: t('trend.noData') }} />
       </Card>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card padding="md">
-          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('totalIncome')}</p>
-          <p className="mt-1 text-2xl font-bold text-green-600">S/ {pnl.totalIncome.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
-        </Card>
-        <Card padding="md">
-          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('totalExpenses')}</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">S/ {pnl.totalExpenses.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
-        </Card>
-        <Card padding="md">
-          <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('netIncome')}</p>
-          <p className={`mt-1 text-2xl font-bold ${pnl.netIncome >= 0 ? 'text-slate-900' : 'text-red-600'}`}>S/ {pnl.netIncome.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</p>
-        </Card>
-      </div>
-
-      <Card padding="md">
-        <CardHeader><CardTitle>{t('pnlByMonth')}</CardTitle></CardHeader>
-        {pnl.byMonth.length === 0 ? (
-          <EmptyState title={t('noData')} description={t('noDataDesc')} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-2 font-medium text-slate-600">{t('month')}</th>
-                  <th className="text-right py-2 font-medium text-slate-600">{t('income')}</th>
-                  <th className="text-right py-2 font-medium text-slate-600">{t('expenses')}</th>
-                  <th className="text-right py-2 font-medium text-slate-600">{t('net')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pnl.byMonth.map((row) => (
-                  <tr key={row.month} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="py-2 text-slate-700">{row.month}</td>
-                    <td className="py-2 text-right text-green-600">S/ {row.income.toFixed(2)}</td>
-                    <td className="py-2 text-right text-red-500">S/ {row.expenses.toFixed(2)}</td>
-                    <td className={`py-2 text-right font-medium ${row.net >= 0 ? 'text-slate-900' : 'text-red-600'}`}>S/ {row.net.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      {pnlByCurrency.length === 0 ? (
+        <Card padding="md"><EmptyState title={t('noData')} description={t('noDataDesc')} /></Card>
+      ) : (
+        pnlByCurrency.map(({ currency, pnl }) => <CurrencyPnL key={currency} currency={currency} pnl={pnl} />)
+      )}
 
       <Card padding="md">
         <CardHeader><CardTitle>{t('recentCashFlow')}</CardTitle></CardHeader>
@@ -214,7 +200,7 @@ export default async function FinancePage() {
                   <span className="text-xs text-slate-500">{entry.label}</span>
                 </div>
                 <span className={`text-sm font-medium ${entry.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
-                  {entry.type === 'income' ? '+' : '-'}S/ {entry.amount.toFixed(2)}
+                  {entry.type === 'income' ? '+' : '-'}{formatMoney(entry.currency, entry.amount)}
                 </span>
               </div>
             ))}

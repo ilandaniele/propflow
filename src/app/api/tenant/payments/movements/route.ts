@@ -84,7 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       amount:        payments.amount,
       currency:      payments.currency,
       paidAt:        payments.paidAt,
-      // NOTE: dueDate, periodMonth, notes not in current payments schema (TODO W1/schema)
+      periodMonth:   payments.periodMonth,
       status:        payments.status,
       method:        payments.method,
       reference:     payments.reference,
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       status:         row.status,
       method:         row.method,
       reference:      row.reference,
-      period_month:   null,        // TODO(W1/schema): not in payments schema
+      period_month:   row.periodMonth,
       movement_type:  row.movementType,
       receipt_url:    row.receiptUrl,
       notes:          null,        // TODO(W1/schema): not in payments schema

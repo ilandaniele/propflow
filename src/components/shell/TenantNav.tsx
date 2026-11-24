@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation';
 import { signOut } from '@/app/actions/auth';
 import { LanguageDropdown } from '@/components/i18n/LanguageDropdown';
 import { NotificationBadge } from '@/components/portal/NotificationBadge';
-import { useTransition } from 'react';
+import { OrgLogo } from './OrgLogo';
+import { useTransition, type ReactNode } from 'react';
 import type { Locale } from '@/i18n/config';
 
 const navItems = [
@@ -24,6 +25,15 @@ const navItems = [
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Documents',
+    href: '/portal/documents',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
       </svg>
     ),
   },
@@ -64,11 +74,65 @@ const navItems = [
     ),
   },
   {
+    label: 'Bookings',
+    href: '/portal/amenities',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Polls',
+    href: '/portal/polls',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Messages',
+    href: '/portal/messages',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 4h16v12H5.17L4 17.17V4z"/><path d="M8 9h8M8 12h5"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Activity',
+    href: '/portal/activity',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    ),
+  },
+  {
     label: 'Tasks',
     href: '/portal/tasks',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Visitors',
+    href: '/portal/visitors',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M19 8v6"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'Staff',
+    href: '/portal/staff',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
       </svg>
     ),
   },
@@ -95,9 +159,12 @@ interface TenantNavProps {
    */
   profileId?: string;
   currentLocale?: Locale;
+  communitySwitcher?: ReactNode;
+  logoUrl?: string | null;
+  orgName?: string | null;
 }
 
-export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
+export function TenantNav({ userName, currentLocale = 'es', communitySwitcher, logoUrl, orgName }: TenantNavProps) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
@@ -106,10 +173,16 @@ export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
       {/* Desktop top nav */}
       <header className="hidden sm:flex h-14 bg-white border-b border-slate-200 items-center justify-between px-6 shrink-0">
         <Link href="/portal" className="flex items-center gap-2 font-semibold text-slate-900">
-          <div className="h-6 w-6 rounded-md bg-brand-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">P</span>
-          </div>
-          PropFlow
+          {logoUrl ? (
+            <OrgLogo src={logoUrl} alt={orgName ?? ''} className="h-8 max-w-[140px]" />
+          ) : (
+            <>
+              <div className="h-6 w-6 rounded-md bg-brand-600 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">P</span>
+              </div>
+              PropFlow
+            </>
+          )}
         </Link>
         <nav className="flex items-center gap-1" aria-label="Tenant navigation">
           {navItems.map((item) => {
@@ -130,6 +203,7 @@ export function TenantNav({ userName, currentLocale = 'es' }: TenantNavProps) {
           })}
         </nav>
         <div className="flex items-center gap-3">
+          {communitySwitcher}
           {/* Notification bell — count fetched client-side (spec AC4) */}
           <NotificationBadge variant="desktop" />
 

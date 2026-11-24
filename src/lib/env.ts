@@ -41,6 +41,12 @@ export const serverEnv = {
   get WHATSAPP_WEBHOOK_SECRET() { return optional('WHATSAPP_WEBHOOK_SECRET'); },
   // Agent: AES-256-GCM key for encrypting secrets at rest (e.g. Google Calendar refresh tokens)
   get TOKEN_ENCRYPTION_KEY() { return optional('TOKEN_ENCRYPTION_KEY'); },
+  // E-invoicing: Nubefact route URL + token; sandbox provider when either is empty
+  get NUBEFACT_API_URL() { return optional('NUBEFACT_API_URL'); },
+  get NUBEFACT_API_TOKEN() { return optional('NUBEFACT_API_TOKEN'); },
+  // Online payments: Mercado Pago Checkout Pro (sandbox provider when unset)
+  get MERCADOPAGO_ACCESS_TOKEN() { return optional('MERCADOPAGO_ACCESS_TOKEN'); },
+  get MERCADOPAGO_WEBHOOK_SECRET() { return optional('MERCADOPAGO_WEBHOOK_SECRET'); },
 };
 
 /**

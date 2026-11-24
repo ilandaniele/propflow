@@ -26,7 +26,8 @@ import {
   tenantTasks,
 } from '@/lib/db/schema';
 import { eq, and, gte, lte, inArray } from 'drizzle-orm';
-import { sendEmail, buildReminderEmail } from './email';
+import { sendEmail, buildReminderEmail, type SendEmailResult } from './email';
+import { loadEmailOptOuts, acceptsEmail } from './preferences';
 import { log } from '@/lib/log';
 import { buildWhatsAppTemplate } from '@/lib/whatsapp/templates';
 import { getWhatsAppProvider } from '@/lib/whatsapp';
@@ -37,6 +38,7 @@ const LEASE_RENEWAL_DAYS = 30;
 const PAYMENT_DUE_DAYS_AHEAD = 3;
 const TASK_REMINDER_HOURS = 24;
 const PAGE_SIZE = 200; // rows per pagination batch
+const OPTED_OUT: SendEmailResult = { success: false, error: 'email_opt_out' };
 
 export interface ReminderRunResult {
   orgId: string;
@@ -103,6 +105,10 @@ async function processOrg(
   const today = todayStr();
   const renewalCutoff = addDays(today, LEASE_RENEWAL_DAYS);
   const paymentCutoff = addDays(today, PAYMENT_DUE_DAYS_AHEAD);
+  const [leaseRenewalOptOuts, paymentDueOptOuts] = await Promise.all([
+    loadEmailOptOuts(orgId, 'lease_renewal'),
+    loadEmailOptOuts(orgId, 'payment_due'),
+  ]);
 
   // ── Lease-renewal reminders ────────────────────────────────────────────────
   let contractOffset = 0;
@@ -182,7 +188,9 @@ async function processOrg(
         siteUrl,
       });
 
-      const emailResult = await sendEmail({ to: tenant.email, subject, html, context: 'lease_renewal' });
+      const emailResult = acceptsEmail(leaseRenewalOptOuts, tenant.profileId)
+        ? await sendEmail({ to: tenant.email, subject, html, context: 'lease_renewal' })
+        : OPTED_OUT;
 
       const [reminder] = await db
         .insert(reminders)
@@ -191,10 +199,10 @@ async function processOrg(
           type: 'lease_renewal',
           targetType: 'contract',
           targetId: contract.id,
-          channel: 'both',
+          channel: emailResult === OPTED_OUT ? 'in_app' : 'both',
           scheduledFor: today,
           sentAt: emailResult.success ? new Date() : null,
-          status: emailResult.success ? 'sent' : 'failed',
+          status: emailStatus(emailResult),
           messagePreview: message.slice(0, 200),
           error: emailResult.success ? null : emailResult.error,
         })
@@ -212,7 +220,7 @@ async function processOrg(
         });
       }
 
-      if (emailResult.success) { remindersSent++; } else { remindersFailed++; }
+      if (emailResult.success) { remindersSent++; } else if (emailResult !== OPTED_OUT) { remindersFailed++; }
     }
 
     if (contractRows.length < PAGE_SIZE) break;
@@ -282,7 +290,9 @@ async function processOrg(
         siteUrl,
       });
 
-      const emailResult = await sendEmail({ to: tenant.email, subject, html, context: 'payment_due' });
+      const emailResult = acceptsEmail(paymentDueOptOuts, tenant.profileId)
+        ? await sendEmail({ to: tenant.email, subject, html, context: 'payment_due' })
+        : OPTED_OUT;
 
       const [reminder] = await db
         .insert(reminders)
@@ -291,10 +301,10 @@ async function processOrg(
           type: 'payment_due',
           targetType: 'charge',
           targetId: charge.id,
-          channel: 'both',
+          channel: emailResult === OPTED_OUT ? 'in_app' : 'both',
           scheduledFor: today,
           sentAt: emailResult.success ? new Date() : null,
-          status: emailResult.success ? 'sent' : 'failed',
+          status: emailStatus(emailResult),
           messagePreview: message.slice(0, 200),
           error: emailResult.success ? null : emailResult.error,
         })
@@ -312,7 +322,7 @@ async function processOrg(
         });
       }
 
-      if (emailResult.success) { remindersSent++; } else { remindersFailed++; }
+      if (emailResult.success) { remindersSent++; } else if (emailResult !== OPTED_OUT) { remindersFailed++; }
     }
 
     if (chargeRows.length < PAGE_SIZE) break;
@@ -485,6 +495,11 @@ async function processOrg(
     remindersFailed,
     durationMs: Date.now() - start,
   };
+}
+
+function emailStatus(result: SendEmailResult): 'sent' | 'failed' | 'skipped' {
+  if (result === OPTED_OUT) return 'skipped';
+  return result.success ? 'sent' : 'failed';
 }
 
 // ── Pure date helpers ──────────────────────────────────────────────────────────

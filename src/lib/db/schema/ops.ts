@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer, uniqueIndex, index, check } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
-import { id, json, ts, money, dateStr, bool } from './columns';
+import { id, json, ts, money, dateStr, bool, createdAt, updatedAt } from './columns';
+import type { HandoverItem } from '@/lib/contracts/handover-types';
 import { contracts, organizations, profiles, properties, tenants, units, whatsappMessages } from './core';
 
 export const incidents = sqliteTable('incidents', {
@@ -32,6 +33,18 @@ export const incidents = sqliteTable('incidents', {
   check('incidents_category_check', sql`category IN ('plumbing','electrical','appliance','structural','cleaning','other','material_damage','malfunction')`),
   check('incidents_priority_check', sql`priority IN ('low','medium','high','urgent')`),
   check('incidents_status_check', sql`status IN ('pending','in_progress','solved')`),
+]);
+
+export const incidentSchedules = sqliteTable('incident_schedules', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  incidentId:  text('incident_id').notNull().references(() => incidents.id, { onDelete: 'cascade' }),
+  estimatedOn: dateStr('estimated_on'),
+  createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('incident_schedules_incident_uniq').on(t.incidentId),
+  index('idx_incident_schedules_org_estimated').on(t.orgId, t.estimatedOn),
 ]);
 
 export const incidentComments = sqliteTable('incident_comments', {
@@ -72,6 +85,14 @@ export const contractTemplates = sqliteTable('contract_templates', {
   index('idx_contract_templates_org').on(t.orgId),
   uniqueIndex('contract_templates_org_name_uniq').on(t.orgId, t.name),
 ]);
+
+export const orgSignatures = sqliteTable('org_signatures', {
+  orgId:          text('org_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  signerName:     text('signer_name').notNull(),
+  signerDocument: text('signer_document'),
+  imageDataUrl:   text('image_data_url').notNull(),
+  updatedAt:      ts('updated_at').notNull().$defaultFn(() => new Date()),
+});
 
 export const pricingTables = sqliteTable('pricing_tables', {
   id:           id(),
@@ -128,6 +149,8 @@ export const announcements = sqliteTable('announcements', {
   unitId:      text('unit_id').references(() => units.id, { onDelete: 'set null' }),
   publishedAt: ts('published_at'),
   expiresAt:   ts('expires_at'),
+  pinned:      bool('pinned').notNull().default(false),
+  important:   bool('important').notNull().default(false),
   createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
@@ -173,12 +196,73 @@ export const signatureRequests = sqliteTable('signature_requests', {
   signatureImagePath: text('signature_image_path'),
   signedIp:           text('signed_ip'),
   signedUserAgent:    text('signed_user_agent'),
+  documentSha256:     text('document_sha256'),
+  signatureSha256:    text('signature_sha256'),
+  handoverActId:      text('handover_act_id').references(() => handoverActs.id, { onDelete: 'cascade' }),
   createdAt:          ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:          ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_signature_requests_org').on(t.orgId),
   index('idx_signature_requests_contract').on(t.contractId),
   check('signature_requests_status_check', sql`status IN ('sent','viewed','signed','declined','expired')`),
+]);
+
+export const unitInventoryItems = sqliteTable('unit_inventory_items', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  unitId:    text('unit_id').notNull().references(() => units.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  quantity:  integer('quantity').notNull().default(1),
+  condition: text('condition').notNull().default('good'),
+  notes:     text('notes'),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_unit_inventory_items_unit').on(t.orgId, t.unitId),
+  check('unit_inventory_items_condition_check', sql`condition IN ('new','good','fair','poor','broken')`),
+]);
+
+export const handoverActs = sqliteTable('handover_acts', {
+  id:           id(),
+  orgId:        text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  contractId:   text('contract_id').notNull().references(() => contracts.id, { onDelete: 'cascade' }),
+  kind:         text('kind').notNull(),
+  items:        json<HandoverItem[]>('items').notNull(),
+  notes:        text('notes'),
+  documentPath: text('document_path'),
+  status:       text('status').notNull().default('draft'),
+  signedAt:     ts('signed_at'),
+  createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:    ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_handover_acts_contract').on(t.orgId, t.contractId),
+  check('handover_acts_kind_check', sql`kind IN ('check_in','check_out')`),
+  check('handover_acts_status_check', sql`status IN ('draft','pending_signature','signed')`),
+]);
+
+export const documents = sqliteTable('documents', {
+  id:              id(),
+  orgId:           text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  tenantId:        text('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  contractId:      text('contract_id').references(() => contracts.id, { onDelete: 'cascade' }),
+  propertyId:      text('property_id').references(() => properties.id, { onDelete: 'cascade' }),
+  name:            text('name').notNull(),
+  category:        text('category').notNull(),
+  storagePath:     text('storage_path').notNull(),
+  mimeType:        text('mime_type').notNull(),
+  sizeBytes:       integer('size_bytes').notNull(),
+  expiresOn:       dateStr('expires_on'),
+  visibleToTenant: bool('visible_to_tenant').notNull().default(false),
+  uploadedBy:      text('uploaded_by'),
+  createdAt:       ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_documents_org_created').on(t.orgId, t.createdAt),
+  index('idx_documents_tenant').on(t.tenantId),
+  index('idx_documents_contract').on(t.contractId),
+  index('idx_documents_property').on(t.propertyId),
+  index('idx_documents_org_expires').on(t.orgId, t.expiresOn),
+  check('documents_one_entity_check', sql`(tenant_id IS NOT NULL) + (contract_id IS NOT NULL) + (property_id IS NOT NULL) = 1`),
+  check('documents_category_check', sql`category IN ('identity','contract','insurance','certificate','invoice','other')`),
 ]);
 
 export const reminders = sqliteTable('reminders', {
@@ -234,6 +318,7 @@ export const visitorLogs = sqliteTable('visitor_logs', {
   entryTime:    ts('entry_time'),
   exitTime:     ts('exit_time'),
   purpose:      text('purpose'),
+  passphrase:   text('passphrase'),
   createdBy:    text('created_by').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
   notes:        text('notes'),
   createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
@@ -547,4 +632,157 @@ export const absences = sqliteTable('absences', {
 }, (t) => [
   index('idx_absences_org').on(t.orgId),
   uniqueIndex('absences_org_airtable_uniq').on(t.orgId, t.airtableExternalId),
+]);
+
+export const amenities = sqliteTable('amenities', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  propertyId:  text('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  name:        text('name').notNull(),
+  openTime:    text('open_time').notNull(),
+  closeTime:   text('close_time').notNull(),
+  slotMinutes: integer('slot_minutes').notNull().default(60),
+  capacity:    integer('capacity'),
+  active:      bool('active').notNull().default(true),
+  createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_amenities_org').on(t.orgId),
+  uniqueIndex('amenities_property_name_uniq').on(t.propertyId, t.name),
+  check('amenities_slot_minutes_check', sql`slot_minutes BETWEEN 15 AND 720`),
+  check('amenities_hours_check', sql`open_time < close_time`),
+  check('amenities_capacity_check', sql`capacity IS NULL OR capacity > 0`),
+]);
+
+export const amenityBookings = sqliteTable('amenity_bookings', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  amenityId: text('amenity_id').notNull().references(() => amenities.id, { onDelete: 'cascade' }),
+  tenantId:  text('tenant_id').references(() => tenants.id, { onDelete: 'set null' }),
+  bookedOn:  dateStr('booked_on').notNull(),
+  startTime: text('start_time').notNull(),
+  endTime:   text('end_time').notNull(),
+  status:    text('status').notNull().default('confirmed'),
+  guestCount: integer('guest_count'),
+  comment:   text('comment'),
+  createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('amenity_bookings_slot_uniq').on(t.amenityId, t.bookedOn, t.startTime).where(sql`status = 'confirmed'`),
+  index('idx_amenity_bookings_org_date').on(t.orgId, t.bookedOn),
+  index('idx_amenity_bookings_tenant').on(t.tenantId),
+  check('amenity_bookings_status_check', sql`status IN ('confirmed','cancelled')`),
+  check('amenity_bookings_guest_count_check', sql`guest_count IS NULL OR guest_count BETWEEN 1 AND 500`),
+]);
+
+export const assets = sqliteTable('assets', {
+  id:         id(),
+  orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  propertyId: text('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  name:       text('name').notNull(),
+  category:   text('category').notNull(),
+  location:   text('location'),
+  createdAt:  ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:  ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_assets_org').on(t.orgId),
+  uniqueIndex('assets_property_name_uniq').on(t.propertyId, t.name),
+]);
+
+export const assetTasks = sqliteTable('asset_tasks', {
+  id:              id(),
+  orgId:           text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  assetId:         text('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
+  title:           text('title').notNull(),
+  frequencyMonths: integer('frequency_months').notNull(),
+  startsOn:        dateStr('starts_on').notNull(),
+  responsible:     text('responsible'),
+  supplier:        text('supplier'),
+  estimatedCost:   money('estimated_cost'),
+  createdAt:       ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:       ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_asset_tasks_org').on(t.orgId),
+  index('idx_asset_tasks_asset').on(t.assetId),
+  check('asset_tasks_frequency_check', sql`${t.frequencyMonths} between 1 and 120`),
+]);
+
+export const assetTaskLogs = sqliteTable('asset_task_logs', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  taskId:    text('task_id').notNull().references(() => assetTasks.id, { onDelete: 'cascade' }),
+  doneOn:    dateStr('done_on').notNull(),
+  cost:      money('cost'),
+  notes:     text('notes'),
+  createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_asset_task_logs_task').on(t.taskId, t.doneOn),
+  index('idx_asset_task_logs_org').on(t.orgId, t.doneOn),
+]);
+
+
+export const suppliers = sqliteTable('suppliers', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  trade:     text('trade').notNull(),
+  phone:     text('phone'),
+  email:     text('email'),
+  notes:     text('notes'),
+  active:    bool('active').notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (t) => [
+  index('idx_suppliers_org_trade').on(t.orgId, t.trade),
+  check('suppliers_trade_check', sql`trade IN ('plumbing','electrical','appliance','structural','cleaning','locksmith','painting','general')`),
+  check('suppliers_name_check', sql`length(name) > 0`),
+]);
+
+export const incidentSupplierAssignments = sqliteTable('incident_supplier_assignments', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  incidentId:  text('incident_id').notNull().references(() => incidents.id, { onDelete: 'cascade' }),
+  supplierId:  text('supplier_id').notNull().references(() => suppliers.id, { onDelete: 'restrict' }),
+  status:      text('status').notNull().default('assigned'),
+  quoteAmount: money('quote_amount'),
+  finalCost:   money('final_cost'),
+  notes:       text('notes'),
+  assignedBy:  text('assigned_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:   createdAt(),
+  updatedAt:   updatedAt(),
+}, (t) => [
+  uniqueIndex('incident_supplier_assignments_incident_uniq').on(t.incidentId),
+  index('idx_incident_supplier_assignments_org_supplier').on(t.orgId, t.supplierId),
+  check('incident_supplier_assignments_status_check', sql`status IN ('assigned','quoted','approved','done','cancelled')`),
+]);
+
+export const propertyOwnerTerms = sqliteTable('property_owner_terms', {
+  id:            id(),
+  orgId:         text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  propertyId:    text('property_id').notNull().references(() => properties.id, { onDelete: 'cascade' }),
+  ownerId:       text('owner_id').notNull().references(() => owners.id, { onDelete: 'cascade' }),
+  commissionPct: money('commission_pct').notNull().default('0'),
+  createdAt:     ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:     ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('property_owner_terms_property_uniq').on(t.propertyId),
+  index('idx_property_owner_terms_org_owner').on(t.orgId, t.ownerId),
+  check('property_owner_terms_commission_check', sql`CAST(commission_pct AS REAL) >= 0 AND CAST(commission_pct AS REAL) <= 100`),
+]);
+
+export const ownerPortalLinks = sqliteTable('owner_portal_links', {
+  id:           id(),
+  orgId:        text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  ownerId:      text('owner_id').notNull().references(() => owners.id, { onDelete: 'cascade' }),
+  tokenHash:    text('token_hash').notNull(),
+  createdBy:    text('created_by'),
+  expiresAt:    ts('expires_at').notNull(),
+  revokedAt:    ts('revoked_at'),
+  lastViewedAt: ts('last_viewed_at'),
+  createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('owner_portal_links_token_hash_uniq').on(t.tokenHash),
+  index('idx_owner_portal_links_org_owner').on(t.orgId, t.ownerId),
 ]);

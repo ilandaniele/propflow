@@ -1,14 +1,18 @@
 import { cache } from 'react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { profiles } from '@/lib/db/schema';
+import { profiles, staffRoles } from '@/lib/db/schema';
+import { canAccess, isStaffRole, type StaffAccess, type StaffArea, type StaffRole } from './permissions';
 import { eq } from 'drizzle-orm';
 import type { Profile } from '@/types';
+import { resolveActiveOrg } from '@/lib/memberships/active-org';
 
 export interface AuthContext {
   userId: string;
   orgId: string;
   role: 'admin' | 'tenant';
+  /** Restricted staff role for admins; null means full admin (or a tenant). */
+  staffRole: StaffRole | null;
   profile: Profile;
 }
 
@@ -33,32 +37,7 @@ export const getCachedUser = cache(async () => {
 export const getProfile = cache(async (): Promise<Profile | null> => {
   const user = await getCachedUser();
   if (!user) return null;
-
-  const rows = await db
-    .select({
-      id:       profiles.id,
-      orgId:    profiles.orgId,
-      role:     profiles.role,
-      fullName: profiles.fullName,
-      phone:    profiles.phone,
-      email:    profiles.email,
-    })
-    .from(profiles)
-    .where(eq(profiles.userId, user.id))
-    .limit(1);
-
-  const row = rows[0];
-  if (!row) return null;
-
-  // Map Drizzle camelCase to the Profile type shape (org_id, full_name)
-  return {
-    id:        row.id,
-    org_id:    row.orgId,
-    role:      row.role as 'admin' | 'tenant',
-    full_name: row.fullName ?? undefined,
-    phone:     row.phone ?? undefined,
-    email:     row.email ?? undefined,
-  } as unknown as Profile;
+  return getProfileFast(user.id);
 });
 
 /**
@@ -76,19 +55,42 @@ export const requireUser = cache(async (): Promise<AuthContext> => {
     userId: user.id,
     orgId:  profile.org_id,
     role:   profile.role,
+    staffRole: staffRoleOf(profile),
     profile,
   };
 });
 
+export function staffRoleOf(profile: Profile | null): StaffRole | null {
+  const value = (profile as unknown as { staff_role?: unknown } | null)?.staff_role;
+  return isStaffRole(value) ? value : null;
+}
+
 /**
- * Verify the caller is an admin. Returns AuthContext or throws.
+ * Verify the caller is a full admin (no restricted staff role). Returns AuthContext or throws.
  */
 export async function requireAdmin(): Promise<AuthContext> {
   const ctx = await requireUser();
-  if (ctx.role !== 'admin') {
+  if (ctx.role !== 'admin' || ctx.staffRole !== null) {
     throw new Error('FORBIDDEN');
   }
   return ctx;
+}
+
+/**
+ * Verify the caller is an admin allowed to read or write one dashboard area.
+ * Full admins always pass; restricted staff pass only for their area.
+ */
+export async function requireStaff(area: StaffArea, access: StaffAccess): Promise<AuthContext> {
+  const ctx = await requireUser();
+  if (ctx.role !== 'admin' || !canAccess(ctx.staffRole, area, access)) {
+    throw new Error('FORBIDDEN');
+  }
+  return ctx;
+}
+
+/** For actions open to tenants too: tenants pass, admins need area write access. */
+export function canStaffWrite(ctx: AuthContext, area: StaffArea): boolean {
+  return ctx.role !== 'admin' || canAccess(ctx.staffRole, area, 'write');
 }
 
 /**
@@ -115,22 +117,25 @@ export async function getProfileFast(userId: string): Promise<Profile | null> {
       fullName: profiles.fullName,
       phone:    profiles.phone,
       email:    profiles.email,
+      staffRole: staffRoles.role,
     })
     .from(profiles)
+    .leftJoin(staffRoles, eq(staffRoles.profileId, profiles.id))
     .where(eq(profiles.userId, userId))
     .limit(1);
 
   const row = rows[0];
   if (!row) return null;
 
-  return {
+  return resolveActiveOrg(userId, {
     id:        row.id,
     org_id:    row.orgId,
     role:      row.role as 'admin' | 'tenant',
     full_name: row.fullName ?? undefined,
     phone:     row.phone ?? undefined,
     email:     row.email ?? undefined,
-  } as unknown as Profile;
+    staff_role: isStaffRole(row.staffRole) ? row.staffRole : null,
+  } as unknown as Profile);
 }
 
 /**

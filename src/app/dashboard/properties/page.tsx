@@ -59,7 +59,19 @@ export default async function PropertiesPage() {
           <h1 className="text-2xl font-bold text-slate-900">{t('title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{countLabel}</p>
         </div>
-        <AddPropertyButton />
+        <div className="flex items-center gap-2">
+          {rows.length > 1 && (
+            <a href="/dashboard/properties/groups" className="text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+              {t('groups')}
+            </a>
+          )}
+          {rows.length > 1 && (
+            <a href="/dashboard/properties/compare" className="text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+              {t('compare')}
+            </a>
+          )}
+          <AddPropertyButton />
+        </div>
       </div>
 
       {rows.length === 0 ? (

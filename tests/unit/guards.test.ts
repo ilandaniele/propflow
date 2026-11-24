@@ -29,7 +29,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/db', () => {
   const limitFn  = vi.fn();
   const whereFn  = vi.fn().mockReturnValue({ limit: limitFn });
-  const fromFn   = vi.fn().mockReturnValue({ where: whereFn });
+  const fromFn   = vi.fn().mockReturnValue({ where: whereFn, leftJoin: () => ({ where: whereFn }) });
   const selectFn = vi.fn().mockReturnValue({ from: fromFn });
   return {
     db: {
@@ -88,7 +88,7 @@ beforeEach(() => {
   // Re-wire chain after clearAllMocks resets all mock implementations
   mockDb._limit.mockReset();
   mockDb._where.mockReturnValue({ limit: mockDb._limit });
-  mockDb._from.mockReturnValue({ where: mockDb._where });
+  mockDb._from.mockReturnValue({ where: mockDb._where, leftJoin: () => ({ where: mockDb._where }) });
   mockDb.select.mockReturnValue({ from: mockDb._from });
 });
 

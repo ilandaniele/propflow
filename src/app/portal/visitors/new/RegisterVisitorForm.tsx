@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import { createVisitorLog } from '@/app/actions/visitors';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -16,6 +17,7 @@ export function RegisterVisitorForm() {
   const [state, action] = useActionState<ActionResult, FormData>(createVisitorLog, {});
   const today = new Date().toISOString().slice(0, 10);
   const [success, setSuccess] = useState(false);
+  const t = useTranslations('visitorAccess');
 
   if (success) {
     return (
@@ -38,6 +40,10 @@ export function RegisterVisitorForm() {
         <input id="visit_date" type="date" name="visit_date" required defaultValue={today} className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full" />
       </div>
       <Input label="Purpose (optional)" name="purpose" placeholder="Guest, delivery, etc." />
+      <div className="space-y-1">
+        <Input label={t('passphraseOptional')} name="passphrase" minLength={5} maxLength={40} />
+        <p className="text-xs text-slate-500">{t('passphraseHint')}</p>
+      </div>
       <SubmitButton />
       {state?.error && <p className="text-sm text-red-600" role="alert">{state.error.message}</p>}
     </form>

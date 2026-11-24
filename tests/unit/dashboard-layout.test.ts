@@ -88,6 +88,7 @@ vi.mock('@/lib/auth/guards', () => ({
   getCachedUser: () => mockGetSessionFast().then((s) => s ? { id: s.user.id } : null),
   getProfileFast: (userId: string) => mockGetProfileFast(userId),
   getOrgNameFast: (orgId: string) => mockGetOrgNameFast(orgId),
+  staffRoleOf: () => null,
   // Keep other exports present so no import errors in transitively loaded modules
   getProfile: vi.fn(),
   requireUser: vi.fn(),
@@ -99,6 +100,20 @@ vi.mock('@/lib/auth/guards', () => ({
 // Stub shell components so the layout can render (or at least reach JSX)
 // without importing their full implementation.
 // ---------------------------------------------------------------------------
+
+const mockListUserCommunities = vi.fn(async (_userId: string) => [] as unknown[]);
+
+vi.mock('@/lib/memberships/queries', () => ({
+  listUserCommunities: (userId: string) => mockListUserCommunities(userId),
+}));
+
+vi.mock('@/components/communities/CommunitySwitcher', () => ({
+  CommunitySwitcher: vi.fn(() => null),
+}));
+
+vi.mock('@/lib/branding/org-branding', () => ({
+  getOrgBranding: vi.fn().mockResolvedValue({ accentColor: null, logoUrl: null }),
+}));
 
 vi.mock('@/components/shell/AdminSidebar', () => ({
   AdminSidebar: vi.fn(() => null),
@@ -201,6 +216,15 @@ describe('DashboardLayout — fast-auth path (AC3)', () => {
 
     expect(mockGetProfileFast).toHaveBeenCalledTimes(1);
     expect(mockGetProfileFast).toHaveBeenCalledWith('user-abc');
+  });
+
+  it('loads the session user communities for the switcher', async () => {
+    setupAdminSession('user-abc', 'org-xyz');
+    const { default: DashboardLayout } = await import('@/app/dashboard/layout');
+
+    await DashboardLayout({ children: null });
+
+    expect(mockListUserCommunities).toHaveBeenCalledWith('user-abc');
   });
 
   // -------------------------------------------------------------------------

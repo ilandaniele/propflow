@@ -50,6 +50,7 @@ import { queueAgentInbound, scheduleAgentDrain } from '@/lib/agent/whatsapp-disp
 import { registerAgentJobHandlers } from '@/lib/agent/job-handlers';
 import { dispatchButtonReply } from '@/lib/agent/button-replies';
 import { getSessionByConversation, touchInbound } from '@/lib/agent/session';
+import { handleOwnerAssistantMessage } from '@/lib/owner-assistant/handle';
 
 // Register event handlers on module load
 registerAllHandlers();
@@ -182,6 +183,8 @@ async function processMetaMessage(
   message: NormalizedInboundMessage,
   provider: ReturnType<typeof getWhatsAppProvider>
 ): Promise<boolean> {
+  if (await handleOwnerAssistantMessage(orgId, message, provider)) return false;
+
   const from = toE164(message.from);
 
   const tenant = await findTenantByPhone(orgId, from);

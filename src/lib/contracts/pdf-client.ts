@@ -6,7 +6,11 @@
  */
 
 import { getContractPdfSource, saveContractPdf } from '@/app/actions/contractDoc';
+import { getSignatureCertificateSource } from '@/app/actions/signature-certificate';
+import { getHandoverActSource, saveHandoverActPdf } from '@/app/actions/handover';
 import { actionErrorMessage, type ActionResult } from '@/lib/errors';
+import type { CertificateLabels } from './certificate-document.tsx';
+import type { HandoverLabels } from './handover-document.tsx';
 
 function unwrap<T>(result: ActionResult<T>): T {
   if (result.error || result.data === undefined) {
@@ -28,5 +32,24 @@ export async function generateAndSaveContractPdf(contractId: string, templateId:
   saveForm.set('contract_id', contractId);
   saveForm.set('file', new File([blob], 'contract.pdf', { type: 'application/pdf' }));
   const saved = await saveContractPdf({}, saveForm);
+  if (saved.error) throw new Error(actionErrorMessage(saved.error));
+}
+
+export async function renderSignatureCertificate(signatureRequestId: string, labels: CertificateLabels): Promise<Blob> {
+  const form = new FormData();
+  form.set('signature_request_id', signatureRequestId);
+  const source = unwrap(await getSignatureCertificateSource({}, form));
+  const { renderCertificatePdfBlob } = await import('./certificate-document.tsx');
+  return renderCertificatePdfBlob(source, labels);
+}
+
+export async function generateAndSaveHandoverPdf(handoverActId: string, labels: HandoverLabels): Promise<void> {
+  const form = new FormData();
+  form.set('handover_act_id', handoverActId);
+  const source = unwrap(await getHandoverActSource({}, form));
+  const { renderHandoverPdfBlob } = await import('./handover-document.tsx');
+  const blob = await renderHandoverPdfBlob(source, labels);
+  form.set('file', new File([blob], 'handover.pdf', { type: 'application/pdf' }));
+  const saved = await saveHandoverActPdf({}, form);
   if (saved.error) throw new Error(actionErrorMessage(saved.error));
 }

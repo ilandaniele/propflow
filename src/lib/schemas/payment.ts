@@ -6,6 +6,7 @@ export const RecordPaymentSchema = z.object({
   paid_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   method: z.enum(['cash', 'transfer', 'card', 'other']).default('transfer'),
   reference: z.string().max(500).optional().or(z.literal('')),
+  period_month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Period must be YYYY-MM').optional().or(z.literal('')),
 });
 
 export const ApprovePaymentSchema = z.object({
@@ -24,3 +25,7 @@ export const CreateChargeSchema = z.object({
 export type RecordPaymentInput = z.infer<typeof RecordPaymentSchema>;
 export type ApprovePaymentInput = z.infer<typeof ApprovePaymentSchema>;
 export type CreateChargeInput = z.infer<typeof CreateChargeSchema>;
+
+export const PaymentReceiptSchema = z.object({
+  payment_id: z.string().guid(),
+});

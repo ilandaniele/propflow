@@ -50,6 +50,293 @@
       "when": 1795408310570,
       "tag": "0006_lead_conversions",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795408311570,
+      "tag": "0007_amenities",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795408312570,
+      "tag": "0008_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795408313570,
+      "tag": "0009_bank_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1795408314570,
+      "tag": "0010_cash_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1795408315570,
+      "tag": "0011_deposit_movements",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1795408316570,
+      "tag": "0012_expense_budgets",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1795408317570,
+      "tag": "0013_expenses_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1795408318570,
+      "tag": "0014_incident_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1795408319570,
+      "tag": "0015_org_branding",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1795408320570,
+      "tag": "0016_org_signatures",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1795408321570,
+      "tag": "0017_owner_assistant",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1795408322570,
+      "tag": "0018_owner_terms",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1795408323570,
+      "tag": "0019_rent_adjustments",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1795408324570,
+      "tag": "0020_rental_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1795408325570,
+      "tag": "0021_staff_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1795408326570,
+      "tag": "0022_suppliers",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1795408327570,
+      "tag": "0023_activity_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1795408328570,
+      "tag": "0024_announcement_flags",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1795408329570,
+      "tag": "0025_building_staff",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1795408330570,
+      "tag": "0026_expense_classification",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1795408331570,
+      "tag": "0027_expiring_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1795408332570,
+      "tag": "0028_incident_status_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1795408333570,
+      "tag": "0029_org_memberships",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1795408334570,
+      "tag": "0030_owner_portal_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1795408335570,
+      "tag": "0031_period_closes",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1795408336570,
+      "tag": "0032_public_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1795408337570,
+      "tag": "0033_recurring_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1795408338570,
+      "tag": "0034_resident_polls",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1795408339570,
+      "tag": "0035_signature_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1795408340570,
+      "tag": "0036_tenant_messages",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1795408341570,
+      "tag": "0037_visitor_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1795408342570,
+      "tag": "0038_einvoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1795408343570,
+      "tag": "0039_handover_acts",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1795408344570,
+      "tag": "0040_notification_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1795408345570,
+      "tag": "0041_payables",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1795408346570,
+      "tag": "0042_payment_intents",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795408347570,
+      "tag": "0043_property_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1795408348570,
+      "tag": "0044_rent_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1795408349570,
+      "tag": "0045_unit_beds",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1795408350570,
+      "tag": "0046_unit_calendars",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1795408351570,
+      "tag": "0047_documents",
+      "breakpoints": true
     }
   ]
 }

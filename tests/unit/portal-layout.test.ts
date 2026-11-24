@@ -85,6 +85,20 @@ vi.mock('@/lib/auth/guards', () => ({
 // Stub TenantNav so the layout can be called without DOM / React infra
 // ---------------------------------------------------------------------------
 
+const mockListUserCommunities = vi.fn(async (_userId: string) => [] as unknown[]);
+
+vi.mock('@/lib/memberships/queries', () => ({
+  listUserCommunities: (userId: string) => mockListUserCommunities(userId),
+}));
+
+vi.mock('@/components/communities/CommunitySwitcher', () => ({
+  CommunitySwitcher: vi.fn(() => null),
+}));
+
+vi.mock('@/lib/branding/org-branding', () => ({
+  getOrgBranding: vi.fn().mockResolvedValue({ accentColor: null, logoUrl: null }),
+}));
+
 vi.mock('@/components/shell/TenantNav', () => ({
   TenantNav: vi.fn(() => null),
 }));
@@ -165,6 +179,15 @@ describe('PortalLayout — fast-auth path (AC4)', () => {
 
     expect(mockGetProfileFast).toHaveBeenCalledTimes(1);
     expect(mockGetProfileFast).toHaveBeenCalledWith('tenant-abc');
+  });
+
+  it('loads the session user communities for the switcher', async () => {
+    setupTenantSession('tenant-abc', 'org-xyz');
+    const { default: PortalLayout } = await import('@/app/portal/layout');
+
+    await PortalLayout({ children: null });
+
+    expect(mockListUserCommunities).toHaveBeenCalledWith('tenant-abc');
   });
 
   it('redirects to /login when session is null', async () => {

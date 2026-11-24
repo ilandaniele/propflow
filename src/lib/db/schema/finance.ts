@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index, check } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, uniqueIndex, index, check, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { id, json, ts, money, dateStr, bool } from './columns';
 import { contracts, organizations, profiles, properties, tenants, units, whatsappMessages } from './core';
@@ -12,12 +12,14 @@ export const charges = sqliteTable('charges', {
   description: text('description'),
   amount:      money('amount').notNull(),
   dueDate:     dateStr('due_date'),
+  kind:        text('kind'),  // 'rent' for auto-generated monthly rent; null for manual charges
   createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_charges_org_id').on(t.orgId),
   index('idx_charges_contract_id').on(t.contractId),
   index('idx_charges_tenant_period').on(t.tenantId, t.period),
+  uniqueIndex('uq_charges_rent_contract_period').on(t.contractId, t.period).where(sql`kind = 'rent'`),
   check('charges_amount_check', sql`CAST(amount AS REAL) > 0`),
 ]);
 
@@ -303,10 +305,12 @@ export const expenseCategories = sqliteTable('expense_categories', {
   orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   name:      text('name').notNull(),
   color:     text('color'),
+  parentId:  text('parent_id').references((): AnySQLiteColumn => expenseCategories.id, { onDelete: 'set null' }),
   createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt: ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
   index('idx_expense_categories_org').on(t.orgId),
+  index('idx_expense_categories_parent').on(t.parentId),
   uniqueIndex('expense_categories_org_name_uniq').on(t.orgId, t.name),
 ]);
 
@@ -317,9 +321,11 @@ export const expenses = sqliteTable('expenses', {
   unitId:      text('unit_id').references(() => units.id, { onDelete: 'set null' }),
   categoryId:  text('category_id').references(() => expenseCategories.id, { onDelete: 'set null' }),
   amount:      money('amount').notNull(),
+  currency:    text('currency').notNull().default('PEN'),
   description: text('description').notNull(),
   incurredOn:  dateStr('incurred_on').notNull(),
   receiptPath: text('receipt_path'),
+  kind:        text('kind').notNull().default('ordinary'),  // 'ordinary' | 'extraordinary'
   createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
   updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
 }, (t) => [
@@ -342,4 +348,119 @@ export const aiTokenBudget = sqliteTable('ai_token_budget', {
   index('idx_ai_token_budget_org').on(t.orgId, t.day),
   check('ai_token_budget_tokens_used_check', sql`tokens_used >= 0`),
   check('ai_token_budget_cost_usd_check', sql`CAST(cost_usd AS REAL) >= 0`),
+]);
+
+export const DEPOSIT_MOVEMENT_KINDS = ['collected', 'deduction', 'refund'] as const;
+
+export const depositMovements = sqliteTable('deposit_movements', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  contractId:  text('contract_id').notNull().references(() => contracts.id, { onDelete: 'cascade' }),
+  kind:        text('kind').notNull(),
+  amount:      money('amount').notNull(),
+  movedOn:     dateStr('moved_on').notNull(),
+  description: text('description'),
+  createdBy:   text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:   ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:   ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_deposit_movements_org_contract').on(t.orgId, t.contractId),
+  check('deposit_movements_kind_check', sql`kind IN ('collected','deduction','refund')`),
+  check('deposit_movements_amount_check', sql`CAST(amount AS REAL) > 0`),
+]);
+
+export const rentAdjustments = sqliteTable('rent_adjustments', {
+  id:           id(),
+  orgId:        text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  contractId:   text('contract_id').notNull().references(() => contracts.id, { onDelete: 'cascade' }),
+  previousRent: money('previous_rent').notNull(),
+  newRent:      money('new_rent').notNull(),
+  percent:      money('percent').notNull(),
+  effectiveOn:  dateStr('effective_on').notNull(),
+  createdBy:    text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:    ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:    ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_rent_adjustments_org_contract').on(t.orgId, t.contractId),
+  check('rent_adjustments_new_rent_check', sql`CAST(new_rent AS REAL) > 0`),
+]);
+
+export const cashAccounts = sqliteTable('cash_accounts', {
+  id:             id(),
+  orgId:          text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name:           text('name').notNull(),
+  kind:           text('kind').notNull(),
+  bankName:       text('bank_name'),
+  accountNumber:  text('account_number'),
+  openingBalance: money('opening_balance').notNull().default('0'),
+  active:         bool('active').notNull().default(true),
+  createdAt:      ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:      ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_cash_accounts_org').on(t.orgId),
+  uniqueIndex('cash_accounts_org_name_uniq').on(t.orgId, t.name),
+  check('cash_accounts_kind_check', sql`kind IN ('cash', 'bank')`),
+]);
+
+export const cashMovements = sqliteTable('cash_movements', {
+  id:         id(),
+  orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  accountId:  text('account_id').notNull().references(() => cashAccounts.id, { onDelete: 'cascade' }),
+  occurredOn: dateStr('occurred_on').notNull(),
+  concept:    text('concept').notNull(),
+  document:   text('document'),
+  direction:  text('direction').notNull(),
+  amount:     money('amount').notNull(),
+  createdBy:  text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt:  ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:  ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_cash_movements_org_account_date').on(t.orgId, t.accountId, t.occurredOn),
+  check('cash_movements_direction_check', sql`direction IN ('in', 'out')`),
+  check('cash_movements_amount_check', sql`CAST(amount AS REAL) > 0`),
+]);
+
+export const expenseBudgets = sqliteTable('expense_budgets', {
+  id:         id(),
+  orgId:      text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').notNull().references(() => expenseCategories.id, { onDelete: 'cascade' }),
+  year:       integer('year').notNull(),
+  amount:     money('amount').notNull(),
+  createdAt:  ts('created_at').notNull().$defaultFn(() => new Date()),
+  updatedAt:  ts('updated_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex('expense_budgets_org_category_year_uniq').on(t.orgId, t.categoryId, t.year),
+  index('idx_expense_budgets_org_year').on(t.orgId, t.year),
+  check('expense_budgets_amount_check', sql`CAST(amount AS REAL) >= 0`),
+]);
+
+export const bankImports = sqliteTable('bank_imports', {
+  id:        id(),
+  orgId:     text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  fileName:  text('file_name').notNull(),
+  lineCount: integer('line_count').notNull(),
+  createdBy: text('created_by').references(() => profiles.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index('idx_bank_imports_org').on(t.orgId, t.createdAt),
+]);
+
+export const bankLines = sqliteTable('bank_lines', {
+  id:          id(),
+  orgId:       text('org_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  importId:    text('import_id').notNull().references(() => bankImports.id, { onDelete: 'cascade' }),
+  fingerprint: text('fingerprint').notNull(),
+  postedOn:    dateStr('posted_on').notNull(),
+  description: text('description').notNull(),
+  reference:   text('reference'),
+  amount:      money('amount').notNull(),
+  status:      text('status').notNull().default('unmatched'),
+  paymentId:   text('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+  resolvedBy:  text('resolved_by').references(() => profiles.id, { onDelete: 'set null' }),
+  resolvedAt:  ts('resolved_at'),
+}, (t) => [
+  uniqueIndex('bank_lines_org_fingerprint_uniq').on(t.orgId, t.fingerprint),
+  uniqueIndex('bank_lines_payment_uniq').on(t.paymentId).where(sql`${t.paymentId} is not null`),
+  index('idx_bank_lines_org_status').on(t.orgId, t.status, t.postedOn),
+  check('bank_lines_status_check', sql`${t.status} in ('unmatched', 'matched', 'ignored')`),
 ]);

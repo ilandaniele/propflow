@@ -3,65 +3,98 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { contracts, tenants, payments, charges } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
-import { requireAdmin, requireUser } from '@/lib/auth/guards';
+import { eq, and, ne } from 'drizzle-orm';
+import { requireAdmin, requireTenant } from '@/lib/auth/guards';
+import { mutationRateLimit } from '@/lib/ratelimit';
+import { uploadFile, deleteImage } from '@/lib/storage';
+import {
+  PAYMENT_PROOF_BUCKET,
+  PAYMENT_PROOF_MAX_BYTES,
+  buildPaymentProofPath,
+  validatePaymentProof,
+  type PaymentProofError,
+} from '@/lib/finance/payment-proof';
 import { Errors, ok } from '@/lib/errors';
 import { RecordPaymentSchema, ApprovePaymentSchema, CreateChargeSchema } from '@/lib/schemas/payment';
 import { log } from '@/lib/log';
+import { scheduleReceiptNotice } from '@/lib/receipts/receipt-notice';
 import type { ActionResult } from '@/lib/errors';
+import { closedPeriodError } from '@/lib/period-close/guard';
 
 export async function recordPayment(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
   let ctx;
-  try { ctx = await requireUser(); } catch { return Errors.UNAUTHORIZED(); }
+  try { ctx = await requireTenant(); } catch { return Errors.UNAUTHORIZED(); }
+
+  const rl = mutationRateLimit(ctx.userId, 'record-payment');
+  if (!rl.success) return Errors.RATE_LIMITED();
 
   const parsed = RecordPaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
 
-  // Verify the contract belongs to this user's org
+  // The contract must belong to the session tenant, inside the session org
   const contractRows = await db
     .select({ id: contracts.id, tenantId: contracts.tenantId })
     .from(contracts)
-    .where(and(eq(contracts.id, parsed.data.contract_id), eq(contracts.orgId, ctx.orgId)))
+    .innerJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
+    .where(and(
+      eq(contracts.id, parsed.data.contract_id),
+      eq(contracts.orgId, ctx.orgId),
+      eq(tenants.profileId, ctx.userId),
+    ))
     .limit(1);
 
   if (!contractRows[0]) return Errors.NOT_FOUND();
   const contract = contractRows[0];
 
-  // If the caller is a tenant, verify it's their own contract
-  if (ctx.role === 'tenant') {
-    const tenantRows = await db
-      .select({ id: tenants.id })
-      .from(tenants)
-      .where(and(eq(tenants.profileId, ctx.userId), eq(tenants.orgId, ctx.orgId)))
-      .limit(1);
+  const closed = await closedPeriodError(ctx.orgId, [parsed.data.paid_at]);
+  if (closed) return closed;
 
-    if (!tenantRows[0] || contract.tenantId !== tenantRows[0].id) {
-      return Errors.FORBIDDEN();
+  const proof = formData.get('proof');
+  let receiptPath: string | null = null;
+  if (proof instanceof File && proof.size > 0) {
+    if (proof.size > PAYMENT_PROOF_MAX_BYTES) return proofError('too_large');
+    const buffer = Buffer.from(await proof.arrayBuffer());
+    const check = validatePaymentProof(buffer, proof.type);
+    if (!check.ok) return proofError(check.error);
+
+    receiptPath = buildPaymentProofPath(ctx.orgId, contract.id, check.mime);
+    try {
+      await uploadFile(PAYMENT_PROOF_BUCKET, receiptPath, buffer, check.mime);
+    } catch (e) {
+      log.error('[recordPayment] storage error', { code: e instanceof Error ? e.message : String(e) });
+      return Errors.INTERNAL();
     }
   }
 
   try {
     await db.insert(payments).values({
       orgId: ctx.orgId,
-      contractId: parsed.data.contract_id,
+      contractId: contract.id,
       tenantId: contract.tenantId,
       amount: String(parsed.data.amount),
       paidAt: parsed.data.paid_at,
       method: parsed.data.method,
       reference: parsed.data.reference || null,
+      periodMonth: parsed.data.period_month || null,
+      receiptUrl: receiptPath,
       status: 'pending',
     });
   } catch (e) {
     log.error('[recordPayment] db error', { code: e instanceof Error ? e.message : String(e) });
+    if (receiptPath) await deleteImage(PAYMENT_PROOF_BUCKET, receiptPath).catch(() => undefined);
     return Errors.INTERNAL();
   }
 
   revalidatePath('/dashboard/payments');
   revalidatePath('/portal/payments');
   return ok(undefined);
+}
+
+function proofError(error: PaymentProofError): ActionResult {
+  return Errors.VALIDATION_ERROR({ formErrors: [], fieldErrors: { proof: [error] } });
 }
 
 export async function approvePayment(
@@ -78,7 +111,7 @@ export async function approvePayment(
 
   // Verify payment belongs to this org
   const paymentRows = await db
-    .select({ id: payments.id, status: payments.status })
+    .select({ id: payments.id, status: payments.status, paidAt: payments.paidAt })
     .from(payments)
     .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)))
     .limit(1);
@@ -86,8 +119,12 @@ export async function approvePayment(
   if (!paymentRows[0]) return Errors.NOT_FOUND();
   if (paymentRows[0].status === 'approved') return Errors.CONFLICT('Payment is already approved');
 
+  const closed = await closedPeriodError(ctx.orgId, [paymentRows[0].paidAt]);
+  if (closed) return closed;
+
+  let approved;
   try {
-    await db
+    approved = await db
       .update(payments)
       .set({
         status: 'approved',
@@ -95,13 +132,16 @@ export async function approvePayment(
         approvedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId)));
+      .where(and(eq(payments.id, parsed.data.payment_id), eq(payments.orgId, ctx.orgId), ne(payments.status, 'approved')))
+      .returning({ id: payments.id });
   } catch (e) {
     log.error('[approvePayment] db error', { code: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
+  if (approved.length === 0) return Errors.CONFLICT('Payment is already approved');
 
   log.paymentApproved(ctx.userId, parsed.data.payment_id, ctx.orgId);
+  await scheduleReceiptNotice(ctx.orgId, parsed.data.payment_id);
   revalidatePath('/dashboard/payments');
   return ok(undefined);
 }
@@ -124,6 +164,9 @@ export async function createCharge(
     .limit(1);
 
   if (!contractRows[0]) return Errors.NOT_FOUND();
+
+  const closed = await closedPeriodError(ctx.orgId, [parsed.data.period, parsed.data.due_date]);
+  if (closed) return closed;
 
   // B5: Always derive tenant_id from the fetched contract server-side.
   try {

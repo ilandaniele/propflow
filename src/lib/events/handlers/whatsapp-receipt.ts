@@ -9,12 +9,10 @@
 import { db } from '@/lib/db';
 import {
   tenants,
-  profiles,
   charges,
   contracts,
   payments,
   paymentReceipts,
-  notificationInbox,
 } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getSignedUrl } from '@/lib/storage';
@@ -23,6 +21,7 @@ import { sha256Hex } from '@/lib/whatsapp/dedupe';
 import { log } from '@/lib/log';
 import type { WhatsAppAttachmentReceivedPayload } from '../types';
 import { isUniqueViolation } from '@/lib/db/errors';
+import { notifyOrgAdmins } from '@/lib/notifications/admin-inbox';
 
 const AUTO_APPROVE_CONFIDENCE  = 0.92;
 const AUTO_APPROVE_AMOUNT_DELTA = 0.01; // 1%
@@ -84,6 +83,7 @@ export async function handleWhatsAppReceipt(
       }
       throw err;
     }
+    await notifyAdmin(orgId, tenantId, null, 'ocr_failed');
     log.info('[receipt-handler] OCR failed → pending_review', { orgId });
     return;
   }
@@ -241,6 +241,14 @@ export async function handleWhatsAppReceipt(
 
     log.info('[receipt-handler] auto_approved', { orgId, receiptId });
 
+    await notifyOrgAdmins(orgId, {
+      type:        'receipt_auto_approved',
+      title:       'Payment Registered From Receipt',
+      body:        `WhatsApp receipt for ${safeAmount} was matched to a charge and registered automatically`,
+      relatedType: 'payment',
+      relatedId:   paymentId,
+    }).catch((e: Error) => log.warn('[receipt-handler] admin notification failed', { orgId, error: e.message }));
+
   } else {
     // Insert as pending_review
     try {
@@ -279,7 +287,7 @@ async function notifyAdmin(
   orgId: string,
   tenantId: string,
   confidence: number | null | undefined,
-  reason: 'below_threshold' | 'no_active_contract'
+  reason: 'below_threshold' | 'no_active_contract' | 'ocr_failed'
 ): Promise<void> {
   const tenantRows = await db
     .select({ fullName: tenants.fullName })
@@ -290,27 +298,16 @@ async function notifyAdmin(
   const tenant = tenantRows[0];
   if (!tenant) return;
 
-  const adminRows = await db
-    .select({ id: profiles.id })
-    .from(profiles)
-    .where(and(eq(profiles.orgId, orgId), eq(profiles.role, 'admin')))
-    .limit(1);
+  const reasonLabel = {
+    no_active_contract: 'No active contract found',
+    ocr_failed: 'Could not read the receipt',
+    below_threshold: `Low confidence: ${((confidence ?? 0) * 100).toFixed(0)}%`,
+  }[reason];
 
-  const adminProfile = adminRows[0];
-  if (!adminProfile) return;
-
-  const reasonLabel =
-    reason === 'no_active_contract'
-      ? 'No active contract found'
-      : `Low confidence: ${((confidence ?? 0) * 100).toFixed(0)}%`;
-
-  await db.insert(notificationInbox).values({
-    orgId,
-    profileId:   adminProfile.id,
+  await notifyOrgAdmins(orgId, {
     type:        'receipt_pending',
     title:       'Receipt Pending Review',
     body:        `WhatsApp receipt from ${tenant.fullName ?? 'tenant'} requires review (${reasonLabel})`,
     relatedType: 'payment_receipt',
-    relatedId:   null,
   });
 }

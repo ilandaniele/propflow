@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { units as unitsTable, contracts, payments as paymentsTable, expenses as expensesTable, properties } from '@/lib/db/schema';
 import { eq, and, gte, asc } from 'drizzle-orm';
@@ -28,7 +28,7 @@ export default async function RoomProfitabilityPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const ctx = await requireAdmin();
+  const ctx = await requireStaff('finance', 'read');
   const t   = await getTranslations('finance');
 
   // Validate query params

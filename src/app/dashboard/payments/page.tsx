@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { payments as paymentsTable, contracts, tenants } from '@/lib/db/schema';
-import { eq, desc, and } from 'drizzle-orm';
+import { payments as paymentsTable, contracts, tenants, chargeConcepts } from '@/lib/db/schema';
+import { eq, desc, and, asc } from 'drizzle-orm';
 import { computePaymentKpis } from '@/lib/finance/payment-kpis';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
@@ -12,6 +13,9 @@ import { StatusPill } from '@/components/ui/Badge';
 import { ApprovePaymentButton } from './ApprovePaymentButton';
 import { CreateChargeForm } from './CreateChargeForm';
 import { AdminPaymentsCsvButtons } from './AdminPaymentsCsvButtons';
+import { ReceiptButton } from '@/components/payments/ReceiptButton';
+import { resolveStoredFileUrl } from '@/lib/storage/resolve';
+import { PAYMENT_PROOF_BUCKET } from '@/lib/finance/payment-proof';
 
 export const metadata: Metadata = { title: 'Payments' };
 
@@ -21,7 +25,7 @@ export default async function PaymentsPage() {
 
   const t = await getTranslations('payments');
 
-  const [statRows, paymentRows, contractRows] = await Promise.all([
+  const [statRows, paymentRows, contractRows, conceptRows] = await Promise.all([
     // ALL payments (aggregation columns only) — KPI totals must cover every row,
     // not just the 200 shown in the table, or collected/pending/rate are wrong.
     db
@@ -41,6 +45,7 @@ export default async function PaymentsPage() {
         paidAt:     paymentsTable.paidAt,
         method:     paymentsTable.method,
         status:     paymentsTable.status,
+        receiptUrl: paymentsTable.receiptUrl,
         createdAt:  paymentsTable.createdAt,
         tenantName: tenants.fullName,
       })
@@ -59,7 +64,17 @@ export default async function PaymentsPage() {
       .from(contracts)
       .leftJoin(tenants, and(eq(tenants.id, contracts.tenantId), eq(tenants.orgId, ctx.orgId)))
       .where(and(eq(contracts.orgId, ctx.orgId), eq(contracts.status, 'active'))),
+    db
+      .select({ id: chargeConcepts.id, description: chargeConcepts.description, baseAmount: chargeConcepts.baseAmount })
+      .from(chargeConcepts)
+      .where(eq(chargeConcepts.orgId, ctx.orgId))
+      .orderBy(asc(chargeConcepts.description))
+      .limit(200),
   ]);
+
+  const receiptLinks = await Promise.all(
+    paymentRows.map((p) => resolveStoredFileUrl(PAYMENT_PROOF_BUCKET, p.receiptUrl)),
+  );
 
   // Analytics — computed over ALL payments (statRows), never the capped table set.
   const { pendingCount, collectedTotal, pendingTotal, collectionRate, byMethod, byMonth } =
@@ -95,8 +110,9 @@ export default async function PaymentsPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/dashboard/payments/reconciliation" className="text-sm font-medium text-slate-700 hover:underline">{t('reconcileLink')}</Link>
           <AdminPaymentsCsvButtons />
-          <CreateChargeForm contracts={contractsForForm as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} />
+          <CreateChargeForm contracts={contractsForForm as unknown as Array<{ id: string; monthly_rent: number; tenant_id: string; tenants: { full_name: string } | null }>} concepts={conceptRows} />
         </div>
       </div>
 
@@ -172,7 +188,7 @@ export default async function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {paymentRows.map((payment) => (
+              {paymentRows.map((payment, i) => (
                 <tr key={payment.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-4 text-sm font-medium text-slate-900">{payment.tenantName ?? '—'}</td>
                   <td className="px-5 py-4 text-sm font-semibold text-slate-900">
@@ -181,10 +197,16 @@ export default async function PaymentsPage() {
                   <td className="px-5 py-4 text-sm text-slate-500 hidden sm:table-cell">{payment.paidAt}</td>
                   <td className="px-5 py-4 text-sm text-slate-500 capitalize hidden md:table-cell">{payment.method}</td>
                   <td className="px-5 py-4"><StatusPill status={payment.status} /></td>
-                  <td className="px-5 py-4 text-right">
+                  <td className="px-5 py-4 text-right space-x-3">
+                    {receiptLinks[i] && (
+                      <a href={receiptLinks[i]} target="_blank" rel="noopener noreferrer" className="text-sm text-brand-600 hover:underline">
+                        {t('list.receipt')}
+                      </a>
+                    )}
                     {payment.status === 'pending' && (
                       <ApprovePaymentButton paymentId={payment.id} />
                     )}
+                    {payment.status === 'approved' && <ReceiptButton paymentId={payment.id} />}
                   </td>
                 </tr>
               ))}

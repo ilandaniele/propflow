@@ -1,4 +1,16 @@
 {
+  "chargeConcepts": {
+    "title": "Conceptos de cobro",
+    "subtitle": "Conceptos reutilizables con monto por defecto para cargos manuales",
+    "add": "Agregar concepto",
+    "description": "Descripción",
+    "code": "Código",
+    "baseAmount": "Monto por defecto (S/)",
+    "save": "Guardar",
+    "saved": "Guardado",
+    "emptyTitle": "Sin conceptos todavía",
+    "emptyDesc": "Creá conceptos como mantenimiento, agua o estacionamiento para cargar cargos más rápido."
+  },
   "common": {
     "save": "Guardar",
     "cancel": "Cancelar",
@@ -53,6 +65,8 @@
     "createButton": "Crear"
   },
   "navigation": {
+    "documents": "Documentos",
+    "calendar": "Calendario",
     "dashboard": "Panel",
     "properties": "Propiedades",
     "units": "Unidades",
@@ -62,10 +76,16 @@
     "incidents": "Incidentes",
     "finance": "Finanzas",
     "reminders": "Recordatorios",
+    "expirations": "Vencimientos",
     "announcements": "Anuncios",
+    "staff": "Personal",
+    "communities": "Comunidades",
     "cleaning": "Limpieza",
     "leads": "Prospectos",
     "community": "Comunidad",
+    "polls": "Encuestas",
+    "tenantMessages": "Mensajes",
+    "periodClose": "Cierre de mes",
     "visitors": "Visitantes",
     "aiAssistant": "Asistente IA",
     "whatsapp": "WhatsApp",
@@ -88,12 +108,33 @@
     "forecasting": "Proyecciones",
     "portfolio": "Portafolio",
     "pricingTables": "Tablas de precios",
+    "apiKeys": "API",
     "adminImport": "Importación",
+    "team": "Equipo",
+    "ownerAssistant": "Asistente WhatsApp",
+    "branding": "Marca",
     "adminTenants": "Inquilinos (Admin)",
     "importHistory": "Historial de importaciones",
+    "deposits": "Garantías",
+    "rentAdjustments": "Reajustes de alquiler",
+    "cashAccounts": "Cajas y bancos",
+    "budget": "Presupuesto",
+    "amenities": "Áreas comunes",
+    "assets": "Activos",
+    "bankReconciliation": "Conciliación bancaria",
+    "rentalTax": "Renta 1ra categoría",
+    "suppliers": "Proveedores",
+    "profitability": "Rentabilidad",
+    "ownerSettlements": "Liquidaciones",
+    "occupancyHistory": "Ocupación histórica",
+    "adminNotifications": "Notificaciones",
+    "rentalApplications": "Postulaciones",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
+    "chargeConcepts": "Conceptos de cobro",
+    "onlinePayments": "Pagos en línea",
     "taxReceipts": "Comprobantes",
+    "einvoices": "Comprobantes electrónicos",
     "tenantFeedback": "Feedback de Inquilinos",
     "sectionFinance": "Finanzas",
     "sectionOps": "Operaciones",
@@ -105,7 +146,8 @@
     "mainNav": "Navegación principal",
     "utilities": "Servicios",
     "responsables": "Responsables",
-    "agentQa": "QA del agente"
+    "agentQa": "QA del agente",
+    "payables": "Cuentas por pagar"
   },
   "tenants": {
     "title": "Inquilinos",
@@ -292,9 +334,12 @@
     "emptyTitle": "Sin propiedades aún",
     "emptyDesc": "Agrega tu primera propiedad para comenzar a gestionar unidades e inquilinos.",
     "occupied": "ocupadas",
-    "rooms": "habitaciones"
+    "rooms": "habitaciones",
+    "compare": "Comparar",
+    "groups": "Grupos"
   },
   "payments": {
+    "reconcileLink": "Conciliar con banco",
     "title": "Pagos",
     "list": {
       "pendingApproval": "{count} pendientes de aprobación",
@@ -305,7 +350,8 @@
       "colDate": "Fecha",
       "colMethod": "Método",
       "colStatus": "Estado",
-      "colAction": "Acción"
+      "colAction": "Acción",
+      "receipt": "Constancia"
     },
     "record": "Registrar Pago",
     "approve": "Aprobar",
@@ -368,7 +414,59 @@
     },
     "analytics": "Análisis"
   },
+  "contractDetail": {
+    "back": "Contratos",
+    "documentTitle": "Documento",
+    "signaturesTitle": "Firmas y evidencia",
+    "noTemplates": "Crea una plantilla en Contratos → Plantillas para generar el PDF.",
+    "template": "Plantilla",
+    "generate": "Generar PDF",
+    "regenerate": "Regenerar PDF",
+    "generating": "Generando…",
+    "generateError": "No pudimos generar el PDF. Intenta de nuevo.",
+    "viewPdf": "Ver PDF",
+    "sendForSignature": "Enviar a firmar",
+    "sending": "Enviando…",
+    "sendHint": "Se enviará un enlace de firma a {email}.",
+    "needsPdf": "Genera el PDF antes de enviarlo a firmar.",
+    "needsEmail": "El inquilino no tiene correo.",
+    "sendError": "No pudimos enviar la solicitud de firma.",
+    "sent": "Solicitud de firma enviada.",
+    "noSignatures": "Todavía no se envió a firmar.",
+    "certificate": {
+      "title": "Certificado de firma electrónica",
+      "intro": "Este certificado acompaña al contrato y registra la evidencia de la firma. El hash SHA-256 identifica el PDF exacto que se firmó: cualquier cambio en el archivo produce otro hash.",
+      "contract": "Contrato",
+      "organization": "Arrendador",
+      "tenant": "Inquilino",
+      "property": "Inmueble",
+      "term": "Vigencia",
+      "signer": "Firmante",
+      "sentAt": "Enviado (UTC)",
+      "viewedAt": "Abierto (UTC)",
+      "signedAt": "Firmado (UTC)",
+      "ip": "IP",
+      "userAgent": "Navegador",
+      "documentHash": "SHA-256 del PDF",
+      "signatureHash": "SHA-256 de la firma",
+      "landlordSignature": "Arrendador",
+      "tenantSignature": "Inquilino",
+      "missing": "—"
+    },
+    "certificateLoading": "Generando…",
+    "certificateError": "No pudimos generar el certificado.",
+    "certificateButton": "Certificado PDF"
+  },
   "contracts": {
+    "renew": {
+      "open": "Renovar",
+      "months": "Meses",
+      "rent": "Nuevo alquiler mensual",
+      "hint": "Empieza el día siguiente al fin actual.",
+      "submit": "Renovar contrato",
+      "done": "Renovado",
+      "notActive": "Solo se renuevan contratos activos."
+    },
     "title": "Contratos",
     "list": {
       "emptyTitle": "Sin contratos aún",
@@ -401,6 +499,16 @@
     }
   },
   "incidents": {
+    "schedule": {
+      "overdue": "Vencida",
+      "scheduled": "Programada",
+      "overdueCount": "vencidas",
+      "showOverdue": "Ver vencidas",
+      "showAll": "Ver todas",
+      "estimated": "Estimada",
+      "responsible": "Responsable:",
+      "unassigned": "sin asignar"
+    },
     "title": "Incidentes",
     "list": {
       "emptyTitle": "Sin incidentes aún",
@@ -440,6 +548,7 @@
       "high": "Alto — atender en 24–48 hs",
       "urgent": "Urgente — acción inmediata"
     },
+    "statsLink": "Estadísticas",
     "noIncidents": "Sin incidentes",
     "kpi": {
       "totalCost": "Costo Total",
@@ -497,6 +606,7 @@
     "errorGeneric": "Ocurrió un error. Intentá de nuevo."
   },
   "agentWidget": {
+    "portalFeed": "Feed XML para portales (Urbania, Adondevivir, Infocasas vía su integrador):",
     "title": "Widget web",
     "noDisplayPhoneWarning": "Todavía no configuraste el número de WhatsApp que ve el visitante. Sin él, el widget no puede ofrecer el botón de continuar por WhatsApp.",
     "publicPagesEnabled": "Habilitar páginas públicas (/p)",
@@ -521,6 +631,7 @@
     "embedEmptyState": "Habilitá el widget y guardá para generar una clave pública."
   },
   "publicCatalog": {
+    "applyCta": "Postular",
     "pageTitle": "Propiedades disponibles",
     "filterAll": "Todas",
     "filterRent": "Alquiler",
@@ -924,6 +1035,8 @@
     "step3": "Paso 3: Primer inquilino"
   },
   "units": {
+    "bedsTab": "Camas",
+    "calendarLink": "Calendario y sincronización con Airbnb →",
     "toiletType": {
       "private": "Privado",
       "shared": "Compartido",
@@ -1091,7 +1204,8 @@
     },
     "footer": {
       "copyright": "Todos los derechos reservados.",
-      "contact": "Contacto"
+      "contact": "Contacto",
+      "calculators": "Calculadoras"
     }
   },
   "executiveBrief": {
@@ -1183,6 +1297,31 @@
       "monthlyTrend": "¿Cómo está mi ingreso vs el promedio de 3 meses?",
       "riskTenants": "¿Qué inquilinos representan mayor riesgo financiero?"
     }
+  },
+  "apiKeys": {
+    "title": "API pública",
+    "subtitle": "Conecta tu contabilidad, BI u otras herramientas con claves de solo lectura.",
+    "createTitle": "Nueva clave",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "Ej: Integración contable",
+    "create": "Crear clave",
+    "createdTitle": "Copia la clave ahora: no se volverá a mostrar.",
+    "createdHint": "Guárdala en un gestor de secretos. Si se pierde, revócala y crea otra.",
+    "revoke": "Revocar",
+    "revoked": "Revocada",
+    "emptyTitle": "Sin claves",
+    "emptyDesc": "Crea una clave para usar la API.",
+    "colName": "Nombre",
+    "colPrefix": "Clave",
+    "colCreated": "Creada",
+    "colLastUsed": "Último uso",
+    "colStatus": "Estado",
+    "docsTitle": "Cómo usarla",
+    "docsAuth": "Envía la clave en el encabezado Authorization de cada petición GET.",
+    "docsPagination": "Paginación con limit (máx. 100) y offset. La respuesta incluye pagination.hasMore.",
+    "mcpTitle": "Conectar con Claude / ChatGPT",
+    "mcpDesc": "Servidor MCP de solo lectura: consulta propiedades, unidades, inquilinos y pagos desde Claude, ChatGPT u otro cliente MCP. Usa este endpoint (HTTP) con una de tus claves.",
+    "mcpConfigHint": "Ejemplo de configuración para clientes que aceptan encabezados (Claude Code, Cursor, VS Code). Reemplaza la clave por la tuya."
   },
   "adminImport": {
     "months": ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"],
@@ -1287,8 +1426,32 @@
     "noData": "Sin datos disponibles"
   },
   "finance": {
+    "agingLink": "Morosidad",
+    "aging": {
+      "title": "Antigüedad de deuda",
+      "subtitle": "Cargos vencidos sin pagar por inquilino, deuda más antigua primero",
+      "cardTitle": "Monto adeudado por días de atraso",
+      "tenant": "Inquilino",
+      "total": "Total",
+      "emptyTitle": "Sin deuda vencida",
+      "emptyDesc": "Todos los cargos vencidos están cubiertos por pagos aprobados.",
+      "bucket": {
+        "0_30": "1–30 días",
+        "31_60": "31–60 días",
+        "61_90": "61–90 días",
+        "90_plus": "90+ días"
+      }
+    },
+    "accountingExportTitle": "Exportar libro diario (CSV)",
+    "accountingExportButton": "Descargar",
+    "accountingExportHint": "Asientos de cobros aprobados y gastos del mes con cuentas PCGE sugeridas (1011/1041, 7542, 639), listo para importar en Contasis o Siscont. Revisá las cuentas con tu contador.",
+    "expensesLink": "Gastos",
+    "recurringExpensesLink": "Gastos recurrentes",
+    "payablesLink": "Cuentas por pagar: {amount}",
     "title": "Finanzas",
     "kpiTitle": "KPIs del Período Actual",
+    "currencySection": "Resultados en {currency}",
+    "baseCurrencyNote": "KPIs y tendencia en {currency}. Los montos en otras monedas se muestran aparte, sin convertir.",
     "roomProfitability": "Rentabilidad por habitación",
     "ocrReceipts": "Recibos OCR",
     "categories": "Categorías",
@@ -1547,6 +1710,27 @@
     }
   },
   "tenantPayments": {
+    "recordForm": {
+      "title": "Registrar constancia de pago",
+      "amount": "Monto",
+      "paidAt": "Fecha de pago",
+      "method": "Método",
+      "methodTransfer": "Transferencia",
+      "methodCash": "Efectivo",
+      "methodCard": "Tarjeta",
+      "methodOther": "Otro",
+      "reference": "Referencia (opcional)",
+      "period": "Correspondiente a (opcional)",
+      "proof": "Constancia (opcional)",
+      "proofHint": "JPG, PNG, WebP o PDF, máximo 5 MB",
+      "submit": "Registrar pago",
+      "submitting": "Registrando...",
+      "success": "Pago registrado, pendiente de aprobación",
+      "error": "No se pudo registrar el pago. Inténtalo de nuevo.",
+      "proofEmpty": "El archivo está vacío.",
+      "proofTooLarge": "El archivo supera los 5 MB.",
+      "proofInvalidType": "Formato no permitido. Usa JPG, PNG, WebP o PDF."
+    },
     "title": "Mis Pagos",
     "downloadTemplate": "Descargar Plantilla CSV",
     "importCsv": "Importar CSV",
@@ -1698,7 +1882,11 @@
     "emptyDesc": "Crea y publica anuncios para notificar a tus inquilinos.",
     "publishNow": "Publicar ahora",
     "audience": "Audiencia",
-    "expires": "Vence"
+    "expires": "Vence",
+    "pinned": "Fijado",
+    "important": "Importante",
+    "pin": "Fijar",
+    "unpin": "Desfijar"
   },
   "cleaning": {
     "title": "Limpieza",
@@ -1710,6 +1898,10 @@
     "statusDone": "Hecho"
   },
   "visitors": {
+    "colUnit": "Unidad",
+    "colPassphrase": "Palabra clave",
+    "noMatchTitle": "Sin coincidencias",
+    "noMatchDesc": "Ninguna visita registrada usa esa palabra clave.",
     "title": "Registro de Visitas",
     "logVisitor": "Registrar Visita",
     "emptyTitle": "Sin visitas aún",
@@ -1735,7 +1927,570 @@
     "emptyDesc": "Haz seguimiento de posibles inquilinos en tu pipeline CRM.",
     "source": "Fuente"
   },
+  "branding": {
+    "title": "Marca",
+    "subtitle": "Logo y color de acento que se muestran en el panel, el portal de inquilinos y los recibos.",
+    "logoTitle": "Logo",
+    "logoHint": "PNG, JPG o WebP. Máximo 1 MB.",
+    "currentLogo": "Logo actual",
+    "removeLogo": "Quitar logo",
+    "logoWillBeRemoved": "El logo se quitará al guardar.",
+    "accentTitle": "Color de acento",
+    "accentHint": "Se usa en el nombre de la organización y el total de los recibos.",
+    "useAccent": "Usar color de acento",
+    "save": "Guardar",
+    "saved": "Cambios guardados.",
+    "errorTooLarge": "El logo supera 1 MB.",
+    "errorInvalidFile": "El archivo no es una imagen PNG, JPG o WebP válida.",
+    "errorInvalidColor": "El color debe tener el formato #RRGGBB.",
+    "errorGeneric": "No se pudo guardar. Inténtalo de nuevo."
+  },
+  "paymentReceipt": {
+    "download": "Recibo",
+    "generating": "Generando…",
+    "error": "No se pudo generar el recibo",
+    "pdf": {
+      "title": "Recibo de pago",
+      "number": "N.º",
+      "receivedFrom": "Recibimos de",
+      "property": "Propiedad",
+      "unit": "Unidad",
+      "date": "Fecha de pago",
+      "method": "Método",
+      "concept": "Concepto",
+      "reference": "Referencia",
+      "amount": "Monto recibido",
+      "footer": "Comprobante interno de pago. No es comprobante electrónico SUNAT."
+    },
+    "email": {
+      "subject": "Tu constancia de pago {number}",
+      "greeting": "Hola {name},",
+      "body": "Aprobamos tu pago de {amount}. Puedes descargar la constancia {number} desde tu portal.",
+      "cta": "Ver mis pagos",
+      "inboxTitle": "Pago aprobado",
+      "inboxBody": "Tu constancia {number} por {amount} ya está disponible."
+    }
+  },
+  "deposits": {
+    "title": "Garantías",
+    "subtitle": "Total retenido: {total}",
+    "emptyTitle": "Sin garantías",
+    "emptyDesc": "Los contratos con garantía aparecerán acá.",
+    "colTenant": "Inquilino",
+    "colAgreed": "Pactada",
+    "colCollected": "Cobrada",
+    "colDeducted": "Descontada",
+    "colRefunded": "Devuelta",
+    "colHeld": "Retenida",
+    "colDate": "Fecha",
+    "colKind": "Tipo",
+    "colDescription": "Detalle",
+    "colAmount": "Monto",
+    "kindCollected": "Cobro",
+    "kindDeduction": "Descuento",
+    "kindRefund": "Devolución",
+    "back": "Volver a garantías",
+    "historyTitle": "Movimientos",
+    "historyEmpty": "Sin movimientos todavía.",
+    "form": {
+      "title": "Registrar movimiento",
+      "submit": "Guardar",
+      "saved": "Movimiento guardado.",
+      "exceeds": "El monto supera la garantía retenida ({held})."
+    }
+  },
+  "rentAdjustments": {
+    "title": "Reajustes de alquiler",
+    "subtitle": "Contratos activos ordenados por aniversario. Se marcan los que cumplen año en los próximos {days} días sin reajuste.",
+    "dueAlert": "{count, plural, one {# contrato necesita reajuste} other {# contratos necesitan reajuste}}",
+    "emptyTitle": "Sin contratos activos",
+    "emptyDesc": "Los contratos activos aparecerán acá.",
+    "colTenant": "Inquilino",
+    "colRent": "Alquiler",
+    "colAnniversary": "Aniversario",
+    "colLast": "Último reajuste",
+    "colApply": "Aplicar %",
+    "percent": "Porcentaje",
+    "effectiveOn": "Vigente desde",
+    "submit": "Aplicar",
+    "preview": "Nuevo: {rent}",
+    "done": "Nuevo alquiler {rent}",
+    "notActive": "Solo se reajustan contratos activos.",
+    "historyTitle": "Historial de reajustes"
+  },
+  "cashAccounts": {
+    "title": "Cajas y bancos",
+    "subtitle": "Cuentas de caja y banco con sus movimientos y la liquidación del mes.",
+    "previous": "← Anterior",
+    "next": "Siguiente →",
+    "exportAnnual": "Liquidación anual {year} (CSV)",
+    "exportMonth": "Exportar mes (CSV)",
+    "monthlyTitle": "Liquidación {month}",
+    "emptyTitle": "Sin cuentas",
+    "emptyDesc": "Creá una cuenta de caja o banco para registrar movimientos.",
+    "colAccount": "Cuenta",
+    "colOpening": "Saldo inicial",
+    "colIncome": "Ingresos",
+    "colOutflow": "Egresos",
+    "colClosing": "Saldo final",
+    "colBalance": "Saldo actual",
+    "colDate": "Fecha",
+    "colConcept": "Concepto",
+    "colDocument": "Documento",
+    "total": "Total",
+    "kindBank": "Banco",
+    "kindCash": "Caja",
+    "back": "← Cajas y bancos",
+    "form": {
+      "open": "Nueva cuenta",
+      "name": "Nombre",
+      "kind": "Tipo",
+      "bankName": "Banco",
+      "accountNumber": "Número de cuenta",
+      "openingBalance": "Saldo inicial",
+      "submit": "Crear cuenta",
+      "saved": "Cuenta creada"
+    },
+    "movement": {
+      "title": "Registrar movimiento",
+      "direction": "Tipo",
+      "amount": "Monto",
+      "submit": "Registrar",
+      "saved": "Movimiento registrado",
+      "inactive": "La cuenta está inactiva.",
+      "emptyTitle": "Sin movimientos este mes",
+      "emptyDesc": "Los movimientos registrados aparecerán acá."
+    }
+  },
+  "budget": {
+    "title": "Presupuesto vs real",
+    "subtitle": "Gasto real por categoría contra el presupuesto anual, prorrateado a {months} meses.",
+    "yearNav": "Año",
+    "previous": "Año anterior",
+    "next": "Año siguiente",
+    "emptyTitle": "Sin categorías de gasto",
+    "emptyDesc": "Crea categorías de gasto para asignarles presupuesto.",
+    "manageCategories": "Gestionar categorías",
+    "colCategory": "Categoría",
+    "colAnnual": "Presupuesto anual",
+    "colBudgetToDate": "Presupuesto a la fecha",
+    "colActualToDate": "Real a la fecha",
+    "colVariance": "Diferencia",
+    "colExecuted": "% ejecutado",
+    "uncategorized": "Sin categoría",
+    "total": "Total",
+    "amountLabel": "Presupuesto anual de {category}",
+    "save": "Guardar",
+    "saved": "Guardado"
+  },
+  "amenities": {
+    "title": "Áreas comunes",
+    "subtitle": "Salones, parrillas y espacios reservables por franja horaria.",
+    "emptyTitle": "Sin áreas comunes",
+    "emptyDesc": "Crea la primera para que los inquilinos puedan reservar.",
+    "colName": "Nombre",
+    "colProperty": "Propiedad",
+    "colHours": "Horario",
+    "colSlot": "Franja",
+    "colActions": "Acciones",
+    "minutes": "{count} min",
+    "inactive": "Inactiva",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "viewSchedule": "Ver agenda",
+    "back": "← Áreas comunes",
+    "slotsFor": "Franjas del {date}",
+    "free": "Libre",
+    "bookedByAdmin": "Reservado por administración",
+    "book": "Reservar",
+    "cancel": "Cancelar",
+    "tenantLabel": "Inquilino para las {time}",
+    "noTenant": "Sin inquilino",
+    "dayNav": "Cambiar día",
+    "previousDay": "← Día anterior",
+    "nextDay": "Día siguiente →",
+    "guestCountPlaceholder": "Personas",
+    "guestCountLabel": "Cant. de personas para las {time}",
+    "commentPlaceholder": "Comentario",
+    "commentLabel": "Comentario para las {time}",
+    "guests": "{count, plural, one {# persona} other {# personas}}",
+    "capacity": "Aforo {count}",
+    "form": {
+      "open": "Nueva área común",
+      "name": "Nombre",
+      "property": "Propiedad",
+      "openTime": "Abre",
+      "closeTime": "Cierra",
+      "slotMinutes": "Duración de franja (min)",
+      "capacity": "Aforo (personas, opcional)",
+      "submit": "Crear",
+      "saved": "Área creada"
+    },
+    "portal": {
+      "title": "Reservas",
+      "mine": "Mis próximas reservas",
+      "pick": "Elegir área",
+      "yours": "Tu reserva",
+      "taken": "Ocupado",
+      "noContractTitle": "Sin contrato activo",
+      "noContractDesc": "Necesitas un contrato activo para reservar áreas comunes.",
+      "noAmenitiesTitle": "Sin áreas reservables",
+      "noAmenitiesDesc": "Tu edificio todavía no tiene áreas comunes para reservar."
+    }
+  },
+  "assets": {
+    "title": "Activos",
+    "subtitle": "Equipos e instalaciones del edificio con su plan de mantenimiento preventivo.",
+    "viewPlan": "Ver cuadro anual",
+    "back": "← Activos",
+    "emptyTitle": "Sin activos",
+    "emptyDesc": "Registra ascensores, bombas, tableros y otros equipos para planificar su mantenimiento.",
+    "colName": "Activo",
+    "colCategory": "Categoría",
+    "colProperty": "Propiedad",
+    "colTasks": "Tareas",
+    "colNextDue": "Próximo mantenimiento",
+    "colTask": "Tarea",
+    "colFrequency": "Frecuencia",
+    "colLastDone": "Último",
+    "colActions": "Acciones",
+    "tasksTitle": "Plan de mantenimiento",
+    "tasksEmptyTitle": "Sin tareas",
+    "tasksEmptyDesc": "Agrega tareas periódicas para este activo.",
+    "historyTitle": "Historial",
+    "historyEmpty": "Aún no hay mantenimientos registrados.",
+    "everyMonths": "{count, plural, one {Cada mes} other {Cada # meses}}",
+    "form": {
+      "open": "Nuevo activo",
+      "name": "Nombre",
+      "property": "Propiedad",
+      "category": "Categoría",
+      "location": "Ubicación",
+      "submit": "Crear activo",
+      "saved": "Activo creado."
+    },
+    "taskForm": {
+      "open": "Nueva tarea de mantenimiento",
+      "title": "Tarea",
+      "frequency": "Frecuencia (meses)",
+      "startsOn": "Primera fecha",
+      "estimatedCost": "Costo estimado (S/)",
+      "responsible": "Responsable",
+      "supplier": "Proveedor",
+      "submit": "Agregar tarea",
+      "saved": "Tarea agregada."
+    },
+    "complete": {
+      "doneOn": "Fecha realizada",
+      "cost": "Costo",
+      "submit": "Registrar"
+    },
+    "due": {
+      "overdue": "Vencido {date}",
+      "soon": "Pronto {date}",
+      "ok": "{date}"
+    },
+    "categories": {
+      "elevator": "Ascensor",
+      "pump": "Bomba de agua",
+      "electrical": "Eléctrico",
+      "plumbing": "Gasfitería",
+      "fire_safety": "Contra incendios",
+      "hvac": "Climatización",
+      "security": "Seguridad",
+      "structure": "Estructura",
+      "other": "Otro"
+    },
+    "plan": {
+      "back": "← Activos",
+      "title": "Cuadro de mantenimiento {year}",
+      "subtitle": "Tareas planificadas y realizadas por mes.",
+      "yearNav": "Cambiar año",
+      "emptyTitle": "Sin tareas planificadas",
+      "emptyDesc": "Crea activos y agrega tareas para ver el cuadro anual.",
+      "colTask": "Tarea",
+      "colResponsible": "Responsable / proveedor",
+      "colTotal": "Total año",
+      "grandTotal": "Total estimado del año",
+      "planned": "Planificado",
+      "done": "Realizado",
+      "legend": "● planificado · ✓ realizado",
+      "everyMonths": "{count, plural, one {Cada mes} other {Cada # meses}}",
+      "months": {
+        "0": "ENE",
+        "1": "FEB",
+        "2": "MAR",
+        "3": "ABR",
+        "4": "MAY",
+        "5": "JUN",
+        "6": "JUL",
+        "7": "AGO",
+        "8": "SET",
+        "9": "OCT",
+        "10": "NOV",
+        "11": "DIC"
+      }
+    }
+  },
+  "bankReconciliation": {
+    "back": "← Pagos",
+    "title": "Conciliación bancaria",
+    "subtitle": "Sube el extracto del banco en CSV y vincula cada abono con su pago.",
+    "unmatchedTitle": "{count, plural, =0 {Sin movimientos por conciliar} one {# movimiento por conciliar} other {# movimientos por conciliar}}",
+    "emptyTitle": "Todo conciliado",
+    "emptyDesc": "Sube un extracto para ver los abonos pendientes.",
+    "matchedTitle": "Conciliados recientes",
+    "ignoredTitle": "Ignorados",
+    "colDate": "Fecha",
+    "colDescription": "Descripción",
+    "colAmount": "Monto",
+    "colActions": "Acciones",
+    "upload": {
+      "label": "Extracto bancario (CSV)",
+      "hint": "Columnas de fecha, descripción y monto (o abono/cargo). Solo se importan abonos; las líneas repetidas se omiten.",
+      "submit": "Importar",
+      "result": "{inserted} nuevos · {duplicates} repetidos · {skipped} omitidos"
+    },
+    "actions": {
+      "payment": "Pago",
+      "match": "Conciliar",
+      "noCandidates": "Sin pagos con ese monto",
+      "contract": "Contrato",
+      "createPayment": "Crear pago",
+      "newPayment": "Nuevo pago",
+      "ignore": "Ignorar",
+      "restore": "Restaurar"
+    }
+  },
+  "rentalTax": {
+    "title": "Renta de primera categoría {year}",
+    "subtitle": "Alquileres cobrados (pagos aprobados) por propiedad y mes, con el 5 % estimado a declarar mensualmente.",
+    "yearNav": "Cambiar año",
+    "emptyTitle": "Sin cobros aprobados este año",
+    "emptyDesc": "Cuando apruebes pagos de alquiler aparecerán aquí agrupados por mes.",
+    "grossLabel": "Renta bruta {currency}",
+    "taxLabel": "Impuesto 5 %",
+    "colProperty": "Propiedad",
+    "colTotal": "Total",
+    "colTax": "5 %",
+    "monthlyTax": "5 % mensual {currency}",
+    "disclaimer": "Estimación referencial para el Formulario Virtual 1683 (5 % sobre la renta bruta cobrada). Verifica con tu contador antes de declarar.",
+    "months": {
+      "0": "Ene",
+      "1": "Feb",
+      "2": "Mar",
+      "3": "Abr",
+      "4": "May",
+      "5": "Jun",
+      "6": "Jul",
+      "7": "Ago",
+      "8": "Set",
+      "9": "Oct",
+      "10": "Nov",
+      "11": "Dic"
+    }
+  },
+  "suppliers": {
+    "title": "Proveedores",
+    "subtitle": "Gasfiteros, electricistas y técnicos a los que asignas incidencias.",
+    "newTitle": "Nuevo proveedor",
+    "emptyTitle": "Sin proveedores",
+    "emptyDesc": "Agrega tu primer proveedor para asignarle incidencias.",
+    "inactive": "Inactivo",
+    "noContact": "Sin contacto",
+    "jobs": "{open} abiertas · {total} en total",
+    "edit": "Editar",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "form": {
+      "name": "Nombre",
+      "trade": "Rubro",
+      "phone": "Teléfono",
+      "email": "Correo",
+      "notes": "Notas",
+      "create": "Agregar proveedor",
+      "save": "Guardar",
+      "saved": "Guardado"
+    },
+    "assignment": {
+      "none": "Sin proveedor asignado.",
+      "noSuppliers": "No hay proveedores activos.",
+      "addSupplier": "Agregar proveedor",
+      "supplier": "Proveedor",
+      "assign": "Asignar",
+      "reassign": "Reasignar",
+      "status": "Estado",
+      "quote": "Presupuesto (S/)",
+      "finalCost": "Costo final (S/)",
+      "notes": "Notas"
+    },
+    "trades": {
+      "plumbing": "Gasfitería",
+      "electrical": "Electricidad",
+      "appliance": "Electrodomésticos",
+      "structural": "Estructura y albañilería",
+      "cleaning": "Limpieza",
+      "locksmith": "Cerrajería",
+      "painting": "Pintura",
+      "general": "General"
+    },
+    "statuses": {
+      "assigned": "Asignado",
+      "quoted": "Presupuestado",
+      "approved": "Aprobado",
+      "done": "Terminado",
+      "cancelled": "Cancelado"
+    }
+  },
+  "profitability": {
+    "title": "Rentabilidad por propiedad",
+    "subtitle": "Ingresos cobrados menos gastos del año, separados por moneda.",
+    "exportCsv": "Descargar CSV",
+    "yearNav": "Cambiar año",
+    "property": "Propiedad",
+    "allProperties": "Todas las propiedades",
+    "apply": "Filtrar",
+    "currency": "Moneda",
+    "income": "Ingresos",
+    "expenses": "Gastos",
+    "net": "Neto",
+    "noProperty": "Sin propiedad",
+    "netIn": "Neto en {currency}",
+    "incomeVsExpenses": "{income} ingresos · {expenses} gastos",
+    "emptyTitle": "Sin movimientos",
+    "emptyDesc": "No hay pagos aprobados ni gastos en este año.",
+    "expensesNote": "Los gastos se registran en soles (PEN). Los ingresos en dólares se muestran aparte, sin convertir."
+  },
+  "ownerSettlements": {
+    "title": "Liquidación a propietarios",
+    "subtitle": "Cobros, gastos y comisión de {month} por propietario.",
+    "print": "Imprimir",
+    "exportCsv": "Descargar CSV",
+    "monthNav": "Cambiar mes",
+    "owner": "Propietario",
+    "allOwners": "Todos los propietarios",
+    "apply": "Filtrar",
+    "property": "Propiedad",
+    "income": "Ingresos",
+    "expenses": "Gastos",
+    "commission": "Comisión",
+    "netToOwner": "A transferir",
+    "total": "Total {currency}",
+    "unnamedOwner": "Propietario sin nombre",
+    "emptyTitle": "Sin liquidaciones",
+    "emptyDesc": "No hay movimientos en propiedades vinculadas a un propietario este mes.",
+    "termsTitle": "Propiedades y comisión",
+    "termsDesc": "Vincula cada propiedad con su propietario y el porcentaje de comisión de la administración.",
+    "termsMissingData": "Necesitas al menos un propietario y una propiedad.",
+    "commissionPct": "Comisión %",
+    "saveTerms": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Guardado.",
+    "expensesNote": "La comisión se calcula sobre los ingresos cobrados. Los gastos están en soles (PEN)."
+  },
+  "occupancyHistory": {
+    "title": "Ocupación histórica",
+    "subtitle": "Porcentaje de días ocupados por mes, según las fechas de los contratos.",
+    "yearNav": "Cambiar año",
+    "byMonth": "Ocupación por mes",
+    "property": "Propiedad",
+    "units": "Unidades",
+    "average": "Promedio",
+    "emptyTitle": "Sin unidades",
+    "emptyDesc": "Carga propiedades y unidades para ver su ocupación.",
+    "note": "Una unidad cuenta como ocupada desde el inicio del contrato hasta la salida real o el fin del contrato. Los meses futuros no se calculan."
+  },
+  "adminNotifications": {
+    "title": "Notificaciones",
+    "unread": "{count, plural, =0 {Sin avisos sin leer} one {# aviso sin leer} other {# avisos sin leer}}",
+    "markRead": "Marcar leída",
+    "markAllRead": "Marcar todas como leídas",
+    "open": "Ver",
+    "emptyTitle": "Sin notificaciones",
+    "emptyDesc": "Aquí aparecen los comprobantes por revisar y los pagos registrados automáticamente."
+  },
+  "rentalApplication": {
+    "back": "Volver",
+    "title": "Solicitud de alquiler",
+    "subtitle": "Envía tus datos a {org}. Te contactarán para seguir con el proceso.",
+    "subtitleListing": "Postula a {listing} con {org}.",
+    "submit": "Enviar solicitud",
+    "sending": "Enviando…",
+    "successTitle": "Solicitud enviada",
+    "successBody": "Gracias. El equipo revisará tus datos y te contactará.",
+    "documentsHint": "Hasta {max} archivos: DNI, boletas o constancia de ingresos (JPG, PNG, WEBP o PDF, máx. 1,9 MB cada uno).",
+    "privacy": "Acepto el tratamiento de mis datos según la <link>política de privacidad</link>.",
+    "fields": {
+      "listing_slug": "Inmueble",
+      "full_name": "Nombre completo",
+      "email": "Correo",
+      "phone": "Celular",
+      "monthly_income": "Ingreso mensual (S/)",
+      "employment_type": "Situación laboral",
+      "employment_months": "Meses en el trabajo actual",
+      "household_size": "Personas que vivirán",
+      "move_in_date": "Fecha de mudanza",
+      "has_guarantor": "Tengo aval o garante",
+      "documents": "Documentos",
+      "message": "Mensaje",
+      "privacy_accepted": "Privacidad"
+    },
+    "employment": {
+      "employee": "Dependiente",
+      "self_employed": "Independiente",
+      "retired": "Jubilado",
+      "student": "Estudiante",
+      "other": "Otro"
+    },
+    "errors": {
+      "validation": "Revisa estos campos: {fields}.",
+      "rateLimited": "Demasiados envíos. Intenta más tarde.",
+      "generic": "No pudimos enviar la solicitud. Intenta de nuevo."
+    }
+  },
+  "rentalApplications": {
+    "title": "Postulaciones",
+    "subtitle": "Solicitudes recibidas desde el formulario público, con puntaje de solvencia.",
+    "emptyTitle": "Sin postulaciones",
+    "emptyDesc": "Comparte el enlace /p/tu-empresa/apply o el botón Postular de cada aviso.",
+    "noListing": "Sin inmueble",
+    "score": "{score}/100",
+    "band": {
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
+    },
+    "income": "Ingreso",
+    "rent": "Renta",
+    "employment": "Empleo",
+    "household": "Hogar",
+    "months": "{count, plural, one {# mes} other {# meses}}",
+    "guarantorYes": "con aval",
+    "guarantorNo": "sin aval",
+    "statusLabel": "Estado",
+    "status": {
+      "new": "Nueva",
+      "reviewing": "En revisión",
+      "approved": "Aprobada",
+      "rejected": "Rechazada"
+    },
+    "employmentType": {
+      "employee": "Dependiente",
+      "self_employed": "Independiente",
+      "retired": "Jubilado",
+      "student": "Estudiante",
+      "other": "Otro"
+    }
+  },
   "accountStatements": {
+    "generate": {
+      "title": "Generar estados de cuenta",
+      "hint": "Crea borradores para cada contrato activo con cargos y pagos del mes. No envía nada.",
+      "month": "Mes",
+      "dueDate": "Vencimiento",
+      "submit": "Generar",
+      "done": "{created} creados, {skipped} ya existían"
+    },
     "title": "Estados de Cuenta",
     "subtitle": "{count} estados · {sent} enviados · Total pendiente S/ {total}",
     "emptyTitle": "Sin estados de cuenta",
@@ -1839,6 +2594,7 @@
   "incidentDetail": {
     "cardDescription": "Descripción",
     "cardTimeline": "Línea de Tiempo",
+    "cardSupplier": "Proveedor",
     "cardManage": "Gestionar",
     "noComments": "Sin comentarios aún",
     "reportedBy": "Reportado por",
@@ -1859,7 +2615,21 @@
     "emptyTitle": "Sin comprobantes aún",
     "emptyDesc": "Los comprobantes subidos por inquilinos o administradores aparecerán aquí para procesamiento OCR."
   },
+  "orgSignature": {
+    "current": "Firma guardada de {name}",
+    "currentAlt": "Firma guardada",
+    "signerName": "Nombre del firmante",
+    "signerDocument": "DNI o RUC",
+    "draw": "Dibuja la firma",
+    "clear": "Borrar trazo",
+    "save": "Guardar firma",
+    "saving": "Guardando…",
+    "saved": "Firma guardada.",
+    "error": "No se pudo guardar la firma. Revisa los datos e intenta de nuevo."
+  },
   "contractTemplates": {
+    "cardSignature": "Firma del arrendador",
+    "signatureNote": "Se inserta al final de cada contrato generado. También llena las variables landlord_name y landlord_document.",
     "title": "Plantillas de Contratos",
     "cardVariables": "Variables Disponibles",
     "variablesNote": "Úsalas en el cuerpo de tu plantilla como {{variable_name}}",
@@ -1972,6 +2742,8 @@
   },
   "forms": {
     "createCharge": {
+      "conceptLabel": "Concepto",
+      "selectConcept": "— Elegí un concepto (opcional) —",
       "openButton": "Agregar Cargo",
       "modalTitle": "Nuevo Cargo",
       "selectContract": "Seleccionar contrato",
@@ -1999,6 +2771,8 @@
       "submit": "Crear"
     },
     "contractTemplate": {
+      "previewLabel": "Vista previa con datos de ejemplo",
+      "previewEmpty": "Escribe el cuerpo para ver la vista previa.",
       "saving": "Guardando…",
       "submit": "Crear plantilla",
       "nameLabel": "Nombre de la plantilla",
@@ -2006,6 +2780,7 @@
       "bodyLabel": "(Markdown, usa {{nombre_variable}} para sustitución)"
     },
     "updateIncident": {
+      "estimatedLabel": "Fecha estimada",
       "submit": "Guardar cambios",
       "saved": "Guardado",
       "statusLabel": "Estado",
@@ -2034,7 +2809,12 @@
       "audienceLabel": "Audiencia",
       "audienceAll": "Todos los inquilinos",
       "audienceProperty": "Propiedad específica",
-      "audienceUnit": "Unidad específica"
+      "audienceUnit": "Unidad específica",
+      "propertyLabel": "Propiedad",
+      "unitLabel": "Unidad",
+      "choosePlaceholder": "Elegí una opción",
+      "pinnedLabel": "Fijar arriba",
+      "importantLabel": "Marcar como importante"
     },
     "cleaningTask": {
       "saving": "Guardando…",
@@ -2083,6 +2863,7 @@
       "cancel": "Cancelar"
     },
     "createVisitor": {
+      "passphraseLabel": "Palabra clave (opcional)",
       "logging": "Registrando…",
       "submit": "Registrar visita",
       "nameLabel": "Nombre del visitante",
@@ -2092,6 +2873,8 @@
       "purposePlaceholder": "Entrega, visita, mantenimiento…"
     },
     "createExpenseCategory": {
+      "parentLabel": "Categoría padre",
+      "noParent": "Ninguna (principal)",
       "saving": "Guardando…",
       "submit": "Agregar categoría",
       "nameLabel": "Nombre de categoría",
@@ -2213,7 +2996,19 @@
     "total": "Total histórico",
     "receipt": "Constancia",
     "overLimitAlert": "{count} servicio(s) sobre el tope — S/ {variance} de exceso total",
-    "overBy": "excede en"
+    "overBy": "excede en",
+    "split": {
+      "month": "Mes",
+      "method": "Reparto",
+      "method_equal": "Partes iguales",
+      "method_area": "Por m²",
+      "method_days": "Por días ocupados",
+      "dueDate": "Vencimiento",
+      "submit": "Generar cargos",
+      "hint": "Se reparte solo el exceso sobre el tope entre los contratos de la propiedad que ocuparon ese mes.",
+      "noAmount": "Ese mes no tiene monto registrado.",
+      "done": "{created} cargo(s) creados, {skipped} ya existían."
+    }
   },
   "responsables": {
     "title": "Responsables",
@@ -2263,6 +3058,52 @@
     "openTenant": "Ver inquilino",
     "noUnitsTitle": "Sin unidades",
     "noUnitsDesc": "Carga una propiedad con unidades antes de convertir el lead."
+  },
+  "einvoices": {
+    "title": "Comprobantes electrónicos",
+    "subtitle": "Boletas y facturas SUNAT emitidas desde cargos. IGV 18% incluido en el total.",
+    "emitTitle": "Emitir comprobante",
+    "charge": "Cargo",
+    "docType": "Tipo de comprobante",
+    "boleta": "Boleta",
+    "factura": "Factura",
+    "customerDocType": "Documento del cliente",
+    "dni": "DNI",
+    "ruc": "RUC",
+    "noDocument": "Sin documento (menos de S/ 700)",
+    "customerDocNumber": "Número de documento",
+    "customerName": "Nombre o razón social",
+    "emit": "Emitir",
+    "emitting": "Emitiendo…",
+    "emitted": "Comprobante emitido.",
+    "noChargesTitle": "Sin cargos pendientes",
+    "noChargesDesc": "Todos los cargos ya tienen comprobante o aún no hay cargos.",
+    "emptyTitle": "Sin comprobantes",
+    "emptyDesc": "Los comprobantes emitidos aparecerán aquí.",
+    "colNumber": "Serie-número",
+    "colCustomer": "Cliente",
+    "colTotal": "Total",
+    "colIgv": "IGV",
+    "colDate": "Fecha",
+    "colStatus": "Estado",
+    "pagination": "Paginación",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "status": {
+      "pending": "Pendiente",
+      "accepted_sandbox": "Aceptado (sandbox)",
+      "sent": "Enviado",
+      "accepted": "Aceptado por SUNAT",
+      "rejected": "Rechazado",
+      "error": "Error"
+    },
+    "errors": {
+      "ruc_required": "La factura requiere RUC.",
+      "invalid_ruc": "RUC inválido: debe tener 11 dígitos y dígito verificador correcto.",
+      "dni_or_none_required": "La boleta acepta DNI o sin documento.",
+      "invalid_dni": "El DNI debe tener 8 dígitos.",
+      "document_required": "Para boletas de S/ 700 o más se requiere DNI."
+    }
   },
   "leadsPipeline": {
     "convert": "Convertir en inquilino",
@@ -2385,5 +3226,801 @@
     "linkSettings": "Ir a Configuración del agente",
     "linkAvailability": "Ir a Disponibilidad de asesores",
     "linkInbox": "Ir a Bandeja del agente"
+  },
+  "rentSchedule": {
+    "title": "Generar cargos de alquiler mensuales",
+    "offHelp": "Apagado. Al activarlo, cada mes se crea el cargo de alquiler de cada contrato activo y los inquilinos reciben el recordatorio de pago.",
+    "onHelp": "Activo. Cada mes se crea el cargo de alquiler de cada contrato activo y se envían recordatorios de pago.",
+    "enable": "Activar",
+    "disable": "Desactivar"
+  },
+  "handover": {
+    "inventory": {
+      "title": "Inventario de la unidad",
+      "empty": "Sin ítems. Agrega muebles, electrodomésticos y llaves.",
+      "name": "Ítem",
+      "quantity": "Cant.",
+      "condition": "Estado",
+      "notes": "Notas",
+      "add": "Agregar",
+      "saving": "Guardando…",
+      "delete": "Quitar",
+      "error": "No pudimos guardar el inventario."
+    },
+    "conditions": {
+      "new": "Nuevo",
+      "good": "Bueno",
+      "fair": "Regular",
+      "poor": "Malo",
+      "broken": "Roto"
+    },
+    "kinds": {
+      "check_in": "Acta de entrega (check-in)",
+      "check_out": "Acta de devolución (check-out)"
+    },
+    "statuses": {
+      "draft": "Borrador",
+      "pending_signature": "Pendiente de firma",
+      "signed": "Firmada"
+    },
+    "act": {
+      "title": "Actas de entrega y devolución",
+      "empty": "Todavía no hay actas.",
+      "needsInventory": "Carga el inventario de la unidad para crear un acta.",
+      "kind": "Tipo de acta",
+      "notes": "Observaciones generales",
+      "create": "Crear acta",
+      "creating": "Creando…",
+      "created": "Acta creada.",
+      "error": "No pudimos crear el acta.",
+      "itemCount": "{count} ítems",
+      "generate": "Generar PDF",
+      "regenerate": "Regenerar PDF",
+      "generating": "Generando…",
+      "generateError": "No pudimos generar el PDF del acta.",
+      "send": "Enviar a firmar",
+      "sending": "Enviando…",
+      "sendError": "No pudimos enviar el acta a firmar."
+    },
+    "pdf": {
+      "title": {
+        "check_in": "Acta de entrega e inventario",
+        "check_out": "Acta de devolución e inventario"
+      },
+      "contract": "Contrato",
+      "organization": "Arrendador",
+      "tenant": "Inquilino",
+      "property": "Inmueble",
+      "date": "Fecha",
+      "item": "Ítem",
+      "quantity": "Cant.",
+      "condition": "Estado",
+      "notes": "Notas",
+      "generalNotes": "Observaciones",
+      "landlordSignature": "Arrendador",
+      "tenantSignature": "Inquilino",
+      "missing": "—"
+    }
+  },
+  "documents": {
+    "title": "Documentos",
+    "entities": {
+      "tenant": "Inquilino",
+      "contract": "Contrato",
+      "property": "Propiedad"
+    },
+    "categories": {
+      "identity": "Identidad",
+      "contract": "Contrato",
+      "insurance": "Seguro",
+      "certificate": "Certificado",
+      "invoice": "Factura",
+      "other": "Otro"
+    },
+    "form": {
+      "title": "Subir documento",
+      "entityType": "Asociar a",
+      "choose": "Elegí una opción",
+      "name": "Nombre",
+      "category": "Categoría",
+      "expiresOn": "Vence el",
+      "expiresHint": "Opcional. Aparece en Por vencer 30 días antes.",
+      "file": "Archivo",
+      "fileHint": "PDF, JPG, PNG o WEBP. Máximo 5 MB.",
+      "visibleToTenant": "Visible para el inquilino en su portal",
+      "upload": "Subir",
+      "uploading": "Subiendo…",
+      "uploaded": "Documento subido."
+    },
+    "filters": {
+      "label": "Filtrar documentos",
+      "all": "Todos",
+      "expiring": "Por vencer"
+    },
+    "list": {
+      "title": "Archivo de documentos",
+      "empty": "No hay documentos.",
+      "expires": "vence {date}",
+      "visible": "Visible al inquilino",
+      "open": "Abrir",
+      "opening": "Abriendo…",
+      "delete": "Eliminar"
+    },
+    "expiry": {
+      "expired": "Vencido",
+      "soon": "Vence pronto"
+    },
+    "errors": {
+      "upload": "No se pudo subir el documento. Revisá los datos y el archivo.",
+      "delete": "No se pudo eliminar el documento.",
+      "open": "No se pudo abrir el documento."
+    },
+    "portal": {
+      "title": "Mis documentos",
+      "noTenant": "Sin ficha de inquilino",
+      "noTenantHint": "Contactá a tu administrador."
+    }
+  },
+  "dataImport": {
+    "title": "Importar desde otro software",
+    "description": "Subí un CSV exportado de tu sistema anterior. Primero revisá la vista previa: solo se crean las filas nuevas, nunca se modifican ni borran registros existentes.",
+    "kind": "Qué importar",
+    "file": "Archivo CSV",
+    "columns": "Columnas:",
+    "kinds": {
+      "properties": "Propiedades",
+      "units": "Unidades",
+      "owners": "Propietarios"
+    },
+    "hints": {
+      "properties": "Solo name es obligatorio. Se omiten nombres que ya existen.",
+      "units": "property_name debe coincidir con una propiedad existente. toilet_type: shared, private o none.",
+      "owners": "Solo name es obligatorio. Se omiten DNI o nombres que ya existen."
+    },
+    "preview": "Vista previa",
+    "commit": "Importar {count} filas nuevas",
+    "done": "Listo: {inserted} creadas, {skipped} omitidas.",
+    "row": "Fila",
+    "record": "Registro",
+    "result": "Resultado",
+    "status": {
+      "new": "Nueva",
+      "duplicate": "Ya existe",
+      "invalid": "Inválida",
+      "unknown_property": "Propiedad no encontrada"
+    },
+    "errors": {
+      "preview": "No se pudo leer el archivo. Revisá que sea un CSV de hasta 5 MB.",
+      "commit": "No se pudo importar. Probá de nuevo."
+    }
+  },
+  "ownerPortal": {
+    "title": "Portal de {name}",
+    "subtitle": "Liquidación de {month}",
+    "monthNav": "Cambiar mes",
+    "emptyTitle": "Sin movimientos",
+    "emptyDesc": "No hay ingresos ni gastos registrados en este mes.",
+    "readOnlyNote": "Vista de solo lectura compartida por tu administrador. Ingresos aprobados menos gastos y comisión.",
+    "rateLimited": "Demasiadas visitas seguidas. Esperá un minuto y recargá.",
+    "adminTitle": "Portal del propietario",
+    "adminDesc": "Generá un link privado de solo lectura para que el propietario vea sus liquidaciones. Vence a los 90 días; crear uno nuevo revoca el anterior.",
+    "noOwners": "Primero cargá propietarios.",
+    "owner": "Propietario",
+    "create": "Generar link",
+    "creating": "Generando…",
+    "created": "Link creado. Copialo ahora: no se vuelve a mostrar.",
+    "linkLabel": "Link del portal",
+    "expires": "vence {date}",
+    "lastViewed": "visto {date}",
+    "neverViewed": "nunca visto",
+    "revoke": "Revocar",
+    "revoking": "Revocando…"
+  },
+  "team": {
+    "title": "Equipo y permisos",
+    "description": "Limitá qué puede ver y editar cada administrador de tu organización.",
+    "roleLabel": "Rol",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Guardado",
+    "error": "No se pudo guardar.",
+    "you": "Vos (administrador)",
+    "onlyYou": "Por ahora sos el único administrador de la organización.",
+    "roles": {
+      "admin": "Administrador",
+      "finance": "Finanzas",
+      "operations": "Operaciones",
+      "viewer": "Solo lectura"
+    },
+    "roleHelp": {
+      "admin": "acceso completo, incluido este panel.",
+      "finance": "ve y edita solo Finanzas.",
+      "operations": "ve y edita solo Incidencias.",
+      "viewer": "ve Finanzas e Incidencias sin editar."
+    }
+  },
+  "ownerAssistantBot": {
+    "help": "Asistente Propflow. Escribí:\n• GASTO 120 pintura (gasto)\n• PAGO 1500 Juan Pérez (pago aprobado)\n• Enviá la foto de un comprobante para registrarlo como gasto.\n• También podés mandar un audio con lo mismo.",
+    "notUnderstood": "No entendí. Escribí AYUDA para ver los comandos.",
+    "defaultExpense": "Gasto por WhatsApp",
+    "expenseSaved": "Gasto registrado: S/ {amount} — {description}.",
+    "receiptSaved": "Comprobante registrado como gasto: S/ {amount} — {description}.",
+    "paymentSaved": "Pago aprobado: S/ {amount} de {name}.",
+    "tenantNotFound": "No encontré un inquilino con contrato activo que coincida con \"{query}\".",
+    "tenantAmbiguous": "Hay varios inquilinos que coinciden: {names}. Escribí el nombre completo.",
+    "photoOnly": "Solo puedo leer fotos (JPG, PNG o WEBP). Mandá una foto del comprobante.",
+    "receiptUnreadable": "No pude leer el monto del comprobante. Registralo con GASTO <monto> <detalle>.",
+    "voiceDisabled": "Los audios no están activados. Escribí el mensaje.",
+    "voiceUnreadable": "No pude entender el audio. Probá de nuevo o escribilo.",
+    "heard": "Entendí: \"{text}\"",
+    "alreadyLinked": "Este número ya está vinculado.",
+    "failed": "Algo falló. Probá de nuevo en un rato.",
+    "link_verified": "Número vinculado. Escribí AYUDA para ver qué podés hacer.",
+    "link_invalid": "Código incorrecto.",
+    "link_expired": "El código venció. Generá uno nuevo desde Propflow.",
+    "link_locked": "Demasiados intentos. Generá un código nuevo desde Propflow."
+  },
+  "ownerAssistant": {
+    "title": "Asistente de WhatsApp",
+    "description": "Registrá gastos y pagos escribiendo, con fotos de comprobantes o audios, desde tu WhatsApp.",
+    "phoneLabel": "Tu WhatsApp (con código de país)",
+    "generate": "Generar código",
+    "generating": "Generando…",
+    "phoneTaken": "Ese número ya está vinculado a otro administrador.",
+    "error": "No se pudo generar el código. Revisá el número.",
+    "sendThis": "Desde ese WhatsApp, enviá este mensaje al número de Propflow:",
+    "expires": "Vence a las {time}.",
+    "linkedTo": "Vinculado a {phone}.",
+    "unlink": "Desvincular",
+    "commandsTitle": "Qué podés enviar",
+    "cmdExpense": "registra un gasto",
+    "cmdPayment": "registra un pago aprobado del inquilino",
+    "cmdPhoto": "Una foto del comprobante: se lee el monto y se registra como gasto.",
+    "cmdVoice": "Un audio diciendo lo mismo.",
+    "cmdVoiceOff": "Audios: desactivados (requiere configurar transcripción).",
+    "activityTitle": "Actividad reciente",
+    "noActivity": "Todavía no hay mensajes.",
+    "kinds": {
+      "text": "Texto",
+      "image": "Foto",
+      "audio": "Audio",
+      "document": "Documento"
+    }
+  },
+  "calculators": {
+    "title": "Calculadoras para propietarios",
+    "intro": "Herramientas gratis para calcular la rentabilidad de un alquiler, reajustar la renta y repartir gastos comunes entre unidades.",
+    "cta": "Probar PropFlow",
+    "disclaimer": "Resultados orientativos. No constituyen asesoría financiera ni tributaria.",
+    "yield": {
+      "title": "Rentabilidad de un alquiler",
+      "desc": "Rentabilidad bruta y neta anual considerando gastos y meses vacíos.",
+      "price": "Precio de la propiedad",
+      "rent": "Renta mensual",
+      "expenses": "Gastos mensuales (mantenimiento, arbitrios, seguro)",
+      "vacancy": "Meses vacíos al año",
+      "gross": "Rentabilidad bruta",
+      "net": "Rentabilidad neta",
+      "annualNet": "Ingreso neto anual",
+      "payback": "Recupero de la inversión",
+      "years": "{years} años"
+    },
+    "adjustment": {
+      "title": "Reajuste de renta",
+      "desc": "Nueva renta tras aplicar un porcentaje (por ejemplo, inflación anual).",
+      "rent": "Renta actual",
+      "percent": "Reajuste (%)",
+      "newRent": "Nueva renta",
+      "difference": "Diferencia mensual"
+    },
+    "split": {
+      "title": "Reparto de gastos comunes",
+      "desc": "Dividí un gasto entre unidades en partes iguales o según m².",
+      "total": "Monto total",
+      "byArea": "Repartir por m²",
+      "unit": "Unidad",
+      "area": "m²",
+      "share": "Le toca",
+      "remove": "Quitar unidad",
+      "add": "+ Agregar unidad"
+    }
+  },
+  "polls": {
+    "title": "Encuestas",
+    "adminSubtitle": "Consultá a los residentes y mirá los resultados en vivo.",
+    "createTitle": "Nueva encuesta",
+    "questionLabel": "Pregunta",
+    "questionPlaceholder": "¿Pintamos el hall de entrada este año?",
+    "optionsLabel": "Opciones",
+    "optionsPlaceholder": "Sí\nNo\nMe da igual",
+    "optionsHint": "Una opción por línea, entre 2 y 8.",
+    "closesOnLabel": "Cierra el (opcional)",
+    "create": "Publicar encuesta",
+    "close": "Cerrar",
+    "open": "Abierta",
+    "closed": "Cerrada",
+    "totalVotes": "{count, plural, one {# voto} other {# votos}}",
+    "closesOn": "cierra el {date}",
+    "votes": "votos",
+    "vote": "Votar",
+    "chooseOption": "Elegí una opción",
+    "emptyTitle": "Sin encuestas",
+    "emptyAdminDesc": "Creá la primera encuesta para conocer la opinión de los residentes.",
+    "emptyPortalDesc": "La administración todavía no publicó encuestas."
+  },
+  "tenantMessages": {
+    "inboxTitle": "Mensajes de inquilinos",
+    "inboxSubtitle": "Consultas, pedidos y reclamos enviados desde el portal.",
+    "portalTitle": "Mensajes a la administración",
+    "newMessage": "Nuevo mensaje",
+    "filterLabel": "Filtrar por estado",
+    "all": "Todos",
+    "kindLabel": "Tipo",
+    "subjectLabel": "Asunto",
+    "bodyLabel": "Mensaje",
+    "send": "Enviar",
+    "replyLabel": "Respuesta",
+    "replyPlaceholder": "Escribí la respuesta para el inquilino",
+    "sendReply": "Responder",
+    "updateReply": "Actualizar respuesta",
+    "replyHeading": "Respuesta de la administración",
+    "close": "Cerrar",
+    "unknownSender": "Inquilino",
+    "emptyTitle": "Sin mensajes",
+    "emptyInboxDesc": "Los mensajes que envíen los inquilinos aparecerán acá.",
+    "emptyPortalDesc": "Todavía no enviaste mensajes.",
+    "attachmentLabel": "Adjunto (opcional)",
+    "attachmentHint": "Una imagen (JPEG, PNG, WebP) o un PDF, hasta 5 MB.",
+    "attachmentInvalid": "El adjunto debe ser un archivo JPEG, PNG, WebP o PDF de hasta 5 MB.",
+    "attachmentOpen": "Abrir adjunto {name}",
+    "attachmentSize": "{kb} KB",
+    "kind": {
+      "question": "Consulta",
+      "request": "Pedido",
+      "complaint": "Reclamo",
+      "suggestion": "Sugerencia"
+    },
+    "status": {
+      "open": "Abierto",
+      "answered": "Respondido",
+      "closed": "Cerrado"
+    }
+  },
+  "periodClose": {
+    "title": "Cierre de mes",
+    "subtitle": "Un mes cerrado bloquea cargar o editar gastos, pagos y cargos con fecha en ese mes.",
+    "closeTitle": "Cerrar un mes",
+    "periodLabel": "Mes",
+    "noteLabel": "Nota (opcional)",
+    "notePlaceholder": "Conciliado con el banco",
+    "close": "Cerrar mes",
+    "reopen": "Reabrir",
+    "closedOn": "Cerrado el {date} por {name}",
+    "emptyTitle": "Sin meses cerrados",
+    "emptyDesc": "Cerrá un mes cuando termines de conciliarlo."
+  },
+  "expenses": {
+    "title": "Gastos",
+    "addExpense": "Registrar gasto",
+    "manageCategories": "Administrar categorías",
+    "descriptionLabel": "Descripción",
+    "amountLabel": "Monto",
+    "dateLabel": "Fecha",
+    "kindLabel": "Tipo",
+    "categoryLabel": "Categoría",
+    "propertyLabel": "Propiedad",
+    "none": "Sin asignar",
+    "monthLabel": "Mes",
+    "allKinds": "Todos",
+    "filter": "Filtrar",
+    "total": "Total",
+    "saving": "Guardando…",
+    "submit": "Guardar gasto",
+    "emptyTitle": "Sin gastos",
+    "emptyDesc": "No hay gastos registrados para este mes.",
+    "kind": {
+      "ordinary": "Ordinario",
+      "extraordinary": "Extraordinario"
+    }
+  },
+  "visitorAccess": {
+    "portalTitle": "Visitas",
+    "registerVisitor": "Registrar visita",
+    "recentVisits": "Visitas recientes",
+    "emptyVisits": "Todavía no registraste visitas.",
+    "noActiveUnit": "Necesitás un contrato activo para gestionar visitas.",
+    "passphraseLabel": "Palabra clave",
+    "passphraseOptional": "Palabra clave (opcional)",
+    "passphraseHint": "Mínimo 5 caracteres. La portería la pide al visitante para validar el ingreso.",
+    "checkPassphrase": "Validar palabra clave",
+    "check": "Validar",
+    "clear": "Limpiar",
+    "authorizedTitle": "Personas autorizadas permanentes",
+    "authorizedAdminDesc": "Personas que pueden ingresar a una unidad sin registrar cada visita.",
+    "authorizedPortalDesc": "Personas que pueden ingresar a tu unidad sin que registres cada visita.",
+    "unitLabel": "Unidad",
+    "chooseUnit": "Elegí una unidad",
+    "fullNameLabel": "Nombre completo",
+    "documentLabel": "Documento (opcional)",
+    "relationshipLabel": "Relación (opcional)",
+    "relationshipPlaceholder": "Familiar, niñera, chofer…",
+    "addAuthorized": "Agregar autorizado",
+    "saving": "Guardando…",
+    "remove": "Quitar",
+    "emptyAuthorized": "No hay personas autorizadas."
+  },
+  "activity": {
+    "title": "Actividad de la administración",
+    "subtitle": "Lo que hizo la administración en tu comunidad.",
+    "from": "Desde",
+    "to": "Hasta",
+    "filter": "Filtrar",
+    "clear": "Limpiar",
+    "empty": "Sin actividad en este período.",
+    "action": {
+      "announcement_published": "Publicó un aviso",
+      "expense_recorded": "Registró un gasto",
+      "incident_resolved": "Resolvió una incidencia",
+      "cleaning_scheduled": "Programó una limpieza"
+    }
+  },
+  "staff": {
+    "title": "Personal del edificio",
+    "adminSubtitle": "Encargados, porteros, seguridad y limpieza. Teléfono y documento solo visibles para administración.",
+    "portalSubtitle": "Quién trabaja en tu edificio y en qué turno.",
+    "addTitle": "Agregar persona",
+    "propertyLabel": "Propiedad",
+    "allProperties": "Todas las propiedades",
+    "fullNameLabel": "Nombre completo",
+    "positionLabel": "Cargo",
+    "positionPlaceholder": "Portero, conserje, seguridad…",
+    "shiftLabel": "Turno",
+    "shiftPlaceholder": "Lun–Vie 8–16",
+    "phoneLabel": "Teléfono",
+    "documentLabel": "Documento",
+    "add": "Agregar",
+    "saving": "Guardando…",
+    "remove": "Quitar",
+    "empty": "Todavía no hay personal cargado."
+  },
+  "communities": {
+    "title": "Acceso multi-comunidad",
+    "subtitle": "Sumá usuarios que ya tienen cuenta en Propflow para que accedan a esta comunidad sin perder la suya. Cambian de comunidad con el selector.",
+    "addTitle": "Dar acceso",
+    "emailLabel": "Email de la cuenta",
+    "roleLabel": "Rol",
+    "role": {
+      "admin": "Administrador",
+      "tenant": "Inquilino"
+    },
+    "add": "Dar acceso",
+    "saving": "Guardando…",
+    "remove": "Quitar acceso",
+    "empty": "Nadie más tiene acceso a esta comunidad.",
+    "switchLabel": "Comunidad activa",
+    "switch": "Cambiar"
+  },
+  "maintenanceStats": {
+    "title": "Estadísticas de mantenimiento",
+    "subtitle": "Tiempo medio de resolución e incidencias por propiedad y categoría.",
+    "back": "← Incidencias",
+    "total": "Total",
+    "open": "Abiertas",
+    "solved": "Resueltas",
+    "avgResolution": "Resolución media",
+    "days": "{count} días",
+    "byProperty": "Por propiedad",
+    "byCategory": "Por categoría",
+    "property": "Propiedad",
+    "noProperty": "Sin propiedad",
+    "empty": "Sin incidencias aún."
+  },
+  "recurringExpenses": {
+    "title": "Gastos recurrentes",
+    "subtitle": "Gastos que se repiten cada mes (vigilancia, internet, mantenimiento). Se registran como gastos normales al generar el mes.",
+    "back": "← Finanzas",
+    "addTitle": "Nuevo gasto recurrente",
+    "description": "Descripción",
+    "amount": "Monto (S/)",
+    "day": "Día del mes (1–28)",
+    "property": "Propiedad",
+    "category": "Categoría",
+    "none": "Ninguna",
+    "add": "Agregar",
+    "saving": "Guardando…",
+    "generate": "Generar gastos de {period}",
+    "generating": "Generando…",
+    "generated": "{count, plural, =0 {No había gastos pendientes} one {# gasto creado} other {# gastos creados}}",
+    "generateHint": "Cada plantilla activa crea un gasto por mes como máximo; repetir no duplica.",
+    "empty": "Sin gastos recurrentes aún.",
+    "everyMonth": "Día {day} de cada mes",
+    "lastPeriod": "Último: {period}",
+    "neverGenerated": "Nunca generado",
+    "paused": "Pausado",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "remove": "Eliminar"
+  },
+  "incidentNotification": {
+    "title": {
+      "pending": "Tu incidencia está pendiente",
+      "in_progress": "Tu incidencia está en progreso",
+      "solved": "Tu incidencia fue resuelta"
+    },
+    "body": "\"{title}\" ahora está: {status}.",
+    "status": {
+      "pending": "Pendiente",
+      "in_progress": "En progreso",
+      "solved": "Resuelta"
+    }
+  },
+  "incidentSla": {
+    "breached": "SLA vencido",
+    "due": "SLA: {date}",
+    "met": "SLA cumplido",
+    "metLate": "Resuelto fuera de SLA"
+  },
+  "incidentHistory": {
+    "title": "Historial de estados",
+    "empty": "Sin cambios de estado todavía.",
+    "unknown": "Desconocido"
+  },
+  "documentExpirations": {
+    "title": "Vencimientos de documentos",
+    "subtitle": "DNI, seguros y certificados. Alerta 30 días antes de vencer.",
+    "addTitle": "Agregar documento",
+    "kind": "Tipo",
+    "label": "Descripción",
+    "expiresOn": "Vence el",
+    "tenant": "Inquilino",
+    "property": "Propiedad",
+    "none": "Ninguno",
+    "add": "Agregar",
+    "saving": "Guardando…",
+    "remove": "Eliminar",
+    "empty": "Sin documentos registrados.",
+    "expires": "Vence: {date}",
+    "kinds": {
+      "dni": "DNI",
+      "insurance": "Seguro",
+      "certificate": "Certificado",
+      "other": "Otro"
+    },
+    "status": {
+      "expired": "Vencido",
+      "soon": "Por vencer",
+      "ok": "Vigente"
+    }
+  },
+  "expiringDocumentsBanner": {
+    "summary": "Documentos: {expired} vencidos y {soon} por vencer en 30 días.",
+    "review": "Revisar"
+  },
+  "propertyComparison": {
+    "back": "Propiedades",
+    "title": "Comparar propiedades",
+    "subtitle": "Elige hasta {max} propiedades. Cobrado y gastos: últimos {months} meses.",
+    "pick": "Propiedades a comparar",
+    "compare": "Comparar",
+    "empty": "Elige al menos una propiedad.",
+    "metric": "Métrica",
+    "metrics": {
+      "units": "Unidades ocupadas",
+      "occupancy": "Ocupación",
+      "contractedRent": "Renta contratada / mes",
+      "collected": "Cobrado",
+      "expenses": "Gastos",
+      "net": "Neto",
+      "openIncidents": "Incidencias abiertas"
+    }
+  },
+  "propertyGroups": {
+    "back": "Propiedades",
+    "title": "Grupos de propiedades",
+    "subtitle": "Agrupa propiedades (zona, propietario, edificio) y mira el reporte consolidado de los últimos 12 meses.",
+    "newGroup": "Nuevo grupo",
+    "name": "Nombre del grupo",
+    "members": "Propiedades",
+    "create": "Crear grupo",
+    "saving": "Guardando…",
+    "remove": "Eliminar",
+    "empty": "Sin grupos aún.",
+    "viewReport": "Ver reporte",
+    "reportTitle": "Reporte: {name}",
+    "total": "Total grupo"
+  },
+  "globalSearchBox": {
+    "label": "Buscar",
+    "placeholder": "Buscar inquilinos, unidades…"
+  },
+  "globalSearch": {
+    "title": "Búsqueda",
+    "placeholder": "Nombre, email, teléfono, documento, unidad…",
+    "submit": "Buscar",
+    "hint": "Escribe al menos {min} caracteres.",
+    "noResults": "Sin resultados para “{query}”.",
+    "kinds": {
+      "tenant": "Inquilinos",
+      "property": "Propiedades",
+      "unit": "Unidades",
+      "incident": "Incidencias",
+      "lead": "Leads"
+    }
+  },
+  "opsCalendar": {
+    "title": "Calendario operativo",
+    "subtitle": "Contratos, cobros, limpiezas y visitas en un solo lugar.",
+    "download": "Descargar .ics",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "empty": "Sin eventos este mes.",
+    "kinds": {
+      "contract_start": "Inicio de contrato",
+      "contract_end": "Fin de contrato",
+      "charge_due": "{count, plural, one {# cobro vence} other {# cobros vencen}}",
+      "cleaning": "Limpieza",
+      "visit": "Visita"
+    }
+  },
+  "unitBeds": {
+    "title": "Camas",
+    "subtitle": "Divide la unidad en camas con renta propia. Los totales suman hacia la unidad.",
+    "label": "Nombre de la cama",
+    "rent": "Renta mensual",
+    "add": "Agregar cama",
+    "saving": "Guardando...",
+    "tenant": "Inquilino",
+    "vacant": "Libre",
+    "assign": "Asignar",
+    "remove": "Eliminar",
+    "empty": "Esta unidad no tiene camas.",
+    "noRent": "Sin renta",
+    "stats": {
+      "beds": "Camas",
+      "occupied": "Ocupadas",
+      "potentialRent": "Renta potencial",
+      "occupiedRent": "Renta ocupada"
+    }
+  },
+  "unitCalendar": {
+    "back": "← Volver a la unidad",
+    "title": "Calendario y sincronización",
+    "subtitle": "Sincroniza la disponibilidad de esta unidad con Airbnb, Booking o Vrbo mediante enlaces iCal.",
+    "enable": "Activar calendario",
+    "saving": "Guardando…",
+    "exportTitle": "Exportar a Airbnb / Booking",
+    "exportHelp": "Pega este enlace en \"Importar calendario\" del canal. Publica solo fechas ocupadas por contratos activos, sin datos del inquilino.",
+    "importTitle": "Importar reservas del canal",
+    "importHelp": "Pega el enlace de exportación iCal de Airbnb, Booking o Vrbo. Se sincroniza cada hora.",
+    "importUrl": "Enlace iCal del canal",
+    "save": "Guardar",
+    "syncNow": "Sincronizar ahora",
+    "syncing": "Sincronizando…",
+    "lastSynced": "Última sincronización: {date}",
+    "neverSynced": "Aún no sincronizado",
+    "syncError": "Error: {error}",
+    "blocksTitle": "Próximos bloqueos del canal",
+    "noBlocks": "Sin bloqueos próximos.",
+    "range": "{from} → {to}",
+    "blocked": "Bloqueado"
+  },
+  "payLink": {
+    "title": "Pago de alquiler",
+    "greeting": "Hola, {name}",
+    "concept": "Concepto",
+    "defaultConcept": "Cobro de alquiler",
+    "dueDate": "Vence",
+    "amount": "Monto",
+    "paid": "Pagado en línea. ¡Gracias!",
+    "unavailable": "Este link de pago ya no está disponible. Pide uno nuevo a tu administrador.",
+    "sandboxNotice": "Modo de prueba: no se cobrará dinero real.",
+    "simulate": "Simular pago",
+    "payWithMercadoPago": "Pagar con Mercado Pago",
+    "methods": "Tarjeta, Yape, Plin o transferencia vía Mercado Pago",
+    "rateLimited": "Demasiadas solicitudes. Intenta de nuevo en un momento."
+  },
+  "onlinePayments": {
+    "title": "Pagos en línea",
+    "subtitle": "Links de pago por cobro: tarjeta, Yape, Plin o transferencia vía Mercado Pago. Se concilian solos al confirmarse el pago.",
+    "createTitle": "Crear link de pago",
+    "emptyTitle": "Aún no hay links de pago",
+    "emptyDescription": "Crea un link desde un cobro y compártelo con tu inquilino.",
+    "colTenant": "Inquilino",
+    "colConcept": "Concepto",
+    "colAmount": "Monto",
+    "colStatus": "Estado",
+    "colPaid": "Pagado",
+    "colLink": "Link",
+    "openLink": "Abrir",
+    "next": "Siguiente",
+    "unknownTenant": "Sin inquilino",
+    "defaultConcept": "Cobro de alquiler",
+    "status": {
+      "pending": "Pendiente",
+      "paid": "Pagado en línea",
+      "expired": "Vencido",
+      "failed": "Fallido"
+    },
+    "provider": {
+      "sandbox": "Prueba",
+      "mercadopago": "Mercado Pago"
+    }
+  },
+  "onlinePaymentsForm": {
+    "chargeLabel": "Cobro",
+    "selectCharge": "Selecciona un cobro",
+    "submit": "Crear link de pago",
+    "linkLabel": "Link para compartir",
+    "copy": "Copiar",
+    "copied": "Copiado"
+  },
+  "notificationPreferences": {
+    "title": "Configuración de correos",
+    "description": "Elige qué correos quieres recibir.",
+    "leaseRenewal": "Renovación de contrato",
+    "leaseRenewalHint": "Aviso cuando tu contrato está por vencer (30 días antes).",
+    "paymentDue": "Pagos por vencer",
+    "paymentDueHint": "Aviso cuando un pago vence en los próximos 3 días.",
+    "alwaysSent": "Los correos esenciales siempre se envían: invitaciones al portal y solicitudes de firma de contrato. Seguirás viendo los avisos en tus notificaciones del portal.",
+    "save": "Guardar",
+    "saved": "Preferencias guardadas",
+    "error": "No se pudieron guardar tus preferencias. Inténtalo de nuevo."
+  },
+  "payables": {
+    "title": "Cuentas por pagar",
+    "back": "← Finanzas",
+    "totals": {
+      "pending": "Total pendiente",
+      "overdue": "Total vencido"
+    },
+    "form": {
+      "title": "Nueva obligación de pago",
+      "supplier": "Proveedor",
+      "description": "Detalle",
+      "documentRef": "Doc. referencia",
+      "amount": "Monto (S/)",
+      "issuedOn": "Fecha",
+      "dueOn": "Fecha de vencimiento",
+      "property": "Propiedad",
+      "category": "Categoría",
+      "none": "Ninguna",
+      "create": "Registrar obligación",
+      "saving": "Guardando…",
+      "created": "Obligación registrada"
+    },
+    "filters": {
+      "status": "Estado",
+      "all": "Todos",
+      "dueFrom": "Vence desde",
+      "dueTo": "Vence hasta",
+      "apply": "Filtrar"
+    },
+    "status": {
+      "pending": "Pendiente",
+      "partial": "Pago parcial",
+      "paid": "Pagada",
+      "overdue": "Vencida"
+    },
+    "columns": {
+      "issuedOn": "Fecha",
+      "supplier": "Proveedor",
+      "description": "Detalle",
+      "documentRef": "Doc. referencia",
+      "amount": "Monto",
+      "saldo": "Saldo",
+      "dueOn": "Vencimiento",
+      "status": "Estado"
+    },
+    "empty": {
+      "title": "Sin obligaciones de pago",
+      "description": "Registra facturas de proveedores para controlar saldos y vencimientos."
+    },
+    "payment": {
+      "open": "Registrar pago",
+      "submit": "Guardar pago",
+      "amount": "Monto",
+      "paidOn": "Fecha de pago",
+      "note": "Nota"
+    }
   }
 }

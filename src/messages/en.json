@@ -1,4 +1,16 @@
 {
+  "chargeConcepts": {
+    "title": "Charge concepts",
+    "subtitle": "Reusable concepts with a default amount for manual charges",
+    "add": "Add concept",
+    "description": "Description",
+    "code": "Code",
+    "baseAmount": "Default amount (S/)",
+    "save": "Save",
+    "saved": "Saved",
+    "emptyTitle": "No concepts yet",
+    "emptyDesc": "Create concepts like maintenance, water or parking to fill charges faster."
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -53,6 +65,8 @@
     "createButton": "Create"
   },
   "navigation": {
+    "documents": "Documents",
+    "calendar": "Calendar",
     "dashboard": "Dashboard",
     "properties": "Properties",
     "units": "Units",
@@ -62,10 +76,16 @@
     "incidents": "Incidents",
     "finance": "Finance",
     "reminders": "Reminders",
+    "expirations": "Expirations",
     "announcements": "Announcements",
+    "staff": "Staff",
+    "communities": "Communities",
     "cleaning": "Cleaning",
     "leads": "Leads",
     "community": "Community",
+    "polls": "Polls",
+    "tenantMessages": "Messages",
+    "periodClose": "Month close",
     "visitors": "Visitors",
     "aiAssistant": "AI Assistant",
     "whatsapp": "WhatsApp",
@@ -88,12 +108,33 @@
     "forecasting": "Forecasting",
     "portfolio": "Portfolio",
     "pricingTables": "Pricing Tables",
+    "apiKeys": "API",
     "adminImport": "Import",
+    "team": "Team",
+    "ownerAssistant": "WhatsApp assistant",
+    "branding": "Branding",
     "adminTenants": "Tenants (Admin)",
     "importHistory": "Import History",
+    "deposits": "Deposits",
+    "rentAdjustments": "Rent adjustments",
+    "cashAccounts": "Cash and banks",
+    "budget": "Budget",
+    "amenities": "Common areas",
+    "assets": "Assets",
+    "bankReconciliation": "Bank reconciliation",
+    "rentalTax": "Rental income tax",
+    "suppliers": "Suppliers",
+    "profitability": "Profitability",
+    "ownerSettlements": "Settlements",
+    "occupancyHistory": "Occupancy history",
+    "adminNotifications": "Notifications",
+    "rentalApplications": "Applications",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
+    "chargeConcepts": "Charge Concepts",
+    "onlinePayments": "Online Payments",
     "taxReceipts": "Tax Receipts",
+    "einvoices": "E-invoices",
     "tenantFeedback": "Tenant Feedback",
     "sectionFinance": "Finance",
     "sectionOps": "Operations",
@@ -105,7 +146,8 @@
     "mainNav": "Main navigation",
     "utilities": "Utilities",
     "responsables": "Responsables",
-    "agentQa": "Agent QA"
+    "agentQa": "Agent QA",
+    "payables": "Accounts payable"
   },
   "tenants": {
     "title": "Tenants",
@@ -292,9 +334,12 @@
     "emptyTitle": "No properties yet",
     "emptyDesc": "Add your first property to start managing units and tenants.",
     "occupied": "occupied",
-    "rooms": "rooms"
+    "rooms": "rooms",
+    "compare": "Compare",
+    "groups": "Groups"
   },
   "payments": {
+    "reconcileLink": "Reconcile with bank",
     "title": "Payments",
     "list": {
       "pendingApproval": "{count} pending approval",
@@ -305,7 +350,8 @@
       "colDate": "Date",
       "colMethod": "Method",
       "colStatus": "Status",
-      "colAction": "Action"
+      "colAction": "Action",
+      "receipt": "Proof"
     },
     "record": "Record Payment",
     "approve": "Approve",
@@ -368,7 +414,59 @@
     },
     "analytics": "Analytics"
   },
+  "contractDetail": {
+    "back": "Contracts",
+    "documentTitle": "Document",
+    "signaturesTitle": "Signatures and evidence",
+    "noTemplates": "Create a template in Contracts → Templates to generate the PDF.",
+    "template": "Template",
+    "generate": "Generate PDF",
+    "regenerate": "Regenerate PDF",
+    "generating": "Generating…",
+    "generateError": "We could not generate the PDF. Try again.",
+    "viewPdf": "View PDF",
+    "sendForSignature": "Send for signature",
+    "sending": "Sending…",
+    "sendHint": "A signing link will be emailed to {email}.",
+    "needsPdf": "Generate the PDF before sending it for signature.",
+    "needsEmail": "The tenant has no email.",
+    "sendError": "We could not send the signature request.",
+    "sent": "Signature request sent.",
+    "noSignatures": "Not sent for signature yet.",
+    "certificate": {
+      "title": "Electronic signature certificate",
+      "intro": "This certificate accompanies the contract and records the signing evidence. The SHA-256 hash identifies the exact PDF that was signed: any change to the file produces a different hash.",
+      "contract": "Contract",
+      "organization": "Landlord",
+      "tenant": "Tenant",
+      "property": "Property",
+      "term": "Term",
+      "signer": "Signer",
+      "sentAt": "Sent (UTC)",
+      "viewedAt": "Opened (UTC)",
+      "signedAt": "Signed (UTC)",
+      "ip": "IP",
+      "userAgent": "Browser",
+      "documentHash": "PDF SHA-256",
+      "signatureHash": "Signature SHA-256",
+      "landlordSignature": "Landlord",
+      "tenantSignature": "Tenant",
+      "missing": "—"
+    },
+    "certificateLoading": "Generating…",
+    "certificateError": "We could not generate the certificate.",
+    "certificateButton": "Certificate PDF"
+  },
   "contracts": {
+    "renew": {
+      "open": "Renew",
+      "months": "Months",
+      "rent": "New monthly rent",
+      "hint": "Starts the day after the current end date.",
+      "submit": "Renew contract",
+      "done": "Renewed",
+      "notActive": "Only active contracts can be renewed."
+    },
     "title": "Contracts",
     "list": {
       "emptyTitle": "No contracts yet",
@@ -401,6 +499,16 @@
     }
   },
   "incidents": {
+    "schedule": {
+      "overdue": "Overdue",
+      "scheduled": "Scheduled",
+      "overdueCount": "overdue",
+      "showOverdue": "Show overdue",
+      "showAll": "Show all",
+      "estimated": "Due",
+      "responsible": "Owner:",
+      "unassigned": "unassigned"
+    },
     "title": "Incidents",
     "list": {
       "emptyTitle": "No incidents yet",
@@ -440,6 +548,7 @@
       "high": "High — address within 24–48 h",
       "urgent": "Urgent — immediate action required"
     },
+    "statsLink": "Stats",
     "noIncidents": "No incidents",
     "kpi": {
       "totalCost": "Total Cost",
@@ -497,6 +606,7 @@
     "errorGeneric": "Something went wrong. Please try again."
   },
   "agentWidget": {
+    "portalFeed": "XML feed for listing portals (Urbania, Adondevivir, Infocasas via their integrator):",
     "title": "Web widget",
     "noDisplayPhoneWarning": "You haven't set the WhatsApp number visitors see yet. Without it, the widget can't offer the continue-on-WhatsApp button.",
     "publicPagesEnabled": "Enable public pages (/p)",
@@ -521,6 +631,7 @@
     "embedEmptyState": "Enable the widget and save to generate a public key."
   },
   "publicCatalog": {
+    "applyCta": "Apply",
     "pageTitle": "Available properties",
     "filterAll": "All",
     "filterRent": "Rent",
@@ -924,6 +1035,8 @@
     "step3": "Step 3: First tenant"
   },
   "units": {
+    "bedsTab": "Beds",
+    "calendarLink": "Calendar & Airbnb sync →",
     "toiletType": {
       "private": "Private",
       "shared": "Shared",
@@ -1091,7 +1204,8 @@
     },
     "footer": {
       "copyright": "All rights reserved.",
-      "contact": "Contact"
+      "contact": "Contact",
+      "calculators": "Calculators"
     }
   },
   "executiveBrief": {
@@ -1184,6 +1298,31 @@
       "riskTenants": "Which tenants represent the highest financial risk?"
     }
   },
+  "apiKeys": {
+    "title": "Public API",
+    "subtitle": "Connect your accounting, BI or other tools with read-only keys.",
+    "createTitle": "New key",
+    "nameLabel": "Name",
+    "namePlaceholder": "E.g. Accounting integration",
+    "create": "Create key",
+    "createdTitle": "Copy the key now: it will not be shown again.",
+    "createdHint": "Store it in a secrets manager. If lost, revoke it and create another.",
+    "revoke": "Revoke",
+    "revoked": "Revoked",
+    "emptyTitle": "No keys",
+    "emptyDesc": "Create a key to use the API.",
+    "colName": "Name",
+    "colPrefix": "Key",
+    "colCreated": "Created",
+    "colLastUsed": "Last used",
+    "colStatus": "Status",
+    "docsTitle": "How to use it",
+    "docsAuth": "Send the key in the Authorization header of each GET request.",
+    "docsPagination": "Paginate with limit (max 100) and offset. The response includes pagination.hasMore.",
+    "mcpTitle": "Connect with Claude / ChatGPT",
+    "mcpDesc": "Read-only MCP server: query properties, units, tenants and payments from Claude, ChatGPT or any MCP client. Use this endpoint (HTTP) with one of your keys.",
+    "mcpConfigHint": "Example config for clients that accept headers (Claude Code, Cursor, VS Code). Replace the key with yours."
+  },
   "adminImport": {
     "months": ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
     "accountMapping": {
@@ -1255,8 +1394,32 @@
     }
   },
   "finance": {
+    "agingLink": "Delinquency",
+    "aging": {
+      "title": "Delinquency aging",
+      "subtitle": "Unpaid overdue charges per tenant, oldest debt first",
+      "cardTitle": "Amount owed by days late",
+      "tenant": "Tenant",
+      "total": "Total",
+      "emptyTitle": "No overdue debt",
+      "emptyDesc": "Every overdue charge is covered by approved payments.",
+      "bucket": {
+        "0_30": "1–30 days",
+        "31_60": "31–60 days",
+        "61_90": "61–90 days",
+        "90_plus": "90+ days"
+      }
+    },
+    "accountingExportTitle": "Export journal (CSV)",
+    "accountingExportButton": "Download",
+    "accountingExportHint": "Entries for approved payments and expenses of the month with suggested PCGE accounts (1011/1041, 7542, 639), ready to import into Contasis or Siscont. Check the accounts with your accountant.",
+    "expensesLink": "Expenses",
+    "recurringExpensesLink": "Recurring expenses",
+    "payablesLink": "Accounts payable: {amount}",
     "title": "Finance",
     "kpiTitle": "Current Period KPIs",
+    "currencySection": "Results in {currency}",
+    "baseCurrencyNote": "KPIs and trend in {currency}. Amounts in other currencies are shown separately, not converted.",
     "roomProfitability": "Room Profitability",
     "ocrReceipts": "OCR Receipts",
     "categories": "Categories",
@@ -1547,6 +1710,27 @@
     }
   },
   "tenantPayments": {
+    "recordForm": {
+      "title": "Submit payment proof",
+      "amount": "Amount",
+      "paidAt": "Payment date",
+      "method": "Method",
+      "methodTransfer": "Bank transfer",
+      "methodCash": "Cash",
+      "methodCard": "Card",
+      "methodOther": "Other",
+      "reference": "Reference (optional)",
+      "period": "For period (optional)",
+      "proof": "Proof (optional)",
+      "proofHint": "JPG, PNG, WebP or PDF, up to 5 MB",
+      "submit": "Record payment",
+      "submitting": "Recording...",
+      "success": "Payment recorded, pending approval",
+      "error": "Could not record the payment. Please try again.",
+      "proofEmpty": "The file is empty.",
+      "proofTooLarge": "The file is larger than 5 MB.",
+      "proofInvalidType": "File type not allowed. Use JPG, PNG, WebP or PDF."
+    },
     "title": "My Payments",
     "downloadTemplate": "Download CSV Template",
     "importCsv": "Import CSV",
@@ -1698,7 +1882,11 @@
     "emptyDesc": "Create and publish announcements to notify your tenants.",
     "publishNow": "Publish now",
     "audience": "Audience",
-    "expires": "Expires"
+    "expires": "Expires",
+    "pinned": "Pinned",
+    "important": "Important",
+    "pin": "Pin",
+    "unpin": "Unpin"
   },
   "cleaning": {
     "title": "Cleaning Schedule",
@@ -1710,6 +1898,10 @@
     "statusDone": "Done"
   },
   "visitors": {
+    "colUnit": "Unit",
+    "colPassphrase": "Passphrase",
+    "noMatchTitle": "No matches",
+    "noMatchDesc": "No registered visit uses that passphrase.",
     "title": "Visitor Log",
     "logVisitor": "Log Visitor",
     "emptyTitle": "No visitors yet",
@@ -1735,7 +1927,570 @@
     "emptyDesc": "Track prospective tenants through your CRM pipeline.",
     "source": "Source"
   },
+  "branding": {
+    "title": "Branding",
+    "subtitle": "Logo and accent color shown on the dashboard, the tenant portal and receipts.",
+    "logoTitle": "Logo",
+    "logoHint": "PNG, JPG or WebP. Max 1 MB.",
+    "currentLogo": "Current logo",
+    "removeLogo": "Remove logo",
+    "logoWillBeRemoved": "The logo will be removed when you save.",
+    "accentTitle": "Accent color",
+    "accentHint": "Used for the organization name and the total on receipts.",
+    "useAccent": "Use accent color",
+    "save": "Save",
+    "saved": "Changes saved.",
+    "errorTooLarge": "The logo is larger than 1 MB.",
+    "errorInvalidFile": "The file is not a valid PNG, JPG or WebP image.",
+    "errorInvalidColor": "The color must use the #RRGGBB format.",
+    "errorGeneric": "Could not save. Please try again."
+  },
+  "paymentReceipt": {
+    "download": "Receipt",
+    "generating": "Generating…",
+    "error": "Could not generate the receipt",
+    "pdf": {
+      "title": "Payment receipt",
+      "number": "No.",
+      "receivedFrom": "Received from",
+      "property": "Property",
+      "unit": "Unit",
+      "date": "Payment date",
+      "method": "Method",
+      "concept": "Concept",
+      "reference": "Reference",
+      "amount": "Amount received",
+      "footer": "Internal payment receipt. Not a SUNAT electronic invoice."
+    },
+    "email": {
+      "subject": "Your payment receipt {number}",
+      "greeting": "Hello {name},",
+      "body": "We approved your payment of {amount}. You can download receipt {number} from your portal.",
+      "cta": "View my payments",
+      "inboxTitle": "Payment approved",
+      "inboxBody": "Your receipt {number} for {amount} is ready."
+    }
+  },
+  "deposits": {
+    "title": "Deposits",
+    "subtitle": "Total held: {total}",
+    "emptyTitle": "No deposits",
+    "emptyDesc": "Contracts with a deposit will show up here.",
+    "colTenant": "Tenant",
+    "colAgreed": "Agreed",
+    "colCollected": "Collected",
+    "colDeducted": "Deducted",
+    "colRefunded": "Refunded",
+    "colHeld": "Held",
+    "colDate": "Date",
+    "colKind": "Type",
+    "colDescription": "Details",
+    "colAmount": "Amount",
+    "kindCollected": "Collection",
+    "kindDeduction": "Deduction",
+    "kindRefund": "Refund",
+    "back": "Back to deposits",
+    "historyTitle": "Movements",
+    "historyEmpty": "No movements yet.",
+    "form": {
+      "title": "Record movement",
+      "submit": "Save",
+      "saved": "Movement saved.",
+      "exceeds": "Amount exceeds the deposit held ({held})."
+    }
+  },
+  "rentAdjustments": {
+    "title": "Rent adjustments",
+    "subtitle": "Active contracts by anniversary. Contracts with an anniversary in the next {days} days and no adjustment are highlighted.",
+    "dueAlert": "{count, plural, one {# contract needs an adjustment} other {# contracts need an adjustment}}",
+    "emptyTitle": "No active contracts",
+    "emptyDesc": "Active contracts will show up here.",
+    "colTenant": "Tenant",
+    "colRent": "Rent",
+    "colAnniversary": "Anniversary",
+    "colLast": "Last adjustment",
+    "colApply": "Apply %",
+    "percent": "Percent",
+    "effectiveOn": "Effective from",
+    "submit": "Apply",
+    "preview": "New: {rent}",
+    "done": "New rent {rent}",
+    "notActive": "Only active contracts can be adjusted.",
+    "historyTitle": "Adjustment history"
+  },
+  "cashAccounts": {
+    "title": "Cash and bank accounts",
+    "subtitle": "Cash and bank accounts with their movements and the monthly liquidation.",
+    "previous": "← Previous",
+    "next": "Next →",
+    "exportAnnual": "Annual liquidation {year} (CSV)",
+    "exportMonth": "Export month (CSV)",
+    "monthlyTitle": "Liquidation {month}",
+    "emptyTitle": "No accounts",
+    "emptyDesc": "Create a cash or bank account to record movements.",
+    "colAccount": "Account",
+    "colOpening": "Opening balance",
+    "colIncome": "Income",
+    "colOutflow": "Outflow",
+    "colClosing": "Closing balance",
+    "colBalance": "Current balance",
+    "colDate": "Date",
+    "colConcept": "Concept",
+    "colDocument": "Document",
+    "total": "Total",
+    "kindBank": "Bank",
+    "kindCash": "Cash",
+    "back": "← Cash and banks",
+    "form": {
+      "open": "New account",
+      "name": "Name",
+      "kind": "Type",
+      "bankName": "Bank",
+      "accountNumber": "Account number",
+      "openingBalance": "Opening balance",
+      "submit": "Create account",
+      "saved": "Account created"
+    },
+    "movement": {
+      "title": "Record movement",
+      "direction": "Type",
+      "amount": "Amount",
+      "submit": "Record",
+      "saved": "Movement recorded",
+      "inactive": "This account is inactive.",
+      "emptyTitle": "No movements this month",
+      "emptyDesc": "Recorded movements will show up here."
+    }
+  },
+  "budget": {
+    "title": "Budget vs actual",
+    "subtitle": "Actual spend per category against the annual budget, prorated to {months} months.",
+    "yearNav": "Year",
+    "previous": "Previous year",
+    "next": "Next year",
+    "emptyTitle": "No expense categories",
+    "emptyDesc": "Create expense categories to assign them a budget.",
+    "manageCategories": "Manage categories",
+    "colCategory": "Category",
+    "colAnnual": "Annual budget",
+    "colBudgetToDate": "Budget to date",
+    "colActualToDate": "Actual to date",
+    "colVariance": "Variance",
+    "colExecuted": "% spent",
+    "uncategorized": "Uncategorized",
+    "total": "Total",
+    "amountLabel": "Annual budget for {category}",
+    "save": "Save",
+    "saved": "Saved"
+  },
+  "amenities": {
+    "title": "Common areas",
+    "subtitle": "Party rooms, grills and spaces bookable by time slot.",
+    "emptyTitle": "No common areas",
+    "emptyDesc": "Create the first one so tenants can book it.",
+    "colName": "Name",
+    "colProperty": "Property",
+    "colHours": "Hours",
+    "colSlot": "Slot",
+    "colActions": "Actions",
+    "minutes": "{count} min",
+    "inactive": "Inactive",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "viewSchedule": "View schedule",
+    "back": "← Common areas",
+    "slotsFor": "Slots on {date}",
+    "free": "Free",
+    "bookedByAdmin": "Booked by management",
+    "book": "Book",
+    "cancel": "Cancel",
+    "tenantLabel": "Tenant for {time}",
+    "noTenant": "No tenant",
+    "dayNav": "Change day",
+    "previousDay": "← Previous day",
+    "nextDay": "Next day →",
+    "guestCountPlaceholder": "Guests",
+    "guestCountLabel": "People for {time}",
+    "commentPlaceholder": "Comment",
+    "commentLabel": "Comment for {time}",
+    "guests": "{count, plural, one {# person} other {# people}}",
+    "capacity": "Capacity {count}",
+    "form": {
+      "open": "New common area",
+      "name": "Name",
+      "property": "Property",
+      "openTime": "Opens",
+      "closeTime": "Closes",
+      "slotMinutes": "Slot length (min)",
+      "capacity": "Capacity (people, optional)",
+      "submit": "Create",
+      "saved": "Common area created"
+    },
+    "portal": {
+      "title": "Bookings",
+      "mine": "My upcoming bookings",
+      "pick": "Pick an area",
+      "yours": "Your booking",
+      "taken": "Taken",
+      "noContractTitle": "No active contract",
+      "noContractDesc": "You need an active contract to book common areas.",
+      "noAmenitiesTitle": "No bookable areas",
+      "noAmenitiesDesc": "Your building has no common areas to book yet."
+    }
+  },
+  "assets": {
+    "title": "Assets",
+    "subtitle": "Building equipment and installations with their preventive maintenance plan.",
+    "viewPlan": "View annual plan",
+    "back": "← Assets",
+    "emptyTitle": "No assets",
+    "emptyDesc": "Register elevators, pumps, panels and other equipment to plan their maintenance.",
+    "colName": "Asset",
+    "colCategory": "Category",
+    "colProperty": "Property",
+    "colTasks": "Tasks",
+    "colNextDue": "Next maintenance",
+    "colTask": "Task",
+    "colFrequency": "Frequency",
+    "colLastDone": "Last done",
+    "colActions": "Actions",
+    "tasksTitle": "Maintenance plan",
+    "tasksEmptyTitle": "No tasks",
+    "tasksEmptyDesc": "Add recurring tasks for this asset.",
+    "historyTitle": "History",
+    "historyEmpty": "No maintenance logged yet.",
+    "everyMonths": "{count, plural, one {Every month} other {Every # months}}",
+    "form": {
+      "open": "New asset",
+      "name": "Name",
+      "property": "Property",
+      "category": "Category",
+      "location": "Location",
+      "submit": "Create asset",
+      "saved": "Asset created."
+    },
+    "taskForm": {
+      "open": "New maintenance task",
+      "title": "Task",
+      "frequency": "Frequency (months)",
+      "startsOn": "First date",
+      "estimatedCost": "Estimated cost (S/)",
+      "responsible": "Responsible",
+      "supplier": "Supplier",
+      "submit": "Add task",
+      "saved": "Task added."
+    },
+    "complete": {
+      "doneOn": "Date done",
+      "cost": "Cost",
+      "submit": "Log"
+    },
+    "due": {
+      "overdue": "Overdue {date}",
+      "soon": "Soon {date}",
+      "ok": "{date}"
+    },
+    "categories": {
+      "elevator": "Elevator",
+      "pump": "Water pump",
+      "electrical": "Electrical",
+      "plumbing": "Plumbing",
+      "fire_safety": "Fire safety",
+      "hvac": "HVAC",
+      "security": "Security",
+      "structure": "Structure",
+      "other": "Other"
+    },
+    "plan": {
+      "back": "← Assets",
+      "title": "Maintenance plan {year}",
+      "subtitle": "Planned and completed tasks by month.",
+      "yearNav": "Change year",
+      "emptyTitle": "No planned tasks",
+      "emptyDesc": "Create assets and add tasks to see the annual plan.",
+      "colTask": "Task",
+      "colResponsible": "Responsible / supplier",
+      "colTotal": "Year total",
+      "grandTotal": "Estimated total for the year",
+      "planned": "Planned",
+      "done": "Done",
+      "legend": "● planned · ✓ done",
+      "everyMonths": "{count, plural, one {Every month} other {Every # months}}",
+      "months": {
+        "0": "JAN",
+        "1": "FEB",
+        "2": "MAR",
+        "3": "APR",
+        "4": "MAY",
+        "5": "JUN",
+        "6": "JUL",
+        "7": "AUG",
+        "8": "SEP",
+        "9": "OCT",
+        "10": "NOV",
+        "11": "DEC"
+      }
+    }
+  },
+  "bankReconciliation": {
+    "back": "← Payments",
+    "title": "Bank reconciliation",
+    "subtitle": "Upload your bank statement as CSV and link each credit to its payment.",
+    "unmatchedTitle": "{count, plural, =0 {Nothing to reconcile} one {# line to reconcile} other {# lines to reconcile}}",
+    "emptyTitle": "All reconciled",
+    "emptyDesc": "Upload a statement to see pending credits.",
+    "matchedTitle": "Recently reconciled",
+    "ignoredTitle": "Ignored",
+    "colDate": "Date",
+    "colDescription": "Description",
+    "colAmount": "Amount",
+    "colActions": "Actions",
+    "upload": {
+      "label": "Bank statement (CSV)",
+      "hint": "Date, description and amount (or credit/debit) columns. Only credits are imported; repeated lines are skipped.",
+      "submit": "Import",
+      "result": "{inserted} new · {duplicates} repeated · {skipped} skipped"
+    },
+    "actions": {
+      "payment": "Payment",
+      "match": "Reconcile",
+      "noCandidates": "No payments with that amount",
+      "contract": "Contract",
+      "createPayment": "Create payment",
+      "newPayment": "New payment",
+      "ignore": "Ignore",
+      "restore": "Restore"
+    }
+  },
+  "rentalTax": {
+    "title": "Rental income tax {year}",
+    "subtitle": "Collected rent (approved payments) by property and month, with the estimated 5% monthly tax.",
+    "yearNav": "Change year",
+    "emptyTitle": "No approved payments this year",
+    "emptyDesc": "Approved rent payments will show here grouped by month.",
+    "grossLabel": "Gross rent {currency}",
+    "taxLabel": "5% tax",
+    "colProperty": "Property",
+    "colTotal": "Total",
+    "colTax": "5%",
+    "monthlyTax": "Monthly 5% {currency}",
+    "disclaimer": "Reference estimate for SUNAT Form 1683 (5% of gross rent collected). Check with your accountant before filing.",
+    "months": {
+      "0": "Jan",
+      "1": "Feb",
+      "2": "Mar",
+      "3": "Apr",
+      "4": "May",
+      "5": "Jun",
+      "6": "Jul",
+      "7": "Aug",
+      "8": "Sep",
+      "9": "Oct",
+      "10": "Nov",
+      "11": "Dec"
+    }
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "subtitle": "Plumbers, electricians and technicians you assign incidents to.",
+    "newTitle": "New supplier",
+    "emptyTitle": "No suppliers",
+    "emptyDesc": "Add your first supplier to assign incidents to them.",
+    "inactive": "Inactive",
+    "noContact": "No contact",
+    "jobs": "{open} open · {total} total",
+    "edit": "Edit",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "form": {
+      "name": "Name",
+      "trade": "Trade",
+      "phone": "Phone",
+      "email": "Email",
+      "notes": "Notes",
+      "create": "Add supplier",
+      "save": "Save",
+      "saved": "Saved"
+    },
+    "assignment": {
+      "none": "No supplier assigned.",
+      "noSuppliers": "No active suppliers.",
+      "addSupplier": "Add supplier",
+      "supplier": "Supplier",
+      "assign": "Assign",
+      "reassign": "Reassign",
+      "status": "Status",
+      "quote": "Quote (S/)",
+      "finalCost": "Final cost (S/)",
+      "notes": "Notes"
+    },
+    "trades": {
+      "plumbing": "Plumbing",
+      "electrical": "Electrical",
+      "appliance": "Appliances",
+      "structural": "Structural",
+      "cleaning": "Cleaning",
+      "locksmith": "Locksmith",
+      "painting": "Painting",
+      "general": "General"
+    },
+    "statuses": {
+      "assigned": "Assigned",
+      "quoted": "Quoted",
+      "approved": "Approved",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    }
+  },
+  "profitability": {
+    "title": "Profitability by property",
+    "subtitle": "Collected income minus expenses for the year, split by currency.",
+    "exportCsv": "Download CSV",
+    "yearNav": "Change year",
+    "property": "Property",
+    "allProperties": "All properties",
+    "apply": "Filter",
+    "currency": "Currency",
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net",
+    "noProperty": "No property",
+    "netIn": "Net in {currency}",
+    "incomeVsExpenses": "{income} income · {expenses} expenses",
+    "emptyTitle": "No activity",
+    "emptyDesc": "No approved payments or expenses this year.",
+    "expensesNote": "Expenses are recorded in soles (PEN). Dollar income is shown separately, without conversion."
+  },
+  "ownerSettlements": {
+    "title": "Owner settlements",
+    "subtitle": "Collections, expenses and commission for {month} by owner.",
+    "print": "Print",
+    "exportCsv": "Download CSV",
+    "monthNav": "Change month",
+    "owner": "Owner",
+    "allOwners": "All owners",
+    "apply": "Filter",
+    "property": "Property",
+    "income": "Income",
+    "expenses": "Expenses",
+    "commission": "Commission",
+    "netToOwner": "To transfer",
+    "total": "Total {currency}",
+    "unnamedOwner": "Unnamed owner",
+    "emptyTitle": "No settlements",
+    "emptyDesc": "No activity this month on properties linked to an owner.",
+    "termsTitle": "Properties and commission",
+    "termsDesc": "Link each property to its owner and the management commission percentage.",
+    "termsMissingData": "You need at least one owner and one property.",
+    "commissionPct": "Commission %",
+    "saveTerms": "Save",
+    "saving": "Saving…",
+    "saved": "Saved.",
+    "expensesNote": "Commission is calculated on collected income. Expenses are in soles (PEN)."
+  },
+  "occupancyHistory": {
+    "title": "Occupancy history",
+    "subtitle": "Share of occupied days per month, based on contract dates.",
+    "yearNav": "Change year",
+    "byMonth": "Occupancy by month",
+    "property": "Property",
+    "units": "Units",
+    "average": "Average",
+    "emptyTitle": "No units",
+    "emptyDesc": "Add properties and units to see their occupancy.",
+    "note": "A unit counts as occupied from contract start until the actual exit or contract end. Future months are not calculated."
+  },
+  "adminNotifications": {
+    "title": "Notifications",
+    "unread": "{count, plural, =0 {No unread notices} one {# unread notice} other {# unread notices}}",
+    "markRead": "Mark read",
+    "markAllRead": "Mark all as read",
+    "open": "View",
+    "emptyTitle": "No notifications",
+    "emptyDesc": "Receipts to review and automatically registered payments show up here."
+  },
+  "rentalApplication": {
+    "back": "Back",
+    "title": "Rental application",
+    "subtitle": "Send your details to {org}. They will contact you to continue.",
+    "subtitleListing": "Apply for {listing} with {org}.",
+    "submit": "Send application",
+    "sending": "Sending…",
+    "successTitle": "Application sent",
+    "successBody": "Thanks. The team will review your details and contact you.",
+    "documentsHint": "Up to {max} files: ID, pay slips or proof of income (JPG, PNG, WEBP or PDF, max 1.9 MB each).",
+    "privacy": "I accept the processing of my data under the <link>privacy policy</link>.",
+    "fields": {
+      "listing_slug": "Property",
+      "full_name": "Full name",
+      "email": "Email",
+      "phone": "Mobile",
+      "monthly_income": "Monthly income (S/)",
+      "employment_type": "Employment",
+      "employment_months": "Months at current job",
+      "household_size": "People who will live there",
+      "move_in_date": "Move-in date",
+      "has_guarantor": "I have a guarantor",
+      "documents": "Documents",
+      "message": "Message",
+      "privacy_accepted": "Privacy"
+    },
+    "employment": {
+      "employee": "Employee",
+      "self_employed": "Self-employed",
+      "retired": "Retired",
+      "student": "Student",
+      "other": "Other"
+    },
+    "errors": {
+      "validation": "Check these fields: {fields}.",
+      "rateLimited": "Too many submissions. Try again later.",
+      "generic": "We could not send the application. Try again."
+    }
+  },
+  "rentalApplications": {
+    "title": "Applications",
+    "subtitle": "Applications from the public form, with a solvency score.",
+    "emptyTitle": "No applications",
+    "emptyDesc": "Share the /p/your-company/apply link or the Apply button on each listing.",
+    "noListing": "No property",
+    "score": "{score}/100",
+    "band": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "income": "Income",
+    "rent": "Rent",
+    "employment": "Employment",
+    "household": "Household",
+    "months": "{count, plural, one {# month} other {# months}}",
+    "guarantorYes": "with guarantor",
+    "guarantorNo": "no guarantor",
+    "statusLabel": "Status",
+    "status": {
+      "new": "New",
+      "reviewing": "Reviewing",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "employmentType": {
+      "employee": "Employee",
+      "self_employed": "Self-employed",
+      "retired": "Retired",
+      "student": "Student",
+      "other": "Other"
+    }
+  },
   "accountStatements": {
+    "generate": {
+      "title": "Generate account statements",
+      "hint": "Creates drafts for every active contract from the month's charges and payments. Nothing is sent.",
+      "month": "Month",
+      "dueDate": "Due date",
+      "submit": "Generate",
+      "done": "{created} created, {skipped} already existed"
+    },
     "title": "Account Statements",
     "subtitle": "{count} statements · {sent} sent · Total due S/ {total}",
     "emptyTitle": "No account statements",
@@ -1839,6 +2594,7 @@
   "incidentDetail": {
     "cardDescription": "Description",
     "cardTimeline": "Timeline",
+    "cardSupplier": "Supplier",
     "cardManage": "Manage",
     "noComments": "No comments yet",
     "reportedBy": "Reported by",
@@ -1859,7 +2615,21 @@
     "emptyTitle": "No receipts yet",
     "emptyDesc": "Receipts uploaded by tenants or admins will appear here for OCR processing."
   },
+  "orgSignature": {
+    "current": "Saved signature of {name}",
+    "currentAlt": "Saved signature",
+    "signerName": "Signer name",
+    "signerDocument": "ID or tax number",
+    "draw": "Draw the signature",
+    "clear": "Clear drawing",
+    "save": "Save signature",
+    "saving": "Saving…",
+    "saved": "Signature saved.",
+    "error": "Could not save the signature. Check the data and try again."
+  },
   "contractTemplates": {
+    "cardSignature": "Landlord signature",
+    "signatureNote": "Added at the end of every generated contract. Also fills the landlord_name and landlord_document variables.",
     "title": "Contract Templates",
     "cardVariables": "Available Variables",
     "variablesNote": "Use these in your template body as {{variable_name}}",
@@ -1972,6 +2742,8 @@
   },
   "forms": {
     "createCharge": {
+      "conceptLabel": "Concept",
+      "selectConcept": "— Pick a concept (optional) —",
       "openButton": "Add Charge",
       "modalTitle": "New Charge",
       "selectContract": "Select contract",
@@ -1999,6 +2771,8 @@
       "submit": "Create"
     },
     "contractTemplate": {
+      "previewLabel": "Preview with sample data",
+      "previewEmpty": "Type the body to see the preview.",
       "saving": "Saving…",
       "submit": "Create Template",
       "nameLabel": "Template name",
@@ -2006,6 +2780,7 @@
       "bodyLabel": "(Markdown, use {{variable_name}} for substitution)"
     },
     "updateIncident": {
+      "estimatedLabel": "Estimated date",
       "submit": "Save Changes",
       "saved": "Saved",
       "statusLabel": "Status",
@@ -2034,7 +2809,12 @@
       "audienceLabel": "Audience",
       "audienceAll": "All tenants",
       "audienceProperty": "Specific property",
-      "audienceUnit": "Specific unit"
+      "audienceUnit": "Specific unit",
+      "propertyLabel": "Property",
+      "unitLabel": "Unit",
+      "choosePlaceholder": "Choose one",
+      "pinnedLabel": "Pin to top",
+      "importantLabel": "Mark as important"
     },
     "cleaningTask": {
       "saving": "Saving…",
@@ -2083,6 +2863,7 @@
       "cancel": "Cancel"
     },
     "createVisitor": {
+      "passphraseLabel": "Passphrase (optional)",
       "logging": "Logging…",
       "submit": "Log Visitor",
       "nameLabel": "Visitor name",
@@ -2092,6 +2873,8 @@
       "purposePlaceholder": "Delivery, guest, maintenance…"
     },
     "createExpenseCategory": {
+      "parentLabel": "Parent category",
+      "noParent": "None (top level)",
       "saving": "Saving…",
       "submit": "Add Category",
       "nameLabel": "Category name",
@@ -2213,7 +2996,19 @@
     "total": "All-time total",
     "receipt": "Receipt",
     "overLimitAlert": "{count} service(s) over limit — S/ {variance} total excess",
-    "overBy": "over by"
+    "overBy": "over by",
+    "split": {
+      "month": "Month",
+      "method": "Split by",
+      "method_equal": "Equal shares",
+      "method_area": "By m²",
+      "method_days": "By days occupied",
+      "dueDate": "Due date",
+      "submit": "Create charges",
+      "hint": "Only the amount above the cap is split among the property contracts active that month.",
+      "noAmount": "No amount recorded for that month.",
+      "done": "{created} charge(s) created, {skipped} already existed."
+    }
   },
   "responsables": {
     "title": "Responsables",
@@ -2263,6 +3058,52 @@
     "openTenant": "View tenant",
     "noUnitsTitle": "No units",
     "noUnitsDesc": "Add a property with units before converting the lead."
+  },
+  "einvoices": {
+    "title": "E-invoices",
+    "subtitle": "SUNAT boletas and facturas issued from charges. Totals include 18% IGV.",
+    "emitTitle": "Issue document",
+    "charge": "Charge",
+    "docType": "Document type",
+    "boleta": "Boleta",
+    "factura": "Factura",
+    "customerDocType": "Customer document",
+    "dni": "DNI",
+    "ruc": "RUC",
+    "noDocument": "No document (under S/ 700)",
+    "customerDocNumber": "Document number",
+    "customerName": "Name or company name",
+    "emit": "Issue",
+    "emitting": "Issuing…",
+    "emitted": "Document issued.",
+    "noChargesTitle": "No pending charges",
+    "noChargesDesc": "Every charge already has a document, or there are no charges yet.",
+    "emptyTitle": "No documents",
+    "emptyDesc": "Issued documents will appear here.",
+    "colNumber": "Series-number",
+    "colCustomer": "Customer",
+    "colTotal": "Total",
+    "colIgv": "IGV",
+    "colDate": "Date",
+    "colStatus": "Status",
+    "pagination": "Pagination",
+    "previous": "Previous",
+    "next": "Next",
+    "status": {
+      "pending": "Pending",
+      "accepted_sandbox": "Accepted (sandbox)",
+      "sent": "Sent",
+      "accepted": "Accepted by SUNAT",
+      "rejected": "Rejected",
+      "error": "Error"
+    },
+    "errors": {
+      "ruc_required": "A factura requires a RUC.",
+      "invalid_ruc": "Invalid RUC: it must have 11 digits and a valid check digit.",
+      "dni_or_none_required": "A boleta accepts a DNI or no document.",
+      "invalid_dni": "The DNI must have 8 digits.",
+      "document_required": "Boletas of S/ 700 or more require a DNI."
+    }
   },
   "leadsPipeline": {
     "convert": "Convert to tenant",
@@ -2385,5 +3226,801 @@
     "linkSettings": "Go to agent settings",
     "linkAvailability": "Go to advisor availability",
     "linkInbox": "Go to agent inbox"
+  },
+  "rentSchedule": {
+    "title": "Generate monthly rent charges",
+    "offHelp": "Off. When on, each month creates the rent charge for every active contract and tenants get the payment reminder.",
+    "onHelp": "On. Each month creates the rent charge for every active contract and sends payment reminders.",
+    "enable": "Turn on",
+    "disable": "Turn off"
+  },
+  "handover": {
+    "inventory": {
+      "title": "Unit inventory",
+      "empty": "No items yet. Add furniture, appliances and keys.",
+      "name": "Item",
+      "quantity": "Qty",
+      "condition": "Condition",
+      "notes": "Notes",
+      "add": "Add",
+      "saving": "Saving…",
+      "delete": "Remove",
+      "error": "We could not save the inventory."
+    },
+    "conditions": {
+      "new": "New",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "broken": "Broken"
+    },
+    "kinds": {
+      "check_in": "Check-in act",
+      "check_out": "Check-out act"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "pending_signature": "Pending signature",
+      "signed": "Signed"
+    },
+    "act": {
+      "title": "Check-in and check-out acts",
+      "empty": "No acts yet.",
+      "needsInventory": "Add the unit inventory to create an act.",
+      "kind": "Act type",
+      "notes": "General remarks",
+      "create": "Create act",
+      "creating": "Creating…",
+      "created": "Act created.",
+      "error": "We could not create the act.",
+      "itemCount": "{count} items",
+      "generate": "Generate PDF",
+      "regenerate": "Regenerate PDF",
+      "generating": "Generating…",
+      "generateError": "We could not generate the act PDF.",
+      "send": "Send for signature",
+      "sending": "Sending…",
+      "sendError": "We could not send the act for signature."
+    },
+    "pdf": {
+      "title": {
+        "check_in": "Check-in act and inventory",
+        "check_out": "Check-out act and inventory"
+      },
+      "contract": "Contract",
+      "organization": "Landlord",
+      "tenant": "Tenant",
+      "property": "Property",
+      "date": "Date",
+      "item": "Item",
+      "quantity": "Qty",
+      "condition": "Condition",
+      "notes": "Notes",
+      "generalNotes": "Remarks",
+      "landlordSignature": "Landlord",
+      "tenantSignature": "Tenant",
+      "missing": "—"
+    }
+  },
+  "documents": {
+    "title": "Documents",
+    "entities": {
+      "tenant": "Tenant",
+      "contract": "Contract",
+      "property": "Property"
+    },
+    "categories": {
+      "identity": "Identity",
+      "contract": "Contract",
+      "insurance": "Insurance",
+      "certificate": "Certificate",
+      "invoice": "Invoice",
+      "other": "Other"
+    },
+    "form": {
+      "title": "Upload document",
+      "entityType": "Attach to",
+      "choose": "Choose an option",
+      "name": "Name",
+      "category": "Category",
+      "expiresOn": "Expires on",
+      "expiresHint": "Optional. Shows under Expiring 30 days before.",
+      "file": "File",
+      "fileHint": "PDF, JPG, PNG or WEBP. Up to 5 MB.",
+      "visibleToTenant": "Visible to the tenant in their portal",
+      "upload": "Upload",
+      "uploading": "Uploading…",
+      "uploaded": "Document uploaded."
+    },
+    "filters": {
+      "label": "Filter documents",
+      "all": "All",
+      "expiring": "Expiring"
+    },
+    "list": {
+      "title": "Document archive",
+      "empty": "No documents yet.",
+      "expires": "expires {date}",
+      "visible": "Visible to tenant",
+      "open": "Open",
+      "opening": "Opening…",
+      "delete": "Delete"
+    },
+    "expiry": {
+      "expired": "Expired",
+      "soon": "Expiring soon"
+    },
+    "errors": {
+      "upload": "Could not upload the document. Check the fields and the file.",
+      "delete": "Could not delete the document.",
+      "open": "Could not open the document."
+    },
+    "portal": {
+      "title": "My documents",
+      "noTenant": "No tenant record",
+      "noTenantHint": "Contact your property manager."
+    }
+  },
+  "dataImport": {
+    "title": "Import from other software",
+    "description": "Upload a CSV exported from your previous system. Check the preview first: only new rows are created, existing records are never changed or deleted.",
+    "kind": "What to import",
+    "file": "CSV file",
+    "columns": "Columns:",
+    "kinds": {
+      "properties": "Properties",
+      "units": "Units",
+      "owners": "Owners"
+    },
+    "hints": {
+      "properties": "Only name is required. Names that already exist are skipped.",
+      "units": "property_name must match an existing property. toilet_type: shared, private or none.",
+      "owners": "Only name is required. Existing DNIs or names are skipped."
+    },
+    "preview": "Preview",
+    "commit": "Import {count} new rows",
+    "done": "Done: {inserted} created, {skipped} skipped.",
+    "row": "Row",
+    "record": "Record",
+    "result": "Result",
+    "status": {
+      "new": "New",
+      "duplicate": "Already exists",
+      "invalid": "Invalid",
+      "unknown_property": "Property not found"
+    },
+    "errors": {
+      "preview": "Could not read the file. Check it is a CSV up to 5 MB.",
+      "commit": "Could not import. Try again."
+    }
+  },
+  "ownerPortal": {
+    "title": "Portal for {name}",
+    "subtitle": "Settlement for {month}",
+    "monthNav": "Change month",
+    "emptyTitle": "No activity",
+    "emptyDesc": "No income or expenses recorded this month.",
+    "readOnlyNote": "Read-only view shared by your property manager. Approved income minus expenses and commission.",
+    "rateLimited": "Too many visits in a row. Wait a minute and reload.",
+    "adminTitle": "Owner portal",
+    "adminDesc": "Create a private read-only link so the owner can see their settlements. It expires after 90 days; creating a new one revokes the previous one.",
+    "noOwners": "Add owners first.",
+    "owner": "Owner",
+    "create": "Create link",
+    "creating": "Creating…",
+    "created": "Link created. Copy it now: it will not be shown again.",
+    "linkLabel": "Portal link",
+    "expires": "expires {date}",
+    "lastViewed": "viewed {date}",
+    "neverViewed": "never viewed",
+    "revoke": "Revoke",
+    "revoking": "Revoking…"
+  },
+  "team": {
+    "title": "Team and permissions",
+    "description": "Limit what each admin in your organization can see and edit.",
+    "roleLabel": "Role",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "error": "Could not save.",
+    "you": "You (admin)",
+    "onlyYou": "You are the only admin in the organization for now.",
+    "roles": {
+      "admin": "Admin",
+      "finance": "Finance",
+      "operations": "Operations",
+      "viewer": "Read only"
+    },
+    "roleHelp": {
+      "admin": "full access, including this page.",
+      "finance": "sees and edits Finance only.",
+      "operations": "sees and edits Incidents only.",
+      "viewer": "sees Finance and Incidents without editing."
+    }
+  },
+  "ownerAssistantBot": {
+    "help": "Propflow assistant. Send:\n• GASTO 120 paint (expense)\n• PAGO 1500 John Smith (approved payment)\n• A photo of a receipt to record it as an expense.\n• A voice note saying the same.",
+    "notUnderstood": "I didn't understand. Send HELP to see the commands.",
+    "defaultExpense": "WhatsApp expense",
+    "expenseSaved": "Expense recorded: S/ {amount} — {description}.",
+    "receiptSaved": "Receipt recorded as an expense: S/ {amount} — {description}.",
+    "paymentSaved": "Payment approved: S/ {amount} from {name}.",
+    "tenantNotFound": "No tenant with an active contract matches \"{query}\".",
+    "tenantAmbiguous": "Several tenants match: {names}. Send the full name.",
+    "photoOnly": "I can only read photos (JPG, PNG or WEBP). Send a photo of the receipt.",
+    "receiptUnreadable": "I couldn't read the amount. Record it with GASTO <amount> <detail>.",
+    "voiceDisabled": "Voice notes are not enabled. Please type the message.",
+    "voiceUnreadable": "I couldn't understand the voice note. Try again or type it.",
+    "heard": "I heard: \"{text}\"",
+    "alreadyLinked": "This number is already linked.",
+    "failed": "Something went wrong. Try again later.",
+    "link_verified": "Number linked. Send HELP to see what you can do.",
+    "link_invalid": "Wrong code.",
+    "link_expired": "The code expired. Generate a new one in Propflow.",
+    "link_locked": "Too many attempts. Generate a new code in Propflow."
+  },
+  "ownerAssistant": {
+    "title": "WhatsApp assistant",
+    "description": "Record expenses and payments from your WhatsApp by text, receipt photos or voice notes.",
+    "phoneLabel": "Your WhatsApp (with country code)",
+    "generate": "Generate code",
+    "generating": "Generating…",
+    "phoneTaken": "That number is already linked to another admin.",
+    "error": "Could not generate the code. Check the number.",
+    "sendThis": "From that WhatsApp, send this message to the Propflow number:",
+    "expires": "Expires at {time}.",
+    "linkedTo": "Linked to {phone}.",
+    "unlink": "Unlink",
+    "commandsTitle": "What you can send",
+    "cmdExpense": "records an expense",
+    "cmdPayment": "records an approved tenant payment",
+    "cmdPhoto": "A receipt photo: the amount is read and recorded as an expense.",
+    "cmdVoice": "A voice note saying the same.",
+    "cmdVoiceOff": "Voice notes: off (transcription not configured).",
+    "activityTitle": "Recent activity",
+    "noActivity": "No messages yet.",
+    "kinds": {
+      "text": "Text",
+      "image": "Photo",
+      "audio": "Voice",
+      "document": "Document"
+    }
+  },
+  "calculators": {
+    "title": "Landlord calculators",
+    "intro": "Free tools to calculate rental yield, adjust rent and split shared expenses between units.",
+    "cta": "Try PropFlow",
+    "disclaimer": "Results are estimates. Not financial or tax advice.",
+    "yield": {
+      "title": "Rental yield",
+      "desc": "Annual gross and net yield including expenses and vacant months.",
+      "price": "Property price",
+      "rent": "Monthly rent",
+      "expenses": "Monthly expenses (maintenance, taxes, insurance)",
+      "vacancy": "Vacant months per year",
+      "gross": "Gross yield",
+      "net": "Net yield",
+      "annualNet": "Annual net income",
+      "payback": "Payback period",
+      "years": "{years} years"
+    },
+    "adjustment": {
+      "title": "Rent adjustment",
+      "desc": "New rent after applying a percentage (for example, yearly inflation).",
+      "rent": "Current rent",
+      "percent": "Adjustment (%)",
+      "newRent": "New rent",
+      "difference": "Monthly difference"
+    },
+    "split": {
+      "title": "Shared expense split",
+      "desc": "Split an expense between units equally or by m².",
+      "total": "Total amount",
+      "byArea": "Split by m²",
+      "unit": "Unit",
+      "area": "m²",
+      "share": "Share",
+      "remove": "Remove unit",
+      "add": "+ Add unit"
+    }
+  },
+  "polls": {
+    "title": "Polls",
+    "adminSubtitle": "Ask residents and see results live.",
+    "createTitle": "New poll",
+    "questionLabel": "Question",
+    "questionPlaceholder": "Should we paint the lobby this year?",
+    "optionsLabel": "Options",
+    "optionsPlaceholder": "Yes\nNo\nNo preference",
+    "optionsHint": "One option per line, 2 to 8.",
+    "closesOnLabel": "Closes on (optional)",
+    "create": "Publish poll",
+    "close": "Close",
+    "open": "Open",
+    "closed": "Closed",
+    "totalVotes": "{count, plural, one {# vote} other {# votes}}",
+    "closesOn": "closes {date}",
+    "votes": "votes",
+    "vote": "Vote",
+    "chooseOption": "Choose an option",
+    "emptyTitle": "No polls",
+    "emptyAdminDesc": "Create the first poll to hear what residents think.",
+    "emptyPortalDesc": "Management has not published any polls yet."
+  },
+  "tenantMessages": {
+    "inboxTitle": "Tenant messages",
+    "inboxSubtitle": "Questions, requests and complaints sent from the portal.",
+    "portalTitle": "Messages to management",
+    "newMessage": "New message",
+    "filterLabel": "Filter by status",
+    "all": "All",
+    "kindLabel": "Type",
+    "subjectLabel": "Subject",
+    "bodyLabel": "Message",
+    "send": "Send",
+    "replyLabel": "Reply",
+    "replyPlaceholder": "Write the reply for the tenant",
+    "sendReply": "Reply",
+    "updateReply": "Update reply",
+    "replyHeading": "Reply from management",
+    "close": "Close",
+    "unknownSender": "Tenant",
+    "emptyTitle": "No messages",
+    "emptyInboxDesc": "Messages sent by tenants will show up here.",
+    "emptyPortalDesc": "You have not sent any messages yet.",
+    "attachmentLabel": "Attachment (optional)",
+    "attachmentHint": "One image (JPEG, PNG, WebP) or PDF, up to 5 MB.",
+    "attachmentInvalid": "The attachment must be a JPEG, PNG, WebP or PDF file up to 5 MB.",
+    "attachmentOpen": "Open attachment {name}",
+    "attachmentSize": "{kb} KB",
+    "kind": {
+      "question": "Question",
+      "request": "Request",
+      "complaint": "Complaint",
+      "suggestion": "Suggestion"
+    },
+    "status": {
+      "open": "Open",
+      "answered": "Answered",
+      "closed": "Closed"
+    }
+  },
+  "periodClose": {
+    "title": "Month close",
+    "subtitle": "A closed month blocks adding or editing expenses, payments and charges dated in that month.",
+    "closeTitle": "Close a month",
+    "periodLabel": "Month",
+    "noteLabel": "Note (optional)",
+    "notePlaceholder": "Reconciled with the bank",
+    "close": "Close month",
+    "reopen": "Reopen",
+    "closedOn": "Closed on {date} by {name}",
+    "emptyTitle": "No closed months",
+    "emptyDesc": "Close a month once you finish reconciling it."
+  },
+  "expenses": {
+    "title": "Expenses",
+    "addExpense": "Record expense",
+    "manageCategories": "Manage categories",
+    "descriptionLabel": "Description",
+    "amountLabel": "Amount",
+    "dateLabel": "Date",
+    "kindLabel": "Type",
+    "categoryLabel": "Category",
+    "propertyLabel": "Property",
+    "none": "Unassigned",
+    "monthLabel": "Month",
+    "allKinds": "All",
+    "filter": "Filter",
+    "total": "Total",
+    "saving": "Saving…",
+    "submit": "Save expense",
+    "emptyTitle": "No expenses",
+    "emptyDesc": "No expenses recorded for this month.",
+    "kind": {
+      "ordinary": "Ordinary",
+      "extraordinary": "Extraordinary"
+    }
+  },
+  "visitorAccess": {
+    "portalTitle": "Visitors",
+    "registerVisitor": "Register visitor",
+    "recentVisits": "Recent visits",
+    "emptyVisits": "You have not registered any visitors yet.",
+    "noActiveUnit": "You need an active contract to manage visitors.",
+    "passphraseLabel": "Passphrase",
+    "passphraseOptional": "Passphrase (optional)",
+    "passphraseHint": "At least 5 characters. The front desk asks the visitor for it to confirm entry.",
+    "checkPassphrase": "Check passphrase",
+    "check": "Check",
+    "clear": "Clear",
+    "authorizedTitle": "Permanently authorized people",
+    "authorizedAdminDesc": "People who may enter a unit without each visit being registered.",
+    "authorizedPortalDesc": "People who may enter your unit without you registering each visit.",
+    "unitLabel": "Unit",
+    "chooseUnit": "Choose a unit",
+    "fullNameLabel": "Full name",
+    "documentLabel": "ID document (optional)",
+    "relationshipLabel": "Relationship (optional)",
+    "relationshipPlaceholder": "Family, nanny, driver…",
+    "addAuthorized": "Add authorized person",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "emptyAuthorized": "No authorized people."
+  },
+  "activity": {
+    "title": "Management activity",
+    "subtitle": "What management did in your community.",
+    "from": "From",
+    "to": "To",
+    "filter": "Filter",
+    "clear": "Clear",
+    "empty": "No activity in this period.",
+    "action": {
+      "announcement_published": "Published a notice",
+      "expense_recorded": "Recorded an expense",
+      "incident_resolved": "Resolved an incident",
+      "cleaning_scheduled": "Scheduled a cleaning"
+    }
+  },
+  "staff": {
+    "title": "Building staff",
+    "adminSubtitle": "Managers, doormen, security and cleaning. Phone and document are visible to admins only.",
+    "portalSubtitle": "Who works in your building and on which shift.",
+    "addTitle": "Add staff member",
+    "propertyLabel": "Property",
+    "allProperties": "All properties",
+    "fullNameLabel": "Full name",
+    "positionLabel": "Position",
+    "positionPlaceholder": "Doorman, concierge, security…",
+    "shiftLabel": "Shift",
+    "shiftPlaceholder": "Mon–Fri 8–16",
+    "phoneLabel": "Phone",
+    "documentLabel": "Document",
+    "add": "Add",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "empty": "No staff yet."
+  },
+  "communities": {
+    "title": "Multi-community access",
+    "subtitle": "Add users who already have a Propflow account so they can access this community without losing their own. They switch communities with the selector.",
+    "addTitle": "Grant access",
+    "emailLabel": "Account email",
+    "roleLabel": "Role",
+    "role": {
+      "admin": "Admin",
+      "tenant": "Tenant"
+    },
+    "add": "Grant access",
+    "saving": "Saving…",
+    "remove": "Revoke access",
+    "empty": "Nobody else has access to this community.",
+    "switchLabel": "Active community",
+    "switch": "Switch"
+  },
+  "maintenanceStats": {
+    "title": "Maintenance stats",
+    "subtitle": "Average resolution time and incidents by property and category.",
+    "back": "← Incidents",
+    "total": "Total",
+    "open": "Open",
+    "solved": "Solved",
+    "avgResolution": "Avg. resolution",
+    "days": "{count} days",
+    "byProperty": "By property",
+    "byCategory": "By category",
+    "property": "Property",
+    "noProperty": "No property",
+    "empty": "No incidents yet."
+  },
+  "recurringExpenses": {
+    "title": "Recurring expenses",
+    "subtitle": "Expenses that repeat every month (security, internet, maintenance). They are recorded as regular expenses when you generate the month.",
+    "back": "← Finance",
+    "addTitle": "New recurring expense",
+    "description": "Description",
+    "amount": "Amount (S/)",
+    "day": "Day of month (1–28)",
+    "property": "Property",
+    "category": "Category",
+    "none": "None",
+    "add": "Add",
+    "saving": "Saving…",
+    "generate": "Generate {period} expenses",
+    "generating": "Generating…",
+    "generated": "{count, plural, =0 {No pending expenses} one {# expense created} other {# expenses created}}",
+    "generateHint": "Each active template creates at most one expense per month; running it again does not duplicate.",
+    "empty": "No recurring expenses yet.",
+    "everyMonth": "Day {day} of every month",
+    "lastPeriod": "Last: {period}",
+    "neverGenerated": "Never generated",
+    "paused": "Paused",
+    "pause": "Pause",
+    "resume": "Resume",
+    "remove": "Delete"
+  },
+  "incidentNotification": {
+    "title": {
+      "pending": "Your incident is pending",
+      "in_progress": "Your incident is in progress",
+      "solved": "Your incident was solved"
+    },
+    "body": "\"{title}\" is now: {status}.",
+    "status": {
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "solved": "Solved"
+    }
+  },
+  "incidentSla": {
+    "breached": "SLA breached",
+    "due": "SLA: {date}",
+    "met": "SLA met",
+    "metLate": "Solved after SLA"
+  },
+  "incidentHistory": {
+    "title": "Status history",
+    "empty": "No status changes yet.",
+    "unknown": "Unknown"
+  },
+  "documentExpirations": {
+    "title": "Document expirations",
+    "subtitle": "IDs, insurance and certificates. Alert 30 days before expiry.",
+    "addTitle": "Add document",
+    "kind": "Type",
+    "label": "Description",
+    "expiresOn": "Expires on",
+    "tenant": "Tenant",
+    "property": "Property",
+    "none": "None",
+    "add": "Add",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "empty": "No documents yet.",
+    "expires": "Expires: {date}",
+    "kinds": {
+      "dni": "ID (DNI)",
+      "insurance": "Insurance",
+      "certificate": "Certificate",
+      "other": "Other"
+    },
+    "status": {
+      "expired": "Expired",
+      "soon": "Expiring soon",
+      "ok": "Valid"
+    }
+  },
+  "expiringDocumentsBanner": {
+    "summary": "Documents: {expired} expired and {soon} expiring within 30 days.",
+    "review": "Review"
+  },
+  "propertyComparison": {
+    "back": "Properties",
+    "title": "Compare properties",
+    "subtitle": "Pick up to {max} properties. Collected and expenses: last {months} months.",
+    "pick": "Properties to compare",
+    "compare": "Compare",
+    "empty": "Pick at least one property.",
+    "metric": "Metric",
+    "metrics": {
+      "units": "Occupied units",
+      "occupancy": "Occupancy",
+      "contractedRent": "Contracted rent / month",
+      "collected": "Collected",
+      "expenses": "Expenses",
+      "net": "Net",
+      "openIncidents": "Open incidents"
+    }
+  },
+  "propertyGroups": {
+    "back": "Properties",
+    "title": "Property groups",
+    "subtitle": "Group properties (area, owner, building) and see the consolidated report for the last 12 months.",
+    "newGroup": "New group",
+    "name": "Group name",
+    "members": "Properties",
+    "create": "Create group",
+    "saving": "Saving…",
+    "remove": "Remove",
+    "empty": "No groups yet.",
+    "viewReport": "View report",
+    "reportTitle": "Report: {name}",
+    "total": "Group total"
+  },
+  "globalSearchBox": {
+    "label": "Search",
+    "placeholder": "Search tenants, units…"
+  },
+  "globalSearch": {
+    "title": "Search",
+    "placeholder": "Name, email, phone, ID, unit…",
+    "submit": "Search",
+    "hint": "Type at least {min} characters.",
+    "noResults": "No results for “{query}”.",
+    "kinds": {
+      "tenant": "Tenants",
+      "property": "Properties",
+      "unit": "Units",
+      "incident": "Incidents",
+      "lead": "Leads"
+    }
+  },
+  "opsCalendar": {
+    "title": "Operational calendar",
+    "subtitle": "Contracts, charges, cleaning and visits in one place.",
+    "download": "Download .ics",
+    "previous": "Previous",
+    "next": "Next",
+    "empty": "No events this month.",
+    "kinds": {
+      "contract_start": "Contract start",
+      "contract_end": "Contract end",
+      "charge_due": "{count, plural, one {# charge due} other {# charges due}}",
+      "cleaning": "Cleaning",
+      "visit": "Visit"
+    }
+  },
+  "unitBeds": {
+    "title": "Beds",
+    "subtitle": "Split the unit into beds with their own rent. Totals roll up to the unit.",
+    "label": "Bed name",
+    "rent": "Monthly rent",
+    "add": "Add bed",
+    "saving": "Saving...",
+    "tenant": "Tenant",
+    "vacant": "Vacant",
+    "assign": "Assign",
+    "remove": "Remove",
+    "empty": "This unit has no beds.",
+    "noRent": "No rent",
+    "stats": {
+      "beds": "Beds",
+      "occupied": "Occupied",
+      "potentialRent": "Potential rent",
+      "occupiedRent": "Occupied rent"
+    }
+  },
+  "unitCalendar": {
+    "back": "← Back to unit",
+    "title": "Calendar & sync",
+    "subtitle": "Sync this unit's availability with Airbnb, Booking or Vrbo through iCal links.",
+    "enable": "Enable calendar",
+    "saving": "Saving…",
+    "exportTitle": "Export to Airbnb / Booking",
+    "exportHelp": "Paste this link under \"Import calendar\" in the channel. It only publishes dates taken by active contracts, no tenant data.",
+    "importTitle": "Import channel bookings",
+    "importHelp": "Paste the iCal export link from Airbnb, Booking or Vrbo. Syncs every hour.",
+    "importUrl": "Channel iCal link",
+    "save": "Save",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "lastSynced": "Last synced: {date}",
+    "neverSynced": "Not synced yet",
+    "syncError": "Error: {error}",
+    "blocksTitle": "Upcoming channel blocks",
+    "noBlocks": "No upcoming blocks.",
+    "range": "{from} → {to}",
+    "blocked": "Blocked"
+  },
+  "payLink": {
+    "title": "Rent payment",
+    "greeting": "Hi, {name}",
+    "concept": "Concept",
+    "defaultConcept": "Rent charge",
+    "dueDate": "Due",
+    "amount": "Amount",
+    "paid": "Paid online. Thank you!",
+    "unavailable": "This payment link is no longer available. Ask your landlord for a new one.",
+    "sandboxNotice": "Test mode: no real money will be charged.",
+    "simulate": "Simulate payment",
+    "payWithMercadoPago": "Pay with Mercado Pago",
+    "methods": "Card, Yape, Plin or bank transfer via Mercado Pago",
+    "rateLimited": "Too many requests. Please try again shortly."
+  },
+  "onlinePayments": {
+    "title": "Online Payments",
+    "subtitle": "Payment links per charge: card, Yape, Plin or bank transfer via Mercado Pago. Reconciled automatically once the payment is confirmed.",
+    "createTitle": "Create payment link",
+    "emptyTitle": "No payment links yet",
+    "emptyDescription": "Create a link from a charge and share it with your tenant.",
+    "colTenant": "Tenant",
+    "colConcept": "Concept",
+    "colAmount": "Amount",
+    "colStatus": "Status",
+    "colPaid": "Paid",
+    "colLink": "Link",
+    "openLink": "Open",
+    "next": "Next",
+    "unknownTenant": "No tenant",
+    "defaultConcept": "Rent charge",
+    "status": {
+      "pending": "Pending",
+      "paid": "Paid online",
+      "expired": "Expired",
+      "failed": "Failed"
+    },
+    "provider": {
+      "sandbox": "Test",
+      "mercadopago": "Mercado Pago"
+    }
+  },
+  "onlinePaymentsForm": {
+    "chargeLabel": "Charge",
+    "selectCharge": "Select a charge",
+    "submit": "Create payment link",
+    "linkLabel": "Link to share",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "notificationPreferences": {
+    "title": "Email settings",
+    "description": "Choose which emails you want to receive.",
+    "leaseRenewal": "Lease renewal",
+    "leaseRenewalHint": "Notice when your lease is about to end (30 days before).",
+    "paymentDue": "Upcoming payments",
+    "paymentDueHint": "Notice when a payment is due within the next 3 days.",
+    "alwaysSent": "Essential emails are always sent: portal invitations and contract signature requests. You will still see notices in your portal notifications.",
+    "save": "Save",
+    "saved": "Preferences saved",
+    "error": "Your preferences could not be saved. Please try again."
+  },
+  "payables": {
+    "title": "Accounts payable",
+    "back": "← Finance",
+    "totals": {
+      "pending": "Total outstanding",
+      "overdue": "Total overdue"
+    },
+    "form": {
+      "title": "New payable",
+      "supplier": "Supplier",
+      "description": "Details",
+      "documentRef": "Document ref.",
+      "amount": "Amount (S/)",
+      "issuedOn": "Date",
+      "dueOn": "Due date",
+      "property": "Property",
+      "category": "Category",
+      "none": "None",
+      "create": "Add payable",
+      "saving": "Saving…",
+      "created": "Payable added"
+    },
+    "filters": {
+      "status": "Status",
+      "all": "All",
+      "dueFrom": "Due from",
+      "dueTo": "Due to",
+      "apply": "Filter"
+    },
+    "status": {
+      "pending": "Pending",
+      "partial": "Partially paid",
+      "paid": "Paid",
+      "overdue": "Overdue"
+    },
+    "columns": {
+      "issuedOn": "Date",
+      "supplier": "Supplier",
+      "description": "Details",
+      "documentRef": "Document ref.",
+      "amount": "Amount",
+      "saldo": "Balance",
+      "dueOn": "Due",
+      "status": "Status"
+    },
+    "empty": {
+      "title": "No payables",
+      "description": "Record supplier bills to track balances and due dates."
+    },
+    "payment": {
+      "open": "Record payment",
+      "submit": "Save payment",
+      "amount": "Amount",
+      "paidOn": "Payment date",
+      "note": "Note"
+    }
   }
 }

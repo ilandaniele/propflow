@@ -20,11 +20,13 @@ export type GeneratePdfInput = z.infer<typeof GeneratePdfSchema>;
 
 const MAX_CONTRACT_PDF_BYTES = 5 * 1024 * 1024;
 
+export const PdfFileSchema = z
+  .instanceof(File)
+  .refine((f) => f.size > 0 && f.size <= MAX_CONTRACT_PDF_BYTES, 'PDF must be between 1 byte and 5 MB');
+
 export const SaveContractPdfSchema = z.object({
   contract_id: z.string().guid(),
-  file: z
-    .instanceof(File)
-    .refine((f) => f.size > 0 && f.size <= MAX_CONTRACT_PDF_BYTES, 'PDF must be between 1 byte and 5 MB'),
+  file: PdfFileSchema,
 });
 export type SaveContractPdfInput = z.infer<typeof SaveContractPdfSchema>;
 
@@ -36,12 +38,27 @@ export type SendSignatureInput = z.infer<typeof SendSignatureSchema>;
 // Public sign page submission (Zod for Route Handler body)
 const MAX_SIGNATURE_BYTES = 200_000; // ~200KB for base64 canvas image
 
+export const PNG_DATA_URL_PREFIX = 'data:image/png;base64,';
+
+const SignatureDataUrlSchema = z
+  .string()
+  .min(1)
+  .max(MAX_SIGNATURE_BYTES, 'Signature image too large')
+  .startsWith(PNG_DATA_URL_PREFIX, 'Must be a PNG data URL');
+
 export const SignSubmitSchema = z.object({
-  signature_image_base64: z
-    .string()
-    .min(1)
-    .max(MAX_SIGNATURE_BYTES, 'Signature image too large')
-    .regex(/^data:image\/png;base64,/, 'Must be a PNG data URL'),
+  signature_image_base64: SignatureDataUrlSchema,
   typed_name: z.string().min(1).max(200),
 });
 export type SignSubmitInput = z.infer<typeof SignSubmitSchema>;
+
+export const OrgSignatureSchema = z.object({
+  signer_name:     z.string().trim().min(2).max(120),
+  signer_document: z.string().trim().max(30).optional(),
+  signature_image: SignatureDataUrlSchema,
+});
+export type OrgSignatureInput = z.infer<typeof OrgSignatureSchema>;
+
+export const SignatureCertificateSchema = z.object({
+  signature_request_id: z.string().guid(),
+});

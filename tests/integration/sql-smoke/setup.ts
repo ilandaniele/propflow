@@ -262,6 +262,31 @@ export async function seedProperty(db: SmokeDb, orgId: string, overrides: Partia
   return row;
 }
 
+export async function seedUnit(db: SmokeDb, orgId: string, propertyId: string, overrides: Partial<typeof schema.units.$inferInsert> = {}) {
+  const [row] = await db
+    .insert(schema.units)
+    .values(stamped(schema.units, { orgId, propertyId, label: 'A-1', ...overrides }))
+    .returning();
+  return row;
+}
+
+export async function seedContract(
+  db: SmokeDb,
+  orgId: string,
+  unitId: string,
+  overrides: Partial<typeof schema.contracts.$inferInsert> = {},
+) {
+  const [tenant] = await db
+    .insert(schema.tenants)
+    .values(stamped(schema.tenants, { orgId, fullName: 'Smoke Tenant' }))
+    .returning();
+  const [contract] = await db
+    .insert(schema.contracts)
+    .values(stamped(schema.contracts, { orgId, tenantId: tenant.id, unitId, startDate: '2024-01-01', monthlyRent: '850.00', status: 'active', ...overrides }))
+    .returning();
+  return { tenant, contract };
+}
+
 export async function seedListing(
   db: SmokeDb,
   orgId: string,

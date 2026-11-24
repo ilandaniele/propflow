@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
 import { servicePayments, properties } from '@/lib/db/schema';
 import { eq, asc, and } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SplitUtilityForm } from './SplitUtilityForm';
 
 export const metadata: Metadata = { title: 'Utility Payments' };
 
@@ -30,7 +31,7 @@ const SERVICE_COLORS: Record<string, string> = {
 
 export default async function UtilitiesPage() {
   let ctx;
-  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+  try { ctx = await requireStaff('finance', 'read'); } catch { redirect('/login'); }
 
   const t = await getTranslations('utilities');
 
@@ -217,6 +218,8 @@ export default async function UtilitiesPage() {
                     })}
                   </div>
                 )}
+
+                {recentMonths.length > 0 && <SplitUtilityForm servicePaymentId={svc.id} months={recentMonths} />}
               </div>
             );
           })}

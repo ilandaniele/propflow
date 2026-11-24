@@ -141,6 +141,15 @@ export default async function PublicListingPage({ params }: PageProps) {
               {t('whatsappCta')}
             </a>
           )}
+
+          {listing.operation === 'rent' && (
+            <a
+              href={`/p/${org.slug}/apply?listing=${encodeURIComponent(listing.slug)}`}
+              className="inline-block mt-2 ml-2 px-4 py-2 text-sm font-medium text-brand-700 border border-brand-200 hover:bg-brand-50 rounded-lg transition-colors"
+            >
+              {t('applyCta')}
+            </a>
+          )}
         </div>
 
         {org.webPublicKey && (

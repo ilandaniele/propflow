@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { requireAdmin } from '@/lib/auth/guards';
+import { getProfile, requireAdmin, staffRoleOf } from '@/lib/auth/guards';
+import { homePathFor } from '@/lib/auth/permissions';
 import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Card } from '@/components/ui/Card';
@@ -13,10 +14,14 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import Link from 'next/link';
 import { entityLabel } from '@/lib/dashboard/health';
 import { getDashboardKpis } from '@/lib/dashboard/queries';
+import { ExpiringDocumentsBanner } from '@/components/document-expirations/ExpiringDocumentsBanner';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
 export default async function DashboardPage() {
+  const staffRole = staffRoleOf(await getProfile());
+  if (staffRole) redirect(homePathFor(staffRole));
+
   let ctx;
   try { ctx = await requireAdmin(); } catch { redirect('/login'); }
 
@@ -72,6 +77,8 @@ export default async function DashboardPage() {
           <p className="text-amber-800">{t('diagnosticCause')}</p>
         </div>
       )}
+
+      <ExpiringDocumentsBanner orgId={ctx.orgId} />
 
       {!hasData ? (
         <Card>

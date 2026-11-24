@@ -17,10 +17,12 @@ import { requireAdmin, requireUser } from '@/lib/auth/guards';
 import { Errors, ok } from '@/lib/errors';
 import { mutationRateLimit } from '@/lib/ratelimit';
 import { log } from '@/lib/log';
+import { recordActivity } from '@/lib/activity/record';
 import type { ActionResult } from '@/lib/errors';
 import {
   AnnouncementSchema,
   PublishAnnouncementSchema,
+  PinAnnouncementSchema,
   CleaningTaskSchema,
   UpdateCleaningTaskSchema,
   LeadSchema,
@@ -28,6 +30,7 @@ import {
   ScheduleReminderSchema,
   MarkNotificationReadSchema,
 } from '@/lib/schemas/ops';
+import { setAnnouncementPinned } from '@/lib/announcements/queries';
 
 // ── Announcements ─────────────────────────────────────────────────────────────
 
@@ -54,6 +57,8 @@ export async function createAnnouncement(
       propertyId: parsed.data.property_id ?? null,
       unitId: parsed.data.unit_id ?? null,
       expiresAt: parsed.data.expires_at ? new Date(parsed.data.expires_at) : null,
+      pinned: parsed.data.pinned,
+      important: parsed.data.important,
     });
   } catch (e) {
     log.error('[createAnnouncement] db error', { code: e instanceof Error ? e.message : String(e) });
@@ -157,6 +162,35 @@ export async function publishAnnouncement(
   }
 
   log.adminAction(ctx.userId, 'publish_announcement', 'announcement', parsed.data.id);
+  await recordActivity({
+    orgId: ctx.orgId,
+    actorId: ctx.userId,
+    action: 'announcement_published',
+    resourceType: 'announcement',
+    resourceId: parsed.data.id,
+    summary: ann.audience === 'all' ? ann.title : undefined,
+  });
+  revalidatePath('/dashboard/announcements');
+  revalidatePath('/portal/announcements');
+  return ok(undefined);
+}
+
+export async function toggleAnnouncementPin(
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+
+  const rl = mutationRateLimit(ctx.userId, 'pin-announcement');
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  const parsed = PinAnnouncementSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
+
+  if (!(await setAnnouncementPinned(ctx.orgId, parsed.data.id, parsed.data.pinned))) return Errors.NOT_FOUND();
+
+  log.adminAction(ctx.userId, parsed.data.pinned ? 'pin_announcement' : 'unpin_announcement', 'announcement', parsed.data.id);
   revalidatePath('/dashboard/announcements');
   revalidatePath('/portal/announcements');
   return ok(undefined);
@@ -191,6 +225,13 @@ export async function createCleaningTask(
     return Errors.INTERNAL();
   }
 
+  await recordActivity({
+    orgId: ctx.orgId,
+    actorId: ctx.userId,
+    action: 'cleaning_scheduled',
+    resourceType: 'cleaning_task',
+    summary: parsed.data.unit_id ? undefined : parsed.data.title,
+  });
   revalidatePath('/dashboard/cleaning');
   return ok(undefined);
 }

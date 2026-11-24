@@ -17,5 +17,11 @@ export const UpdateContractStatusSchema = z.object({
   status: z.enum(['active', 'expired', 'terminated']),
 });
 
+export const RenewContractSchema = z.object({
+  contract_id: z.string().guid(),
+  months: z.coerce.number().int().min(1).max(60),
+  monthly_rent: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.number().positive().max(9_999_999).optional()),
+});
+
 export type CreateContractInput = z.infer<typeof CreateContractSchema>;
 export type UpdateContractStatusInput = z.infer<typeof UpdateContractStatusSchema>;

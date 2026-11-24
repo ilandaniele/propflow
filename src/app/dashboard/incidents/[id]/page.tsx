@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireStaff } from '@/lib/auth/guards';
 import { db } from '@/lib/db';
-import { incidents, incidentComments, profiles } from '@/lib/db/schema';
+import { incidents, incidentComments, incidentSchedules, profiles } from '@/lib/db/schema';
 import { eq, and, asc } from 'drizzle-orm';
 import { getTranslations } from 'next-intl/server';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -10,6 +10,13 @@ import { StatusPill, PriorityPill } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { UpdateIncidentForm } from './UpdateIncidentForm';
 import { CommentForm } from './CommentForm';
+import { ScheduleBadge } from '@/components/incidents/ScheduleBadge';
+import { scheduleState } from '@/lib/incidents/schedule-math';
+import { SupplierAssignmentCard } from './SupplierAssignmentCard';
+import { activeSupplierOptions, incidentAssignment } from '@/lib/suppliers/suppliers';
+import { IncidentStatusHistory } from '@/components/incidents/IncidentStatusHistory';
+import { SlaBadge } from '@/components/incidents/SlaBadge';
+import { listIncidentStatusEvents } from '@/lib/incidents/history';
 
 export const metadata: Metadata = { title: 'Incident Details' };
 
@@ -18,14 +25,14 @@ interface Props { params: Promise<{ id: string }> }
 export default async function IncidentDetailPage({ params }: Props) {
   const { id } = await params;
   let ctx;
-  try { ctx = await requireAdmin(); } catch { redirect('/login'); }
+  try { ctx = await requireStaff('operations', 'read'); } catch { redirect('/login'); }
 
   const t = await getTranslations('incidentDetail');
 
   // Alias profiles twice — once for createdBy, once for assignedTo
   const createdByProfiles = profiles;
 
-  const [incidentRows, commentRows, adminRows] = await Promise.all([
+  const [incidentRows, commentRows, adminRows, supplierOptions, assignment, statusEvents] = await Promise.all([
     db
       .select({
         id:          incidents.id,
@@ -46,9 +53,11 @@ export default async function IncidentDetailPage({ params }: Props) {
         updatedAt:   incidents.updatedAt,
         photoPath:   incidents.photoPath,
         creatorName: createdByProfiles.fullName,
+        estimatedOn: incidentSchedules.estimatedOn,
       })
       .from(incidents)
       .leftJoin(createdByProfiles, eq(createdByProfiles.id, incidents.createdBy))
+      .leftJoin(incidentSchedules, eq(incidentSchedules.incidentId, incidents.id))
       .where(and(eq(incidents.id, id), eq(incidents.orgId, ctx.orgId))),
     db
       .select({
@@ -66,6 +75,9 @@ export default async function IncidentDetailPage({ params }: Props) {
       .select({ id: profiles.id, fullName: profiles.fullName })
       .from(profiles)
       .where(and(eq(profiles.orgId, ctx.orgId), eq(profiles.role, 'admin'))),
+    activeSupplierOptions(ctx.orgId),
+    incidentAssignment(ctx.orgId, id),
+    listIncidentStatusEvents(ctx.orgId, id),
   ]);
 
   if (!incidentRows.length) notFound();
@@ -102,6 +114,8 @@ export default async function IncidentDetailPage({ params }: Props) {
         <div className="flex items-center gap-2 mb-2">
           <PriorityPill priority={incident.priority} />
           <StatusPill status={incident.status} />
+          <ScheduleBadge state={scheduleState(incident.status, incident.estimatedOn, new Date().toISOString().slice(0, 10))} />
+          <SlaBadge incident={incident} />
           <span className="text-sm text-slate-400 capitalize">{incident.category}</span>
         </div>
         <h1 className="text-2xl font-bold text-slate-900">{incident.title}</h1>
@@ -148,8 +162,13 @@ export default async function IncidentDetailPage({ params }: Props) {
         <div className="space-y-4">
           <Card>
             <CardHeader><CardTitle>{t('cardManage')}</CardTitle></CardHeader>
-            <UpdateIncidentForm incident={incidentForForm as never} admins={adminsForForm} />
+            <UpdateIncidentForm incident={incidentForForm as never} admins={adminsForForm} estimatedOn={incident.estimatedOn} />
           </Card>
+          <Card>
+            <CardHeader><CardTitle>{t('cardSupplier')}</CardTitle></CardHeader>
+            <SupplierAssignmentCard incidentId={incident.id} options={supplierOptions} assignment={assignment} />
+          </Card>
+          <IncidentStatusHistory events={statusEvents} />
         </div>
       </div>
     </div>

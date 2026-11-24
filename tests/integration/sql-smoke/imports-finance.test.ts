@@ -16,6 +16,8 @@ vi.mock('@/lib/auth/guards', () => ({
   requireAdmin: vi.fn(async () => ({ ...auth.ctx, role: 'admin' })),
   requireTenant: vi.fn(async () => ({ ...auth.ctx, role: 'tenant' })),
   requireUser: vi.fn(async () => auth.ctx),
+  requireStaff: vi.fn(async () => ({ ...auth.ctx, role: 'admin', staffRole: null })),
+  canStaffWrite: vi.fn(() => true),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('@/lib/ratelimit', () => ({ mutationRateLimit: vi.fn(() => ({ success: true })) }));
@@ -199,11 +201,16 @@ describe('finance actions (real SQL)', () => {
       category_id: category.id, amount: '120.75', description: 'Recibo agua', incurred_on: '2024-05-01',
     }))).toEqual({ data: undefined });
     const [expense] = await db.select().from(schema.expenses).where(eq(schema.expenses.orgId, org.id));
-    expect(expense).toMatchObject({ amount: '120.75', categoryId: category.id });
+    expect(expense).toMatchObject({ amount: '120.75', categoryId: category.id, currency: 'PEN' });
 
     expect(await finance.updateExpense({}, form({ id: expense.id, amount: '99.9' }))).toEqual({ data: undefined });
     const [updatedExpense] = await db.select().from(schema.expenses).where(eq(schema.expenses.id, expense.id));
     expect(updatedExpense.amount).toBe('99.9');
+
+    expect(await finance.updateExpense({}, form({ id: expense.id, currency: 'USD' }))).toEqual({ data: undefined });
+    const [usdExpense] = await db.select().from(schema.expenses).where(eq(schema.expenses.id, expense.id));
+    expect(usdExpense).toMatchObject({ currency: 'USD', amount: '99.9' });
+    expect(await finance.updateExpense({}, form({ id: expense.id, currency: 'BTC' }))).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
 
     const { tenant, contract } = await seedTenantWithContract(org.id);
     const [payment] = await db.insert(schema.payments).values({

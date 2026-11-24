@@ -14,6 +14,8 @@ import { Tabs } from '@/components/ui/Tabs';
 import { TabFallback } from '@/components/ui/TabFallback';
 import { ImagesTab } from './_tabs/ImagesTab';
 import { getUnitImagesAdmin } from '@/app/actions/unit-images';
+import { UnitBedsSection } from '@/components/unit-beds/UnitBedsSection';
+import { listTenantOptions, listUnitBeds } from '@/lib/unit-beds/queries';
 
 export const metadata: Metadata = { title: 'Unit Details' };
 
@@ -70,7 +72,11 @@ export default async function UnitDetailPage({ params }: Props) {
         : t('toiletType.none');
 
   // Pre-fetch images for the Images tab (server-side, avoids client waterfall)
-  const imagesResult = await getUnitImagesAdmin(id);
+  const [imagesResult, beds, tenantOptions] = await Promise.all([
+    getUnitImagesAdmin(id),
+    listUnitBeds(ctx.orgId, id),
+    listTenantOptions(ctx.orgId),
+  ]);
   const initialImages = imagesResult.data ?? [];
 
   const imageLabels = {
@@ -169,6 +175,12 @@ export default async function UnitDetailPage({ params }: Props) {
         </Suspense>
       ),
     },
+    {
+      id: 'beds',
+      label: t('bedsTab'),
+      badge: beds.length,
+      content: <UnitBedsSection unitId={id} beds={beds} tenants={tenantOptions} />,
+    },
   ];
 
   return (
@@ -181,6 +193,10 @@ export default async function UnitDetailPage({ params }: Props) {
           <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
         {t('detail.backToUnits')}
+      </Link>
+
+      <Link href={`/dashboard/units/${id}/calendar`} className="ml-4 text-sm text-blue-600 hover:underline">
+        {t('calendarLink')}
       </Link>
 
       <Tabs tabs={tabs} defaultTab="details" className="bg-white border border-slate-200 rounded-xl overflow-hidden" />

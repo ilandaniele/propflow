@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { type ReactNode } from 'react';
+import { OrgLogo } from './OrgLogo';
 
 interface NavItem {
   labelKey: string;
@@ -68,6 +69,15 @@ const coreNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'documents',
+    href: '/dashboard/documents',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'payments',
     href: '/dashboard/payments',
     icon: (
@@ -85,15 +95,69 @@ const coreNavItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    labelKey: 'suppliers',
+    href: '/dashboard/suppliers',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+    ),
+  },
 ];
 
 const financeNavItems: NavItem[] = [
+  {
+    labelKey: 'bankReconciliation',
+    href: '/dashboard/payments/reconciliation',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 21h18"/><path d="M5 21V10"/><path d="M19 21V10"/><path d="M9 21v-6"/><path d="M15 21v-6"/><path d="m2 10 10-7 10 7"/>
+      </svg>
+    ),
+  },
   {
     labelKey: 'finance',
     href: '/dashboard/finance',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'deposits',
+    href: '/dashboard/deposits',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'rentAdjustments',
+    href: '/dashboard/rent-adjustments',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'cashAccounts',
+    href: '/dashboard/cash-accounts',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'budget',
+    href: '/dashboard/budget',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>
       </svg>
     ),
   },
@@ -116,6 +180,24 @@ const financeNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'chargeConcepts',
+    href: '/dashboard/charge-concepts',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" x2="7.01" y1="7" y2="7"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'onlinePayments',
+    href: '/dashboard/online-payments',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'taxReceipts',
     href: '/dashboard/tax-receipts',
     icon: (
@@ -125,11 +207,93 @@ const financeNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'rentalTax',
+    href: '/dashboard/finance/rental-tax',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 1V2l-1 1-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8M8 12h8M8 16h5"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'profitability',
+    href: '/dashboard/finance/profitability',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'ownerSettlements',
+    href: '/dashboard/finance/owner-settlements',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'occupancyHistory',
+    href: '/dashboard/finance/occupancy',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'adminNotifications',
+    href: '/dashboard/notifications',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'rentalApplications',
+    href: '/dashboard/leads/applications',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'einvoices',
+    href: '/dashboard/einvoices',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><line x1="8" x2="16" y1="9" y2="9"/><line x1="8" x2="14" y1="13" y2="13"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'utilities',
     href: '/dashboard/finance/utilities',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'periodClose',
+    href: '/dashboard/finance/closing',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'payables',
+    href: '/dashboard/finance/payables',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2"/>
+        <path d="M7 9h10M7 13h6M15 17h2"/>
       </svg>
     ),
   },
@@ -155,6 +319,24 @@ const financeNavItems: NavItem[] = [
 
 const opsNavItems: NavItem[] = [
   {
+    labelKey: 'expirations',
+    href: '/dashboard/expirations',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'calendar',
+    href: '/dashboard/calendar',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'reminders',
     href: '/dashboard/reminders',
     icon: (
@@ -173,11 +355,47 @@ const opsNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'amenities',
+    href: '/dashboard/amenities',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="18" height="18" x="3" y="4" rx="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'assets',
+    href: '/dashboard/assets',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'cleaning',
     href: '/dashboard/cleaning',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'staff',
+    href: '/dashboard/staff',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'communities',
+    href: '/dashboard/communities',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/><path d="M8 14h.01"/><path d="M16 14h.01"/>
       </svg>
     ),
   },
@@ -323,11 +541,46 @@ const adminNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'team',
+    href: '/dashboard/admin/team',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'adminImport',
     href: '/dashboard/admin/import',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    ),
+  },  {
+    labelKey: 'ownerAssistant',
+    href: '/dashboard/admin/whatsapp-assistant',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'apiKeys',
+    href: '/dashboard/admin/api-keys',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'branding',
+    href: '/dashboard/admin/branding',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z"/>
       </svg>
     ),
   },
@@ -365,6 +618,24 @@ const communityNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'polls',
+    href: '/dashboard/polls',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+    ),
+  },
+  {
+    labelKey: 'tenantMessages',
+    href: '/dashboard/messages',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 4h16v12H5.17L4 17.17V4z"/><path d="M8 9h8M8 12h5"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'visitors',
     href: '/dashboard/visitors',
     icon: (
@@ -395,8 +666,12 @@ const communityNavItems: NavItem[] = [
 
 export interface AdminSidebarProps {
   orgName?:  string;
+  communitySwitcher?: ReactNode;
+  logoUrl?:  string | null;
   open?:     boolean;
   onClose?:  () => void;
+  /** When set, only these links are shown (restricted staff roles). */
+  allowedHrefs?: string[] | null;
 }
 
 function NavSection({
@@ -410,6 +685,7 @@ function NavSection({
   pathname: string;
   t: ReturnType<typeof useTranslations<'navigation'>>;
 }) {
+  if (items.length === 0) return null;
   return (
     <>
       {titleKey && (
@@ -447,9 +723,10 @@ function NavSection({
   );
 }
 
-export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
+export function AdminSidebar({ orgName, logoUrl, communitySwitcher, open, onClose, allowedHrefs }: AdminSidebarProps) {
   const pathname = usePathname();
   const t = useTranslations('navigation');
+  const visible = (items: NavItem[]) => (allowedHrefs ? items.filter((item) => allowedHrefs.includes(item.href)) : items);
 
   return (
     <>
@@ -487,22 +764,26 @@ export function AdminSidebar({ orgName, open, onClose }: AdminSidebarProps) {
       </div>
 
       {/* Org name */}
-      {orgName && (
-        <div className="px-5 py-3 border-b border-slate-100">
-          <p className="text-xs text-slate-500 font-medium truncate">{orgName}</p>
+      {(orgName || logoUrl) && (
+        <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100">
+          {logoUrl && <OrgLogo src={logoUrl} alt={orgName ?? ''} className="h-7 max-w-[96px]" />}
+          {orgName && <p className="text-xs text-slate-500 font-medium truncate">{orgName}</p>}
         </div>
+      )}
+      {communitySwitcher && (
+        <div className="px-5 py-2 border-b border-slate-100">{communitySwitcher}</div>
       )}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label={t('mainNav')}>
         <ul className="space-y-0.5" role="list">
-          <NavSection items={coreNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionFinance" items={financeNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionOps" items={opsNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionIntelligence" items={intelligenceNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionCommunity" items={communityNavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionPhase4" items={phase4NavItems} pathname={pathname} t={t} />
-          <NavSection titleKey="sectionAdmin" items={adminNavItems} pathname={pathname} t={t} />
+          <NavSection items={visible(coreNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionFinance" items={visible(financeNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionOps" items={visible(opsNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionIntelligence" items={visible(intelligenceNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionCommunity" items={visible(communityNavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionPhase4" items={visible(phase4NavItems)} pathname={pathname} t={t} />
+          <NavSection titleKey="sectionAdmin" items={visible(adminNavItems)} pathname={pathname} t={t} />
         </ul>
       </nav>
       </aside>

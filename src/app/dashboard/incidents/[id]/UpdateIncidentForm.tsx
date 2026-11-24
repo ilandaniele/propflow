@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { updateIncident } from '@/app/actions/incidents';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Input';
+import { Input, Select } from '@/components/ui/Input';
 import type { ActionResult } from '@/lib/errors';
 import type { Incident } from '@/types';
 
@@ -18,9 +18,10 @@ function SubmitButton() {
 interface Props {
   incident: Incident;
   admins: Array<{ id: string; full_name: string | null }>;
+  estimatedOn: string | null;
 }
 
-export function UpdateIncidentForm({ incident, admins }: Props) {
+export function UpdateIncidentForm({ incident, admins, estimatedOn }: Props) {
   const t = useTranslations('forms.updateIncident');
   const [state, action] = useActionState<ActionResult, FormData>(updateIncident, {});
 
@@ -44,6 +45,7 @@ export function UpdateIncidentForm({ incident, admins }: Props) {
           <option key={a.id} value={a.id}>{a.full_name ?? a.id}</option>
         ))}
       </Select>
+      <Input label={t('estimatedLabel')} name="estimated_on" type="date" defaultValue={estimatedOn ?? ''} />
       {state.error && <p role="alert" className="text-xs text-red-600">{state.error.message}</p>}
       {state.data !== undefined && <p className="text-xs text-green-600">{t('saved')}</p>}
       <SubmitButton />
