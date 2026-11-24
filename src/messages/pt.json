@@ -111,6 +111,7 @@
     "assets": "Ativos",
     "bankReconciliation": "Conciliação bancária",
     "rentalTax": "Imposto sobre aluguel",
+    "suppliers": "Fornecedores",
     "accountStatements": "Extratos de Conta",
     "additionalCharges": "Cobranças Adicionais",
     "chargeConcepts": "Conceitos de cobrança",
@@ -2129,6 +2130,58 @@
       "11": "Dez"
     }
   },
+  "suppliers": {
+    "title": "Fornecedores",
+    "subtitle": "Encanadores, eletricistas e técnicos aos quais você atribui incidências.",
+    "newTitle": "Novo fornecedor",
+    "emptyTitle": "Sem fornecedores",
+    "emptyDesc": "Adicione seu primeiro fornecedor para atribuir incidências.",
+    "inactive": "Inativo",
+    "noContact": "Sem contato",
+    "jobs": "{open} abertas · {total} no total",
+    "edit": "Editar",
+    "activate": "Ativar",
+    "deactivate": "Desativar",
+    "form": {
+      "name": "Nome",
+      "trade": "Especialidade",
+      "phone": "Telefone",
+      "email": "E-mail",
+      "notes": "Notas",
+      "create": "Adicionar fornecedor",
+      "save": "Salvar",
+      "saved": "Salvo"
+    },
+    "assignment": {
+      "none": "Nenhum fornecedor atribuído.",
+      "noSuppliers": "Não há fornecedores ativos.",
+      "addSupplier": "Adicionar fornecedor",
+      "supplier": "Fornecedor",
+      "assign": "Atribuir",
+      "reassign": "Reatribuir",
+      "status": "Status",
+      "quote": "Orçamento (S/)",
+      "finalCost": "Custo final (S/)",
+      "notes": "Notas"
+    },
+    "trades": {
+      "plumbing": "Encanamento",
+      "electrical": "Elétrica",
+      "appliance": "Eletrodomésticos",
+      "structural": "Estrutura e alvenaria",
+      "cleaning": "Limpeza",
+      "locksmith": "Chaveiro",
+      "painting": "Pintura",
+      "general": "Geral"
+    },
+    "statuses": {
+      "assigned": "Atribuído",
+      "quoted": "Orçado",
+      "approved": "Aprovado",
+      "done": "Concluído",
+      "cancelled": "Cancelado"
+    }
+  },
   "accountStatements": {
     "generate": {
       "title": "Gerar extratos de conta",
@@ -2241,6 +2294,7 @@
   "incidentDetail": {
     "cardDescription": "Descrição",
     "cardTimeline": "Linha do Tempo",
+    "cardSupplier": "Fornecedor",
     "cardManage": "Gerenciar",
     "noComments": "Sem comentários ainda",
     "reportedBy": "Relatado por",

@@ -111,6 +111,7 @@
     "assets": "Activos",
     "bankReconciliation": "Conciliación bancaria",
     "rentalTax": "Renta 1ra categoría",
+    "suppliers": "Proveedores",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "chargeConcepts": "Conceptos de cobro",
@@ -2129,6 +2130,58 @@
       "11": "Dic"
     }
   },
+  "suppliers": {
+    "title": "Proveedores",
+    "subtitle": "Gasfiteros, electricistas y técnicos a los que asignas incidencias.",
+    "newTitle": "Nuevo proveedor",
+    "emptyTitle": "Sin proveedores",
+    "emptyDesc": "Agrega tu primer proveedor para asignarle incidencias.",
+    "inactive": "Inactivo",
+    "noContact": "Sin contacto",
+    "jobs": "{open} abiertas · {total} en total",
+    "edit": "Editar",
+    "activate": "Activar",
+    "deactivate": "Desactivar",
+    "form": {
+      "name": "Nombre",
+      "trade": "Rubro",
+      "phone": "Teléfono",
+      "email": "Correo",
+      "notes": "Notas",
+      "create": "Agregar proveedor",
+      "save": "Guardar",
+      "saved": "Guardado"
+    },
+    "assignment": {
+      "none": "Sin proveedor asignado.",
+      "noSuppliers": "No hay proveedores activos.",
+      "addSupplier": "Agregar proveedor",
+      "supplier": "Proveedor",
+      "assign": "Asignar",
+      "reassign": "Reasignar",
+      "status": "Estado",
+      "quote": "Presupuesto (S/)",
+      "finalCost": "Costo final (S/)",
+      "notes": "Notas"
+    },
+    "trades": {
+      "plumbing": "Gasfitería",
+      "electrical": "Electricidad",
+      "appliance": "Electrodomésticos",
+      "structural": "Estructura y albañilería",
+      "cleaning": "Limpieza",
+      "locksmith": "Cerrajería",
+      "painting": "Pintura",
+      "general": "General"
+    },
+    "statuses": {
+      "assigned": "Asignado",
+      "quoted": "Presupuestado",
+      "approved": "Aprobado",
+      "done": "Terminado",
+      "cancelled": "Cancelado"
+    }
+  },
   "accountStatements": {
     "generate": {
       "title": "Generar estados de cuenta",
@@ -2241,6 +2294,7 @@
   "incidentDetail": {
     "cardDescription": "Descripción",
     "cardTimeline": "Línea de Tiempo",
+    "cardSupplier": "Proveedor",
     "cardManage": "Gestionar",
     "noComments": "Sin comentarios aún",
     "reportedBy": "Reportado por",
