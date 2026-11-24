@@ -11,6 +11,7 @@ import { parseFollowupPolicy } from '@/lib/leads/types';
 
 const DEFAULT_FOLLOWUP_POLICY = parseFollowupPolicy(undefined);
 import { isVisitButtonReply } from '@/lib/agent/visits/button-reply';
+import { ANNOUNCEMENT_TEMPLATE } from '@/lib/announcements/delivery';
 
 const CONFIRMAR_VISITA_VOZ = 'confirmar_visita_voz';
 
@@ -19,14 +20,20 @@ function catalogNames(): string[] {
 }
 
 describe('WHATSAPP_TEMPLATE_CATALOG', () => {
-  it('has exactly 7 templates', () => {
-    expect(WHATSAPP_TEMPLATE_CATALOG).toHaveLength(7);
+  it('has exactly 8 templates', () => {
+    expect(WHATSAPP_TEMPLATE_CATALOG).toHaveLength(8);
   });
 
   it('names match the constants used by reminder-jobs.ts (VISIT_TEMPLATES)', () => {
     expect(catalogNames()).toContain(VISIT_TEMPLATES.reminder24h);
     expect(catalogNames()).toContain(VISIT_TEMPLATES.reminder2h);
     expect(catalogNames()).toContain(VISIT_TEMPLATES.postCheck);
+  });
+
+  it('includes the bulk-announcement template with its 3 variables (name, title, body)', () => {
+    const def = WHATSAPP_TEMPLATE_CATALOG.find((d) => d.name === ANNOUNCEMENT_TEMPLATE);
+    expect(def).toBeDefined();
+    expect(def!.bodyExamples).toHaveLength(3);
   });
 
   it('names match the followup-policy defaults in leads/types.ts', () => {

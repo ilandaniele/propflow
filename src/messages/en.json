@@ -1887,7 +1887,19 @@
     "pinned": "Pinned",
     "important": "Important",
     "pin": "Pin",
-    "unpin": "Unpin"
+    "unpin": "Unpin",
+    "sendEmail": "Also send by email",
+    "sendWhatsapp": "Also send by WhatsApp",
+    "deliveryHint": "Reaches tenants with an active contract in the chosen audience, respecting their email preferences and WhatsApp consent.",
+    "deliveryEmail": "Email",
+    "deliveryWhatsapp": "WhatsApp",
+    "deliveryCounts": "{sent} sent · {failed} failed · {pending} pending",
+    "continueSending": "Continue sending",
+    "email": {
+      "subject": "Announcement: {title}",
+      "greeting": "Hello {name},",
+      "cta": "View in the portal"
+    }
   },
   "cleaning": {
     "title": "Cleaning Schedule",
@@ -3969,6 +3981,8 @@
     "leaseRenewalHint": "Notice when your lease is about to end (30 days before).",
     "paymentDue": "Upcoming payments",
     "paymentDueHint": "Notice when a payment is due within the next 3 days.",
+    "announcements": "Announcements",
+    "announcementsHint": "Bulk announcements your property manager sends by email.",
     "alwaysSent": "Essential emails are always sent: portal invitations and contract signature requests. You will still see notices in your portal notifications.",
     "save": "Save",
     "saved": "Preferences saved",

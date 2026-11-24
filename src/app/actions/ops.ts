@@ -29,8 +29,29 @@ import {
   UpdateLeadSchema,
   ScheduleReminderSchema,
   MarkNotificationReadSchema,
+  ContinueAnnouncementDeliverySchema,
 } from '@/lib/schemas/ops';
 import { setAnnouncementPinned } from '@/lib/announcements/queries';
+import { enqueueDeliveries, processPendingDeliveries } from '@/lib/announcements/delivery';
+import { DELIVERY_CHANNELS } from '@/lib/announcements/recipients';
+
+async function requireAdminOrError() {
+  try {
+    return { ctx: await requireAdmin(), error: null };
+  } catch (e) {
+    const forbidden = e instanceof Error && e.message === 'FORBIDDEN';
+    return { ctx: null, error: forbidden ? Errors.FORBIDDEN() : Errors.UNAUTHORIZED() };
+  }
+}
+
+const deliverableAnnouncementColumns = {
+  id: announcements.id,
+  title: announcements.title,
+  body: announcements.body,
+  audience: announcements.audience,
+  propertyId: announcements.propertyId,
+  unitId: announcements.unitId,
+};
 
 // ── Announcements ─────────────────────────────────────────────────────────────
 
@@ -74,8 +95,8 @@ export async function publishAnnouncement(
   _prev: ActionResult,
   formData: FormData
 ): Promise<ActionResult> {
-  let ctx;
-  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+  const { ctx, error } = await requireAdminOrError();
+  if (!ctx) return error;
 
   const rl = mutationRateLimit(ctx.userId, 'publish-announcement');
   if (!rl.success) return Errors.RATE_LIMITED();
@@ -85,7 +106,7 @@ export async function publishAnnouncement(
 
   // Verify ownership
   const annRows = await db
-    .select({ id: announcements.id, title: announcements.title, body: announcements.body, audience: announcements.audience, propertyId: announcements.propertyId, unitId: announcements.unitId })
+    .select(deliverableAnnouncementColumns)
     .from(announcements)
     .where(and(eq(announcements.id, parsed.data.id), eq(announcements.orgId, ctx.orgId)))
     .limit(1);
@@ -161,6 +182,18 @@ export async function publishAnnouncement(
     log.warn('[publishAnnouncement] inbox fan-out error', { error: e instanceof Error ? e.message : 'unknown' });
   }
 
+  const channels = DELIVERY_CHANNELS.filter((channel) =>
+    channel === 'email' ? parsed.data.send_email : parsed.data.send_whatsapp,
+  );
+  if (channels.length > 0) {
+    try {
+      await enqueueDeliveries(ctx.orgId, ann, channels);
+      await processPendingDeliveries(ctx.orgId, ann);
+    } catch (e) {
+      log.warn('[publishAnnouncement] delivery error', { error: e instanceof Error ? e.message : 'unknown' });
+    }
+  }
+
   log.adminAction(ctx.userId, 'publish_announcement', 'announcement', parsed.data.id);
   await recordActivity({
     orgId: ctx.orgId,
@@ -172,6 +205,38 @@ export async function publishAnnouncement(
   });
   revalidatePath('/dashboard/announcements');
   revalidatePath('/portal/announcements');
+  return ok(undefined);
+}
+
+export async function continueAnnouncementDelivery(
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  const { ctx, error } = await requireAdminOrError();
+  if (!ctx) return error;
+
+  const rl = mutationRateLimit(ctx.userId, 'continue-announcement-delivery');
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  const parsed = ContinueAnnouncementDeliverySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return Errors.VALIDATION_ERROR(parsed.error.flatten());
+
+  const [ann] = await db
+    .select(deliverableAnnouncementColumns)
+    .from(announcements)
+    .where(and(eq(announcements.id, parsed.data.id), eq(announcements.orgId, ctx.orgId)))
+    .limit(1);
+  if (!ann) return Errors.NOT_FOUND();
+
+  try {
+    await processPendingDeliveries(ctx.orgId, ann);
+  } catch (e) {
+    log.error('[continueAnnouncementDelivery] delivery error', { error: e instanceof Error ? e.message : 'unknown' });
+    return Errors.INTERNAL();
+  }
+
+  log.adminAction(ctx.userId, 'continue_announcement_delivery', 'announcement', ann.id);
+  revalidatePath('/dashboard/announcements');
   return ok(undefined);
 }
 

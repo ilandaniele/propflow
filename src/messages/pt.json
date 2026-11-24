@@ -1887,7 +1887,19 @@
     "pinned": "Fixado",
     "important": "Importante",
     "pin": "Fixar",
-    "unpin": "Desafixar"
+    "unpin": "Desafixar",
+    "sendEmail": "Enviar também por e-mail",
+    "sendWhatsapp": "Enviar também por WhatsApp",
+    "deliveryHint": "Chega aos inquilinos com contrato ativo do público escolhido, respeitando suas preferências de e-mail e o consentimento do WhatsApp.",
+    "deliveryEmail": "E-mail",
+    "deliveryWhatsapp": "WhatsApp",
+    "deliveryCounts": "{sent} enviados · {failed} com falha · {pending} pendentes",
+    "continueSending": "Continuar envio",
+    "email": {
+      "subject": "Comunicado: {title}",
+      "greeting": "Olá {name},",
+      "cta": "Ver no portal"
+    }
   },
   "cleaning": {
     "title": "Cronograma de Limpeza",
@@ -3969,6 +3981,8 @@
     "leaseRenewalHint": "Aviso quando seu contrato estiver perto do fim (30 dias antes).",
     "paymentDue": "Pagamentos a vencer",
     "paymentDueHint": "Aviso quando um pagamento vencer nos próximos 3 dias.",
+    "announcements": "Comunicados",
+    "announcementsHint": "Comunicados em massa que seu administrador envia por e-mail.",
     "alwaysSent": "E-mails essenciais são sempre enviados: convites para o portal e solicitações de assinatura de contrato. Você continuará vendo os avisos nas notificações do portal.",
     "save": "Salvar",
     "saved": "Preferências salvas",
