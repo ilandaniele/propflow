@@ -125,6 +125,15 @@ const financeNavItems: NavItem[] = [
     ),
   },
   {
+    labelKey: 'budget',
+    href: '/dashboard/budget',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>
+      </svg>
+    ),
+  },
+  {
     labelKey: 'accountStatements',
     href: '/dashboard/account-statements',
     icon: (

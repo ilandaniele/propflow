@@ -106,6 +106,7 @@
     "deposits": "Garantías",
     "rentAdjustments": "Reajustes de alquiler",
     "cashAccounts": "Cajas y bancos",
+    "budget": "Presupuesto",
     "accountStatements": "Estados de Cuenta",
     "additionalCharges": "Cargos Adicionales",
     "chargeConcepts": "Conceptos de cobro",
@@ -1884,6 +1885,27 @@
       "emptyTitle": "Sin movimientos este mes",
       "emptyDesc": "Los movimientos registrados aparecerán acá."
     }
+  },
+  "budget": {
+    "title": "Presupuesto vs real",
+    "subtitle": "Gasto real por categoría contra el presupuesto anual, prorrateado a {months} meses.",
+    "yearNav": "Año",
+    "previous": "Año anterior",
+    "next": "Año siguiente",
+    "emptyTitle": "Sin categorías de gasto",
+    "emptyDesc": "Crea categorías de gasto para asignarles presupuesto.",
+    "manageCategories": "Gestionar categorías",
+    "colCategory": "Categoría",
+    "colAnnual": "Presupuesto anual",
+    "colBudgetToDate": "Presupuesto a la fecha",
+    "colActualToDate": "Real a la fecha",
+    "colVariance": "Diferencia",
+    "colExecuted": "% ejecutado",
+    "uncategorized": "Sin categoría",
+    "total": "Total",
+    "amountLabel": "Presupuesto anual de {category}",
+    "save": "Guardar",
+    "saved": "Guardado"
   },
   "accountStatements": {
     "generate": {

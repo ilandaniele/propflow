@@ -106,6 +106,7 @@
     "deposits": "Deposits",
     "rentAdjustments": "Rent adjustments",
     "cashAccounts": "Cash and banks",
+    "budget": "Budget",
     "accountStatements": "Account Statements",
     "additionalCharges": "Additional Charges",
     "chargeConcepts": "Charge Concepts",
@@ -1884,6 +1885,27 @@
       "emptyTitle": "No movements this month",
       "emptyDesc": "Recorded movements will show up here."
     }
+  },
+  "budget": {
+    "title": "Budget vs actual",
+    "subtitle": "Actual spend per category against the annual budget, prorated to {months} months.",
+    "yearNav": "Year",
+    "previous": "Previous year",
+    "next": "Next year",
+    "emptyTitle": "No expense categories",
+    "emptyDesc": "Create expense categories to assign them a budget.",
+    "manageCategories": "Manage categories",
+    "colCategory": "Category",
+    "colAnnual": "Annual budget",
+    "colBudgetToDate": "Budget to date",
+    "colActualToDate": "Actual to date",
+    "colVariance": "Variance",
+    "colExecuted": "% spent",
+    "uncategorized": "Uncategorized",
+    "total": "Total",
+    "amountLabel": "Annual budget for {category}",
+    "save": "Save",
+    "saved": "Saved"
   },
   "accountStatements": {
     "generate": {
