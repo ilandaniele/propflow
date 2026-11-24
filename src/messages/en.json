@@ -127,6 +127,8 @@
     "profitability": "Profitability",
     "ownerSettlements": "Settlements",
     "occupancyHistory": "Occupancy history",
+    "averageRent": "Average rent",
+    "managerPerformance": "Manager performance",
     "adminNotifications": "Notifications",
     "rentalApplications": "Applications",
     "accountStatements": "Account Statements",
@@ -4022,5 +4024,37 @@
       "paidOn": "Payment date",
       "note": "Note"
     }
+  },
+  "averageRent": {
+    "title": "Average rent",
+    "subtitle": "Average monthly rent of active contracts, per currency.",
+    "overall": "Overall average rent ({currency})",
+    "contractCount": "{count, plural, one {# active contract} other {# active contracts}}",
+    "byProperty": "By property",
+    "byUnitType": "By unit type",
+    "byBedrooms": "By bedrooms",
+    "bedrooms": "{count, plural, =0 {No bedrooms} one {# bedroom} other {# bedrooms}}",
+    "group": "Group",
+    "contracts": "Contracts",
+    "average": "Average rent",
+    "unspecified": "Unspecified",
+    "emptyTitle": "No active contracts",
+    "emptyDesc": "Once you have active contracts, their average rent shows here."
+  },
+  "managerPerformance": {
+    "title": "Manager performance",
+    "subtitle": "Incidents assigned to each team member and how fast they are resolved.",
+    "periodNav": "Change period",
+    "lastDays": "Last {count} days",
+    "manager": "Manager",
+    "assigned": "Assigned",
+    "resolved": "Resolved",
+    "open": "Open",
+    "avgResolution": "Avg. resolution",
+    "days": "{count} days",
+    "unnamed": "Unnamed",
+    "emptyTitle": "No team members",
+    "emptyDesc": "Invite your team to assign them incidents.",
+    "note": "Counts incidents created in the period. Average resolution uses resolved incidents with a resolution date."
   }
 }
