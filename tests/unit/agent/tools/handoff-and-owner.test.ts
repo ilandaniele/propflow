@@ -34,6 +34,12 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): AgentToolContext {
 describe('handoff_to_human tool', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('tells the model to search listings before handing off a property question', () => {
+    const tool = makeHandoffToHumanTool(makeCtx());
+    expect(tool.description).toMatch(/search_listings/);
+    expect(tool.description).not.toMatch(/coordinación de visitas/);
+  });
+
   it('dryRun never pauses the real session', async () => {
     const tool = makeHandoffToHumanTool(makeCtx({ dryRun: true }));
     const result = await tool.run({ reason: 'wants_human', summary: 'Quiere hablar con alguien' });

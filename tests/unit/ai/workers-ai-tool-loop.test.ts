@@ -127,6 +127,29 @@ describe('runWorkersAiToolLoop', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it('stops right after running a stopAfterTool call', async () => {
+    fetchMock.mockImplementation(async () =>
+      chatResponse({ tool_calls: [{ id: 'h', function: { name: 'handoff', arguments: '{}' } }] }),
+    );
+    const handoff = vi.fn(() => 'derivado');
+
+    const result = await runWorkersAiToolLoop({
+      system: 's',
+      tools: [makeTool('handoff', handoff)],
+      messages: [{ role: 'user', content: 'x' }],
+      maxIterations: 8,
+      maxTokens: 512,
+      stopAfterTool: 'handoff',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(handoff).toHaveBeenCalledTimes(1);
+    expect(result.messages.at(-1)).toEqual({
+      role: 'user',
+      content: [{ type: 'tool_result', tool_use_id: 'h', content: 'derivado', is_error: false }],
+    });
+  });
+
   it('throws on a non-OK response', async () => {
     fetchMock.mockResolvedValueOnce(new Response('quota', { status: 429 }));
     await expect(

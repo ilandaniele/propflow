@@ -67,6 +67,10 @@ describe('buildAgentSystemPrompt', () => {
     expect(prompt).not.toMatch(/respondes siempre en español/i);
   });
 
+  it('tells the model to look up listings before handing off a property question', () => {
+    expect(buildAgentSystemPrompt(CONFIG)).toMatch(/search_listings.*antes de derivar/i);
+  });
+
   it('never contains volatile per-turn data (no leaks from a stale cached block)', () => {
     const prompt = buildAgentSystemPrompt(CONFIG);
     expect(prompt).not.toContain('lead-1');

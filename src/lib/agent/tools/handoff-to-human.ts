@@ -14,7 +14,8 @@ export function makeHandoffToHumanTool(ctx: AgentToolContext) {
     name: 'handoff_to_human',
     description:
       'Deriva la conversación a un asesor humano y pausa las respuestas automáticas. ' +
-      'Usalo ante quejas serias, reclamos legales, pedidos explícitos de hablar con una persona, o coordinación de visitas.',
+      'Usalo ante quejas serias, reclamos legales o pedidos explícitos de hablar con una persona. ' +
+      'Si preguntan por una propiedad, primero usá search_listings; no derives por falta de datos.',
     inputSchema: InputSchema,
     run: async (args) => {
       if (ctx.dryRun) {
