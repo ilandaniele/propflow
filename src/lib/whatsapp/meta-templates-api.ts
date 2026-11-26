@@ -154,7 +154,10 @@ export async function syncTemplateCatalog(): Promise<SyncResult[]> {
       }
 
       if (!res.ok) {
-        const metaMessage = (data as { error?: { message?: string } } | null)?.error?.message ?? `HTTP ${res.status}`;
+        const metaError = (data as { error?: { message?: string; error_user_title?: string; error_user_msg?: string } } | null)?.error;
+        const metaMessage =
+          [metaError?.message, metaError?.error_user_title, metaError?.error_user_msg].filter(Boolean).join(' — ') ||
+          `HTTP ${res.status}`;
         results.push({ name: def.name, action: 'error', error: metaMessage });
         log.warn('[meta-templates-api] template creation failed', { name: def.name, status: res.status });
         continue;

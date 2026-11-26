@@ -167,6 +167,24 @@ describe('meta-templates-api', () => {
       }
     });
 
+    it('appends error_user_title and error_user_msg to a generic Meta error', async () => {
+      fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (init?.method === 'POST') {
+          return jsonResponse(400, {
+            error: { message: 'Invalid parameter', error_user_title: 'Title', error_user_msg: 'Detail' },
+          });
+        }
+        if (url.includes('message_templates')) return jsonResponse(200, { data: [], paging: {} });
+        throw new Error(`unexpected fetch: ${url}`);
+      });
+
+      const { syncTemplateCatalog } = await import('@/lib/whatsapp/meta-templates-api');
+      const results = await syncTemplateCatalog();
+
+      expect(results[0].error).toBe('Invalid parameter — Title — Detail');
+    });
+
     it('returns a NOT_CONFIGURED-style error per template when env vars are missing', async () => {
       clearEnv();
       const { syncTemplateCatalog } = await import('@/lib/whatsapp/meta-templates-api');

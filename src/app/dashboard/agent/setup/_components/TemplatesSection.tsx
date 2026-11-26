@@ -29,9 +29,11 @@ export function TemplatesSection({ templates, canSync, fetchError }: TemplatesSe
       const result = await syncWhatsAppTemplates();
       if (result.error) {
         setError(actionErrorMessage(result.error));
-      } else {
-        router.refresh();
+        return;
       }
+      const failed = (result.data ?? []).filter((r) => r.action === 'error');
+      if (failed.length > 0) setError(failed.map((r) => `${r.name}: ${r.error}`).join(' · '));
+      router.refresh();
     });
   };
 
