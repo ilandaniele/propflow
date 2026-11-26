@@ -49,7 +49,7 @@ describe('runWorkersAiToolLoop', () => {
       maxTokens: 512,
     });
 
-    expect(search).toHaveBeenCalledWith({ q: 'miraflores' }, expect.anything());
+    expect(search).toHaveBeenCalledWith({ q: 'miraflores' });
     expect(result.messages).toEqual([
       { role: 'user', content: 'hola' },
       { role: 'assistant', content: [{ type: 'tool_use', id: 'c1', name: 'search', input: { q: 'miraflores' } }] },
@@ -57,8 +57,8 @@ describe('runWorkersAiToolLoop', () => {
       { role: 'assistant', content: [{ type: 'text', text: 'Tengo dos departamentos.' }] },
     ]);
     expect(result.finalContent).toEqual([{ type: 'text', text: 'Tengo dos departamentos.' }]);
-    expect(result.inputTokens).toBe(20);
-    expect(result.outputTokens).toBe(10);
+    expect(result.totalInputTokens).toBe(20);
+    expect(result.totalOutputTokens).toBe(10);
 
     const [url, init] = fetchMock.mock.calls[1];
     expect(url).toBe('https://api.cloudflare.com/client/v4/accounts/acc/ai/v1/chat/completions');

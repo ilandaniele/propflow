@@ -447,8 +447,9 @@ describe('runAgentTurn', () => {
         { role: 'assistant', content: finalContent },
       ],
       finalContent,
-      inputTokens: 300,
-      outputTokens: 30,
+      totalInputTokens: 300,
+      totalOutputTokens: 30,
+      costUsd: 0,
     });
 
     const result = await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'hola' });

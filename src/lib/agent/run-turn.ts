@@ -14,7 +14,6 @@ import { agentMessages } from '@/lib/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
 import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient, AGENT_MODEL } from '@/lib/ai/client';
-import { runWorkersAiToolLoop } from '@/lib/ai/workers-ai-tool-loop';
 import { log } from '@/lib/log';
 import { getOrCreateAgentConfig } from './config';
 import {
@@ -29,6 +28,7 @@ import { recordAgentEvent } from './events';
 import { getLead } from './lead';
 import { buildAgentSystemPrompt, buildTurnContext } from './prompt';
 import { buildAgentTools } from './tools';
+import { runWorkersAiToolLoop } from '@/lib/ai/workers-ai-tool-loop';
 import { detectLanguage } from './language';
 import { estimateCostUsd } from './pricing';
 import type { AgentLanguage, RunAgentTurnArgs, RunAgentTurnResult } from './types';
@@ -84,10 +84,6 @@ interface TurnLoopResult {
   costUsd: number;
 }
 
-export function agentProvider(): 'anthropic' | 'workers-ai' {
-  return process.env.AGENT_PROVIDER === 'workers-ai' ? 'workers-ai' : 'anthropic';
-}
-
 async function runAnthropicTurn(
   system: SystemBlocks,
   tools: AgentTools,
@@ -132,27 +128,6 @@ async function runAnthropicTurn(
       cacheRead: totalCacheReadTokens,
       cacheWrite: totalCacheWriteTokens,
     }),
-  };
-}
-
-async function runWorkersAiTurn(
-  system: SystemBlocks,
-  tools: AgentTools,
-  messages: Anthropic.Beta.Messages.BetaMessageParam[],
-): Promise<TurnLoopResult> {
-  const result = await runWorkersAiToolLoop({
-    system: system.map((b) => b.text).join('\n\n'),
-    tools,
-    messages,
-    maxIterations: MAX_ITERATIONS,
-    maxTokens: MAX_TOKENS,
-  });
-  return {
-    messages: result.messages,
-    finalContent: result.finalContent,
-    totalInputTokens: result.inputTokens,
-    totalOutputTokens: result.outputTokens,
-    costUsd: 0,
   };
 }
 
@@ -275,14 +250,23 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   const newUserMessage: Anthropic.Beta.Messages.BetaMessageParam = { role: 'user', content: args.inboundText };
   const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [...history, newUserMessage];
 
-  const system = [
-    { type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } },
-    { type: 'text' as const, text: turnContext },
-  ];
   const loop =
-    agentProvider() === 'workers-ai'
-      ? await runWorkersAiTurn(system, tools, messages)
-      : await runAnthropicTurn(system, tools, messages);
+    process.env.AGENT_PROVIDER === 'workers-ai'
+      ? await runWorkersAiToolLoop({
+          system: `${systemPrompt}\n\n${turnContext}`,
+          tools,
+          messages,
+          maxIterations: MAX_ITERATIONS,
+          maxTokens: MAX_TOKENS,
+        })
+      : await runAnthropicTurn(
+          [
+            { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: turnContext },
+          ],
+          tools,
+          messages,
+        );
   const { finalContent, totalInputTokens, totalOutputTokens, costUsd } = loop;
 
   const fullMessages = loop.messages;
