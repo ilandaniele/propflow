@@ -80,7 +80,7 @@ export const WHATSAPP_TEMPLATE_CATALOG: TemplateDefinition[] = [
     name: 'confirmar_visita_voz',
     category: 'UTILITY',
     language: 'es',
-    body: 'Hola {{1}}, como hablamos por teléfono: visita a *{{2}}* el {{3}}. Para confirmarla, tocá el botón o respondé *Confirmo {{4}}*.',
+    body: 'Hola {{1}}, como hablamos por teléfono: visita a *{{2}}* el {{3}}. Para confirmarla, respondé *Confirmo {{4}}* o tocá el botón de abajo.',
     bodyExamples: ['María', 'Depto 2 dorm. Miraflores', 'jueves 10 de octubre, 10:00', 'VOZ-7K3P9Q'],
     quickReplies: ['Confirmar visita'],
     usedBy: "src/lib/agent/voice/visit-confirmation.ts ('confirmar_visita_voz')",
