@@ -77,9 +77,14 @@ async function claimDueJobs(limit: number): Promise<ClaimedJob[]> {
     .select({ id: agentJobs.id })
     .from(agentJobs)
     .where(and(
-      eq(agentJobs.status, 'pending'),
-      lte(agentJobs.runAt, now),
-      or(isNull(agentJobs.lockedUntil), lte(agentJobs.lockedUntil, now)),
+      or(
+        and(
+          eq(agentJobs.status, 'pending'),
+          lte(agentJobs.runAt, now),
+          or(isNull(agentJobs.lockedUntil), lte(agentJobs.lockedUntil, now)),
+        ),
+        and(eq(agentJobs.status, 'processing'), lte(agentJobs.lockedUntil, now)),
+      ),
       inArray(agentJobs.kind, kinds),
     ))
     .orderBy(agentJobs.runAt)
