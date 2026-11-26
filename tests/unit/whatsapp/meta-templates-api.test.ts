@@ -86,6 +86,22 @@ describe('meta-templates-api', () => {
       ]);
     });
 
+    it('drops the literal "NONE" rejected_reason, keeping real reasons', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        jsonResponse(200, {
+          data: [
+            { name: 'seguimiento_lead', language: 'es', status: 'PENDING', category: 'MARKETING', rejected_reason: 'NONE' },
+            { name: 'confirmar_visita_voz', language: 'es', status: 'REJECTED', category: 'UTILITY', rejected_reason: 'INCORRECT_CATEGORY' },
+          ],
+        })
+      );
+
+      const { listRemoteTemplates } = await import('@/lib/whatsapp/meta-templates-api');
+      const result = await listRemoteTemplates();
+
+      expect(result.map((r) => r.rejectedReason)).toEqual([undefined, 'INCORRECT_CATEGORY']);
+    });
+
     it('returns [] when not configured, without calling fetch', async () => {
       clearEnv();
       const { listRemoteTemplates } = await import('@/lib/whatsapp/meta-templates-api');

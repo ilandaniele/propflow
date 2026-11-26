@@ -89,7 +89,7 @@ export async function listRemoteTemplates(): Promise<RemoteTemplate[]> {
         language: row.language,
         status: row.status,
         category: row.category,
-        rejectedReason: row.rejected_reason,
+        rejectedReason: row.rejected_reason === 'NONE' ? undefined : row.rejected_reason,
       });
     }
 
