@@ -8,7 +8,7 @@
 import { randomBytes, createHash } from 'node:crypto';
 import { db } from '@/lib/db';
 import { agentWebSessions, agentMessages, agentSessions } from '@/lib/db/schema';
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lt, or, sql } from 'drizzle-orm';
 
 export const WEB_SESSION_TTL_MS = 30 * 24 * 3600_000;
 const LOCK_TTL_MS = 90_000;
@@ -132,7 +132,7 @@ export async function tryLockWebSession(id: string, ttlMs = LOCK_TTL_MS): Promis
     .set({ processingUntil: new Date(now.getTime() + ttlMs) })
     .where(and(
       eq(agentWebSessions.id, id),
-      sql`(${agentWebSessions.processingUntil} IS NULL OR ${agentWebSessions.processingUntil} < ${now})`,
+      or(isNull(agentWebSessions.processingUntil), lt(agentWebSessions.processingUntil, now)),
     ))
     .returning({ id: agentWebSessions.id });
   return rows.length > 0;

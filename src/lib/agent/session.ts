@@ -6,7 +6,7 @@
 
 import { db } from '@/lib/db';
 import { agentSessions, agentMessages } from '@/lib/db/schema';
-import { and, eq, asc, sql, notInArray, or, isNull } from 'drizzle-orm';
+import { and, eq, asc, sql, notInArray, or, isNull, lt } from 'drizzle-orm';
 import type Anthropic from '@anthropic-ai/sdk';
 import { log } from '@/lib/log';
 import type { AgentAttribution, AgentLanguage, HandoffReason } from './types';
@@ -180,7 +180,7 @@ export async function tryAcquireSessionLock(sessionId: string, ttlMs = SESSION_L
     .set({ processingLockedUntil: new Date(now.getTime() + ttlMs), updatedAt: now })
     .where(and(
       eq(agentSessions.id, sessionId),
-      or(isNull(agentSessions.processingLockedUntil), sql`${agentSessions.processingLockedUntil} < ${now}`),
+      or(isNull(agentSessions.processingLockedUntil), lt(agentSessions.processingLockedUntil, now)),
     ))
     .returning({ id: agentSessions.id });
   return rows.length > 0;
