@@ -14,6 +14,7 @@ import { agentMessages } from '@/lib/db/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
 import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient, AGENT_MODEL } from '@/lib/ai/client';
+import { runWorkersAiToolLoop } from '@/lib/ai/workers-ai-tool-loop';
 import { log } from '@/lib/log';
 import { getOrCreateAgentConfig } from './config';
 import {
@@ -70,6 +71,89 @@ function extractReplyText(content: Anthropic.Beta.Messages.BetaContentBlockParam
     .join('\n')
     .trim();
   return text || 'Disculpá, ¿podrías repetir eso?';
+}
+
+type SystemBlocks = Anthropic.Beta.Messages.BetaTextBlockParam[];
+type AgentTools = ReturnType<typeof buildAgentTools>;
+
+interface TurnLoopResult {
+  messages: Anthropic.Beta.Messages.BetaMessageParam[];
+  finalContent: Anthropic.Beta.Messages.BetaContentBlockParam[];
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  costUsd: number;
+}
+
+export function agentProvider(): 'anthropic' | 'workers-ai' {
+  return process.env.AGENT_PROVIDER === 'workers-ai' ? 'workers-ai' : 'anthropic';
+}
+
+async function runAnthropicTurn(
+  system: SystemBlocks,
+  tools: AgentTools,
+  messages: Anthropic.Beta.Messages.BetaMessageParam[],
+): Promise<TurnLoopResult> {
+  const runner = getAnthropicClient().beta.messages.toolRunner({
+    model: AGENT_MODEL,
+    max_tokens: MAX_TOKENS,
+    max_iterations: MAX_ITERATIONS,
+    output_config: { effort: 'low' },
+    system,
+    tools,
+    messages,
+  });
+
+  // OVERRIDE (item A "Override" note, blueprint §0.12): iterate the runner
+  // instead of calling runner.done() so multi-iteration tool loops (e.g. one
+  // search_listings call followed by the final reply) get their FULL token
+  // usage summed here, not just the last API call's.
+  let finalMessage: Anthropic.Beta.Messages.BetaMessage | null = null;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCacheReadTokens = 0;
+  let totalCacheWriteTokens = 0;
+  for await (const message of runner) {
+    finalMessage = message;
+    totalInputTokens += message.usage.input_tokens;
+    totalOutputTokens += message.usage.output_tokens;
+    totalCacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+    totalCacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
+  }
+  if (!finalMessage) throw new Error('[agent/run-turn] toolRunner produced no messages');
+
+  return {
+    messages: runner.params.messages,
+    finalContent: finalMessage.content,
+    totalInputTokens,
+    totalOutputTokens,
+    costUsd: estimateCostUsd({
+      input: totalInputTokens,
+      output: totalOutputTokens,
+      cacheRead: totalCacheReadTokens,
+      cacheWrite: totalCacheWriteTokens,
+    }),
+  };
+}
+
+async function runWorkersAiTurn(
+  system: SystemBlocks,
+  tools: AgentTools,
+  messages: Anthropic.Beta.Messages.BetaMessageParam[],
+): Promise<TurnLoopResult> {
+  const result = await runWorkersAiToolLoop({
+    system: system.map((b) => b.text).join('\n\n'),
+    tools,
+    messages,
+    maxIterations: MAX_ITERATIONS,
+    maxTokens: MAX_TOKENS,
+  });
+  return {
+    messages: result.messages,
+    finalContent: result.finalContent,
+    totalInputTokens: result.inputTokens,
+    totalOutputTokens: result.outputTokens,
+    costUsd: 0,
+  };
 }
 
 export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurnResult> {
@@ -191,47 +275,17 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   const newUserMessage: Anthropic.Beta.Messages.BetaMessageParam = { role: 'user', content: args.inboundText };
   const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [...history, newUserMessage];
 
-  const client = getAnthropicClient();
-  const runner = client.beta.messages.toolRunner({
-    model: AGENT_MODEL,
-    max_tokens: MAX_TOKENS,
-    max_iterations: MAX_ITERATIONS,
-    output_config: { effort: 'low' },
-    system: [
-      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: turnContext },
-    ],
-    tools,
-    messages,
-  });
+  const system = [
+    { type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } },
+    { type: 'text' as const, text: turnContext },
+  ];
+  const loop =
+    agentProvider() === 'workers-ai'
+      ? await runWorkersAiTurn(system, tools, messages)
+      : await runAnthropicTurn(system, tools, messages);
+  const { finalContent, totalInputTokens, totalOutputTokens, costUsd } = loop;
 
-  // OVERRIDE (item A "Override" note, blueprint §0.12): iterate the runner
-  // instead of calling runner.done() so multi-iteration tool loops (e.g. one
-  // search_listings call followed by the final reply) get their FULL token
-  // usage summed here, not just the last API call's. Previously only the
-  // final message's usage was persisted, silently undercounting both the
-  // daily token budget and per-message cost for any turn with >=1 tool call.
-  let finalMessage: Anthropic.Beta.Messages.BetaMessage | null = null;
-  let totalInputTokens = 0;
-  let totalOutputTokens = 0;
-  let totalCacheReadTokens = 0;
-  let totalCacheWriteTokens = 0;
-  for await (const message of runner) {
-    finalMessage = message;
-    totalInputTokens += message.usage.input_tokens;
-    totalOutputTokens += message.usage.output_tokens;
-    totalCacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
-    totalCacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
-  }
-  if (!finalMessage) throw new Error('[agent/run-turn] toolRunner produced no messages');
-  const costUsd = estimateCostUsd({
-    input: totalInputTokens,
-    output: totalOutputTokens,
-    cacheRead: totalCacheReadTokens,
-    cacheWrite: totalCacheWriteTokens,
-  });
-
-  const fullMessages = runner.params.messages;
+  const fullMessages = loop.messages;
   // We never push a 'system'-role message (that's the mid-conversation-system-message
   // feature — unused here), but the SDK's type allows for one, so narrow defensively.
   const newMessages = fullMessages
@@ -277,7 +331,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   return {
     sessionId: session.id,
     leadId: leadIdRef.current,
-    replyText: extractReplyText(finalMessage.content),
+    replyText: extractReplyText(finalContent),
     handedOffToHuman,
     handoffReason: handedOffToHuman ? 'tool' : null,
     skipped: false,

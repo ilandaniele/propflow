@@ -117,6 +117,11 @@ vi.mock('@/lib/agent/lead', () => ({
   getLead: getLeadMock,
 }));
 
+const workersAiLoopMock = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/ai/workers-ai-tool-loop', () => ({
+  runWorkersAiToolLoop: workersAiLoopMock,
+}));
+
 const buildAgentToolsMock = vi.hoisted(() => vi.fn(() => []));
 vi.mock('@/lib/agent/tools', () => ({
   buildAgentTools: buildAgentToolsMock,
@@ -431,5 +436,31 @@ describe('runAgentTurn', () => {
     expect(buildAgentToolsMock).toHaveBeenCalledWith(expect.objectContaining({ shadowMode: true, whatsappConversationId: null, voiceCallId: null }));
 
     CONFIG_FIXTURE.shadowMode = false;
+  });
+
+  it('AGENT_PROVIDER=workers-ai runs the Workers AI loop instead of Anthropic, at zero cost', async () => {
+    vi.stubEnv('AGENT_PROVIDER', 'workers-ai');
+    const finalContent = [{ type: 'text', text: 'Hola desde Llama' }];
+    workersAiLoopMock.mockResolvedValue({
+      messages: [
+        { role: 'user', content: 'hola' },
+        { role: 'assistant', content: finalContent },
+      ],
+      finalContent,
+      inputTokens: 300,
+      outputTokens: 30,
+    });
+
+    const result = await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'hola' });
+
+    expect(toolRunnerMock).not.toHaveBeenCalled();
+    expect(workersAiLoopMock).toHaveBeenCalledWith(
+      expect.objectContaining({ messages: [{ role: 'user', content: 'hola' }], maxIterations: 8, maxTokens: 2048 }),
+    );
+    expect(workersAiLoopMock.mock.calls[0][0].system).toContain('Asistente inmobiliario');
+    expect(result.replyText).toBe('Hola desde Llama');
+    expect(appendedMessages[1]).toMatchObject({ role: 'assistant', inputTokens: 300, outputTokens: 30, costUsd: '0' });
+
+    vi.unstubAllEnvs();
   });
 });
