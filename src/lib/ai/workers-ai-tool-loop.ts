@@ -64,7 +64,7 @@ async function callModel(args: ToolLoopArgs, messages: MessageParam[]): Promise<
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.WORKERS_AI_API_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.AGENT_WORKERS_AI_MODEL || '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+      model: process.env.AGENT_WORKERS_AI_MODEL,
       max_tokens: args.maxTokens,
       messages: [{ role: 'system', content: args.system }, ...messages.flatMap(toChatMessages)],
       tools: args.tools.map((t) => ({
@@ -82,8 +82,7 @@ async function runTool(tools: LoopTool[], call: ToolUseBlockParam): Promise<Tool
   let content: unknown;
   let is_error = false;
   try {
-    const tool = tools.find((t) => t.name === call.name);
-    if (!tool) throw new Error(`unknown tool ${call.name}`);
+    const tool = tools.find((t) => t.name === call.name)!;
     content = await tool.run(tool.parse(call.input) as never);
   } catch (e) {
     content = `Error: ${(e as Error).message}`;

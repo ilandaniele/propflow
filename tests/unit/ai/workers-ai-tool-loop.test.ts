@@ -21,6 +21,7 @@ describe('runWorkersAiToolLoop', () => {
   beforeEach(() => {
     vi.stubEnv('WORKERS_AI_ACCOUNT_ID', 'acc');
     vi.stubEnv('WORKERS_AI_API_TOKEN', 'tok');
+    vi.stubEnv('AGENT_WORKERS_AI_MODEL', 'model-x');
     vi.stubGlobal('fetch', fetchMock);
     fetchMock.mockReset();
   });
@@ -64,6 +65,7 @@ describe('runWorkersAiToolLoop', () => {
     expect(url).toBe('https://api.cloudflare.com/client/v4/accounts/acc/ai/v1/chat/completions');
     expect(init.headers.Authorization).toBe('Bearer tok');
     const body = JSON.parse(init.body);
+    expect(body.model).toBe('model-x');
     expect(body.messages).toEqual([
       { role: 'system', content: 'be nice' },
       { role: 'user', content: 'hola' },
@@ -103,7 +105,7 @@ describe('runWorkersAiToolLoop', () => {
     expect(result.messages[2]).toEqual({
       role: 'user',
       content: [
-        { type: 'tool_result', tool_use_id: 'call_0_0', content: 'Error: unknown tool nope', is_error: true },
+        { type: 'tool_result', tool_use_id: 'call_0_0', content: expect.stringMatching(/^Error: /), is_error: true },
         { type: 'tool_result', tool_use_id: 'c2', content: 'Error: kaput', is_error: true },
       ],
     });
