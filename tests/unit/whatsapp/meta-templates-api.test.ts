@@ -299,4 +299,39 @@ describe('meta-templates-api', () => {
       expect(listCallsAfterSync).toBeGreaterThan(listCallsBeforeSync);
     });
   });
+
+  describe('subscribeAppToWaba', () => {
+    it('POSTs to the WABA subscribed_apps endpoint with the bearer token', async () => {
+      fetchSpy.mockResolvedValue(jsonResponse(200, { success: true }));
+      const { subscribeAppToWaba } = await import('@/lib/whatsapp/meta-templates-api');
+      await subscribeAppToWaba();
+
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toMatch(/\/waba-123\/subscribed_apps$/);
+      expect(init.method).toBe('POST');
+      expect((init.headers as Record<string, string>).Authorization).toBe('Bearer secret-token-xxx');
+    });
+
+    it('throws a sanitized error when Meta rejects the call', async () => {
+      fetchSpy.mockResolvedValue(jsonResponse(400, { error: { message: 'bad token secret-token-xxx' } }));
+      const { subscribeAppToWaba } = await import('@/lib/whatsapp/meta-templates-api');
+      const err = await subscribeAppToWaba().catch((e: Error) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).not.toContain('secret-token-xxx');
+      expect((err as Error).message).toContain('[REDACTED]');
+    });
+
+    it('throws when Meta answers 200 without success: true', async () => {
+      fetchSpy.mockResolvedValue(jsonResponse(200, { success: false }));
+      const { subscribeAppToWaba } = await import('@/lib/whatsapp/meta-templates-api');
+      await expect(subscribeAppToWaba()).rejects.toThrow();
+    });
+
+    it('throws without calling fetch when env vars are missing', async () => {
+      clearEnv();
+      const { subscribeAppToWaba } = await import('@/lib/whatsapp/meta-templates-api');
+      await expect(subscribeAppToWaba()).rejects.toThrow();
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
 });

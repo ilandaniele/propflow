@@ -99,6 +99,33 @@ export async function listRemoteTemplates(): Promise<RemoteTemplate[]> {
   return results;
 }
 
+/** Subscribes this app to the WABA's webhooks (POST /{waba}/subscribed_apps). Without it Meta never delivers real inbound messages. */
+export async function subscribeAppToWaba(): Promise<void> {
+  const accessToken = getAccessToken();
+  const wabaId = getBusinessAccountId();
+  if (!accessToken || !wabaId) throw new Error('WhatsApp env vars missing');
+
+  const res = await fetch(`${META_API_HOST}/${META_API_VERSION}/${wabaId}/subscribed_apps`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  let data: unknown = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+
+  const success = (data as { success?: boolean } | null)?.success === true;
+  if (!res.ok || !success) {
+    const metaMessage = (data as { error?: { message?: string } } | null)?.error?.message;
+    log.warn('[meta-templates-api] subscribeAppToWaba failed', { status: res.status, metaMessage: metaMessage ?? 'unknown' });
+    throw new Error(sanitizeFetchError(metaMessage ?? `HTTP ${res.status}`));
+  }
+}
+
 export interface SyncResult {
   name: string;
   action: 'created' | 'exists' | 'error';

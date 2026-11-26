@@ -35,14 +35,16 @@ vi.mock('@/lib/log', () => ({
 const mockIsConfigured = vi.fn();
 const mockSyncTemplateCatalog = vi.fn();
 const mockGetTemplateStatusReport = vi.fn();
+const mockSubscribeAppToWaba = vi.fn();
 
 vi.mock('@/lib/whatsapp/meta-templates-api', () => ({
   isMetaTemplatesConfigured: (...a: unknown[]) => mockIsConfigured(...a),
   syncTemplateCatalog: (...a: unknown[]) => mockSyncTemplateCatalog(...a),
   getTemplateStatusReport: (...a: unknown[]) => mockGetTemplateStatusReport(...a),
+  subscribeAppToWaba: (...a: unknown[]) => mockSubscribeAppToWaba(...a),
 }));
 
-import { syncWhatsAppTemplates, getWhatsAppTemplateStatus } from '@/app/actions/agent-templates';
+import { syncWhatsAppTemplates, getWhatsAppTemplateStatus, subscribeWhatsAppWebhooks } from '@/app/actions/agent-templates';
 import { log } from '@/lib/log';
 
 beforeEach(() => {
@@ -50,6 +52,7 @@ beforeEach(() => {
   mockState.adminRole = 'admin';
   mockState.rateLimitSuccess = true;
   mockIsConfigured.mockReturnValue(true);
+  mockSubscribeAppToWaba.mockResolvedValue(undefined);
   mockSyncTemplateCatalog.mockResolvedValue([{ name: 'seguimiento_lead', action: 'created', status: 'PENDING' }]);
   mockGetTemplateStatusReport.mockResolvedValue({ rows: [{ name: 'seguimiento_lead', category: 'MARKETING', remoteStatus: 'APPROVED' }] });
 });
@@ -105,5 +108,41 @@ describe('getWhatsAppTemplateStatus', () => {
     const result = await getWhatsAppTemplateStatus();
     expect(result.data).toEqual({ rows: [{ name: 'seguimiento_lead', category: 'MARKETING', remoteStatus: 'APPROVED' }] });
     expect(log.adminAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('subscribeWhatsAppWebhooks', () => {
+  it('returns UNAUTHORIZED when the caller is not an admin', async () => {
+    mockState.adminRole = 'tenant';
+    const result = await subscribeWhatsAppWebhooks();
+    expect(result.error?.code).toBe('UNAUTHORIZED');
+    expect(mockSubscribeAppToWaba).not.toHaveBeenCalled();
+  });
+
+  it('returns RATE_LIMITED when mutationRateLimit rejects', async () => {
+    mockState.rateLimitSuccess = false;
+    const result = await subscribeWhatsAppWebhooks();
+    expect(result.error?.code).toBe('RATE_LIMITED');
+    expect(mockSubscribeAppToWaba).not.toHaveBeenCalled();
+  });
+
+  it('returns a validation error when not configured', async () => {
+    mockIsConfigured.mockReturnValue(false);
+    const result = await subscribeWhatsAppWebhooks();
+    expect(result.error?.code).toBe('VALIDATION_ERROR');
+    expect(mockSubscribeAppToWaba).not.toHaveBeenCalled();
+  });
+
+  it('returns INTERNAL when Meta rejects the subscription', async () => {
+    mockSubscribeAppToWaba.mockRejectedValue(new Error('boom'));
+    const result = await subscribeWhatsAppWebhooks();
+    expect(result.error?.code).toBe('INTERNAL_ERROR');
+    expect(log.adminAction).not.toHaveBeenCalled();
+  });
+
+  it('on success, returns ok and logs an admin action', async () => {
+    const result = await subscribeWhatsAppWebhooks();
+    expect(result.data).toEqual({ subscribed: true });
+    expect(log.adminAction).toHaveBeenCalledWith('admin-uuid', 'whatsapp_webhooks_subscribe', 'whatsapp_waba', ORG_UUID);
   });
 });

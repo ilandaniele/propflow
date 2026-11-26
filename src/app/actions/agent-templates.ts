@@ -7,6 +7,7 @@ import { log } from '@/lib/log';
 import {
   isMetaTemplatesConfigured,
   syncTemplateCatalog,
+  subscribeAppToWaba,
   getTemplateStatusReport,
   type SyncResult,
   type TemplateStatusReport,
@@ -57,4 +58,25 @@ export async function getWhatsAppTemplateStatus(): Promise<ActionResult<Template
     log.error('[agent-templates] getWhatsAppTemplateStatus failed', { error: e instanceof Error ? e.message : String(e) });
     return Errors.INTERNAL();
   }
+}
+
+/** Subscribes the app to the WABA's webhooks so Meta delivers real inbound messages. Idempotent on Meta's side. */
+export async function subscribeWhatsAppWebhooks(): Promise<ActionResult<{ subscribed: true }>> {
+  let ctx;
+  try { ctx = await requireAdmin(); } catch { return Errors.UNAUTHORIZED(); }
+
+  const rl = mutationRateLimit(ctx.userId, 'whatsapp_webhooks_subscribe');
+  if (!rl.success) return Errors.RATE_LIMITED();
+
+  if (!isMetaTemplatesConfigured()) return notConfiguredError();
+
+  try {
+    await subscribeAppToWaba();
+  } catch (e) {
+    log.error('[agent-templates] subscribeWhatsAppWebhooks failed', { orgId: ctx.orgId, error: e instanceof Error ? e.message : String(e) });
+    return Errors.INTERNAL();
+  }
+
+  log.adminAction(ctx.userId, 'whatsapp_webhooks_subscribe', 'whatsapp_waba', ctx.orgId);
+  return ok({ subscribed: true });
 }

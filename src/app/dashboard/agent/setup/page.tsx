@@ -10,6 +10,7 @@ import { ChecklistGroup, type ChecklistItemData } from './_components/ChecklistG
 import { WhatsAppChannelForm } from './_components/WhatsAppChannelForm';
 import { TemplatesSection } from './_components/TemplatesSection';
 import { CopyField } from './_components/CopyField';
+import { SubscribeWebhooksButton } from './_components/SubscribeWebhooksButton';
 
 export const metadata: Metadata = { title: 'Agente IA — Configuración inicial' };
 
@@ -76,7 +77,7 @@ export default async function AgentSetupPage() {
       instruction: t('whatsappInboundInstruction'),
       extra: status.lastInboundWhatsAppAt !== null
         ? <p className="text-xs text-slate-400 mt-0.5">{t('whatsappInboundLastAt', { date: status.lastInboundWhatsAppAt.toLocaleString('es-PE') })}</p>
-        : undefined,
+        : <SubscribeWebhooksButton />,
     },
   ];
 
