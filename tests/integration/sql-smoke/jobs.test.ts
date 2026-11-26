@@ -9,7 +9,8 @@
 
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { NextRequest } from 'next/server';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { agentJobs } from '@/lib/db/schema';
 import { createSmokeDb, seedOrg, type SmokeDb } from './setup';
 
 const dbBox = vi.hoisted(() => ({ current: undefined as unknown }));
@@ -86,6 +87,32 @@ describe('agent job queue (real SQL)', () => {
     expect(a.processed + b.processed).toBe(6);
     expect(handled.sort()).toEqual([0, 1, 2, 3, 4, 5]);
     for (const id of ids) expect(await jobStatus(id)).toBe('done');
+
+    jobs._resetAgentJobHandlers();
+  });
+
+  it('drainAgentJobs reclaims a processing job whose lock expired', async () => {
+    const jobs = await import('@/lib/agent/jobs');
+
+    jobs._resetAgentJobHandlers();
+    const handled: unknown[] = [];
+    jobs.registerAgentJobHandler('stuck', async (payload) => {
+      handled.push(payload);
+    });
+
+    const org = await seedOrg(smoke.db);
+    const past = new Date(Date.now() - 60_000);
+    const stuckId = await jobs.enqueueJob({ orgId: org.id, kind: 'stuck', payload: { n: 1 }, runAt: past });
+    const lockedId = await jobs.enqueueJob({ orgId: org.id, kind: 'stuck', payload: { n: 2 }, runAt: past });
+    await smoke.db.update(agentJobs).set({ status: 'processing', lockedUntil: past }).where(eq(agentJobs.id, stuckId));
+    await smoke.db.update(agentJobs).set({ status: 'processing', lockedUntil: new Date(Date.now() + 60_000) }).where(eq(agentJobs.id, lockedId));
+
+    const result = await jobs.drainAgentJobs(20);
+
+    expect(result).toEqual({ processed: 1, failed: 0 });
+    expect(handled).toEqual([{ n: 1 }]);
+    expect(await jobStatus(stuckId)).toBe('done');
+    expect(await jobStatus(lockedId)).toBe('processing');
 
     jobs._resetAgentJobHandlers();
   });
