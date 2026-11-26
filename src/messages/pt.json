@@ -53,7 +53,6 @@
     "open": "Abrir",
     "select": "Selecionar",
     "today": "Hoje",
-    "yesterday": "Ontem",
     "overdue": "Vencido",
     "add": "Adicionar",
     "addButton": "Adicionar",
@@ -190,7 +189,6 @@
     },
     "header": {
       "noUnit": "Sem unidade atribuída",
-      "balanceStatus": "Status do saldo",
       "reliabilityScores": "Índices de confiabilidade",
       "onTime": "Pagamento pontual",
       "dispute": "Disputas",
@@ -203,11 +201,9 @@
       "proposeSanction": "Propor Sanção",
       "addNote": "Adicionar Nota",
       "uploadReceipt": "Enviar Comprovante",
-      "createIncident": "Criar Incidente",
-      "viewContract": "Ver Contrato"
+      "createIncident": "Criar Incidente"
     },
     "overview": {
-      "financialSummary": "Resumo Financeiro",
       "totalCharged": "Total cobrado",
       "totalPaid": "Total pago",
       "balance": "Saldo",
@@ -217,7 +213,6 @@
       "lastWhatsApp": "Última mensagem WhatsApp"
     },
     "avatar": {
-      "uploadPhoto": "Enviar foto",
       "changePhoto": "Alterar foto",
       "removePhoto": "Remover foto",
       "uploadHint": "JPG, PNG ou WebP. Máximo 2 MB."
@@ -231,7 +226,6 @@
     "addNote": "Adicionar nota interna",
     "notePlaceholder": "Escreva uma nota interna sobre este inquilino...",
     "portalAccess": "Acesso ao portal",
-    "noPortalAccess": "Sem acesso ao portal",
     "portalPreview": {
       "title": "Pré-visualização do Portal",
       "noLinkedAccount": "O inquilino não ativou sua conta do portal. Vincule pelo painel de Conta do Portal.",
@@ -250,7 +244,6 @@
         "visitorCount": "Visitas (últimos 30 dias)",
         "noData": "Sem dados de pré-visualização do início",
         "balance": "Saldo",
-        "pendingCharges": "Cobranças pendentes",
         "overdue": "Vencido",
         "recentPayments": "Pagamentos recentes",
         "noRecentPayments": "Sem pagamentos recentes",
@@ -310,7 +303,6 @@
       "total": "Total de Inquilinos",
       "active": "Ativos",
       "withEmail": "Com Email",
-      "withPortal": "Portal Vinculado",
       "demographics": "Cobertura de Dados",
       "phone": "Telefone",
       "dni": "CPF/DNI",
@@ -379,7 +371,6 @@
       "other": "Outro"
     },
     "charges": "Cobranças",
-    "chargeDescription": "Descrição",
     "dueDate": "Data de vencimento",
     "period": "Período",
     "accountStatement": "Extrato da Conta",
@@ -400,12 +391,10 @@
       },
       "ocr": {
         "viewDetail": "Ver detalhe OCR",
-        "rawText": "Texto extraído",
         "matchedCharge": "Cobrança associada",
         "matchedPayment": "Pagamento associado",
         "rejectionReason": "Motivo de rejeição",
-        "notMatched": "Sem associação",
-        "rawTextPending": "Texto OCR não disponível"
+        "notMatched": "Sem associação"
       }
     },
     "kpi": {
@@ -556,7 +545,6 @@
       "urgent": "Urgente — ação imediata necessária"
     },
     "statsLink": "Estatísticas",
-    "noIncidents": "Sem incidentes",
     "kpi": {
       "totalCost": "Custo Total",
       "avgCost": "Custo Médio",
@@ -571,7 +559,6 @@
     "newTask": "Nova Tarefa",
     "taskType": "Tipo de tarefa",
     "dueAt": "Data limite",
-    "proofRequired": "Requer comprovante fotográfico",
     "taskTypes": {
       "maintenance": "Manutenção",
       "document": "Documento",
@@ -587,8 +574,6 @@
       "expired": "Vencida",
       "cancelled": "Cancelada"
     },
-    "uploadProof": "Enviar comprovante",
-    "proofSubmitted": "Comprovante enviado",
     "aiVerdict": {
       "valid": "Válido",
       "invalid": "Inválido",
@@ -659,8 +644,7 @@
       "petsAllowedYes": "Aceita animais",
       "petsAllowedNo": "Não aceita animais",
       "petsAllowedUnknown": "Animais: a confirmar",
-      "maintenanceFeeLabel": "Manutenção",
-      "refCodeLabel": "Código de referência"
+      "maintenanceFeeLabel": "Manutenção"
     }
   },
   "agentInbox": {
@@ -833,7 +817,6 @@
     "withoutListing": "Sem imóvel associado",
     "withoutLead": "Sem prospecto",
     "cancelReasonPrompt": "Motivo do cancelamento (opcional)",
-    "rescheduleTitle": "Remarcar visita",
     "rescheduleSubmit": "Remarcar",
     "dialog": {
       "title": "Nova visita",
@@ -879,7 +862,6 @@
     "saveWindows": "Salvar janelas",
     "exceptions": "Exceções",
     "addException": "Adicionar exceção",
-    "exceptionKind": "Tipo",
     "exceptionBlock": "Bloqueio",
     "exceptionExtra": "Extra",
     "exceptionReason": "Motivo (opcional)",
@@ -906,8 +888,6 @@
     "conversations": "Conversas",
     "messages": "Mensagens",
     "sendMessage": "Enviar mensagem",
-    "typeMessage": "Digite uma mensagem...",
-    "mockBanner": "Provedor simulado — mensagens NÃO são enviadas para WhatsApp real",
     "direction": {
       "inbound": "Recebida",
       "outbound": "Enviada"
@@ -931,13 +911,11 @@
     "noConversationsDesc": "Sem conversas ainda. As mensagens de WhatsApp recebidas aparecerão aqui.",
     "unknownTenant": "Inquilino desconhecido",
     "backToInbox": "Voltar para Caixa de Entrada",
-    "messageHistoryNote": "As mensagens são carregadas dinamicamente. Veja a aba WhatsApp no detalhe do inquilino para ver o histórico.",
     "sending": "Enviando...",
     "send": "Enviar",
     "inboxBannerText": "Provedor simulado ativo — as mensagens NÃO são entregues ao WhatsApp real. Configure WHATSAPP_PROVIDER para usar um provedor real.",
     "markRead": "Marcar como lido",
     "unread": "não lidas",
-    "searchTenants": "Buscar por inquilino ou telefone...",
     "templates": {
       "paymentDue": "Seu pagamento de ${amount} vence em {date}. Por favor acesse o portal para realizar seu pagamento.",
       "paymentConfirmed": "Seu comprovante de pagamento de ${amount} foi recebido e aprovado. Obrigado!",
@@ -992,15 +970,12 @@
       "approved": "Aprovadas",
       "disputed": "Contestadas",
       "all": "Todas"
-    },
-    "approvalCreatesCharge": "Ao aprovar uma sanção monetária, uma cobrança será gerada automaticamente.",
-    "disputeKeywords": "contestar|disputa|disputar|quero contestar"
+    }
   },
   "notifications": {
     "title": "Notificações",
     "markRead": "Marcar como lido",
     "markAllRead": "Marcar todas como lidas",
-    "noNotifications": "Sem notificações",
     "types": {
       "lease_renewal": "Renovação de contrato",
       "payment_due": "Pagamento vencido",
@@ -1027,19 +1002,11 @@
   },
   "emptyStates": {
     "noData": "Sem dados",
-    "noResults": "Sem resultados",
-    "noItemsFound": "Nenhum item encontrado",
-    "startByCreating": "Comece criando",
-    "nothingHere": "Nada aqui ainda"
+    "noResults": "Sem resultados"
   },
   "onboarding": {
-    "welcome": "Bem-vindo ao PropFlow",
     "createOrg": "Criar sua organização",
-    "orgName": "Nome da organização",
-    "getStarted": "Começar",
-    "step1": "Etapa 1: Sua organização",
-    "step2": "Etapa 2: Primeira propriedade",
-    "step3": "Etapa 3: Primeiro inquilino"
+    "orgName": "Nome da organização"
   },
   "units": {
     "bedsTab": "Camas",
@@ -1101,8 +1068,7 @@
       "features": "Recursos",
       "problems": "Problemas",
       "pricing": "Preços",
-      "signIn": "Entrar",
-      "requestAccess": "Solicitar acesso"
+      "signIn": "Entrar"
     },
     "hero": {
       "badge": "Plataforma de gestão para coliving e multi-quarto",
@@ -1286,23 +1252,11 @@
   "analyst": {
     "title": "Analista IA",
     "subtitle": "Análises determinísticas e perguntas livres sobre seu portfólio.",
-    "quickAnalysis": "Análises rápidas",
-    "freeChat": "Pergunta livre",
-    "freeChatSubtitle": "O contexto enviado ao modelo é limitado a KPIs agregados do portfólio (máx. 8 KB). Nenhum dado pessoal de inquilinos é incluído.",
     "deterministic": "Análise determinística",
-    "deterministicNote": "Fonte: cálculo determinístico — sem IA generativa",
-    "calculating": "Calculando...",
-    "sendButton": "Enviar",
-    "inputPlaceholder": "Pergunte sobre receitas, despesas, ocupação…",
     "noData": "Dados insuficientes.",
     "rateLimit": "Limite de mensagens atingido. Tente novamente amanhã.",
     "chips": {
-      "worstRooms": "Top 5 quartos com pior desempenho (últimos 30d)?",
-      "lostDebt": "Qual é minha dívida perdida real este mês?",
-      "highestExpense": "Qual propriedade tem as maiores despesas?",
-      "rentGap": "Como meu aluguel se compara ao mercado?",
-      "monthlyTrend": "Como está minha renda líquida vs média de 3 meses?",
-      "riskTenants": "Quais inquilinos representam maior risco financeiro?"
+      "monthlyTrend": "Como está minha renda líquida vs média de 3 meses?"
     }
   },
   "apiKeys": {
@@ -1486,7 +1440,6 @@
   "portfolio": {
     "title": "Portfólio",
     "subtitle": "Visão geral dos KPIs financeiros do portfólio.",
-    "financialKpis": "KPIs Financeiros (MTD)",
     "trueNetProfit": "Lucro Líquido Real",
     "trueNetProfitSub": "Receita − despesas (mês atual)",
     "pastDueBalance": "Saldo Vencido",
@@ -1497,20 +1450,14 @@
   "forecasting": {
     "title": "Projeções",
     "subtitle": "Simule cenários ajustando a ocupação e as despesas operacionais.",
-    "actualsTitle": "Dados reais do mês anterior",
     "occupancyLastMonth": "Ocupação (mês anterior)",
     "netProfitLastMonth": "Lucro Líquido (mês anterior)",
     "fullOccupancyRevenue": "Receita com ocupação plena",
     "fromActiveContracts": "De {count} contratos ativos",
     "fromDefaultRents": "De aluguéis padrão das unidades",
     "simulatorTitle": "Simulador de sensibilidade",
-    "occupancyAdjustment": "Ajuste de ocupação",
-    "opexAdjustment": "Ajuste de despesas operacionais",
-    "projectedNetCashFlow": "Fluxo de Caixa Líquido Projetado",
-    "vsActuals": "vs dados reais atuais",
     "projectedIncome": "Receita projetada",
     "projectedExpenses": "Despesas projetadas",
-    "resetToActuals": "Restaurar para dados reais",
     "addUnitsPrompt": "Adicione unidades e contratos para habilitar o simulador de projeções.",
     "assumptionsNote": "As projeções usam os dados reais do mês anterior como base. O modelo assume que a receita escala linearmente com a ocupação e que as despesas operacionais mudam proporcionalmente com o slider OpEx. Este é um modelo simplificado — os resultados reais podem variar.",
     "noData": "Dados não disponíveis"
@@ -1576,7 +1523,6 @@
     "editTenant": "Editar inquilino",
     "downloadTemplate": "Baixar Modelo",
     "importTenants": "Importar Inquilinos",
-    "viewImports": "Ver importações",
     "searchPlaceholder": "Buscar por nome ou e-mail…",
     "allStatuses": "Todos os status",
     "allSync": "Todo sync",
@@ -1788,7 +1734,6 @@
     }
   },
   "tenantOnboarding": {
-    "emergencyOptional": "Contato de emergência (opcional)",
     "saving": "Salvando...",
     "submit": "Concluir cadastro",
     "errorGeneric": "Ocorreu um erro. Tente novamente.",
@@ -1807,9 +1752,7 @@
     }
   },
   "authErrors": {
-    "oauth_cancelled": "Autenticação com Google cancelada.",
     "invalid_callback": "Erro no callback de autenticação. Tente novamente.",
-    "missing_email": "O Google não forneceu um e-mail. Verifique as configurações da sua conta.",
     "email_conflict": "Já existe uma conta com este e-mail. Entre com e-mail e senha.",
     "oauth_failed": "Erro de autenticação com o Google. Tente novamente.",
     "account_not_created": "Não conseguimos criar nem encontrar sua conta. Se você foi convidado, abra o link do convite; caso contrário, solicite acesso ao administrador.",
@@ -2600,12 +2543,10 @@
     "colCleaning": "Limpeza",
     "colAttention": "Atendimento",
     "colRecommend": "Recomendaria",
-    "colComment": "Comentário",
     "yes": "Sim",
     "no": "Não",
     "colSecurity": "Segurança",
     "colValue": "Custo-Benefício",
-    "colCoexistence": "Convivência",
     "colWorst": "Pior Experiência"
   },
   "reminders": {
@@ -3180,7 +3121,6 @@
     "ok": "Concluído",
     "missing": "Faltando",
     "groupWhatsapp": "WhatsApp (Meta)",
-    "groupTemplates": "Modelos de mensagem",
     "groupAgent": "Agente",
     "groupCalendar": "Agenda e Google Calendar",
     "groupEmail": "Email",

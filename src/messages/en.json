@@ -53,7 +53,6 @@
     "open": "Open",
     "select": "Select",
     "today": "Today",
-    "yesterday": "Yesterday",
     "overdue": "Overdue",
     "add": "Add",
     "addButton": "Add",
@@ -190,7 +189,6 @@
     },
     "header": {
       "noUnit": "No unit assigned",
-      "balanceStatus": "Balance status",
       "reliabilityScores": "Reliability scores",
       "onTime": "On-time payment",
       "dispute": "Disputes",
@@ -203,11 +201,9 @@
       "proposeSanction": "Propose Sanction",
       "addNote": "Add Note",
       "uploadReceipt": "Upload Receipt",
-      "createIncident": "Create Incident",
-      "viewContract": "View Contract"
+      "createIncident": "Create Incident"
     },
     "overview": {
-      "financialSummary": "Financial Summary",
       "totalCharged": "Total charged",
       "totalPaid": "Total paid",
       "balance": "Balance",
@@ -217,7 +213,6 @@
       "lastWhatsApp": "Last WhatsApp message"
     },
     "avatar": {
-      "uploadPhoto": "Upload photo",
       "changePhoto": "Change photo",
       "removePhoto": "Remove photo",
       "uploadHint": "JPG, PNG or WebP. Maximum 2 MB."
@@ -231,7 +226,6 @@
     "addNote": "Add internal note",
     "notePlaceholder": "Write an internal note about this tenant...",
     "portalAccess": "Portal access",
-    "noPortalAccess": "No portal access",
     "portalPreview": {
       "title": "Portal Preview",
       "noLinkedAccount": "Tenant has not activated their portal account. Link via the Portal Account panel.",
@@ -250,7 +244,6 @@
         "visitorCount": "Visitors (last 30 days)",
         "noData": "No home preview data available",
         "balance": "Balance",
-        "pendingCharges": "Pending charges",
         "overdue": "Overdue",
         "recentPayments": "Recent payments",
         "noRecentPayments": "No recent payments",
@@ -310,7 +303,6 @@
       "total": "Total Tenants",
       "active": "Active",
       "withEmail": "With Email",
-      "withPortal": "Portal Linked",
       "demographics": "Data Coverage",
       "phone": "Phone",
       "dni": "DNI",
@@ -379,7 +371,6 @@
       "other": "Other"
     },
     "charges": "Charges",
-    "chargeDescription": "Description",
     "dueDate": "Due date",
     "period": "Period",
     "accountStatement": "Account Statement",
@@ -400,12 +391,10 @@
       },
       "ocr": {
         "viewDetail": "View OCR detail",
-        "rawText": "Extracted text",
         "matchedCharge": "Matched charge",
         "matchedPayment": "Matched payment",
         "rejectionReason": "Rejection reason",
-        "notMatched": "Not matched",
-        "rawTextPending": "OCR text not available"
+        "notMatched": "Not matched"
       }
     },
     "kpi": {
@@ -556,7 +545,6 @@
       "urgent": "Urgent — immediate action required"
     },
     "statsLink": "Stats",
-    "noIncidents": "No incidents",
     "kpi": {
       "totalCost": "Total Cost",
       "avgCost": "Avg Cost",
@@ -571,7 +559,6 @@
     "newTask": "New Task",
     "taskType": "Task type",
     "dueAt": "Due date",
-    "proofRequired": "Photo proof required",
     "taskTypes": {
       "maintenance": "Maintenance",
       "document": "Document",
@@ -587,8 +574,6 @@
       "expired": "Expired",
       "cancelled": "Cancelled"
     },
-    "uploadProof": "Upload proof",
-    "proofSubmitted": "Proof submitted",
     "aiVerdict": {
       "valid": "Valid",
       "invalid": "Invalid",
@@ -659,8 +644,7 @@
       "petsAllowedYes": "Pets allowed",
       "petsAllowedNo": "No pets allowed",
       "petsAllowedUnknown": "Pets: to confirm",
-      "maintenanceFeeLabel": "Maintenance fee",
-      "refCodeLabel": "Reference code"
+      "maintenanceFeeLabel": "Maintenance fee"
     }
   },
   "agentInbox": {
@@ -833,7 +817,6 @@
     "withoutListing": "No listing assigned",
     "withoutLead": "No lead",
     "cancelReasonPrompt": "Cancellation reason (optional)",
-    "rescheduleTitle": "Reschedule visit",
     "rescheduleSubmit": "Reschedule",
     "dialog": {
       "title": "New visit",
@@ -879,7 +862,6 @@
     "saveWindows": "Save windows",
     "exceptions": "Exceptions",
     "addException": "Add exception",
-    "exceptionKind": "Kind",
     "exceptionBlock": "Block",
     "exceptionExtra": "Extra",
     "exceptionReason": "Reason (optional)",
@@ -906,8 +888,6 @@
     "conversations": "Conversations",
     "messages": "Messages",
     "sendMessage": "Send message",
-    "typeMessage": "Type a message...",
-    "mockBanner": "Mock provider — messages are NOT sent to real WhatsApp",
     "direction": {
       "inbound": "Inbound",
       "outbound": "Outbound"
@@ -931,13 +911,11 @@
     "noConversationsDesc": "No conversations yet. Incoming WhatsApp messages will appear here.",
     "unknownTenant": "Unknown tenant",
     "backToInbox": "Back to Inbox",
-    "messageHistoryNote": "Messages are loaded dynamically. See the WhatsApp tab on tenant detail for message history.",
     "sending": "Sending...",
     "send": "Send",
     "inboxBannerText": "Mock Provider Active — messages are NOT delivered to real WhatsApp. Configure WHATSAPP_PROVIDER to switch to a real provider.",
     "markRead": "Mark as read",
     "unread": "unread",
-    "searchTenants": "Search by tenant or phone...",
     "templates": {
       "paymentDue": "Your payment of ${amount} is due on {date}. Please log in to your portal to make your payment.",
       "paymentConfirmed": "Your payment receipt of ${amount} was received and approved. Thank you!",
@@ -992,15 +970,12 @@
       "approved": "Approved",
       "disputed": "Disputed",
       "all": "All"
-    },
-    "approvalCreatesCharge": "Approving a monetary sanction will automatically create a charge.",
-    "disputeKeywords": "dispute|i want to dispute|contest"
+    }
   },
   "notifications": {
     "title": "Notifications",
     "markRead": "Mark as read",
     "markAllRead": "Mark all as read",
-    "noNotifications": "No notifications",
     "types": {
       "lease_renewal": "Lease renewal",
       "payment_due": "Payment due",
@@ -1027,19 +1002,11 @@
   },
   "emptyStates": {
     "noData": "No data",
-    "noResults": "No results",
-    "noItemsFound": "No items found",
-    "startByCreating": "Start by creating",
-    "nothingHere": "Nothing here yet"
+    "noResults": "No results"
   },
   "onboarding": {
-    "welcome": "Welcome to PropFlow",
     "createOrg": "Create your organization",
-    "orgName": "Organization name",
-    "getStarted": "Get started",
-    "step1": "Step 1: Your organization",
-    "step2": "Step 2: First property",
-    "step3": "Step 3: First tenant"
+    "orgName": "Organization name"
   },
   "units": {
     "bedsTab": "Beds",
@@ -1101,8 +1068,7 @@
       "features": "Features",
       "problems": "Problems",
       "pricing": "Pricing",
-      "signIn": "Sign in",
-      "requestAccess": "Request access"
+      "signIn": "Sign in"
     },
     "hero": {
       "badge": "Property management platform for coliving & multi-room",
@@ -1286,23 +1252,11 @@
   "analyst": {
     "title": "AI Analyst",
     "subtitle": "Deterministic analyses and free-form questions about your portfolio.",
-    "quickAnalysis": "Quick analyses",
-    "freeChat": "Free-form question",
-    "freeChatSubtitle": "Context sent to the model is limited to aggregate portfolio KPIs (max 8 KB). No per-tenant PII is included.",
     "deterministic": "Deterministic analysis",
-    "deterministicNote": "Source: deterministic calculation — no generative AI",
-    "calculating": "Calculating...",
-    "sendButton": "Send",
-    "inputPlaceholder": "Ask about revenue, expenses, occupancy…",
     "noData": "Insufficient data.",
     "rateLimit": "Message limit reached. Please try again tomorrow.",
     "chips": {
-      "worstRooms": "Top 5 worst-performing rooms (last 30d)?",
-      "lostDebt": "What is my real lost debt this month?",
-      "highestExpense": "Which property has the highest expenses?",
-      "rentGap": "How does my rent compare to market rate?",
-      "monthlyTrend": "How is my net income vs 3-month average?",
-      "riskTenants": "Which tenants represent the highest financial risk?"
+      "monthlyTrend": "How is my net income vs 3-month average?"
     }
   },
   "apiKeys": {
@@ -1486,7 +1440,6 @@
   "portfolio": {
     "title": "Portfolio",
     "subtitle": "Portfolio financial KPI overview.",
-    "financialKpis": "Financial KPIs (MTD)",
     "trueNetProfit": "True Net Profit",
     "trueNetProfitSub": "Income − expenses (month-to-date)",
     "pastDueBalance": "Past Due Balance",
@@ -1497,20 +1450,14 @@
   "forecasting": {
     "title": "Forecasting",
     "subtitle": "Simulate scenarios by adjusting occupancy and operating expenses.",
-    "actualsTitle": "Last month actuals",
     "occupancyLastMonth": "Occupancy (last month)",
     "netProfitLastMonth": "Net Profit (last month)",
     "fullOccupancyRevenue": "Revenue at full occupancy",
     "fromActiveContracts": "From {count} active contracts",
     "fromDefaultRents": "From unit default rents",
     "simulatorTitle": "Sensitivity Simulator",
-    "occupancyAdjustment": "Occupancy adjustment",
-    "opexAdjustment": "Operating expenses adjustment",
-    "projectedNetCashFlow": "Projected Net Cash Flow",
-    "vsActuals": "vs current actuals",
     "projectedIncome": "Projected income",
     "projectedExpenses": "Projected expenses",
-    "resetToActuals": "Reset to actuals",
     "addUnitsPrompt": "Add units and contracts to enable the forecasting simulator.",
     "assumptionsNote": "Projections use last month's actuals as the baseline. The model assumes revenue scales linearly with occupancy and that operating expenses change proportionally with the OpEx slider. This is a simplified model — actual results may differ.",
     "noData": "No data available"
@@ -1576,7 +1523,6 @@
     "editTenant": "Edit tenant",
     "downloadTemplate": "Download Template",
     "importTenants": "Import Tenants",
-    "viewImports": "View imports",
     "searchPlaceholder": "Search by name or email…",
     "allStatuses": "All statuses",
     "allSync": "All sync",
@@ -1788,7 +1734,6 @@
     }
   },
   "tenantOnboarding": {
-    "emergencyOptional": "Emergency contact (optional)",
     "saving": "Saving...",
     "submit": "Complete registration",
     "errorGeneric": "An error occurred. Please try again.",
@@ -1807,9 +1752,7 @@
     }
   },
   "authErrors": {
-    "oauth_cancelled": "Google authentication cancelled.",
     "invalid_callback": "Authentication callback error. Please try again.",
-    "missing_email": "Google did not provide an email. Check your account settings.",
     "email_conflict": "An account with this email already exists. Sign in with email and password.",
     "oauth_failed": "Google authentication error. Please try again.",
     "account_not_created": "We couldn't create or find your account. If you were invited, open your invitation link; otherwise request access from your administrator.",
@@ -2600,12 +2543,10 @@
     "colCleaning": "Cleaning",
     "colAttention": "Attention",
     "colRecommend": "Recommend",
-    "colComment": "Comment",
     "yes": "Yes",
     "no": "No",
     "colSecurity": "Security",
     "colValue": "Value",
-    "colCoexistence": "Coexistence",
     "colWorst": "Worst Experience"
   },
   "reminders": {
@@ -3180,7 +3121,6 @@
     "ok": "Done",
     "missing": "Missing",
     "groupWhatsapp": "WhatsApp (Meta)",
-    "groupTemplates": "Templates",
     "groupAgent": "Agent",
     "groupCalendar": "Calendar and Google Calendar",
     "groupEmail": "Email",
