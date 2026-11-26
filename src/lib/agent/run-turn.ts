@@ -258,6 +258,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
           messages,
           maxIterations: MAX_ITERATIONS,
           maxTokens: MAX_TOKENS,
+          stopAfterTool: 'handoff_to_human',
         })
       : await runAnthropicTurn(
           [

@@ -25,6 +25,7 @@ export interface ToolLoopArgs {
   messages: MessageParam[];
   maxIterations: number;
   maxTokens: number;
+  stopAfterTool?: string;
 }
 
 export interface ToolLoopResult {
@@ -117,6 +118,7 @@ export async function runWorkersAiToolLoop(args: ToolLoopArgs): Promise<ToolLoop
     const results: ToolResultBlockParam[] = [];
     for (const call of toolUses) results.push(await runTool(args.tools, call));
     messages.push({ role: 'user', content: results });
+    if (toolUses.some((t) => t.name === args.stopAfterTool)) break;
   }
 
   return { messages, finalContent, totalInputTokens, totalOutputTokens, costUsd: 0 };
