@@ -25,6 +25,8 @@
   "observability": { "enabled": true },
   "vars": {
     "WHATSAPP_PROVIDER": "meta",
+    "AGENT_PROVIDER": "workers-ai",
+    "AGENT_WORKERS_AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "R2_BUCKET": "propflow-files",
     "AUTH_URL": "https://propflow-app.ilandaniele.workers.dev",
     "NEXT_PUBLIC_SITE_URL": "https://propflow-app.ilandaniele.workers.dev"
