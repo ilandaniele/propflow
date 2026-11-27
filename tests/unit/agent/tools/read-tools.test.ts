@@ -47,6 +47,20 @@ describe('search_listings tool', () => {
     expect(String(result)).toMatch(/no se encontraron/i);
   });
 
+  it('tells the model to ask the user instead of handing off when nothing matches', async () => {
+    const result = await makeSearchListingsTool(makeCtx()).run({});
+    expect(String(result)).toMatch(/pregunt/i);
+    expect(String(result)).toMatch(/no derives/i);
+  });
+
+  it('falls back to every available listing when the filters match nothing', async () => {
+    searchListings.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: 'l2', title: 'Otro depa' }]);
+    const result = String(await makeSearchListingsTool(makeCtx()).run({ zone: 'zona_del_apartamento' }));
+    expect(searchListings).toHaveBeenLastCalledWith('org-1', {});
+    expect(result).toMatch(/Otro depa/);
+    expect(result).toMatch(/no coinciden/i);
+  });
+
   it('serializes results as JSON when there are matches', async () => {
     searchListings.mockResolvedValueOnce([{ id: 'l1', title: 'Depa' }]);
     const tool = makeSearchListingsTool(makeCtx());
