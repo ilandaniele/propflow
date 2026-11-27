@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { setSessionMode, createProspectLead, recordAgentEvent } = vi.hoisted(() => ({
+const { setSessionMode, createProspectLead, recordAgentEvent, hasSessionListings } = vi.hoisted(() => ({
   setSessionMode: vi.fn(async () => {}),
+  hasSessionListings: vi.fn(async () => true),
   createProspectLead: vi.fn(async () => ({ id: 'lead-owner-1' })),
   recordAgentEvent: vi.fn(async () => {}),
 }));
@@ -13,6 +14,7 @@ vi.mock('@/lib/agent/lead', () => ({
     a ? { sourceRef: 'ref:X', sourceMeta: a as Record<string, unknown> } : { sourceRef: null, sourceMeta: {} },
 }));
 vi.mock('@/lib/agent/events', () => ({ recordAgentEvent }));
+vi.mock('@/lib/agent/session-listings', () => ({ hasSessionListings }));
 
 import { makeHandoffToHumanTool } from '@/lib/agent/tools/handoff-to-human';
 import { makeRegisterOwnerLeadTool } from '@/lib/agent/tools/register-owner-lead';
@@ -38,6 +40,21 @@ describe('handoff_to_human tool', () => {
     const tool = makeHandoffToHumanTool(makeCtx());
     expect(tool.description).toMatch(/search_listings/);
     expect(tool.description).not.toMatch(/coordinación de visitas/);
+  });
+
+  it('refuses an out_of_scope handoff until the session has searched listings', async () => {
+    hasSessionListings.mockResolvedValueOnce(false);
+    const tool = makeHandoffToHumanTool(makeCtx());
+    await expect(tool.run({ reason: 'out_of_scope', summary: 'Pregunta por un depa' })).rejects.toThrow(/search_listings/);
+    expect(hasSessionListings).toHaveBeenCalledWith('org-1', 'session-1');
+    expect(setSessionMode).not.toHaveBeenCalled();
+  });
+
+  it('allows an explicit request for a human even before any search', async () => {
+    hasSessionListings.mockResolvedValueOnce(false);
+    const tool = makeHandoffToHumanTool(makeCtx());
+    await tool.run({ reason: 'wants_human', summary: 'Quiere hablar con alguien' });
+    expect(setSessionMode).toHaveBeenCalled();
   });
 
   it('dryRun never pauses the real session', async () => {

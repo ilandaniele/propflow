@@ -307,11 +307,9 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
 
   if (!dryRun) await recordAgentTurn(session.id);
 
-  const handedOffToHuman = newMessages.some(
-    (m) =>
-      Array.isArray(m.content) &&
-      m.content.some((b) => b.type === 'tool_use' && b.name === 'handoff_to_human'),
-  );
+  const blocks = newMessages.flatMap((m) => (Array.isArray(m.content) ? m.content : []));
+  const handoffIds = new Set(blocks.flatMap((b) => (b.type === 'tool_use' && b.name === 'handoff_to_human' ? [b.id] : [])));
+  const handedOffToHuman = blocks.some((b) => b.type === 'tool_result' && handoffIds.has(b.tool_use_id) && !b.is_error);
 
   return {
     sessionId: session.id,

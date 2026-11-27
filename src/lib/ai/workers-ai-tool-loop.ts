@@ -118,7 +118,7 @@ export async function runWorkersAiToolLoop(args: ToolLoopArgs): Promise<ToolLoop
     const results: ToolResultBlockParam[] = [];
     for (const call of toolUses) results.push(await runTool(args.tools, call));
     messages.push({ role: 'user', content: results });
-    if (toolUses.some((t) => t.name === args.stopAfterTool)) break;
+    if (toolUses.some((t, idx) => t.name === args.stopAfterTool && !results[idx].is_error)) break;
   }
 
   return { messages, finalContent, totalInputTokens, totalOutputTokens, costUsd: 0 };

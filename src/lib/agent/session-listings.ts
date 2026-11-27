@@ -29,6 +29,15 @@ export async function rememberSessionListings(
     .onConflictDoNothing({ target: [agentSessionListings.sessionId, agentSessionListings.listingId] });
 }
 
+export async function hasSessionListings(orgId: string, sessionId: string): Promise<boolean> {
+  const rows = await db
+    .select({ listingId: agentSessionListings.listingId })
+    .from(agentSessionListings)
+    .where(and(eq(agentSessionListings.orgId, orgId), eq(agentSessionListings.sessionId, sessionId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
 /**
  * True if this session either has a recorded sighting of the listing, or the
  * session's own stored attribution (set once, on its first attributed
