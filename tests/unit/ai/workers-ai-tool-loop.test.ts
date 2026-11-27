@@ -150,6 +150,27 @@ describe('runWorkersAiToolLoop', () => {
     });
   });
 
+  it('keeps looping when the stopAfterTool call fails', async () => {
+    fetchMock
+      .mockImplementationOnce(async () => chatResponse({ tool_calls: [{ id: 'h', function: { name: 'handoff', arguments: '{}' } }] }))
+      .mockImplementationOnce(async () => chatResponse({ content: 'te muestro opciones' }));
+    const handoff = vi.fn(() => {
+      throw new Error('primero buscá');
+    });
+
+    const result = await runWorkersAiToolLoop({
+      system: 's',
+      tools: [makeTool('handoff', handoff)],
+      messages: [{ role: 'user', content: 'x' }],
+      maxIterations: 8,
+      maxTokens: 512,
+      stopAfterTool: 'handoff',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.finalContent).toEqual([{ type: 'text', text: 'te muestro opciones' }]);
+  });
+
   it('throws on a non-OK response', async () => {
     fetchMock.mockResolvedValueOnce(new Response('quota', { status: 429 }));
     await expect(

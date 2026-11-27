@@ -242,6 +242,22 @@ describe('runAgentTurn', () => {
     expect(result.handoffReason).toBe('tool');
   });
 
+  it('does not report a handoff whose tool call was rejected', async () => {
+    const finalContent = [{ type: 'text', text: 'Tengo estas opciones.' }];
+    const fullMessages = [
+      { role: 'user', content: 'sigue disponible?' },
+      { role: 'assistant', content: [{ type: 'tool_use', id: 't1', name: 'handoff_to_human', input: {} }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'Error: buscá primero', is_error: true }] },
+      { role: 'assistant', content: finalContent },
+    ];
+    toolRunnerMock.mockReturnValue(fakeRunner(finalContent, fullMessages));
+
+    const result = await runAgentTurn({ orgId: 'org-1', channel: 'whatsapp', externalId: '+51987654321', inboundText: 'sigue disponible?' });
+
+    expect(result.handedOffToHuman).toBe(false);
+    expect(result.handoffReason).toBeNull();
+  });
+
   it('short-circuits with a canned reply, hands off to human, and never calls the model when the org is over its daily budget', async () => {
     budgetRows.length = 0;
     budgetRows.push({ total: '999999' });

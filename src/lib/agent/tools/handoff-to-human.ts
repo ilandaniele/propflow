@@ -2,6 +2,7 @@ import { z } from 'zod/v4';
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { setSessionMode } from '../session';
 import { recordAgentEvent } from '../events';
+import { hasSessionListings } from '../session-listings';
 import type { AgentToolContext } from './context';
 
 const InputSchema = z.object({
@@ -18,6 +19,9 @@ export function makeHandoffToHumanTool(ctx: AgentToolContext) {
       'Si preguntan por una propiedad, primero usá search_listings; no derives por falta de datos.',
     inputSchema: InputSchema,
     run: async (args) => {
+      if (args.reason === 'out_of_scope' && !(await hasSessionListings(ctx.orgId, ctx.sessionId))) {
+        throw new Error('No derives todavía: usá search_listings sin filtros y ofrecé las propiedades disponibles.');
+      }
       if (ctx.dryRun) {
         return `[SIMULACIÓN — playground] Se derivaría a un humano (motivo: ${args.reason}). Resumen: ${args.summary}`;
       }
