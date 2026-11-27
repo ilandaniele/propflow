@@ -196,7 +196,8 @@ export async function updateMessageStatusByProviderId(
 
 /**
  * Atomically claim every 'pending' inbound message for a conversation
- * (pending → processing). This IS the turn's debounce: a single turn picks
+ * (pending → processing), plus any 'processing' one a killed turn left behind:
+ * callers hold the session lock, so no other turn owns them. This IS the turn's debounce: a single turn picks
  * up every message queued since the last claim. Returned oldest first.
  */
 export async function claimPendingInbound(
@@ -212,7 +213,7 @@ export async function claimPendingInbound(
     .where(and(
       eq(whatsappMessages.orgId, orgId),
       eq(whatsappMessages.conversationId, conversationId),
-      eq(whatsappMessages.agentStatus, 'pending'),
+      inArray(whatsappMessages.agentStatus, ['pending', 'processing']),
     ))
     .returning({
       id: whatsappMessages.id,
