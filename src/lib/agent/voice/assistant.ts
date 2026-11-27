@@ -68,6 +68,7 @@ export async function buildVapiAssistant(ctx: VoiceCallContext, o: BuildVapiAssi
     externalId: session?.externalId ?? '',
     dryRun: false,
     leadIdRef: { current: ctx.leadId },
+    searchedListingsRef: { current: false },
     shadowMode: false,
     whatsappConversationId: null,
     voiceCallId: ctx.callId,

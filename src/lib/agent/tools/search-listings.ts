@@ -29,6 +29,7 @@ export function makeSearchListingsTool(ctx: AgentToolContext) {
       // Phase 9: only ids the session has actually seen may later be shown as
       // a card or sent as photos — record them here, before the reply goes out.
       await rememberSessionListings(ctx.orgId, ctx.sessionId, results.map((r) => r.id), 'search');
+      ctx.searchedListingsRef.current = true;
       const json = JSON.stringify(results);
       return results === matches ? json : `Estas propiedades disponibles no coinciden con los filtros; ofrecelas y preguntale qué busca: ${json}`;
     },
