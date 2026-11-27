@@ -15,6 +15,8 @@ export interface AgentToolContext {
   dryRun: boolean;
   /** Mutable so update_lead_profile / register_owner_lead can report a newly-created lead back to runAgentTurn. */
   leadIdRef: { current: string | null };
+  /** Set by search_listings when this turn showed listings; an out_of_scope handoff requires it. */
+  searchedListingsRef: { current: boolean };
   /** The session's stored attribution (decision 11), if any — lead-creating tools derive source_ref/source_meta from it. */
   attribution: AgentAttribution | null;
   /** Phase 7: the web session id when channel === 'web'; null on every other channel. Web-only tools (continue_on_whatsapp, book_visit's web branch) require this to write agent_web_handoff_codes. */

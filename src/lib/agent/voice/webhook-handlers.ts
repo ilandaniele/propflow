@@ -188,6 +188,7 @@ export async function handleToolCalls(
     externalId: session.externalId,
     dryRun: false,
     leadIdRef,
+    searchedListingsRef: { current: false },
     shadowMode: false,
     whatsappConversationId: null,
     voiceCallId: callRow.id,

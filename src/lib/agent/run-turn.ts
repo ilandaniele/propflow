@@ -221,6 +221,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     externalId: args.externalId,
     dryRun,
     leadIdRef,
+    searchedListingsRef: { current: false },
     attribution: session.attribution,
     webSessionId: args.webSessionId ?? null,
     // Phase 8/9: shadowMode is evaluated once per turn (never mid-turn, so a

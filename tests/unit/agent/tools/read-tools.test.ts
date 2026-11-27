@@ -23,6 +23,7 @@ function makeCtx(): AgentToolContext {
     externalId: '+51987654321',
     dryRun: false,
     leadIdRef: { current: null },
+    searchedListingsRef: { current: false },
     attribution: null,
     webSessionId: null,
     shadowMode: false,
@@ -73,6 +74,15 @@ describe('search_listings tool', () => {
     const tool = makeSearchListingsTool(makeCtx());
     await tool.run({});
     expect(rememberSessionListings).toHaveBeenCalledWith('org-1', 'session-1', ['l1', 'l2'], 'search');
+  });
+
+  it('marks the turn as having shown listings only when it returns some', async () => {
+    const ctx = makeCtx();
+    await makeSearchListingsTool(ctx).run({});
+    expect(ctx.searchedListingsRef.current).toBe(false);
+    searchListings.mockResolvedValueOnce([{ id: 'l1' }]);
+    await makeSearchListingsTool(ctx).run({});
+    expect(ctx.searchedListingsRef.current).toBe(true);
   });
 });
 
