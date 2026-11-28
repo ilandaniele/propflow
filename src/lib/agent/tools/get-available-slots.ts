@@ -16,8 +16,9 @@ const InputSchema = z.object({
   partOfDay: z.enum(['morning', 'afternoon', 'evening', 'any']).optional().describe('Preferencia de franja del día, si el usuario la mencionó'),
 });
 
-/** args.fromDate ('YYYY-MM-DD') is local midnight in `timeZone`, not UTC midnight. */
-function parseLocalDate(dateStr: string, timeZone: string): Date {
+/** args.fromDate ('YYYY-MM-DD') is local midnight in `timeZone`, not UTC midnight; anything else means from today. */
+function parseLocalDate(dateStr: string, timeZone: string): Date | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return undefined;
   const [y, m, d] = dateStr.split('-').map(Number);
   return zonedWallTimeToUtc(y, m, d, 0, timeZone);
 }
