@@ -45,5 +45,16 @@ export function buildAgentTools(ctx: AgentToolContext) {
     makeOptOutOfCallsTool(ctx),
     makeContinueOnWhatsappTool(ctx),
   ];
-  return tools.filter((t) => isToolEnabledForChannel(t.name, ctx.channel));
+  const enabled = tools.filter((t) => isToolEnabledForChannel(t.name, ctx.channel));
+  return ctx.shadowMode ? enabled.map(blockVisitWriteInShadow) : enabled;
+}
+
+const SHADOW_BLOCKED_TOOLS = new Set(['book_visit', 'reschedule_visit', 'cancel_visit', 'confirm_my_visit']);
+const SHADOW_BLOCKED_RESULT =
+  'No ejecutado (modo sombra): un asesor lo revisa antes. Decile al usuario que un asesor le confirma en breve.';
+
+/** Shadow mode drafts a reply for review; it must not book, move, cancel or confirm a real visit. */
+function blockVisitWriteInShadow<T extends { name: string; run: unknown }>(tool: T): T {
+  if (!SHADOW_BLOCKED_TOOLS.has(tool.name)) return tool;
+  return { ...tool, run: async () => SHADOW_BLOCKED_RESULT };
 }
