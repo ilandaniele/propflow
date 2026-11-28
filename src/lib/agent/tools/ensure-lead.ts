@@ -2,6 +2,9 @@ import { attributionToSource, createProspectLead } from '../lead';
 import { setSessionLead } from '../session';
 import type { AgentToolContext } from './context';
 
+/** Llama sometimes fills fullName with a template like "nombre del usuario" instead of omitting it. */
+const PLACEHOLDER_NAME_RE = /\b(nombre|usuario|cliente|prospecto)\b/i;
+
 function defaultFullName(channel: string): string {
   return channel === 'whatsapp' ? 'Prospecto WhatsApp' : channel === 'voice' ? 'Prospecto llamada' : 'Prospecto web';
 }
@@ -20,7 +23,7 @@ export async function ensureLead(ctx: AgentToolContext, fullName?: string): Prom
   const { sourceRef, sourceMeta } = attributionToSource(ctx.attribution);
   const lead = await createProspectLead({
     orgId: ctx.orgId,
-    fullName: fullName ?? defaultFullName(ctx.channel),
+    fullName: fullName && !PLACEHOLDER_NAME_RE.test(fullName) ? fullName : defaultFullName(ctx.channel),
     phone,
     sourceChannel: ctx.channel,
     sourceRef,

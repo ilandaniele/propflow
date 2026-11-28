@@ -16,8 +16,9 @@ vi.mock('@/lib/agent/lead', () => ({
   attributionToSource: vi.fn(() => ({ sourceRef: null, sourceMeta: {} })),
 }));
 vi.mock('@/lib/agent/visits/availability', () => ({ getAvailableSlotsForOrg: vi.fn(), isSlotStillAvailable: vi.fn() }));
+const { bookVisit } = vi.hoisted(() => ({ bookVisit: vi.fn() }));
 vi.mock('@/lib/agent/visits/service', () => ({
-  bookVisit: vi.fn(), rescheduleVisit: vi.fn(), cancelVisit: vi.fn(), listLeadActiveVisits: vi.fn(), getVisit: vi.fn(), confirmVisit: vi.fn(),
+  bookVisit, rescheduleVisit: vi.fn(), cancelVisit: vi.fn(), listLeadActiveVisits: vi.fn(), getVisit: vi.fn(), confirmVisit: vi.fn(),
 }));
 vi.mock('@/lib/widget/handoff-codes', () => ({ createHandoffCode: vi.fn() }));
 vi.mock('@/lib/agent/voice/dnc', () => ({ addDoNotCall: vi.fn() }));
@@ -32,7 +33,7 @@ import { buildAgentTools } from '@/lib/agent/tools/index';
 import type { AgentToolContext } from '@/lib/agent/tools/context';
 import type { AgentChannel } from '@/lib/agent/session';
 
-function makeCtx(channel: AgentChannel): AgentToolContext {
+function makeCtx(channel: AgentChannel, shadowMode = false): AgentToolContext {
   return {
     orgId: 'org-1',
     sessionId: 'session-1',
@@ -42,7 +43,7 @@ function makeCtx(channel: AgentChannel): AgentToolContext {
     leadIdRef: { current: null },
     attribution: null,
     webSessionId: channel === 'web' ? 'web-session-1' : null,
-    shadowMode: false,
+    shadowMode,
     whatsappConversationId: channel === 'whatsapp' ? 'conv-1' : null,
     voiceCallId: channel === 'voice' ? 'call-1' : null,
   };
@@ -81,5 +82,25 @@ describe('buildAgentTools channel filter', () => {
       const names = buildAgentTools(makeCtx(channel)).map((t) => t.name);
       for (const name of names) expect(isToolEnabledForChannel(name, channel)).toBe(true);
     }
+  });
+});
+
+describe('buildAgentTools shadow mode', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('never runs visit-writing tools in shadow mode', async () => {
+    const tools = buildAgentTools(makeCtx('whatsapp', true));
+    for (const name of ['book_visit', 'reschedule_visit', 'cancel_visit', 'confirm_my_visit']) {
+      const tool = tools.find((t) => t.name === name)!;
+      const result = await tool.run({} as never);
+      expect(String(result)).toMatch(/modo sombra/i);
+    }
+    expect(bookVisit).not.toHaveBeenCalled();
+  });
+
+  it('keeps read tools untouched in shadow mode', () => {
+    const live = buildAgentTools(makeCtx('whatsapp')).find((t) => t.name === 'search_listings')!;
+    const shadow = buildAgentTools(makeCtx('whatsapp', true)).find((t) => t.name === 'search_listings')!;
+    expect(shadow.run.toString()).toBe(live.run.toString());
   });
 });

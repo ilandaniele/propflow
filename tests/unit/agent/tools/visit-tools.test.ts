@@ -254,6 +254,12 @@ describe('book_visit tool', () => {
     expect(createProspectLead).toHaveBeenCalledWith(expect.objectContaining({ orgId: ORG_ID, fullName: 'Juan' }));
     expect(bookVisit).toHaveBeenCalledWith(expect.objectContaining({ leadId: 'lead-new' }));
   });
+
+  it('ignores a placeholder name the model made up (e.g. "nombre del usuario")', async () => {
+    const tool = makeBookVisitTool(makeCtx({ leadIdRef: { current: null } }));
+    await tool.run({ slotId: validSlotId(), fullName: 'nombre del usuario' });
+    expect(createProspectLead).toHaveBeenCalledWith(expect.objectContaining({ fullName: 'Prospecto WhatsApp' }));
+  });
 });
 
 describe('book_visit tool — voice branch (item B)', () => {
