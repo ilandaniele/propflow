@@ -71,6 +71,14 @@ describe('buildAgentSystemPrompt', () => {
     expect(buildAgentSystemPrompt(CONFIG)).toMatch(/search_listings.*antes de derivar/i);
   });
 
+  it('tells the model to offer slots and wait for the user to pick one before book_visit', () => {
+    expect(buildAgentSystemPrompt(CONFIG)).toMatch(/no llames book_visit en el mismo turno/i);
+  });
+
+  it('caps listing cards per turn', () => {
+    expect(buildAgentSystemPrompt(CONFIG)).toMatch(/como máximo 2 fichas/i);
+  });
+
   it('never contains volatile per-turn data (no leaks from a stale cached block)', () => {
     const prompt = buildAgentSystemPrompt(CONFIG);
     expect(prompt).not.toContain('lead-1');
