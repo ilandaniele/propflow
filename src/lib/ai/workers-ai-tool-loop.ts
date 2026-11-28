@@ -60,7 +60,7 @@ function parseArguments(raw: unknown): unknown {
   }
 }
 
-async function callModel(args: ToolLoopArgs, messages: MessageParam[]): Promise<ChatResponse> {
+async function callModel(args: ToolLoopArgs, messages: MessageParam[], withTools = true): Promise<ChatResponse> {
   const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${process.env.WORKERS_AI_ACCOUNT_ID}/ai/v1/chat/completions`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.WORKERS_AI_API_TOKEN}`, 'Content-Type': 'application/json' },
@@ -68,10 +68,12 @@ async function callModel(args: ToolLoopArgs, messages: MessageParam[]): Promise<
       model: process.env.AGENT_WORKERS_AI_MODEL,
       max_tokens: args.maxTokens,
       messages: [{ role: 'system', content: args.system }, ...messages.flatMap(toChatMessages)],
-      tools: args.tools.map((t) => ({
-        type: 'function',
-        function: { name: t.name, description: t.description, parameters: t.input_schema },
-      })),
+      ...(withTools && {
+        tools: args.tools.map((t) => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.input_schema },
+        })),
+      }),
     }),
     signal: AbortSignal.timeout(30_000),
   });
@@ -99,13 +101,14 @@ export async function runWorkersAiToolLoop(args: ToolLoopArgs): Promise<ToolLoop
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
 
-  for (let i = 0; i < args.maxIterations; i++) {
-    const { choices, usage } = await callModel(args, messages);
+  for (let i = 0; i <= args.maxIterations; i++) {
+    const withTools = i < args.maxIterations;
+    const { choices, usage } = await callModel(args, messages, withTools);
     totalInputTokens += usage?.prompt_tokens ?? 0;
     totalOutputTokens += usage?.completion_tokens ?? 0;
 
     const reply = choices?.[0]?.message ?? {};
-    const toolUses: ToolUseBlockParam[] = (reply.tool_calls ?? []).map((c, idx) => ({
+    const toolUses: ToolUseBlockParam[] = (withTools ? (reply.tool_calls ?? []) : []).map((c, idx) => ({
       type: 'tool_use',
       id: c.id || `call_${i}_${idx}`,
       name: c.function?.name ?? '',

@@ -111,12 +111,14 @@ describe('runWorkersAiToolLoop', () => {
     });
   });
 
-  it('stops after maxIterations model calls', async () => {
-    fetchMock.mockImplementation(async () =>
-      chatResponse({ tool_calls: [{ id: 'c', function: { name: 'search', arguments: '{}' } }] }),
-    );
+  it('after maxIterations tool calls, asks once more without tools for the reply text', async () => {
+    fetchMock
+      .mockImplementationOnce(async () => chatResponse({ tool_calls: [{ id: 'c1', function: { name: 'search', arguments: '{}' } }] }))
+      .mockImplementationOnce(async () => chatResponse({ tool_calls: [{ id: 'c2', function: { name: 'search', arguments: '{}' } }] }))
+      .mockImplementationOnce(async () => chatResponse({ tool_calls: [{ id: 'c3', function: { name: 'search', arguments: '{}' } }] }))
+      .mockImplementationOnce(async () => chatResponse({ content: 'Te paso dos opciones.' }));
 
-    await runWorkersAiToolLoop({
+    const result = await runWorkersAiToolLoop({
       system: 's',
       tools: [makeTool('search', () => 'r')],
       messages: [{ role: 'user', content: 'x' }],
@@ -124,7 +126,10 @@ describe('runWorkersAiToolLoop', () => {
       maxTokens: 512,
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(JSON.parse(fetchMock.mock.calls[3][1].body).tools).toBeUndefined();
+    expect(result.finalContent).toEqual([{ type: 'text', text: 'Te paso dos opciones.' }]);
+    expect(result.messages.at(-1)).toEqual({ role: 'assistant', content: [{ type: 'text', text: 'Te paso dos opciones.' }] });
   });
 
   it('stops right after running a stopAfterTool call', async () => {
