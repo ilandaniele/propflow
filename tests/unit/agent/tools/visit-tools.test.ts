@@ -129,6 +129,12 @@ describe('get_available_slots tool', () => {
     );
   });
 
+  it('searches from today when fromDate is not a real date (e.g. "esta semana")', async () => {
+    const tool = makeGetAvailableSlotsTool(makeCtx());
+    await tool.run({ listingId: LISTING_ID, fromDate: 'esta semana' });
+    expect(getAvailableSlotsForOrg).toHaveBeenCalledWith(expect.objectContaining({ from: undefined }));
+  });
+
   it('returns opaque slot ids the model can pass straight to book_visit', async () => {
     getAvailableSlotsForOrg.mockResolvedValueOnce({
       timezone: 'America/Lima',
